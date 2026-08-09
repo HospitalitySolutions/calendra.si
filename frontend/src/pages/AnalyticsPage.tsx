@@ -13,10 +13,10 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { api } from '../api'
 import { settingsQueryOptions, usersQueryOptions } from '../queries/sharedQueryOptions'
 import { calendarSpacesQueryOptions, calendarTypesQueryOptions, serviceGroupsQueryOptions } from '../queries/calendarQueryOptions'
 import { queryKeys } from '../queries/queryKeys'
+import { analyticsOverviewQueryOptions } from '../queries/remainingQueryOptions'
 import { useAuthenticatedUser } from '../authUserContext'
 import { Card, EmptyState } from '../components/ui'
 import { fullName } from '../lib/format'
@@ -688,31 +688,30 @@ export function AnalyticsPage() {
 
 
 
+  const analyticsParams = useMemo(() => {
+    const params: Record<string, string | number> = { period: periodPreset }
+    if (periodPreset === 'custom') {
+      params.from = customFrom
+      params.to = customTo
+    }
+    if (periodPreset === 'quarter') {
+      const today = new Date()
+      const quarterStart = new Date(today)
+      quarterStart.setMonth(quarterStart.getMonth() - 3)
+      params.period = 'custom'
+      params.from = toIsoDate(quarterStart)
+      params.to = toIsoDate(today)
+    }
+    if (consultantId) params.consultantId = Number(consultantId)
+    if (spaceId) params.spaceId = Number(spaceId)
+    if (serviceGroupsReportsEnabled && serviceGroupId) params.serviceGroupId = Number(serviceGroupId)
+    if (typeId) params.typeId = Number(typeId)
+    return params
+  }, [consultantId, customFrom, customTo, periodPreset, serviceGroupId, serviceGroupsReportsEnabled, spaceId, typeId])
+
   const { data, isLoading, isError } = useQuery<AnalyticsOverview>({
-    queryKey: queryKeys.analytics.overview(activeUnitId, JSON.stringify([periodPreset, customFrom, customTo, consultantId, spaceId, serviceGroupId, typeId])),
+    ...analyticsOverviewQueryOptions<AnalyticsOverview>(activeUnitId, analyticsParams),
     enabled: canFetch,
-    staleTime: 20_000,
-    queryFn: async () => {
-      const params: Record<string, string | number> = { period: periodPreset }
-      if (periodPreset === 'custom') {
-        params.from = customFrom
-        params.to = customTo
-      }
-      if (periodPreset === 'quarter') {
-        const today = new Date()
-        const quarterStart = new Date(today)
-        quarterStart.setMonth(quarterStart.getMonth() - 3)
-        params.period = 'custom'
-        params.from = toIsoDate(quarterStart)
-        params.to = toIsoDate(today)
-      }
-      if (consultantId) params.consultantId = Number(consultantId)
-      if (spaceId) params.spaceId = Number(spaceId)
-      if (serviceGroupsReportsEnabled && serviceGroupId) params.serviceGroupId = Number(serviceGroupId)
-      if (typeId) params.typeId = Number(typeId)
-      const res = await api.get<AnalyticsOverview>('/analytics/overview', { headers: activeUnitId == null ? undefined : { 'X-Calendra-Unit-Id': String(activeUnitId) }, params })
-      return res.data
-    },
   })
 
   const comparisonSeries = useMemo(() => (periodPreset === 'month' ? data?.months ?? [] : data?.years ?? []), [periodPreset, data?.months, data?.years])

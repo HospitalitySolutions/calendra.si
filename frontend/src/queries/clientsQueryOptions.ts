@@ -65,6 +65,21 @@ async function getPage<T>(url: string, unitId: ScopeId, params: Record<string, u
   }
 }
 
+
+export function clientListQueryOptions<T = unknown>(unitId: ScopeId, locationId: ScopeId) {
+  return {
+    queryKey: queryKeys.clients.list(unitId, locationId),
+    queryFn: async (): Promise<T[]> => {
+      const response = await api.get<T[]>('/clients', {
+        headers: unitHeaders(unitId),
+        params: { locationId: locationId ?? undefined },
+      })
+      return Array.isArray(response.data) ? response.data : []
+    },
+    staleTime: DIRECTORY_LIST_STALE_TIME_MS,
+  }
+}
+
 export function clientDirectoryPageQueryOptions<T = unknown>(unitId: ScopeId, params: ClientDirectoryPageParams) {
   const normalized = {
     ...normalizePageParams(params),

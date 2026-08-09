@@ -31,6 +31,7 @@ import { clearActiveUnitId, getActiveUnitId } from './lib/unitContext'
 import { isWorkspaceRolloutEnabled } from './lib/workspaceRollout'
 import { moduleCapabilitiesQueryOptions, settingsQueryOptions } from './queries/sharedQueryOptions'
 import { markNavigationRendered, markNavigationStart } from './lib/performanceMonitor'
+import { sameNavigationFamily } from './queries/navigationRouteFamily'
 
 const OAUTH_HANDLED_KEY = 'oauth_toast_handled'
 const CHUNK_RELOAD_KEY = 'chunk_reload_attempted'
@@ -73,16 +74,40 @@ function lazyWithReload<T extends ComponentType<any>>(
   })
 }
 
+const importCalendarPage = () => import('./pages/CalendarPage')
+const importAnalyticsPage = () => import('./pages/AnalyticsPage')
+const importWorkspaceAnalyticsPage = () => import('./pages/WorkspaceAnalyticsPage')
+const importInboxPage = () => import('./pages/InboxPage')
 const importBillingPage = () => import('./pages/BillingPage')
 const importClientsPage = () => import('./pages/ClientsPage')
 const importAppointmentsPage = () => import('./pages/AppointmentsPage')
+const importConfigurationPage = () => import('./pages/ConfigurationPage')
+const importConsultantsPage = () => import('./pages/ConsultantsPage')
 const importSessionTypesPage = () => import('./pages/SessionTypesPage')
+const importWalletScannerPage = () => import('./pages/WalletScannerPage')
+const importConsumablesPage = () => import('./pages/ConsumablesPage')
+const importNotificationsPage = () => import('./pages/NotificationsPage')
+const importSecurityPage = () => import('./pages/SecurityPage')
+const importPlatformAdminPage = () => import('./pages/PlatformAdminPage')
+const importHelpPage = () => import('./pages/HelpPage')
 
 const routeModulePrefetchers: Array<{ matches: (pathname: string) => boolean; load: () => Promise<unknown> }> = [
+  { matches: (pathname) => pathname === '/calendar' || pathname.startsWith('/calendar/'), load: importCalendarPage },
   { matches: (pathname) => pathname === '/clients' || pathname.startsWith('/clients/'), load: importClientsPage },
   { matches: (pathname) => pathname === '/appointments' || pathname.startsWith('/appointments/'), load: importAppointmentsPage },
   { matches: (pathname) => pathname === '/session-types' || pathname.startsWith('/session-types/'), load: importSessionTypesPage },
+  { matches: (pathname) => pathname === '/consultants' || pathname.startsWith('/consultants/'), load: importConsultantsPage },
   { matches: (pathname) => pathname === '/billing' || pathname.startsWith('/billing/') || pathname.startsWith('/open-bills/'), load: importBillingPage },
+  { matches: (pathname) => pathname === '/analytics', load: importAnalyticsPage },
+  { matches: (pathname) => pathname === '/analytics/workspace', load: importWorkspaceAnalyticsPage },
+  { matches: (pathname) => pathname === '/inbox' || pathname.startsWith('/inbox/'), load: importInboxPage },
+  { matches: (pathname) => pathname === '/configuration' || pathname.startsWith('/configuration/'), load: importConfigurationPage },
+  { matches: (pathname) => pathname === '/consumables' || pathname.startsWith('/consumables/'), load: importConsumablesPage },
+  { matches: (pathname) => pathname === '/scanner' || pathname.startsWith('/scanner/'), load: importWalletScannerPage },
+  { matches: (pathname) => pathname === '/notifications' || pathname.startsWith('/notifications/'), load: importNotificationsPage },
+  { matches: (pathname) => pathname === '/security' || pathname.startsWith('/security/'), load: importSecurityPage },
+  { matches: (pathname) => pathname === '/platform-admin' || pathname.startsWith('/platform-admin/'), load: importPlatformAdminPage },
+  { matches: (pathname) => pathname === '/help' || pathname.startsWith('/help/'), load: importHelpPage },
 ]
 const prefetchedRouteModules = new Set<() => Promise<unknown>>()
 
@@ -96,22 +121,22 @@ function prefetchRouteModule(pathname: string) {
   })
 }
 
-const CalendarPage = lazyWithReload(() => import('./pages/CalendarPage'), CHUNK_RELOAD_KEY)
-const AnalyticsPage = lazyWithReload(() => import('./pages/AnalyticsPage').then((mod) => ({ default: mod.AnalyticsPage })), CHUNK_RELOAD_KEY)
-const WorkspaceAnalyticsPage = lazyWithReload(() => import('./pages/WorkspaceAnalyticsPage').then((mod) => ({ default: mod.WorkspaceAnalyticsPage })), CHUNK_RELOAD_KEY)
-const InboxPage = lazyWithReload(() => import('./pages/InboxPage').then((mod) => ({ default: mod.InboxPage })), CHUNK_RELOAD_KEY)
+const CalendarPage = lazyWithReload(() => importCalendarPage(), CHUNK_RELOAD_KEY)
+const AnalyticsPage = lazyWithReload(() => importAnalyticsPage().then((mod) => ({ default: mod.AnalyticsPage })), CHUNK_RELOAD_KEY)
+const WorkspaceAnalyticsPage = lazyWithReload(() => importWorkspaceAnalyticsPage().then((mod) => ({ default: mod.WorkspaceAnalyticsPage })), CHUNK_RELOAD_KEY)
+const InboxPage = lazyWithReload(() => importInboxPage().then((mod) => ({ default: mod.InboxPage })), CHUNK_RELOAD_KEY)
 const BillingPage = lazyWithReload(() => importBillingPage().then((mod) => ({ default: mod.BillingPage })), CHUNK_RELOAD_KEY)
 const ClientsPage = lazyWithReload(() => importClientsPage().then((mod) => ({ default: mod.ClientsPage })), CHUNK_RELOAD_KEY)
 const AppointmentsPage = lazyWithReload(() => importAppointmentsPage().then((mod) => ({ default: mod.AppointmentsPage })), CHUNK_RELOAD_KEY)
-const ConfigurationPage = lazyWithReload(() => import('./pages/ConfigurationPage').then((mod) => ({ default: mod.ConfigurationPage })), CHUNK_RELOAD_KEY)
-const ConsultantsPage = lazyWithReload(() => import('./pages/ConsultantsPage').then((mod) => ({ default: mod.ConsultantsPage })), CHUNK_RELOAD_KEY)
-const SecurityPage = lazyWithReload(() => import('./pages/SecurityPage').then((mod) => ({ default: mod.SecurityPage })), CHUNK_RELOAD_KEY)
-const PlatformAdminPage = lazyWithReload(() => import('./pages/PlatformAdminPage').then((mod) => ({ default: mod.PlatformAdminPage })), CHUNK_RELOAD_KEY)
-const HelpPage = lazyWithReload(() => import('./pages/HelpPage').then((mod) => ({ default: mod.HelpPage })), CHUNK_RELOAD_KEY)
+const ConfigurationPage = lazyWithReload(() => importConfigurationPage().then((mod) => ({ default: mod.ConfigurationPage })), CHUNK_RELOAD_KEY)
+const ConsultantsPage = lazyWithReload(() => importConsultantsPage().then((mod) => ({ default: mod.ConsultantsPage })), CHUNK_RELOAD_KEY)
+const SecurityPage = lazyWithReload(() => importSecurityPage().then((mod) => ({ default: mod.SecurityPage })), CHUNK_RELOAD_KEY)
+const PlatformAdminPage = lazyWithReload(() => importPlatformAdminPage().then((mod) => ({ default: mod.PlatformAdminPage })), CHUNK_RELOAD_KEY)
+const HelpPage = lazyWithReload(() => importHelpPage().then((mod) => ({ default: mod.HelpPage })), CHUNK_RELOAD_KEY)
 const SessionTypesPage = lazyWithReload(() => importSessionTypesPage().then((mod) => ({ default: mod.SessionTypesPage })), CHUNK_RELOAD_KEY)
-const WalletScannerPage = lazyWithReload(() => import('./pages/WalletScannerPage').then((mod) => ({ default: mod.WalletScannerPage })), CHUNK_RELOAD_KEY)
-const ConsumablesPage = lazyWithReload(() => import('./pages/ConsumablesPage').then((mod) => ({ default: mod.ConsumablesPage })), CHUNK_RELOAD_KEY)
-const NotificationsPage = lazyWithReload(() => import('./pages/NotificationsPage').then((mod) => ({ default: mod.NotificationsPage })), CHUNK_RELOAD_KEY)
+const WalletScannerPage = lazyWithReload(() => importWalletScannerPage().then((mod) => ({ default: mod.WalletScannerPage })), CHUNK_RELOAD_KEY)
+const ConsumablesPage = lazyWithReload(() => importConsumablesPage().then((mod) => ({ default: mod.ConsumablesPage })), CHUNK_RELOAD_KEY)
+const NotificationsPage = lazyWithReload(() => importNotificationsPage().then((mod) => ({ default: mod.NotificationsPage })), CHUNK_RELOAD_KEY)
 
 export default function App() {
   const [user, setUser] = useState(() => getStoredUser())
@@ -178,31 +203,99 @@ export default function App() {
   useEffect(() => {
     if (!user || typeof document === 'undefined') return
 
-    const prefetchFromEvent = (event: Event) => {
+    const HOVER_INTENT_MS = 90
+    let hoverTimer: number | null = null
+    let hoverAnchor: HTMLAnchorElement | null = null
+
+    const clearHoverIntent = () => {
+      if (hoverTimer != null) window.clearTimeout(hoverTimer)
+      hoverTimer = null
+      hoverAnchor = null
+    }
+
+    const resolveAnchor = (event: Event) => {
       const target = event.target
-      if (!(target instanceof Element)) return
+      if (!(target instanceof Element)) return null
       const anchor = target.closest<HTMLAnchorElement>('a[href]')
-      if (!anchor) return
+      if (!anchor || anchor.hasAttribute('download')) return null
+      if (anchor.target && anchor.target !== '_self') return null
       try {
         const url = new URL(anchor.href, window.location.href)
-        if (url.origin === window.location.origin) {
-          prefetchRouteModule(url.pathname)
-          if (event.type === 'pointerdown') markNavigationStart(url.pathname)
-        }
+        if (url.origin !== window.location.origin) return null
+        return { anchor, url }
       } catch {
-        // Ignore malformed or non-navigation links.
+        return null
       }
     }
 
-    document.addEventListener('pointerover', prefetchFromEvent, true)
-    document.addEventListener('pointerdown', prefetchFromEvent, true)
-    document.addEventListener('focusin', prefetchFromEvent, true)
-    return () => {
-      document.removeEventListener('pointerover', prefetchFromEvent, true)
-      document.removeEventListener('pointerdown', prefetchFromEvent, true)
-      document.removeEventListener('focusin', prefetchFromEvent, true)
+    const prefetchDestination = (pathname: string, priority: 'intent' | 'commit') => {
+      // Always warm the destination chunk. Some routes in the same data family
+      // (for example Analytics vs Workspace Analytics) are separate lazy modules.
+      prefetchRouteModule(pathname)
+      if (sameNavigationFamily(location.pathname, pathname)) return
+      // Keep the data-prefetch planner out of the already tight main bundle.
+      // Hover/focus intent gives the tiny planner chunk time to load before click,
+      // while pointer-down still deduplicates any in-flight destination queries.
+      void import('./queries/navigationPrefetch')
+        .then(({ prefetchNavigationData }) => prefetchNavigationData(pathname, {
+          unitId: activeQueryUnitId,
+          user: {
+            id: user.id,
+            role: user.role,
+            companyId: user.companyId,
+            tenantCode: user.tenantCode,
+          },
+          priority,
+        }))
+        .catch(() => undefined)
     }
-  }, [user])
+
+    const onPointerOver = (event: PointerEvent) => {
+      const resolved = resolveAnchor(event)
+      if (!resolved || resolved.anchor === hoverAnchor) return
+      clearHoverIntent()
+      hoverAnchor = resolved.anchor
+      hoverTimer = window.setTimeout(() => {
+        hoverTimer = null
+        prefetchDestination(resolved.url.pathname, 'intent')
+      }, HOVER_INTENT_MS)
+    }
+
+    const onPointerOut = (event: PointerEvent) => {
+      if (!hoverAnchor) return
+      const related = event.relatedTarget
+      if (related instanceof Node && hoverAnchor.contains(related)) return
+      const target = event.target
+      if (target instanceof Node && hoverAnchor.contains(target)) clearHoverIntent()
+    }
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+      const resolved = resolveAnchor(event)
+      if (!resolved) return
+      clearHoverIntent()
+      prefetchDestination(resolved.url.pathname, 'commit')
+      if (location.pathname !== resolved.url.pathname) markNavigationStart(resolved.url.pathname)
+    }
+
+    const onFocusIn = (event: FocusEvent) => {
+      const resolved = resolveAnchor(event)
+      if (!resolved) return
+      prefetchDestination(resolved.url.pathname, 'intent')
+    }
+
+    document.addEventListener('pointerover', onPointerOver, true)
+    document.addEventListener('pointerout', onPointerOut, true)
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('focusin', onFocusIn, true)
+    return () => {
+      clearHoverIntent()
+      document.removeEventListener('pointerover', onPointerOver, true)
+      document.removeEventListener('pointerout', onPointerOut, true)
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('focusin', onFocusIn, true)
+    }
+  }, [activeQueryUnitId, location.pathname, user])
 
   useEffect(() => {
     void ensureCsrfToken().catch(() => undefined)

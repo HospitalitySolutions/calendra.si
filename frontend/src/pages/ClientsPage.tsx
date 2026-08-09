@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { isNativeAndroid } from '../lib/platform'
 import { api, getApiErrorMessage } from '../api'
@@ -13,6 +14,9 @@ import { WorkspaceClientsPanel } from '../components/WorkspaceClientsPanel'
 import { currency, formatDate, formatDateTime, fullName } from '../lib/format'
 import { isWorkspaceRolloutEnabled } from '../lib/workspaceRollout'
 import { useSelectedLocationId } from '../lib/locationContext'
+import { clientListQueryOptions } from '../queries/clientsQueryOptions'
+import { customFieldsQueryOptions, locationsQueryOptions, settingsQueryOptions, usersQueryOptions } from '../queries/sharedQueryOptions'
+import { inboxCapabilitiesQueryOptions } from '../queries/remainingQueryOptions'
 
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
 type ConsultantSummary = UserSummary & { consultant?: boolean }
@@ -1414,7 +1418,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         }
 
   const me = useAuthenticatedUser()
-  const [selectedLocationId] = useSelectedLocationId(me.activeUnitId ?? me.companyId)
+  const activeUnitId = me.activeUnitId ?? me.companyId
+  const [selectedLocationId] = useSelectedLocationId(activeUnitId)
+  const queryClient = useQueryClient()
   const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
   const sharedWorkspaceUnitCount = (me.units ?? []).filter((unit) => unit.workspaceId === me.workspaceId).length
   const [workspaceClientsOpen, setWorkspaceClientsOpen] = useState(false)
@@ -1624,12 +1630,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const groupListCustomFieldDefs = useMemo(() => listCustomFields(customFieldDefinitions, 'GROUP'), [customFieldDefinitions])
 
 
-  async function loadClients() {
+  async function loadClients(force = true) {
     setLoading(true)
     setErrorMessage('')
     try {
-      const response = await api.get(`/clients`, { params: { locationId: selectedLocationId ?? undefined } })
-      const rows = response.data ?? []
+      const options = clientListQueryOptions<Client>(activeUnitId, selectedLocationId)
+      if (force) await queryClient.invalidateQueries({ queryKey: options.queryKey, exact: true, refetchType: 'none' })
+      const rows = await queryClient.fetchQuery(options)
       setClients(rows)
       setDetailClient((current) => {
         if (!current) return current
@@ -1671,15 +1678,16 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
   async function loadSettings() {
     try {
-      const response = await api.get<Record<string, string>>('/settings')
-      setSettings(response.data ?? {})
+      setSettings(await queryClient.fetchQuery(settingsQueryOptions(activeUnitId)))
     } catch { /* ignore */ }
   }
 
-  async function loadBusinessLocations() {
+  async function loadBusinessLocations(force = false) {
     try {
-      const response = await api.get<BusinessLocation[]>('/locations')
-      setBusinessLocations((response.data ?? []).filter((item) => item.active !== false))
+      const options = locationsQueryOptions(activeUnitId)
+      if (force) await queryClient.invalidateQueries({ queryKey: options.queryKey, exact: true, refetchType: 'none' })
+      const rows = await queryClient.fetchQuery(options)
+      setBusinessLocations(rows.filter((item) => item.active !== false))
     } catch {
       setBusinessLocations([])
     }
@@ -1687,8 +1695,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
   async function loadCustomFieldDefinitions() {
     try {
-      const response = await api.get<CustomFieldDefinition[]>('/custom-fields')
-      setCustomFieldDefinitions(response.data ?? [])
+      setCustomFieldDefinitions(await queryClient.fetchQuery(customFieldsQueryOptions(activeUnitId)))
     } catch {
       setCustomFieldDefinitions([])
     }
@@ -1696,28 +1703,28 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
   async function loadInboxGlobalCapabilities() {
     try {
-      const response = await api.get<InboxGlobalCapabilities>('/inbox/global-capabilities')
-      setGlobalWhatsAppEnabled(response.data?.whatsappEnabled === true)
+      const capabilities = await queryClient.fetchQuery(inboxCapabilitiesQueryOptions<InboxGlobalCapabilities>())
+      setGlobalWhatsAppEnabled(capabilities?.whatsappEnabled === true)
     } catch {
       setGlobalWhatsAppEnabled(false)
     }
   }
 
   useEffect(() => {
-    loadSettings()
-    loadBusinessLocations()
-    loadCustomFieldDefinitions()
-    loadInboxGlobalCapabilities()
-  }, [])
+    void loadSettings()
+    void loadBusinessLocations()
+    void loadCustomFieldDefinitions()
+    void loadInboxGlobalCapabilities()
+  }, [activeUnitId, queryClient])
 
   useEffect(() => {
-    const refreshLocations = () => void loadBusinessLocations()
+    const refreshLocations = () => void loadBusinessLocations(true)
     window.addEventListener('locations-updated', refreshLocations)
     return () => window.removeEventListener('locations-updated', refreshLocations)
-  }, [])
+  }, [activeUnitId, queryClient])
 
   useEffect(() => {
-    if (entityTab === 'clients') void loadClients()
+    if (entityTab === 'clients') void loadClients(false)
   }, [entityTab, selectedLocationId])
 
   useEffect(() => {
@@ -1997,10 +2004,11 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
   useEffect(() => {
     if (!isAdmin) return
-    api.get('/users')
-      .then((res) => setConsultants((res.data ?? []).filter((u: ConsultantSummary) => u.consultant)))
+    void queryClient
+      .fetchQuery(usersQueryOptions<ConsultantSummary>(activeUnitId))
+      .then((rows) => setConsultants(rows.filter((u) => u.consultant)))
       .catch(() => setConsultants([]))
-  }, [isAdmin])
+  }, [activeUnitId, isAdmin, queryClient])
 
   const futureGroupSessions = useMemo(() => {
     const now = new Date()

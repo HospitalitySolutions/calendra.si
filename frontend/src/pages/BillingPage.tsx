@@ -8496,26 +8496,87 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setHistorySortDir('asc')
   }
 
+  const prefetchBillingTabData = (tab: BillingTab) => {
+    if (tab === billingTab) return
+    const tasks: Promise<unknown>[] = []
+
+    if (tab === 'open') {
+      tasks.push(
+        queryClient.prefetchQuery(openBillsQueryOptions<OpenBill>(activeUnitId)),
+        queryClient.prefetchQuery(billingServicesQueryOptions<BillingService>(activeUnitId)),
+        queryClient.prefetchQuery(paymentMethodsQueryOptions<PaymentMethod>(activeUnitId)),
+      )
+    } else if (tab === 'openPayments') {
+      tasks.push(queryClient.prefetchQuery(billsPageQueryOptions<Bill>(activeUnitId, {
+        view: 'openPayments',
+        locationId: selectedLocationId,
+        search: debouncedOpenPaymentsSearch,
+        sortField: openPaymentsSort.key,
+        sortDir: openPaymentsSort.key ? openPaymentsSort.direction : 'desc',
+        page: Math.max(0, openPaymentsPage - 1),
+        size: BILLING_LIST_PAGE_SIZE,
+      })))
+    } else if (tab === 'history') {
+      tasks.push(queryClient.prefetchQuery(billsPageQueryOptions<Bill>(activeUnitId, {
+        view: 'history',
+        locationId: selectedLocationId,
+        search: debouncedHistorySearch,
+        dateFrom: historyDateFrom,
+        dateTo: historyDateTo,
+        paymentStatus: historyStatusFilter,
+        fiscalStatus: fiscalCashRegisterEnabled ? historyFiscalStatusFilter : 'all',
+        billType: historyBillTypeFilter,
+        sortField: historySortField,
+        sortDir: historySortDir,
+        page: Math.max(0, historyPage - 1),
+        size: BILLING_LIST_PAGE_SIZE,
+      })))
+    } else if (tab === 'unusedAdvances' && advanceBillingEnabled) {
+      tasks.push(queryClient.prefetchQuery(unusedAdvancesPageQueryOptions<UnusedAdvance>(activeUnitId, {
+        locationId: selectedLocationId,
+        search: debouncedUnusedAdvancesSearch,
+        sortField: unusedAdvancesSort.key,
+        sortDir: unusedAdvancesSort.key ? unusedAdvancesSort.direction : 'desc',
+        page: Math.max(0, unusedAdvancesPage - 1),
+        size: BILLING_LIST_PAGE_SIZE,
+      })))
+    } else if (tab === 'giftCards' && giftCardsEnabled) {
+      tasks.push(queryClient.prefetchQuery(giftCardsPageQueryOptions<BillingGiftCard>(activeUnitId, {
+        locationId: selectedLocationId,
+        search: debouncedGiftCardSearch,
+        dateFrom: giftCardDateFrom,
+        dateTo: giftCardDateTo,
+        status: giftCardStatusFilter,
+        sortField: giftCardsSort.key,
+        sortDir: giftCardsSort.direction,
+        page: Math.max(0, giftCardsPage - 1),
+        size: BILLING_LIST_PAGE_SIZE,
+      })))
+    }
+
+    if (tasks.length > 0) void Promise.allSettled(tasks)
+  }
+
   return (
     <div className={overlayOnlyMode ? "stack gap-lg billing-open-bill-editor-only" : "stack gap-lg"}>
       <div className="stack gap-lg billing-page-main-stack" data-onboarding-panel="billing">
           <Card className={`${isOpenBillsMobile ? 'billing-mobile-shell ' : ''}${billingTab === 'open' && isOpenBillsMobile ? 'billing-open-mobile-shell ' : ''}billing-modern-card billing-modern-card--${billingTab}`}>
             <div className="billing-modern-header">
               <div ref={billingTabsRef} className="clients-session-tabs billing-modern-tabs" style={{ marginBottom: 0 }}>
-                <button type="button" className={billingTab === 'open' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('open')}>
+                <button type="button" className={billingTab === 'open' ? 'clients-session-tab active' : 'clients-session-tab'} onPointerEnter={() => prefetchBillingTabData('open')} onFocus={() => prefetchBillingTabData('open')} onClick={() => setBillingTab('open')}>
                   {billingTabIcon('open')}
                   <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabOpenBills')}</span>
                   <span className="billing-tab-label billing-tab-label--mobile">{t('billingTabOpenBills')}</span>
                   <strong className="billing-tab-count">{billingTabCounts.open}</strong>
                 </button>
-                <button type="button" className={billingTab === 'openPayments' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('openPayments')}>
+                <button type="button" className={billingTab === 'openPayments' ? 'clients-session-tab active' : 'clients-session-tab'} onPointerEnter={() => prefetchBillingTabData('openPayments')} onFocus={() => prefetchBillingTabData('openPayments')} onClick={() => setBillingTab('openPayments')}>
                   {billingTabIcon('openPayments')}
                   <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabOpenPayments')}</span>
                   <span className="billing-tab-label billing-tab-label--mobile">{locale === 'sl' ? 'Odprta plačila' : 'Payments'}</span>
                   <strong className="billing-tab-count">{billingTabCounts.openPayments}</strong>
                 </button>
                 {advanceBillingEnabled && (
-                  <button type="button" className={billingTab === 'unusedAdvances' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('unusedAdvances')}>
+                  <button type="button" className={billingTab === 'unusedAdvances' ? 'clients-session-tab active' : 'clients-session-tab'} onPointerEnter={() => prefetchBillingTabData('unusedAdvances')} onFocus={() => prefetchBillingTabData('unusedAdvances')} onClick={() => setBillingTab('unusedAdvances')}>
                     {billingTabIcon('unusedAdvances')}
                     <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabUnusedAdvances')}</span>
                     <span className="billing-tab-label billing-tab-label--mobile">{locale === 'sl' ? 'Predplačila' : 'Advances'}</span>
@@ -8523,14 +8584,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </button>
                 )}
                 {giftCardsEnabled && (
-                  <button type="button" className={billingTab === 'giftCards' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('giftCards')}>
+                  <button type="button" className={billingTab === 'giftCards' ? 'clients-session-tab active' : 'clients-session-tab'} onPointerEnter={() => prefetchBillingTabData('giftCards')} onFocus={() => prefetchBillingTabData('giftCards')} onClick={() => setBillingTab('giftCards')}>
                     {billingTabIcon('giftCards')}
                     <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabGiftCards')}</span>
                     <span className="billing-tab-label billing-tab-label--mobile">{locale === 'sl' ? 'Boni' : 'Vouchers'}</span>
                     <strong className="billing-tab-count">{billingTabCounts.giftCards}</strong>
                   </button>
                 )}
-                <button type="button" className={billingTab === 'history' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setBillingTab('history')}>
+                <button type="button" className={billingTab === 'history' ? 'clients-session-tab active' : 'clients-session-tab'} onPointerEnter={() => prefetchBillingTabData('history')} onFocus={() => prefetchBillingTabData('history')} onClick={() => setBillingTab('history')}>
                   {billingTabIcon('history')}
                   <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabFolioHistory')}</span>
                   <span className="billing-tab-label billing-tab-label--mobile">{locale === 'sl' ? 'Zgodovina' : 'History'}</span>

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { api } from '../api'
 import { useAuthenticatedUser } from '../authUserContext'
 import { hasEmployeePermission } from '../lib/employeePermissions'
 import { useLocale } from '../locale'
+import { settingsQueryOptions } from '../queries/sharedQueryOptions'
+import { inboxCapabilitiesQueryOptions } from '../queries/remainingQueryOptions'
 import { AnalyticsInboxTab } from './AnalyticsInboxTab'
 import { ConfigurationDeliveryLogsSection } from './ConfigurationDeliveryLogsSection'
 
@@ -20,6 +22,8 @@ type MessagingProviderCapabilities = {
 
 export function InboxPage({ inboxModuleEnabled = true }: InboxPageProps) {
   const me = useAuthenticatedUser()
+  const activeUnitId = me.activeUnitId ?? me.companyId
+  const queryClient = useQueryClient()
   const location = useLocation()
   const navigate = useNavigate()
   const { locale } = useLocale()
@@ -37,14 +41,14 @@ export function InboxPage({ inboxModuleEnabled = true }: InboxPageProps) {
     let cancelled = false
 
     void Promise.all([
-      api.get<Record<string, string>>('/settings').catch(() => ({ data: {} as Record<string, string> })),
-      api.get<MessagingProviderCapabilities>('/inbox/global-capabilities').catch(() => ({ data: {} as MessagingProviderCapabilities })),
-    ]).then(([settingsResponse, capabilitiesResponse]) => {
+      queryClient.fetchQuery(settingsQueryOptions(activeUnitId)).catch(() => ({} as Record<string, string>)),
+      queryClient.fetchQuery(inboxCapabilitiesQueryOptions<MessagingProviderCapabilities>()).catch(() => ({} as MessagingProviderCapabilities)),
+    ]).then(([settingsData, capabilities]) => {
       if (cancelled) return
-      setSettings(settingsResponse.data || {})
+      setSettings(settingsData || {})
       setMessagingProviders({
-        whatsappEnabled: capabilitiesResponse.data?.whatsappEnabled === true,
-        viberEnabled: capabilitiesResponse.data?.viberEnabled === true,
+        whatsappEnabled: capabilities?.whatsappEnabled === true,
+        viberEnabled: capabilities?.viberEnabled === true,
       })
       setMessagingProvidersLoaded(true)
     })
@@ -52,7 +56,7 @@ export function InboxPage({ inboxModuleEnabled = true }: InboxPageProps) {
     return () => {
       cancelled = true
     }
-  }, [canViewDeliveryLogs])
+  }, [activeUnitId, canViewDeliveryLogs, queryClient])
 
   if (!canViewMessages && !canViewDeliveryLogs) {
     return <Navigate to="/" replace />

@@ -47,6 +47,8 @@ export const queryKeys = {
   },
   clients: {
     all: ['shared', 'clients'] as const,
+    list: (unitId: ScopeId, locationId: ScopeId) =>
+      ['shared', 'clients', 'list', scopeId(unitId), scopeId(locationId)] as const,
     page: (unitId: ScopeId, locationId: ScopeId, signature: string) =>
       ['shared', 'clients', 'page', scopeId(unitId), scopeId(locationId), signature] as const,
     options: (unitId: ScopeId, locationId: ScopeId, size = 500) => (
