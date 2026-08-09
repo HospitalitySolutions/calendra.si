@@ -1,0 +1,105 @@
+{
+	# TLS terminates at the AWS Application Load Balancer. Caddy only accepts
+	# private HTTP traffic from the ALB on the EC2 target port.
+	auto_https off
+}
+
+:80 {
+	encode gzip
+
+	# ALB health checks use the target's private IP in the Host header. Keep
+	# readiness host-independent so the target can become healthy regardless of
+	# which public hostname is routed through the load balancer.
+	@alb_readiness path /api/actuator/health/readiness
+	handle @alb_readiness {
+		reverse_proxy backend:4000 {
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Port 443
+		}
+	}
+
+	# app.calendra.si security headers. They are returned to clients over the
+	# ALB's HTTPS listener even though ALB -> Caddy is HTTP inside the VPC.
+	@app_host host app.calendra.si
+	header @app_host {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Content-Security-Policy "default-src 'self'; img-src 'self' blob: data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://assets.mediadelivery.net https://challenges.cloudflare.com; connect-src 'self' https: wss:; frame-src 'self' https://challenges.cloudflare.com https://iframe.mediadelivery.net https://*.mediadelivery.net https://*.zoom.us; child-src 'self' https://challenges.cloudflare.com https://iframe.mediadelivery.net https://*.mediadelivery.net https://*.zoom.us; media-src 'self' blob: data: https:; frame-ancestors 'self' https://*.zoom.us;"
+	}
+
+	@app_backend {
+		host app.calendra.si
+		path /api/* /oauth2/* /login/oauth2/* /book/* /widget/*
+	}
+	handle @app_backend {
+		reverse_proxy backend:4000 {
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Port 443
+		}
+	}
+
+	@app_frontend host app.calendra.si
+	handle @app_frontend {
+		reverse_proxy frontend:80 {
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Port 443
+		}
+	}
+
+	@www_host host www.calendra.si
+	handle @www_host {
+		redir https://calendra.si{uri} permanent
+	}
+
+	@site_host host calendra.si
+	header @site_host {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	@demo_management {
+		host calendra.si
+		path /predstavitev/upravljanje /predstavitev/upravljanje/* /en/demo/manage /en/demo/manage/*
+	}
+	handle @demo_management {
+		redir https://app.calendra.si{uri} 308
+	}
+
+	@site_booking {
+		host calendra.si
+		path /narocanje/*
+	}
+	handle @site_booking {
+		uri replace /narocanje/ /widget/
+		reverse_proxy backend:4000 {
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Port 443
+		}
+	}
+
+	@site_backend {
+		host calendra.si
+		path /book/* /widget/* /api/public/widget/*
+	}
+	handle @site_backend {
+		reverse_proxy backend:4000 {
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Port 443
+		}
+	}
+
+	@site_frontend host calendra.si
+	handle @site_frontend {
+		# The marketing-site upstream must be reachable from BOTH EC2 nodes. Keep
+		# the existing host service by default, or override this env var with a
+		# shared/private upstream that both nodes can reach.
+		reverse_proxy {$CALENDRA_PUBLIC_SITE_UPSTREAM:host.docker.internal:8080}
+	}
+
+	# Never serve an unknown Host header as one of the public Calendra sites.
+	handle {
+		respond "Not Found" 404
+	}
+}

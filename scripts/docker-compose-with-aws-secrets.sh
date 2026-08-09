@@ -4,16 +4,17 @@ set -euo pipefail
 usage() {
   cat <<'USAGE' >&2
 Usage:
-  scripts/docker-compose-with-aws-secrets.sh <staging|production> [docker compose args...]
-  scripts/docker-compose-with-aws-secrets.sh production deploy
+  scripts/docker-compose-with-aws-secrets.sh <staging|production|production-alb> [docker compose args...]
+  scripts/docker-compose-with-aws-secrets.sh production-alb deploy
 
-Production examples:
-  # Pull the already-built backend/frontend images and deploy them without compiling on EC2.
+Production ALB (one application node per EC2) example:
+  CALENDRA_IMAGE_TAG=<full-git-sha> scripts/docker-compose-with-aws-secrets.sh production-alb deploy
+
+  # Run the same command on both EC2 app nodes. Both nodes use the same RDS,
+  # Redis, image tag, and AWS Secrets Manager secret.
+
+Legacy/single-node production example:
   CALENDRA_IMAGE_TAG=<full-git-sha> scripts/docker-compose-with-aws-secrets.sh production deploy
-
-  # Equivalent manual steps:
-  scripts/docker-compose-with-aws-secrets.sh production pull backend frontend
-  scripts/docker-compose-with-aws-secrets.sh production up -d --no-build --wait
 
 Staging example:
   CALENDRA_IMAGE_TAG=<full-git-sha> scripts/docker-compose-with-aws-secrets.sh staging deploy
@@ -21,16 +22,26 @@ Staging example:
 Calling the script with only an environment defaults to the safe immutable-image deploy action.
 It pulls backend/frontend from GHCR and starts Compose with --no-build.
 
-The script reads POSTGRES_PASSWORD from the AWS Secrets Manager JSON used by the selected
-environment and exports it only for the Docker Compose process. Docker Compose itself cannot
-read AWS Secrets Manager directly, but the local Postgres container needs POSTGRES_PASSWORD
-during startup, before the Spring backend can load the same secret.
+Secrets Manager requirements:
 
-Required secret key:
-  POSTGRES_PASSWORD
+  staging / production (local Postgres topology):
+    POSTGRES_PASSWORD
+    or SPRING_DATASOURCE_PASSWORD as a fallback.
 
-Fallback supported for shared secret JSONs:
-  SPRING_DATASOURCE_PASSWORD is used when POSTGRES_PASSWORD is absent.
+  production-alb (shared managed services):
+    SPRING_DATASOURCE_URL
+    SPRING_DATASOURCE_USERNAME
+    SPRING_DATASOURCE_PASSWORD
+    SPRING_DATA_REDIS_HOST
+
+  Optional production-alb Redis keys:
+    SPRING_DATA_REDIS_PORT             (default 6379)
+    SPRING_DATA_REDIS_USERNAME
+    SPRING_DATA_REDIS_PASSWORD
+    SPRING_DATA_REDIS_SSL_ENABLED      (default false; enable for TLS Redis)
+
+The managed-service values are exported only to the Docker Compose process. The Spring
+backend still imports the same production secret at runtime for the rest of its credentials.
 USAGE
 }
 
@@ -43,6 +54,7 @@ ENVIRONMENT="$1"
 shift || true
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+MANAGED_DATA_SERVICES=false
 
 case "$ENVIRONMENT" in
   staging)
@@ -61,6 +73,15 @@ case "$ENVIRONMENT" in
     DEFAULT_POSTGRES_DB="calendradb"
     DEFAULT_POSTGRES_USER="calendra"
     ;;
+  production-alb|prod-alb)
+    COMPOSE_FILE="$ROOT_DIR/docker-compose.prod-alb.yml"
+    DEFAULT_ENV_FILE="$ROOT_DIR/.env"
+    DEFAULT_SECRET_ID="calendra-app"
+    SECRET_ENV_VAR="AWS_PRODUCTION_SECRET_ID"
+    DEFAULT_POSTGRES_DB="calendradb"
+    DEFAULT_POSTGRES_USER="calendra"
+    MANAGED_DATA_SERVICES=true
+    ;;
   -h|--help|help)
     usage
     exit 0
@@ -73,7 +94,7 @@ case "$ENVIRONMENT" in
 esac
 
 if ! command -v aws >/dev/null 2>&1; then
-  echo "aws CLI is required to load POSTGRES_PASSWORD from AWS Secrets Manager." >&2
+  echo "aws CLI is required to load deployment values from AWS Secrets Manager." >&2
   exit 127
 fi
 
@@ -95,7 +116,7 @@ load_env_for_aws_bootstrap() {
     value="${line#*=}"
     key="${key//[[:space:]]/}"
     case "$key" in
-      AWS_REGION|AWS_DEFAULT_REGION|AWS_PROFILE|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|AWS_SESSION_TOKEN|AWS_STAGING_SECRET_ID|AWS_PRODUCTION_SECRET_ID|POSTGRES_USER|POSTGRES_DB|CALENDRA_IMAGE_REGISTRY|CALENDRA_IMAGE_TAG)
+      AWS_REGION|AWS_DEFAULT_REGION|AWS_PROFILE|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|AWS_SESSION_TOKEN|AWS_STAGING_SECRET_ID|AWS_PRODUCTION_SECRET_ID|POSTGRES_USER|POSTGRES_DB|CALENDRA_IMAGE_REGISTRY|CALENDRA_IMAGE_TAG|CALENDRA_PUBLIC_SITE_UPSTREAM|BACKEND_MEMORY_LIMIT|BACKEND_CPU_LIMIT|FRONTEND_MEMORY_LIMIT|FRONTEND_CPU_LIMIT)
         if [[ -z "${!key:-}" ]]; then
           value="${value%$'\r'}"
           value="${value#\"}"
@@ -142,18 +163,63 @@ sys.stdout.write(str(value))
 PY
 }
 
-POSTGRES_PASSWORD_FROM_SECRET="$(read_secret_key POSTGRES_PASSWORD SPRING_DATASOURCE_PASSWORD)"
-if [[ -z "$POSTGRES_PASSWORD_FROM_SECRET" ]]; then
-  echo "Secret '$SECRET_ID' must contain POSTGRES_PASSWORD or SPRING_DATASOURCE_PASSWORD." >&2
-  exit 2
+secret_or_env() {
+  local key="$1"
+  local fallback_key="${2:-}"
+  local current="${!key:-}"
+  if [[ -n "$current" ]]; then
+    printf '%s' "$current"
+    return 0
+  fi
+  read_secret_key "$key" "$fallback_key"
+}
+
+require_value() {
+  local key="$1"
+  local value="$2"
+  if [[ -z "$value" ]]; then
+    echo "Secret '$SECRET_ID' (or the process environment) must provide $key." >&2
+    exit 2
+  fi
+}
+
+if [[ "$MANAGED_DATA_SERVICES" == true ]]; then
+  SPRING_DATASOURCE_URL_VALUE="$(secret_or_env SPRING_DATASOURCE_URL)"
+  SPRING_DATASOURCE_USERNAME_VALUE="$(secret_or_env SPRING_DATASOURCE_USERNAME POSTGRES_USER)"
+  SPRING_DATASOURCE_PASSWORD_VALUE="$(secret_or_env SPRING_DATASOURCE_PASSWORD POSTGRES_PASSWORD)"
+  SPRING_DATA_REDIS_HOST_VALUE="$(secret_or_env SPRING_DATA_REDIS_HOST)"
+  SPRING_DATA_REDIS_PORT_VALUE="$(secret_or_env SPRING_DATA_REDIS_PORT)"
+  SPRING_DATA_REDIS_USERNAME_VALUE="$(secret_or_env SPRING_DATA_REDIS_USERNAME)"
+  SPRING_DATA_REDIS_PASSWORD_VALUE="$(secret_or_env SPRING_DATA_REDIS_PASSWORD)"
+  SPRING_DATA_REDIS_SSL_ENABLED_VALUE="$(secret_or_env SPRING_DATA_REDIS_SSL_ENABLED)"
+
+  require_value SPRING_DATASOURCE_URL "$SPRING_DATASOURCE_URL_VALUE"
+  require_value SPRING_DATASOURCE_USERNAME "$SPRING_DATASOURCE_USERNAME_VALUE"
+  require_value SPRING_DATASOURCE_PASSWORD "$SPRING_DATASOURCE_PASSWORD_VALUE"
+  require_value SPRING_DATA_REDIS_HOST "$SPRING_DATA_REDIS_HOST_VALUE"
+
+  export SPRING_DATASOURCE_URL="$SPRING_DATASOURCE_URL_VALUE"
+  export SPRING_DATASOURCE_USERNAME="$SPRING_DATASOURCE_USERNAME_VALUE"
+  export SPRING_DATASOURCE_PASSWORD="$SPRING_DATASOURCE_PASSWORD_VALUE"
+  export SPRING_DATA_REDIS_HOST="$SPRING_DATA_REDIS_HOST_VALUE"
+  export SPRING_DATA_REDIS_PORT="${SPRING_DATA_REDIS_PORT_VALUE:-6379}"
+  export SPRING_DATA_REDIS_USERNAME="$SPRING_DATA_REDIS_USERNAME_VALUE"
+  export SPRING_DATA_REDIS_PASSWORD="$SPRING_DATA_REDIS_PASSWORD_VALUE"
+  export SPRING_DATA_REDIS_SSL_ENABLED="${SPRING_DATA_REDIS_SSL_ENABLED_VALUE:-false}"
+else
+  POSTGRES_PASSWORD_FROM_SECRET="$(secret_or_env POSTGRES_PASSWORD SPRING_DATASOURCE_PASSWORD)"
+  if [[ -z "$POSTGRES_PASSWORD_FROM_SECRET" ]]; then
+    echo "Secret '$SECRET_ID' must contain POSTGRES_PASSWORD or SPRING_DATASOURCE_PASSWORD." >&2
+    exit 2
+  fi
+
+  POSTGRES_USER_FROM_SECRET="$(read_secret_key POSTGRES_USER SPRING_DATASOURCE_USERNAME)"
+  POSTGRES_DB_FROM_SECRET="$(read_secret_key POSTGRES_DB)"
+
+  export POSTGRES_PASSWORD="$POSTGRES_PASSWORD_FROM_SECRET"
+  export POSTGRES_USER="${POSTGRES_USER_FROM_SECRET:-${POSTGRES_USER:-$DEFAULT_POSTGRES_USER}}"
+  export POSTGRES_DB="${POSTGRES_DB_FROM_SECRET:-${POSTGRES_DB:-$DEFAULT_POSTGRES_DB}}"
 fi
-
-POSTGRES_USER_FROM_SECRET="$(read_secret_key POSTGRES_USER SPRING_DATASOURCE_USERNAME)"
-POSTGRES_DB_FROM_SECRET="$(read_secret_key POSTGRES_DB)"
-
-export POSTGRES_PASSWORD="$POSTGRES_PASSWORD_FROM_SECRET"
-export POSTGRES_USER="${POSTGRES_USER_FROM_SECRET:-${POSTGRES_USER:-$DEFAULT_POSTGRES_USER}}"
-export POSTGRES_DB="${POSTGRES_DB_FROM_SECRET:-${POSTGRES_DB:-$DEFAULT_POSTGRES_DB}}"
 
 COMPOSE_ENV_ARGS=()
 if [[ -f "$ENV_FILE" ]]; then
@@ -164,7 +230,7 @@ compose() {
   docker compose "${COMPOSE_ENV_ARGS[@]}" -f "$COMPOSE_FILE" "$@"
 }
 
-# Both staging and production deploy immutable CI-built images by default.
+# Staging and production deploy immutable CI-built images by default.
 if [[ $# -eq 0 ]]; then
   set -- deploy
 fi

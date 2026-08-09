@@ -2,6 +2,7 @@ package com.example.app.demobooking;
 
 import java.time.Duration;
 import java.time.Instant;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,7 @@ public class DemoBookingReminderScheduler {
     }
 
     @Scheduled(cron = "0 */15 * * * *")
+    @SchedulerLock(name = "demoBookingReminderScheduler_sendDueReminders", lockAtMostFor = "PT10M", lockAtLeastFor = "PT10S")
     @Transactional
     public void sendDueReminders() {
         Instant now = Instant.now();

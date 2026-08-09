@@ -323,6 +323,10 @@ jobs:
             -f docker-compose.prod-ha.yml \
             config >/tmp/calendra-production-ha-compose.yml
 
+          docker compose \
+            -f docker-compose.prod-alb.yml \
+            config >/tmp/calendra-production-alb-compose.yml
+
       - name: Write published image summary
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: bash
