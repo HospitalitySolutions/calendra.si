@@ -1,5 +1,6 @@
 import { isNativeAndroid } from '../lib/platform'
 import { PropsWithChildren, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { createPortal } from 'react-dom'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
@@ -14,8 +15,9 @@ import { ReferAFriendModal } from './ReferAFriendModal'
 import { hasAnyEmployeePermission, hasEmployeePermission } from '../lib/employeePermissions'
 import { setActiveUnitId } from '../lib/unitContext'
 import { useSelectedLocationId } from '../lib/locationContext'
-import type { Location, User } from '../lib/types'
+import type { User } from '../lib/types'
 import loginLogo from '../assets/login-logo.png'
+import { locationsQueryOptions, moduleCapabilitiesQueryOptions, settingsQueryOptions } from '../queries/sharedQueryOptions'
 
 function AndroidNavIconCalendar() {
   return (
@@ -312,6 +314,10 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const { t, locale } = useLocale()
   const [currentUser, setCurrentUser] = useState(authenticatedUser)
   const user = currentUser ?? authenticatedUser
+  const activeUnitId = user.activeUnitId ?? user.companyId
+  const shellSettingsQuery = useQuery(settingsQueryOptions(activeUnitId))
+  const shellModuleCapabilitiesQuery = useQuery(moduleCapabilitiesQueryOptions(activeUnitId))
+  const locationsQuery = useQuery(locationsQueryOptions(activeUnitId))
 
   const isPlatformAdmin = user.role === 'SUPER_ADMIN'
   const [scannerModuleEnabled, setScannerModuleEnabled] = useState(true)
@@ -359,7 +365,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [unitSwitching, setUnitSwitching] = useState(false)
-  const [businessLocations, setBusinessLocations] = useState<Location[]>([])
+  const businessLocations = locationsQuery.data ?? []
   const accountRef = useRef<HTMLDivElement>(null)
   const profileAvatarInputRef = useRef<HTMLInputElement>(null)
   const mainAreaRef = useRef<HTMLDivElement>(null)
@@ -457,35 +463,32 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
     }
   }, [todosModuleEnabled])
 
-  const loadCompanyName = () => {
-    api
-      .get('/settings')
-      .then((r) => {
-        const settingsData = r.data || {}
-        const configuredName = String(settingsData.COMPANY_NAME || '').trim()
-        setCompanyName(configuredName || defaultCompanyName)
-        setAiBookingEnabled(settingsData.AI_BOOKING_ENABLED === 'true')
-        setTodosModuleEnabled(settingsData.TODOS_ENABLED !== 'false')
-        setTypesModuleEnabled(settingsData.TYPES_ENABLED !== 'false')
-        setBillingModuleEnabled(settingsData.BILLING_ENABLED !== 'false')
-        setInboxModuleEnabled(settingsData.INBOX_ENABLED !== 'false')
-        setScannerModuleEnabled(settingsData.SCANNER_MODULE_ENABLED !== 'false')
-        setWaitlistModuleEnabled(settingsData.WAITLIST_ENABLED === 'true')
-      })
-      .catch(() => {})
-      .finally(() => setSettingsLoaded(true))
-    api
-      .get('/settings/module-capabilities')
-      .then((r) => setConsumablesModuleEnabled(r.data?.consumablesEnabled !== false))
-      .catch(() => setConsumablesModuleEnabled(true))
-  }
+  useEffect(() => {
+    const settingsData = shellSettingsQuery.data
+    if (settingsData) {
+      const configuredName = String(settingsData.COMPANY_NAME || '').trim()
+      setCompanyName(configuredName || defaultCompanyName)
+      setAiBookingEnabled(settingsData.AI_BOOKING_ENABLED === 'true')
+      setTodosModuleEnabled(settingsData.TODOS_ENABLED !== 'false')
+      setTypesModuleEnabled(settingsData.TYPES_ENABLED !== 'false')
+      setBillingModuleEnabled(settingsData.BILLING_ENABLED !== 'false')
+      setInboxModuleEnabled(settingsData.INBOX_ENABLED !== 'false')
+      setScannerModuleEnabled(settingsData.SCANNER_MODULE_ENABLED !== 'false')
+      setWaitlistModuleEnabled(settingsData.WAITLIST_ENABLED === 'true')
+      setSettingsLoaded(true)
+    } else if (shellSettingsQuery.isError) {
+      setSettingsLoaded(true)
+    }
+  }, [defaultCompanyName, shellSettingsQuery.data, shellSettingsQuery.isError])
 
   useEffect(() => {
-    loadCompanyName()
-    const onSettings = () => loadCompanyName()
-    window.addEventListener('settings-updated', onSettings)
-    return () => window.removeEventListener('settings-updated', onSettings)
-  }, [defaultCompanyName])
+    if (shellModuleCapabilitiesQuery.data) {
+      setConsumablesModuleEnabled(shellModuleCapabilitiesQuery.data.consumablesEnabled !== false)
+    } else if (shellModuleCapabilitiesQuery.isError) {
+      setConsumablesModuleEnabled(true)
+    }
+  }, [shellModuleCapabilitiesQuery.data, shellModuleCapabilitiesQuery.isError])
+
 
   /** Keep bottom tabs fixed: only the main column scrolls, not the whole WebView. */
   useEffect(() => {
@@ -723,28 +726,9 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
         role: user.role,
         permissions: user.permissions,
       }] : [])
-  const activeUnitId = user.activeUnitId ?? user.companyId
   const headerBrandLabel = user.activeUnitName || companyName
   const [selectedLocationId, setSelectedLocationId] = useSelectedLocationId(activeUnitId)
 
-  useEffect(() => {
-    let cancelled = false
-    const loadLocations = () => {
-      void api.get<Location[]>('/locations')
-        .then(({ data }) => {
-          if (!cancelled) setBusinessLocations(Array.isArray(data) ? data : [])
-        })
-        .catch(() => {
-          if (!cancelled) setBusinessLocations([])
-        })
-    }
-    loadLocations()
-    window.addEventListener('locations-updated', loadLocations)
-    return () => {
-      cancelled = true
-      window.removeEventListener('locations-updated', loadLocations)
-    }
-  }, [activeUnitId])
 
   const activeBusinessLocations = useMemo(
     () => businessLocations.filter((item) => item.active !== false),

@@ -10,6 +10,8 @@ import { ModernTimePicker } from '../components/ModernTimePicker'
 import type { Client, ClientGroup, ClientMessage, InboxChannel, InboxStatus, InboxThread } from '../lib/types'
 import { formatDateTime } from '../lib/format'
 import { useLocale } from '../locale'
+import { clientOptionsQueryOptions, settingsQueryOptions, usersQueryOptions } from '../queries/sharedQueryOptions'
+import { queryKeys } from '../queries/queryKeys'
 
 type ConsultantOption = { id: number; firstName: string; lastName: string; email: string; consultant?: boolean }
 
@@ -758,6 +760,7 @@ export function AnalyticsInboxTab() {
 
   const me = getStoredUser()
   const isAdmin = me?.role === 'ADMIN' || me?.role === 'SUPER_ADMIN'
+  const activeUnitId = me?.activeUnitId ?? me?.companyId ?? null
   const [clientDetailModalId, setClientDetailModalId] = useState<number | null>(null)
   const [folder, setFolder] = useState<'inbox' | 'unread' | 'starred' | 'closed'>('inbox')
   const [threadPage, setThreadPage] = useState(1)
@@ -795,13 +798,7 @@ export function AnalyticsInboxTab() {
     setMobileMoreOpen(false)
   }, [isCompactInbox])
 
-  const clientsQuery = useQuery<Client[]>({
-    queryKey: ['inbox-clients'],
-    queryFn: async () => {
-      const res = await api.get<Client[]>('/clients/options', { params: { size: 500 } })
-      return res.data ?? []
-    },
-  })
+  const clientsQuery = useQuery(clientOptionsQueryOptions<Client>(activeUnitId, null, 500))
   const groupsQuery = useQuery<ClientGroup[]>({
     queryKey: ['inbox-groups'],
     queryFn: async () => {
@@ -819,14 +816,14 @@ export function AnalyticsInboxTab() {
   })
   const scheduledItems = scheduledQuery.data ?? []
 
-  const consultantsQuery = useQuery<ConsultantOption[]>({
-    queryKey: ['inbox-consultants'],
+  const usersQuery = useQuery({
+    ...usersQueryOptions<ConsultantOption>(activeUnitId),
     enabled: isAdmin,
-    queryFn: async () => {
-      const res = await api.get<ConsultantOption[]>('/users')
-      return (res.data ?? []).filter((user) => user.consultant)
-    },
   })
+  const consultants = useMemo(
+    () => (usersQuery.data ?? []).filter((user) => user.consultant),
+    [usersQuery.data],
+  )
 
   const capabilitiesQuery = useQuery<{ whatsappEnabled: boolean; viberEnabled: boolean }>({
     queryKey: ['inbox-global-capabilities'],
@@ -835,13 +832,7 @@ export function AnalyticsInboxTab() {
       return res.data
     },
   })
-  const guestSettingsQuery = useQuery<Record<string, string>>({
-    queryKey: ['inbox-guest-settings'],
-    queryFn: async () => {
-      const res = await api.get<Record<string, string>>('/settings')
-      return res.data ?? {}
-    },
-  })
+  const guestSettingsQuery = useQuery(settingsQueryOptions(activeUnitId))
 
   const globalWhatsAppEnabled = capabilitiesQuery.data?.whatsappEnabled === true
   const globalViberEnabled = capabilitiesQuery.data?.viberEnabled === true
@@ -1843,7 +1834,7 @@ export function AnalyticsInboxTab() {
   }
 
   const refreshInboxAfterClientEdit = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['inbox-clients'] })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.clients.all })
     await queryClient.invalidateQueries({ queryKey: ['inbox-threads'] })
     await queryClient.invalidateQueries({ queryKey: ['inbox-messages'] })
   }
@@ -2011,7 +2002,7 @@ export function AnalyticsInboxTab() {
                       <label>{ui.responsible}
                         <select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value ? Number(event.target.value) : '')}>
                           <option value="">{ui.searchEmployee}</option>
-                          {(consultantsQuery.data ?? []).map((employee) => (
+                          {consultants.map((employee) => (
                             <option key={employee.id} value={employee.id}>{`${employee.firstName} ${employee.lastName}`.trim() || employee.email}</option>
                           ))}
                         </select>
@@ -2364,7 +2355,7 @@ export function AnalyticsInboxTab() {
         {isAdmin ? (
           <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value ? Number(e.target.value) : '')} aria-label={ui.responsible}>
             <option value="">{ui.searchEmployee}</option>
-            {(consultantsQuery.data ?? []).map((employee) => (
+            {consultants.map((employee) => (
               <option key={employee.id} value={employee.id}>{`${employee.firstName} ${employee.lastName}`.trim() || employee.email}</option>
             ))}
           </select>
@@ -2464,7 +2455,7 @@ export function AnalyticsInboxTab() {
                     onChange={(e) => updateAssignee(e.target.value ? Number(e.target.value) : null)}
                   >
                     <option value="">{ui.unassigned}</option>
-                    {(consultantsQuery.data ?? []).map((employee) => (
+                    {consultants.map((employee) => (
                       <option key={employee.id} value={employee.id}>{`${employee.firstName} ${employee.lastName}`.trim() || employee.email}</option>
                     ))}
                   </select>

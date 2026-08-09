@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { useQuery } from '@tanstack/react-query'
 import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { getStoredUser } from './auth'
@@ -28,6 +29,8 @@ import { clearAuthStoragePreservingTheme } from './theme'
 import { AuthenticatedUserProvider } from './authUserContext'
 import { clearActiveUnitId, getActiveUnitId } from './lib/unitContext'
 import { isWorkspaceRolloutEnabled } from './lib/workspaceRollout'
+import { moduleCapabilitiesQueryOptions, settingsQueryOptions } from './queries/sharedQueryOptions'
+import { markNavigationRendered, markNavigationStart } from './lib/performanceMonitor'
 
 const OAUTH_HANDLED_KEY = 'oauth_toast_handled'
 const CHUNK_RELOAD_KEY = 'chunk_reload_attempted'
@@ -138,6 +141,15 @@ export default function App() {
   const [scannerModuleEnabled, setScannerModuleEnabled] = useState(true)
   const [waitlistModuleEnabled, setWaitlistModuleEnabled] = useState(false)
   const [consumablesModuleEnabled, setConsumablesModuleEnabled] = useState(true)
+  const activeQueryUnitId = user?.activeUnitId ?? user?.companyId ?? null
+  const appSettingsQuery = useQuery({
+    ...settingsQueryOptions(activeQueryUnitId),
+    enabled: Boolean(user),
+  })
+  const moduleCapabilitiesQuery = useQuery({
+    ...moduleCapabilitiesQueryOptions(activeQueryUnitId),
+    enabled: Boolean(user),
+  })
 
 
   useEffect(() => {
@@ -173,7 +185,10 @@ export default function App() {
       if (!anchor) return
       try {
         const url = new URL(anchor.href, window.location.href)
-        if (url.origin === window.location.origin) prefetchRouteModule(url.pathname)
+        if (url.origin === window.location.origin) {
+          prefetchRouteModule(url.pathname)
+          if (event.type === 'pointerdown') markNavigationStart(url.pathname)
+        }
       } catch {
         // Ignore malformed or non-navigation links.
       }
@@ -202,60 +217,42 @@ export default function App() {
       return
     }
 
-    let cancelled = false
-    const loadBillingModuleState = () => {
-      api.get('/settings')
-        .then((res) => {
-          if (!cancelled) {
-            setBillingModuleEnabled(res.data?.BILLING_ENABLED !== 'false')
-            setInboxModuleEnabled(res.data?.INBOX_ENABLED !== 'false')
-            setScannerModuleEnabled(res.data?.SCANNER_MODULE_ENABLED !== 'false')
-            setWaitlistModuleEnabled(res.data?.WAITLIST_ENABLED === 'true')
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setBillingModuleEnabled(true)
-            setInboxModuleEnabled(true)
-            setScannerModuleEnabled(true)
-            setWaitlistModuleEnabled(false)
-          }
-        })
+    if (appSettingsQuery.data) {
+      setBillingModuleEnabled(appSettingsQuery.data.BILLING_ENABLED !== 'false')
+      setInboxModuleEnabled(appSettingsQuery.data.INBOX_ENABLED !== 'false')
+      setScannerModuleEnabled(appSettingsQuery.data.SCANNER_MODULE_ENABLED !== 'false')
+      setWaitlistModuleEnabled(appSettingsQuery.data.WAITLIST_ENABLED === 'true')
+    } else if (appSettingsQuery.isError) {
+      setBillingModuleEnabled(true)
+      setInboxModuleEnabled(true)
+      setScannerModuleEnabled(true)
+      setWaitlistModuleEnabled(false)
     }
-
-    loadBillingModuleState()
-    window.addEventListener('settings-updated', loadBillingModuleState)
-    return () => {
-      cancelled = true
-      window.removeEventListener('settings-updated', loadBillingModuleState)
-    }
-  }, [user])
-
+  }, [appSettingsQuery.data, appSettingsQuery.isError, user])
 
   useEffect(() => {
     if (!user) {
       setConsumablesModuleEnabled(true)
       return
     }
-
-    let cancelled = false
-    const loadModuleCapabilities = () => {
-      api.get('/settings/module-capabilities')
-        .then((res) => {
-          if (!cancelled) setConsumablesModuleEnabled(res.data?.consumablesEnabled !== false)
-        })
-        .catch(() => {
-          if (!cancelled) setConsumablesModuleEnabled(true)
-        })
+    if (moduleCapabilitiesQuery.data) {
+      setConsumablesModuleEnabled(moduleCapabilitiesQuery.data.consumablesEnabled !== false)
+    } else if (moduleCapabilitiesQuery.isError) {
+      setConsumablesModuleEnabled(true)
     }
+  }, [moduleCapabilitiesQuery.data, moduleCapabilitiesQuery.isError, user])
 
-    loadModuleCapabilities()
-    window.addEventListener('settings-updated', loadModuleCapabilities)
+  useEffect(() => {
+    let secondFrame = 0
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => markNavigationRendered(location.pathname))
+    })
     return () => {
-      cancelled = true
-      window.removeEventListener('settings-updated', loadModuleCapabilities)
+      window.cancelAnimationFrame(firstFrame)
+      if (secondFrame) window.cancelAnimationFrame(secondFrame)
     }
-  }, [user])
+  }, [location.pathname, location.search])
+
 
   useEffect(() => {
     if (!user || user.role === 'SUPER_ADMIN') return

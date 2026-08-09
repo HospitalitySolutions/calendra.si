@@ -1,6 +1,7 @@
 import { appPlatform, isNativePlatform } from './lib/platform'
 import axios from 'axios'
 import { getActiveUnitId } from './lib/unitContext'
+import { recordApiTiming } from './lib/performanceMonitor'
 
 function readEnv(name: keyof ImportMetaEnv): string | undefined {
   return (import.meta.env[name] as string | undefined)?.trim() || undefined
@@ -165,6 +166,7 @@ export async function ensureCsrfToken(force = false): Promise<void> {
 }
 
 api.interceptors.request.use(async (config) => {
+  ;(config as typeof config & { __calendraPerfStartedAt?: number }).__calendraPerfStartedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
   config.headers['X-App-Platform'] = isNativePlatform ? 'native' : 'web'
   const activeUnitId = getActiveUnitId()
   if (activeUnitId && !config.headers['X-Calendra-Unit-Id']) {
@@ -194,8 +196,20 @@ export function registerConflict409Handler(fn: ((msg: string) => void) | null) {
 }
 
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    const config = res.config as typeof res.config & { __calendraPerfStartedAt?: number }
+    if (config.__calendraPerfStartedAt != null) {
+      const finishedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
+      recordApiTiming(config.method, config.url, res.status, finishedAt - config.__calendraPerfStartedAt)
+    }
+    return res
+  },
   (err) => {
+    const config = err?.config as ({ method?: string; url?: string; __calendraPerfStartedAt?: number } | undefined)
+    if (config?.__calendraPerfStartedAt != null) {
+      const finishedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
+      recordApiTiming(config.method, config.url, err?.response?.status ?? null, finishedAt - config.__calendraPerfStartedAt)
+    }
     const headers = err?.config?.headers as Record<string, unknown> | undefined
     const skipConflictToast =
       headers?.['X-Skip-Conflict-Toast'] === 'true'

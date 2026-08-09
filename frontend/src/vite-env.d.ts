@@ -12,3 +12,19 @@ interface ImportMetaEnv {
   readonly VITE_WEB_API_URL?: string
   readonly VITE_WEBSITE_PRICING_URL?: string
 }
+
+interface Window {
+  calendraPerformance?: {
+    snapshot: () => {
+      api: Array<{ method: string; endpoint: string; status: number | null; durationMs: number; recordedAt: number }>
+      queries: Array<{ queryKey: string; durationMs: number; outcome: 'success' | 'error'; recordedAt: number }>
+      navigations: Array<{ pathname: string; durationMs: number; recordedAt: number }>
+    }
+    summary: () => {
+      apiByEndpoint: Record<string, { count: number; averageMs: number; p50Ms: number; p95Ms: number; maxMs: number }>
+      queryOverall: { count: number; averageMs: number; p50Ms: number; p95Ms: number; maxMs: number } | null
+      navigationByPath: Record<string, { count: number; averageMs: number; p50Ms: number; p95Ms: number; maxMs: number }>
+    }
+    clear: () => void
+  }
+}

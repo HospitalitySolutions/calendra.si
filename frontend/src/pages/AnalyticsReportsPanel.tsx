@@ -4,9 +4,10 @@ import { api } from '../api'
 import { Card } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useLocale } from '../locale'
+import { useAuthenticatedUser } from '../authUserContext'
+import { locationsQueryOptions, paymentMethodsQueryOptions } from '../queries/sharedQueryOptions'
 
 type PaymentMethodOption = { id: number; name: string; paymentType?: string }
-type LocationOption = { id: number; name: string; fiscalBusinessPremiseCode?: string | null }
 type ExportFormat = 'pdf' | 'excel'
 
 function toIsoDate(date: Date) {
@@ -83,6 +84,7 @@ function downloadBlob(blob: Blob, fallbackName: string, contentDisposition?: str
 
 export function AnalyticsReportsPanel({ billingEnabled }: { billingEnabled: boolean }) {
   const { locale } = useLocale()
+  const me = useAuthenticatedUser()
   const { showToast } = useToast()
   const defaults = useMemo(initialRange, [])
   const [open, setOpen] = useState(true)
@@ -129,22 +131,15 @@ export function AnalyticsReportsPanel({ billingEnabled }: { billingEnabled: bool
     { kind: 'staff', title: 'Staff and utilization', description: 'Staff utilization, appointment volume and productivity by period.' },
   ]
 
-  const paymentMethodsQuery = useQuery<PaymentMethodOption[]>({
-    queryKey: ['analytics-invoice-report-payment-methods'],
+  const activeUnitId = me.activeUnitId ?? me.companyId
+  const paymentMethodsQuery = useQuery({
+    ...paymentMethodsQueryOptions<PaymentMethodOption>(activeUnitId),
     enabled: billingEnabled,
-    queryFn: async () => {
-      const response = await api.get<PaymentMethodOption[]>('/billing/payment-methods')
-      return response.data ?? []
-    },
   })
 
-  const locationsQuery = useQuery<LocationOption[]>({
-    queryKey: ['analytics-invoice-report-locations'],
+  const locationsQuery = useQuery({
+    ...locationsQueryOptions(activeUnitId),
     enabled: billingEnabled,
-    queryFn: async () => {
-      const response = await api.get<LocationOption[]>('/locations')
-      return response.data ?? []
-    },
   })
 
   const reset = () => {

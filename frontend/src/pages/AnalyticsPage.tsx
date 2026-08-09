@@ -14,6 +14,7 @@ import {
   YAxis,
 } from 'recharts'
 import { api } from '../api'
+import { settingsQueryOptions } from '../queries/sharedQueryOptions'
 import { useAuthenticatedUser } from '../authUserContext'
 import { Card, EmptyState } from '../components/ui'
 import { fullName } from '../lib/format'
@@ -622,13 +623,7 @@ export function AnalyticsPage() {
   const canFetch = periodPreset !== 'custom' || (!!customFrom && !!customTo)
   const appLocaleTag = localeTagFor(toReportLanguage(locale))
 
-  const settingsQuery = useQuery<Record<string, string>>({
-    queryKey: ['analytics-settings'],
-    queryFn: async () => {
-      const res = await api.get<Record<string, string>>('/settings')
-      return res.data ?? {}
-    },
-  })
+  const settingsQuery = useQuery(settingsQueryOptions(me.activeUnitId ?? me.companyId))
 
   const { data: filterData } = useQuery<{
     consultants: ConsultantOption[]
