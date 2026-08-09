@@ -726,3 +726,210 @@
 [data-theme="dark"] .employees-password-email-notice span {
     color: #cbd5e1;
 }
+
+/* Phase 5.5B: employee location scope + per-location working-hours overrides */
+.employee-location-scope-card,
+.employee-location-hours-section {
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+}
+
+.employee-location-scope-card {
+    padding: 16px 18px;
+}
+
+.employee-location-scope-header,
+.employee-location-hours-same-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.employee-location-scope-header > div:first-child,
+.employee-location-hours-heading,
+.employee-location-hours-name {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.employee-location-scope-header strong,
+.employee-location-hours-heading strong,
+.employee-location-hours-name strong {
+    color: #1f2937;
+    font-size: 0.94rem;
+    font-weight: 750;
+}
+
+.employee-location-scope-header > div:first-child > span,
+.employee-location-hours-heading > span,
+.employee-location-hours-name small {
+    color: #64748b;
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+.employee-location-scope-switch,
+.employee-location-hours-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+    color: #475569;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.employee-location-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid #eef2f7;
+}
+
+.employee-location-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 10px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    cursor: pointer;
+}
+
+.employee-location-option input {
+    width: 17px;
+    height: 17px;
+    margin: 0;
+    accent-color: #1672f3;
+}
+
+.employee-location-option > span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.employee-location-option strong {
+    color: #1f2937;
+    font-size: 0.88rem;
+}
+
+.employee-location-option small {
+    color: #64748b;
+    font-size: 0.76rem;
+}
+
+.employee-location-hours-section {
+    padding: 16px;
+}
+
+.employee-location-hours-heading {
+    margin-bottom: 12px;
+}
+
+.employee-location-hours-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.employee-location-hours-card {
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #f8fafc;
+}
+
+.employee-location-hours-card--enabled {
+    border-color: #bfdbfe;
+    background: #ffffff;
+}
+
+.employee-location-hours-card > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 13px 14px;
+    list-style: none;
+    cursor: pointer;
+}
+
+.employee-location-hours-card > summary::-webkit-details-marker {
+    display: none;
+}
+
+.employee-location-hours-body {
+    border-top: 1px solid #e2e8f0;
+}
+
+.employee-location-hours-same-row {
+    min-height: 50px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #eef2f7;
+    color: #334155;
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.employee-location-hours-card .consultant-wh-row {
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+@media (max-width: 640px) {
+    .employee-location-scope-header,
+    .employee-location-hours-card > summary {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .employee-location-scope-switch,
+    .employee-location-hours-toggle {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .employee-location-options {
+        grid-template-columns: 1fr;
+    }
+}
+
+[data-theme="dark"] .employee-location-scope-card,
+[data-theme="dark"] .employee-location-hours-section,
+[data-theme="dark"] .employee-location-hours-card--enabled {
+    background: #0f172a;
+    border-color: rgba(148, 163, 184, 0.22);
+}
+
+[data-theme="dark"] .employee-location-hours-card,
+[data-theme="dark"] .employee-location-option {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(148, 163, 184, 0.2);
+}
+
+[data-theme="dark"] .employee-location-scope-header strong,
+[data-theme="dark"] .employee-location-hours-heading strong,
+[data-theme="dark"] .employee-location-hours-name strong,
+[data-theme="dark"] .employee-location-option strong {
+    color: #f1f5f9;
+}
+
+[data-theme="dark"] .employee-location-scope-header > div:first-child > span,
+[data-theme="dark"] .employee-location-hours-heading > span,
+[data-theme="dark"] .employee-location-hours-name small,
+[data-theme="dark"] .employee-location-option small,
+[data-theme="dark"] .employee-location-scope-switch,
+[data-theme="dark"] .employee-location-hours-toggle,
+[data-theme="dark"] .employee-location-hours-same-row {
+    color: #cbd5e1;
+}

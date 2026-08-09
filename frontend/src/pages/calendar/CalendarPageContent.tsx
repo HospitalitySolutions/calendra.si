@@ -465,8 +465,12 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     [metaTypes, bookingGroupMode],
   )
   const metaConsultants = useMemo(
-    () => metaUsers.filter((u: any) => u.consultant && u.active !== false),
-    [metaUsers],
+    () => metaUsers.filter((u: any) => {
+      if (!u.consultant || u.active === false) return false
+      if (locationFilterId == null || u.availableAllLocations !== false) return true
+      return Array.isArray(u.locationIds) && u.locationIds.some((id: unknown) => Number(id) === Number(locationFilterId))
+    }),
+    [metaUsers, locationFilterId],
   )
   const activeMetaLocations = useMemo(
     () => metaLocations.filter((item: any) => item?.active !== false),
@@ -3255,6 +3259,28 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     calendarRef.current?.getApi()?.unselect()
   }, [calendarMode, isNativeAndroid])
 
+  const consultantAvailableAtLocation = (candidate: any, candidateLocationId: number | null | undefined) => {
+    if (!candidate || candidate.active === false || !candidate.consultant) return false
+    if (candidateLocationId == null || candidate.availableAllLocations !== false) return true
+    return Array.isArray(candidate.locationIds)
+      && candidate.locationIds.some((id: unknown) => Number(id) === Number(candidateLocationId))
+  }
+
+  const defaultAvailabilityLocationId = () => {
+    if (locationFilterId != null) return Number(locationFilterId)
+    if (activeMetaLocations.length === 1) return Number(activeMetaLocations[0].id)
+    return null
+  }
+
+  const workingHoursForLocation = (candidate: any, candidateLocationId: number | null | undefined) => {
+    const locationOverride = candidateLocationId != null
+      && candidate?.workingHoursByLocation
+      && typeof candidate.workingHoursByLocation === 'object'
+      ? candidate.workingHoursByLocation[String(candidateLocationId)]
+      : null
+    return locationOverride || candidate?.workingHours
+  }
+
   const openAvailabilityModalFromSelection = (
     start: string,
     end: string,
@@ -3263,7 +3289,8 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   ) => {
     const startLocal = normalizeToLocalDateTime(start)
     const endLocal = normalizeToLocalDateTime(end)
-    const availableConsultants = metaUsers.filter((u: any) => u.consultant)
+    const selectedLocationId = defaultAvailabilityLocationId()
+    const availableConsultants = metaUsers.filter((u: any) => consultantAvailableAtLocation(u, selectedLocationId))
     const selectionResourceConsultantId =
       selection?.resourceId && selection.resourceId !== CONSULTANT_RESOURCE_UNASSIGNED_ID
         ? Number(selection.resourceId)
@@ -3282,6 +3309,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     setAvailabilitySelection({
       slotId: null,
       consultantId: defaultConsultantId,
+      locationId: selectedLocationId,
       startTime: startLocal,
       endTime: endLocal,
       indefinite: false,
@@ -3305,6 +3333,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
         start: startLocal,
         end: endLocal,
         consultantId: defaultConsultantId,
+        locationId: selectedLocationId,
         slotId: null,
         indefinite: false,
         rangeStartDate: startDateOnly,
@@ -3327,6 +3356,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     setAvailabilitySelection({
       slotId: slot.fromWorkingHours ? null : slot.id,
       consultantId: slot.consultant?.id ?? consultantFilterId ?? user.id,
+      locationId: Number(slot.location?.id ?? slot.locationId ?? defaultAvailabilityLocationId()) || null,
       startTime,
       endTime,
       indefinite: !!slot.indefinite,
@@ -3344,6 +3374,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
         start: startTime,
         end: endTime,
         consultantId: cid,
+        locationId: Number(slot.location?.id ?? slot.locationId ?? defaultAvailabilityLocationId()) || null,
         slotId: slot.fromWorkingHours ? null : slot.id,
         indefinite: !!slot.indefinite,
         rangeStartDate: slot.startDate || date,
@@ -3484,12 +3515,23 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       setAvailabilityError('Please select a consultant.')
       return
     }
+    const selectedLocationId = Number(availabilitySelection.locationId ?? defaultAvailabilityLocationId())
+    if (!Number.isFinite(selectedLocationId) || selectedLocationId <= 0) {
+      setAvailabilityError(locale === 'sl' ? 'Izberite lokacijo.' : 'Please select a location.')
+      return
+    }
+    const selectedConsultant = metaUsers.find((candidate: any) => Number(candidate?.id) === Number(consultantId))
+    if (selectedConsultant && !consultantAvailableAtLocation(selectedConsultant, selectedLocationId)) {
+      setAvailabilityError(locale === 'sl' ? 'Izbrani zaposleni ni na voljo na tej lokaciji.' : 'The selected employee is not available at this location.')
+      return
+    }
 
     type AvailabilityPayload = {
       dayOfWeek: string
       startTime: string
       endTime: string
       consultantId: number
+      locationId: number
       indefinite: boolean
       startDate: string | null
       endDate: string | null
@@ -3541,7 +3583,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const workingHoursWindowForDate = (ymd: string) => {
       const date = dateFromYmd(ymd)
       const consultant = metaUsers.find((candidate: any) => Number(candidate?.id) === Number(consultantId))
-      const workingHours = consultant?.workingHours
+      const workingHours = workingHoursForLocation(consultant, selectedLocationId)
       let configuredWindow: any = null
       if (date && workingHours && typeof workingHours === 'object') {
         const dayOfWeek = dayNames[date.getDay()]
@@ -3566,6 +3608,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           startTime: startDate.toTimeString().slice(0, 8),
           endTime: endDate.toTimeString().slice(0, 8),
           consultantId,
+          locationId: selectedLocationId,
           indefinite,
           startDate: indefinite ? null : selectedRangeStart,
           endDate: indefinite ? null : selectedRangeEnd,
@@ -3597,6 +3640,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           startTime: window.startTime,
           endTime: window.endTime,
           consultantId,
+          locationId: selectedLocationId,
           indefinite,
           startDate: indefinite ? null : ymd,
           endDate: indefinite ? null : ymd,
@@ -3760,12 +3804,23 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       setAvailabilityError('Please select a consultant.')
       return
     }
+    const selectedLocationId = Number(availabilitySelection.locationId ?? defaultAvailabilityLocationId())
+    if (!Number.isFinite(selectedLocationId) || selectedLocationId <= 0) {
+      setAvailabilityError(locale === 'sl' ? 'Izberite lokacijo.' : 'Please select a location.')
+      return
+    }
+    const selectedConsultant = metaUsers.find((candidate: any) => Number(candidate?.id) === Number(consultantId))
+    if (selectedConsultant && !consultantAvailableAtLocation(selectedConsultant, selectedLocationId)) {
+      setAvailabilityError(locale === 'sl' ? 'Izbrani zaposleni ni na voljo na tej lokaciji.' : 'The selected employee is not available at this location.')
+      return
+    }
     const indefinite = !!availabilitySelection.indefinite
     const payload = {
       dayOfWeek: dayNames[startDate.getDay()],
       startTime: startDate.toTimeString().slice(0, 8),
       endTime: endDate.toTimeString().slice(0, 8),
       consultantId,
+      locationId: selectedLocationId,
       indefinite,
       startDate: indefinite ? null : (availabilitySelection.rangeStartDate || availabilitySelection.startTime.slice(0, 10)),
       endDate: indefinite ? null : (availabilitySelection.rangeEndDate || availabilitySelection.endTime.slice(0, 10)),
@@ -3845,6 +3900,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             metaUsers,
             whWindowParseHm(slotMinTime),
             whWindowParseHm(slotMaxTime),
+            payload.locationId,
           )
           if (workingWindow != null && 'startMin' in workingWindow) {
             baselineRanges.push(windowToDayMs(
@@ -3857,7 +3913,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           }
           for (const slot of calendarData.bookable || []) {
             const slotConsultantId = slot.consultant?.id ?? slot.consultantId
-            if (slotConsultantId !== consultantId || slot.dayOfWeek !== datePayload.dayOfWeek) continue
+            const slotLocationId = slot.location?.id ?? slot.locationId
+            if (slotConsultantId !== consultantId || slotLocationId !== payload.locationId || slot.dayOfWeek !== datePayload.dayOfWeek) continue
             if (!slot.indefinite && ((slot.startDate && availabilityYmd < slot.startDate) || (slot.endDate && availabilityYmd > slot.endDate))) continue
             const slotStartMs = new Date(`${availabilityYmd}T${slot.startTime}`).getTime()
             const slotEndMs = new Date(`${availabilityYmd}T${slot.endTime}`).getTime()
@@ -3954,7 +4011,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       const blockEnd = toMinutes(payload.endTime)
       const candidates = (calendarData.bookable || []).filter((slot: any) => {
         const slotConsultantId = slot.consultant?.id ?? slot.consultantId
+        const slotLocationId = Number(slot.location?.id ?? slot.locationId)
         if (slotConsultantId !== payload.consultantId) return false
+        if (!Number.isFinite(slotLocationId) || slotLocationId !== payload.locationId) return false
         if (slot.dayOfWeek !== payload.dayOfWeek) return false
         if (!overlapsDateWindow(slot)) return false
         const slotStart = toMinutes(String(slot.startTime || '00:00:00'))
@@ -3988,6 +4047,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             startTime: toHms(blockEnd),
             endTime: slot.endTime,
             consultantId: slot.consultant?.id ?? slot.consultantId,
+            locationId: slot.location?.id ?? slot.locationId ?? payload.locationId,
             indefinite: !!slot.indefinite,
             startDate: slot.indefinite ? null : slot.startDate,
             endDate: slot.indefinite ? null : slot.endDate,
@@ -4001,6 +4061,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             startTime: slot.startTime,
             endTime: toHms(blockStart),
             consultantId: slot.consultant?.id ?? slot.consultantId,
+            locationId: slot.location?.id ?? slot.locationId ?? payload.locationId,
             indefinite: !!slot.indefinite,
             startDate: slot.indefinite ? null : slot.startDate,
             endDate: slot.indefinite ? null : slot.endDate,
@@ -4014,6 +4075,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             startTime: slot.startTime,
             endTime: toHms(blockStart),
             consultantId: slot.consultant?.id ?? slot.consultantId,
+            locationId: slot.location?.id ?? slot.locationId ?? payload.locationId,
             indefinite: !!slot.indefinite,
             startDate: slot.indefinite ? null : slot.startDate,
             endDate: slot.indefinite ? null : slot.endDate,
@@ -4023,6 +4085,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             startTime: toHms(blockEnd),
             endTime: slot.endTime,
             consultantId: slot.consultant?.id ?? slot.consultantId,
+            locationId: slot.location?.id ?? slot.locationId ?? payload.locationId,
             indefinite: !!slot.indefinite,
             startDate: slot.indefinite ? null : slot.startDate,
             endDate: slot.indefinite ? null : slot.endDate,
@@ -5118,7 +5181,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const dayMap: Record<string, number> = { SUNDAY: 0, MONDAY: 1, TUESDAY: 2, WEDNESDAY: 3, THURSDAY: 4, FRIDAY: 5, SATURDAY: 6 }
     const visibleBookableSlots = !bookableEnabled ? [] : filterByConsultantRole(calendarData.bookable).filter(matchesLocationFilter)
     const userHasWorkingHours = (u: any) => {
-      const wh = u?.workingHours
+      const wh = workingHoursForLocation(u, locationFilterId)
       if (!wh || typeof wh !== 'object') return false
       if (wh.sameForAllDays) return !!(wh.allDays?.start && wh.allDays?.end)
       return dayOptions.some((d) => {
@@ -5129,6 +5192,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const consultantsForWhVisible = metaUsers.filter((u: any) => {
       if (!userHasWorkingHours(u)) return false
       if (!(u.consultant || u.role === 'CONSULTANT')) return false
+      if (!consultantAvailableAtLocation(u, locationFilterId)) return false
       if (!isTenantAdmin) return u.id === user.id
       if (effectiveConsultantFilterId != null) return u.id === effectiveConsultantFilterId
       return true
@@ -5264,6 +5328,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             metaUsers,
             companyWhStartMin,
             companyWhEndMin,
+            locationFilterId,
           )
           if (w != null && 'startMin' in w) {
             const whSpan = windowToDayMs(date.getFullYear(), date.getMonth(), date.getDate(), w.startMin, w.endMin)
@@ -5300,6 +5365,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               metaUsers,
               companyWhStartMin,
               companyWhEndMin,
+              locationFilterId,
             )
             if (w == null || ('closed' in w && w.closed) || !('startMin' in w)) continue
             const span = windowToDayMs(date.getFullYear(), date.getMonth(), date.getDate(), w.startMin, w.endMin)
@@ -7536,6 +7602,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           setAvailabilitySelection({
             slotId: a.fromWorkingHours ? null : a.slotId,
             consultantId: a.consultantId,
+            locationId: a.locationId ?? defaultAvailabilityLocationId(),
             startTime: a.start,
             endTime: a.end,
             indefinite: a.indefinite,
@@ -8375,7 +8442,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const startTime = startDate.toTimeString().slice(0, 8)
     const endTime = endDate.toTimeString().slice(0, 8)
 
-    const visibleSlots = filterByConsultantRole(calendarData.bookable)
+    const visibleSlots = filterByConsultantRole(calendarData.bookable).filter(matchesLocationFilter)
     const matchingSlot = visibleSlots.find((slot: any) => {
       if (slot.dayOfWeek !== dayOfWeek) return false
       if (!slot.indefinite && ((slot.startDate && isoDate < slot.startDate) || (slot.endDate && isoDate > slot.endDate))) return false
@@ -8392,6 +8459,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         metaUsers,
         whWindowParseHm(slotMinTime),
         whWindowParseHm(slotMaxTime),
+        locationFilterId,
       )
       if (w != null && 'closed' in w && w.closed) return { isBookable: false }
       if (w != null && 'startMin' in w) {
@@ -8402,8 +8470,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
 
     const whCandidates = metaUsers.filter((u: any) => {
-      if (!u?.workingHours || typeof u.workingHours !== 'object') return false
+      const candidateWorkingHours = workingHoursForLocation(u, locationFilterId)
+      if (!candidateWorkingHours || typeof candidateWorkingHours !== 'object') return false
       if (!(u.consultant || u.role === 'CONSULTANT')) return false
+      if (!consultantAvailableAtLocation(u, locationFilterId)) return false
       if (!isTenantAdmin) return u.id === user.id
       if (effectiveConsultantFilterId != null) return u.id === effectiveConsultantFilterId
       return true
@@ -8418,6 +8488,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         metaUsers,
         whWindowParseHm(slotMinTime),
         whWindowParseHm(slotMaxTime),
+        locationFilterId,
       )
       if (w == null || ('closed' in w && w.closed) || !('startMin' in w)) continue
       const span = windowToDayMs(st0.getFullYear(), st0.getMonth(), st0.getDate(), w.startMin, w.endMin)

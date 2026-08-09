@@ -377,6 +377,7 @@ public class SessionBookingController {
             java.time.LocalTime startTime,
             java.time.LocalTime endTime,
             UserSummary consultant,
+            LocationSummary location,
             boolean indefinite,
             java.time.LocalDate startDate,
             java.time.LocalDate endDate
@@ -1637,12 +1638,16 @@ public class SessionBookingController {
     private static BookableSlotResponse toResponse(BookableSlot s) {
         var u = s.getConsultant();
         var consultant = new UserSummary(u.getId(), u.getFirstName(), u.getLastName(), u.getEmail(), u.getRole());
+        LocationSummary location = s.getLocation() == null
+                ? null
+                : new LocationSummary(s.getLocation().getId(), s.getLocation().getName(), s.getLocation().getCity(), s.getLocation().getTimezone());
         return new BookableSlotResponse(
                 s.getId(),
                 s.getDayOfWeek(),
                 s.getStartTime(),
                 s.getEndTime(),
                 consultant,
+                location,
                 s.isIndefinite(),
                 s.getStartDate(),
                 s.getEndDate()

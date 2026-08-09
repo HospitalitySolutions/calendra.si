@@ -38,6 +38,10 @@ class OperationalLocationOwnershipMigrationTest {
         assertNotNullable(jdbc, "booking_slot_holds", "location_id");
         // Product-only wallet purchases are scoped in Phase 5.5C; booking orders are populated now.
         assertThat(columnNullable(jdbc, "guest_orders", "location_id")).isEqualTo("YES");
+        assertNotNullable(jdbc, "bookable_slot", "location_id");
+        assertNotNullable(jdbc, "users", "available_all_locations");
+        assertThat(columnNullable(jdbc, "users", "working_hours_by_location_json")).isEqualTo("YES");
+        assertThat(jdbc.queryForObject("select to_regclass('public.user_locations') is not null", Boolean.class)).isTrue();
 
         Long workspaceId = jdbc.queryForObject("""
                 insert into workspaces(created_at, updated_at, name, active)
@@ -94,6 +98,21 @@ class OperationalLocationOwnershipMigrationTest {
                 )
                 """, firstCompanyId, secondLocationId))
                 .isInstanceOf(DataIntegrityViolationException.class);
+
+        Long consultantId = insertConsultant(jdbc, firstCompanyId, "location-consultant@example.test");
+        jdbc.update("update users set available_all_locations=false where id=?", consultantId);
+        jdbc.update("insert into user_locations(user_id, location_id) values (?, ?)", consultantId, firstLocationId);
+
+        assertThatThrownBy(() -> jdbc.update(
+                "insert into user_locations(user_id, location_id) values (?, ?)", consultantId, secondLocationId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        assertThatThrownBy(() -> insertBookableSlot(jdbc, firstCompanyId, firstCompanySecondLocationId, consultantId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        jdbc.update("insert into user_locations(user_id, location_id) values (?, ?)", consultantId, firstCompanySecondLocationId);
+        Long bookableSlotId = insertBookableSlot(jdbc, firstCompanyId, firstCompanySecondLocationId, consultantId);
+        assertThat(bookableSlotId).isPositive();
     }
 
     private void assertNotNullable(JdbcTemplate jdbc, String table, String column) {
@@ -171,6 +190,36 @@ class OperationalLocationOwnershipMigrationTest {
                     current_timestamp + interval '15 minutes', 'location-ownership-token', 0
                 ) returning id
                 """, Long.class, companyId, requestId, locationId, serviceId);
+    }
+
+    private Long insertConsultant(JdbcTemplate jdbc, Long companyId, String email) {
+        Long loginAccountId = jdbc.queryForObject("""
+                insert into login_accounts(
+                    created_at, updated_at, first_name, last_name, email, password_hash, active, last_selected_company_id
+                ) values (
+                    current_timestamp, current_timestamp, 'Location', 'Consultant', ?, '$2a$10$testHash', true, ?
+                ) returning id
+                """, Long.class, email, companyId);
+        return jdbc.queryForObject("""
+                insert into users(
+                    created_at, updated_at, company_id, login_account_id, first_name, last_name, email, password_hash,
+                    role, active, consultant, available_all_locations
+                ) values (
+                    current_timestamp, current_timestamp, ?, ?, 'Location', 'Consultant', ?, '$2a$10$testHash',
+                    'CONSULTANT', true, true, true
+                ) returning id
+                """, Long.class, companyId, loginAccountId, email);
+    }
+
+    private Long insertBookableSlot(JdbcTemplate jdbc, Long companyId, Long locationId, Long consultantId) {
+        return jdbc.queryForObject("""
+                insert into bookable_slot(
+                    created_at, updated_at, company_id, location_id, day_of_week, start_time, end_time,
+                    consultant_id, indefinite
+                ) values (
+                    current_timestamp, current_timestamp, ?, ?, 'MONDAY', '09:00', '10:00', ?, true
+                ) returning id
+                """, Long.class, companyId, locationId, consultantId);
     }
 
     private JdbcTemplate jdbc() {

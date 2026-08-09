@@ -3,6 +3,7 @@ package com.example.app.session;
 import com.example.app.company.Company;
 import com.example.app.common.BaseEntity;
 import com.example.app.user.User;
+import com.example.app.location.Location;
 import jakarta.persistence.*;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -19,6 +20,10 @@ public class BookableSlot extends BaseEntity {
     @ManyToOne(optional = false)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "location_id", nullable = false)
+    private Location location;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

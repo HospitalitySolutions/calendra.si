@@ -17,6 +17,9 @@ import com.example.app.session.SessionBookingRepository;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.user.User;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
+import com.example.app.user.ConsultantLocationService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -35,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -67,6 +71,12 @@ public class VoiceBookingService {
 
     @Value("${app.reminders.timezone:Europe/Ljubljana}")
     private String remindersTimezone;
+
+    @Autowired(required = false)
+    private LocationRepository locations;
+
+    @Autowired(required = false)
+    private ConsultantLocationService consultantLocations;
 
     public VoiceBookingService(
             OpenAiConfig openAiConfig,
@@ -251,6 +261,8 @@ public class VoiceBookingService {
 
         String startTime = start.format(ISO_LOCAL);
         String endTime = end.format(ISO_LOCAL);
+        Location voiceLocation = resolveVoiceLocation(me);
+        if (consultantLocations != null) consultantLocations.requireAvailableAt(me, voiceLocation);
         if (!confirmBooking) {
             return new VoiceActionResponse(
                     "book_review",
@@ -286,10 +298,12 @@ public class VoiceBookingService {
                 null,
                 null,
                 null,
-                null);
+                null,
+                null,
+                voiceLocation.getId());
 
         long consultantForSlot = me.getId();
-        if (isBookableEnabled(me.getCompany().getId()) && !coversBookableSlot(me.getCompany().getId(), consultantForSlot, start, end)) {
+        if (isBookableEnabled(me.getCompany().getId()) && !coversBookableSlot(me.getCompany().getId(), voiceLocation.getId(), consultantForSlot, start, end)) {
             throw new VoiceBookingFallbackException(
                     HttpStatus.BAD_REQUEST,
                     msg(lang, "Ta termin ni v razpoložljivem času.", "This time is outside available booking hours."),
@@ -634,9 +648,11 @@ public class VoiceBookingService {
         TimeWindow range = requireRange(date, startTime, endTime, zone, lang, true);
         LocalDateTime start = LocalDateTime.of(date, range.start());
         LocalDateTime end = LocalDateTime.of(date, range.end());
+        Location voiceLocation = resolveVoiceLocation(me);
+        if (consultantLocations != null) consultantLocations.requireAvailableAt(me, voiceLocation);
 
         boolean blocksChanged = removeAvailabilityBlockCoverage(me, start, end);
-        List<TimeWindow> uncovered = computeAvailabilityGaps(me, date, range.start(), range.end());
+        List<TimeWindow> uncovered = computeAvailabilityGaps(me, voiceLocation.getId(), date, range.start(), range.end());
         int created = 0;
         for (TimeWindow gap : uncovered) {
             if (!gap.end().isAfter(gap.start())) {
@@ -644,6 +660,7 @@ public class VoiceBookingService {
             }
             var slot = new BookableSlot();
             slot.setCompany(me.getCompany());
+            slot.setLocation(voiceLocation);
             slot.setConsultant(me);
             slot.setDayOfWeek(date.getDayOfWeek());
             slot.setStartTime(gap.start());
@@ -688,8 +705,10 @@ public class VoiceBookingService {
         TimeWindow range = requireRange(date, startTime, endTime, zone, lang, true);
         LocalDateTime start = LocalDateTime.of(date, range.start());
         LocalDateTime end = LocalDateTime.of(date, range.end());
+        Location voiceLocation = resolveVoiceLocation(me);
+        if (consultantLocations != null) consultantLocations.requireAvailableAt(me, voiceLocation);
 
-        boolean slotChanged = carveOutAvailabilitySlots(me, date, range.start(), range.end());
+        boolean slotChanged = carveOutAvailabilitySlots(me, voiceLocation.getId(), date, range.start(), range.end());
         int createdBlocks = ensureAvailabilityBlockCoverage(me, start, end);
         String message = (slotChanged || createdBlocks > 0)
                 ? msg(lang, "Razpoložljivost je uspešno zaprta.", "Availability blocked successfully.")
@@ -945,8 +964,8 @@ public class VoiceBookingService {
         return changed;
     }
 
-    private List<TimeWindow> computeAvailabilityGaps(User me, LocalDate date, LocalTime requestStart, LocalTime requestEnd) {
-        List<TimeWindow> covered = bookableSlotRepository.findByConsultantIdAndCompanyId(me.getId(), me.getCompany().getId()).stream()
+    private List<TimeWindow> computeAvailabilityGaps(User me, Long locationId, LocalDate date, LocalTime requestStart, LocalTime requestEnd) {
+        List<TimeWindow> covered = bookableSlotRepository.findByConsultantIdAndCompanyIdAndLocationId(me.getId(), me.getCompany().getId(), locationId).stream()
                 .filter(slot -> slotAppliesToDate(slot, date))
                 .map(slot -> intersection(slot.getStartTime(), slot.getEndTime(), requestStart, requestEnd))
                 .filter(window -> window != null && window.end().isAfter(window.start()))
@@ -954,9 +973,9 @@ public class VoiceBookingService {
         return subtractCoverage(requestStart, requestEnd, covered);
     }
 
-    private boolean carveOutAvailabilitySlots(User me, LocalDate date, LocalTime requestStart, LocalTime requestEnd) {
+    private boolean carveOutAvailabilitySlots(User me, Long locationId, LocalDate date, LocalTime requestStart, LocalTime requestEnd) {
         boolean changed = false;
-        List<BookableSlot> slots = new ArrayList<>(bookableSlotRepository.findByConsultantIdAndCompanyId(me.getId(), me.getCompany().getId()).stream()
+        List<BookableSlot> slots = new ArrayList<>(bookableSlotRepository.findByConsultantIdAndCompanyIdAndLocationId(me.getId(), me.getCompany().getId(), locationId).stream()
                 .filter(slot -> slotAppliesToDate(slot, date))
                 .filter(slot -> slot.getStartTime().isBefore(requestEnd) && slot.getEndTime().isAfter(requestStart))
                 .sorted(Comparator.comparing(BookableSlot::getStartTime))
@@ -1040,6 +1059,7 @@ public class VoiceBookingService {
     private BookableSlot cloneSlot(BookableSlot src) {
         var clone = new BookableSlot();
         clone.setCompany(src.getCompany());
+        clone.setLocation(src.getLocation());
         clone.setConsultant(src.getConsultant());
         clone.setDayOfWeek(src.getDayOfWeek());
         clone.setIndefinite(src.isIndefinite());
@@ -1239,13 +1259,28 @@ public class VoiceBookingService {
         return prev[m];
     }
 
+    private Location resolveVoiceLocation(User me) {
+        if (locations == null || me == null || me.getCompany() == null) {
+            throw new VoiceBookingFallbackException(HttpStatus.BAD_REQUEST,
+                    "Location selection is required before changing availability.", null, null, null,
+                    VoiceBookingFallbackException.Reason.NOT_BOOKABLE);
+        }
+        List<Location> active = locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(me.getCompany().getId());
+        if (active.size() != 1) {
+            throw new VoiceBookingFallbackException(HttpStatus.BAD_REQUEST,
+                    "Voice availability changes require a single active location. Select a location in the calendar instead.",
+                    null, null, null, VoiceBookingFallbackException.Reason.NOT_BOOKABLE);
+        }
+        return active.get(0);
+    }
+
     private boolean isBookableEnabled(Long companyId) {
         return settings.findByCompanyIdAndKey(companyId, SettingKey.BOOKABLE_ENABLED)
                 .map(s -> !"false".equalsIgnoreCase(s.getValue().trim()))
                 .orElse(true);
     }
 
-    private boolean coversBookableSlot(Long companyId, Long consultantId, LocalDateTime start, LocalDateTime end) {
+    private boolean coversBookableSlot(Long companyId, Long locationId, Long consultantId, LocalDateTime start, LocalDateTime end) {
         if (!start.toLocalDate().equals(end.toLocalDate())) {
             return false;
         }
@@ -1253,7 +1288,7 @@ public class VoiceBookingService {
         DayOfWeek dow = start.getDayOfWeek();
         LocalTime startT = start.toLocalTime();
         LocalTime endT = end.toLocalTime();
-        List<BookableSlot> slots = bookableSlotRepository.findByConsultantIdAndCompanyId(consultantId, companyId);
+        List<BookableSlot> slots = bookableSlotRepository.findByConsultantIdAndCompanyIdAndLocationId(consultantId, companyId, locationId);
         for (BookableSlot slot : slots) {
             if (slot.getDayOfWeek() != dow) {
                 continue;

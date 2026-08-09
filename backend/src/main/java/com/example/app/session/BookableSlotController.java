@@ -1,6 +1,9 @@
 package com.example.app.session;
 
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.security.SecurityUtils;
+import com.example.app.user.ConsultantLocationService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
@@ -9,6 +12,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -19,20 +23,40 @@ import org.springframework.web.server.ResponseStatusException;
 public class BookableSlotController {
     private final BookableSlotRepository repo;
     private final UserRepository users;
+    private final LocationRepository locations;
+    private final ConsultantLocationService consultantLocations;
 
-    public BookableSlotController(BookableSlotRepository repo, UserRepository users) {
+    public BookableSlotController(
+            BookableSlotRepository repo,
+            UserRepository users,
+            LocationRepository locations,
+            ConsultantLocationService consultantLocations
+    ) {
         this.repo = repo;
         this.users = users;
+        this.locations = locations;
+        this.consultantLocations = consultantLocations;
     }
 
-    public record Request(DayOfWeek dayOfWeek, LocalTime startTime, LocalTime endTime, Long consultantId, boolean indefinite, LocalDate startDate, LocalDate endDate) {}
+    public record Request(
+            DayOfWeek dayOfWeek,
+            LocalTime startTime,
+            LocalTime endTime,
+            Long consultantId,
+            Long locationId,
+            boolean indefinite,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {}
     public record UserSummary(Long id, String firstName, String lastName, String email, Role role) {}
+    public record LocationSummary(Long id, String name, String city) {}
     public record Response(
             Long id,
             DayOfWeek dayOfWeek,
             LocalTime startTime,
             LocalTime endTime,
             UserSummary consultant,
+            LocationSummary location,
             boolean indefinite,
             LocalDate startDate,
             LocalDate endDate,
@@ -41,11 +65,16 @@ public class BookableSlotController {
     ) {}
 
     @GetMapping
-    public List<Response> list(@AuthenticationPrincipal User me) {
+    public List<Response> list(
+            @RequestParam(required = false) Long locationId,
+            @AuthenticationPrincipal User me
+    ) {
         var companyId = me.getCompany().getId();
         var rows = SecurityUtils.isAdmin(me)
-                ? repo.findAllByCompanyId(companyId)
-                : repo.findByConsultantIdAndCompanyId(me.getId(), companyId);
+                ? (locationId == null ? repo.findAllByCompanyId(companyId) : repo.findAllByCompanyIdAndLocationId(companyId, locationId))
+                : (locationId == null
+                    ? repo.findByConsultantIdAndCompanyId(me.getId(), companyId)
+                    : repo.findByConsultantIdAndCompanyIdAndLocationId(me.getId(), companyId, locationId));
         return rows.stream().map(BookableSlotController::toResponse).toList();
     }
 
@@ -61,7 +90,9 @@ public class BookableSlotController {
     public Response update(@PathVariable Long id, @RequestBody Request req, @AuthenticationPrincipal User me) {
         var companyId = me.getCompany().getId();
         var s = repo.findByIdAndCompanyId(id, companyId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        if (!SecurityUtils.isAdmin(me) && !s.getConsultant().getId().equals(me.getId())) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        if (!SecurityUtils.isAdmin(me) && !s.getConsultant().getId().equals(me.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
         apply(s, req, me);
         validateNoOverlap(s, id);
         return toResponse(repo.save(s));
@@ -71,11 +102,14 @@ public class BookableSlotController {
     public void delete(@PathVariable Long id, @AuthenticationPrincipal User me) {
         var companyId = me.getCompany().getId();
         var s = repo.findByIdAndCompanyId(id, companyId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        if (!SecurityUtils.isAdmin(me) && !s.getConsultant().getId().equals(me.getId())) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        if (!SecurityUtils.isAdmin(me) && !s.getConsultant().getId().equals(me.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
         repo.delete(s);
     }
 
     private void apply(BookableSlot s, Request req, User me) {
+        if (req == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Availability is required");
         s.setCompany(me.getCompany());
         s.setDayOfWeek(req.dayOfWeek());
         s.setStartTime(req.startTime());
@@ -88,7 +122,6 @@ public class BookableSlotController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "End time must be after start time");
         }
         if (req.indefinite()) {
-            // Indefinite slots intentionally have no date bounds.
             s.setStartDate(null);
             s.setEndDate(null);
         } else {
@@ -101,50 +134,71 @@ public class BookableSlotController {
             s.setStartDate(req.startDate());
             s.setEndDate(req.endDate());
         }
+
         var consultant = SecurityUtils.isAdmin(me)
                 ? users.findByIdAndCompanyId(req.consultantId(), me.getCompany().getId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST))
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid consultant"))
                 : me;
-        if (!consultant.isConsultant()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected user is not marked as consultant");
+        if (!consultant.isConsultant() || !consultant.isActive()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected user is not an active consultant");
         }
+        Location location = resolveLocation(req.locationId(), s.getLocation(), me);
+        consultantLocations.requireAvailableAt(consultant, location);
+        s.setLocation(location);
         s.setConsultant(consultant);
+    }
+
+    private Location resolveLocation(Long requestedLocationId, Location existing, User me) {
+        Long companyId = me.getCompany().getId();
+        if (requestedLocationId != null) {
+            return locations.findByIdAndCompanyId(requestedLocationId, companyId)
+                    .filter(Location::isActive)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location is not available in this unit."));
+        }
+        if (existing != null && existing.getId() != null && existing.isActive()
+                && Objects.equals(existing.getCompany().getId(), companyId)) {
+            return existing;
+        }
+        List<Location> active = locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(companyId);
+        if (active.size() == 1) return active.get(0);
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location selection is required.");
     }
 
     private void validateNoOverlap(BookableSlot s, Long excludeId) {
         Long consultantId = s.getConsultant().getId();
-        if (consultantId == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Consultant is required");
+        if (consultantId == null || s.getLocation() == null || s.getLocation().getId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Consultant and location are required");
         }
-        // PostgreSQL cannot infer type for untyped NULL parameters inside "? is null" checks;
-        // pass concrete LocalDate values for query parameters in all cases.
         LocalDate queryStartDate = s.isIndefinite() ? LocalDate.of(1970, 1, 1) : s.getStartDate();
         LocalDate queryEndDate = s.isIndefinite() ? LocalDate.of(2999, 12, 31) : s.getEndDate();
-        boolean exists = repo.existsOverlappingSlotByCompanyId(
+        boolean exists = repo.existsOverlappingSlotByCompanyAndLocationId(
                 s.getCompany().getId(),
+                s.getLocation().getId(),
                 consultantId,
                 s.getDayOfWeek(),
                 s.getStartTime(),
                 s.getEndTime(),
-            queryStartDate,
-            queryEndDate,
+                queryStartDate,
+                queryEndDate,
                 s.isIndefinite(),
                 excludeId
         );
         if (exists) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Overlapping bookable slot for this consultant and time.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Overlapping bookable slot for this consultant, location and time.");
         }
     }
 
     private static Response toResponse(BookableSlot s) {
         var u = s.getConsultant();
         var consultant = new UserSummary(u.getId(), u.getFirstName(), u.getLastName(), u.getEmail(), u.getRole());
+        var location = s.getLocation() == null ? null : new LocationSummary(s.getLocation().getId(), s.getLocation().getName(), s.getLocation().getCity());
         return new Response(
                 s.getId(),
                 s.getDayOfWeek(),
                 s.getStartTime(),
                 s.getEndTime(),
                 consultant,
+                location,
                 s.isIndefinite(),
                 s.getStartDate(),
                 s.getEndDate(),

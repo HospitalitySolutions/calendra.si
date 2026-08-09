@@ -5,6 +5,7 @@ import com.example.app.company.Company;
 import com.example.app.common.BaseEntity;
 import com.example.app.session.Space;
 import com.example.app.session.SessionType;
+import com.example.app.location.Location;
 import jakarta.persistence.*;
 import java.util.HashSet;
 import java.util.Set;
@@ -55,6 +56,17 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private boolean consultant = false;
 
+    /** Consultant can work at every active company location unless an explicit allowlist is used. */
+    @Column(name = "available_all_locations", nullable = false)
+    private boolean availableAllLocations = true;
+
+    /** Explicit consultant location allowlist used only when availableAllLocations=false. */
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(name = "user_locations",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "location_id"))
+    private Set<Location> locations = new HashSet<>();
+
     @ManyToMany
     @JoinTable(name = "user_spaces",
             joinColumns = @JoinColumn(name = "user_id"),
@@ -83,9 +95,13 @@ public class User extends BaseEntity {
     @Column(length = 128)
     private String whatsappPhoneNumberId;
 
-    /** JSON: sameForAllDays, allDays {start,end}, byDay per weekday — see frontend WorkingHoursConfig. */
+    /** Global/default JSON: sameForAllDays, allDays {start,end}, byDay per weekday. */
     @Column(columnDefinition = "TEXT")
     private String workingHoursJson;
+
+    /** JSON object keyed by location id; each value has the same structure as workingHoursJson. */
+    @Column(name = "working_hours_by_location_json", columnDefinition = "TEXT")
+    private String workingHoursByLocationJson;
 
     /** Base64url-encoded stable WebAuthn user handle for this user. */
     @Column(length = 255, unique = true)

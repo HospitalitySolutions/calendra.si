@@ -28,6 +28,7 @@ import com.example.app.settings.CourseModuleAccessService;
 import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.settings.TenantReservationRulesService;
 import com.example.app.user.User;
+import com.example.app.user.ConsultantLocationService;
 import com.example.app.user.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -72,6 +73,9 @@ public class GuestCatalogService {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private GuestLocationAccessService guestLocations;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ConsultantLocationService consultantLocations;
 
     public GuestCatalogService(
             SessionTypeRepository sessionTypes,
@@ -251,33 +255,87 @@ public class GuestCatalogService {
         List<SessionType> chain = resolveGuestServiceChain(companyId, sessionTypeIds, guestUser);
         chain.forEach(type -> guestLocations.requireServiceAvailableAt(type, location));
 
-        // Group-session slots represent concrete bookings at a concrete branch. Filtering
-        // them here prevents a Location A provider card from ever joining Location B.
-        if (chain.size() == 1 && isGuestGroupService(chain.get(0))) {
-            SessionType type = chain.get(0);
-            SimulatedTimeContext.set(companyId);
-            LocalDate date = LocalDate.parse(dateText);
-            GuestSettingsService.GuestBookingRules rules = guestSettings.bookingRules(companyId);
-            if (!dateAllowedByReservationRules(companyId, date, rules)) {
-                return new GuestDtos.AvailabilityResponse(
-                        String.valueOf(type.getId()), dateText, List.of(),
-                        List.of(String.valueOf(type.getId())),
-                        Math.max(1, type.getDurationMinutes() == null ? 60 : type.getDurationMinutes()),
-                        sessionTypePriceGross(type).doubleValue(), tenantCurrency(companyId)
-                );
-            }
-            Long requestedConsultantId = rules.employeeSelectionAllowed() ? consultantId : null;
-            List<GuestDtos.AvailabilitySlotResponse> slots = guestGroupSessionSlots(
-                    companyId, type, date, requestedConsultantId, guestUser, location.getId()
-            );
+        SimulatedTimeContext.set(companyId);
+        LocalDate date = LocalDate.parse(dateText);
+        GuestSettingsService.GuestBookingRules rules = guestSettings.bookingRules(companyId);
+        int totalDuration = chain.stream()
+                .mapToInt(service -> Math.max(1, service.getDurationMinutes() == null ? 60 : service.getDurationMinutes()))
+                .sum();
+        double totalPrice = chain.stream().map(GuestCatalogService::sessionTypePriceGross)
+                .reduce(BigDecimal.ZERO, BigDecimal::add).doubleValue();
+        SessionType first = chain.get(0);
+        if (!dateAllowedByReservationRules(companyId, date, rules)) {
             return new GuestDtos.AvailabilityResponse(
-                    String.valueOf(type.getId()), dateText, slots,
-                    List.of(String.valueOf(type.getId())),
-                    Math.max(1, type.getDurationMinutes() == null ? 60 : type.getDurationMinutes()),
-                    sessionTypePriceGross(type).doubleValue(), tenantCurrency(companyId)
+                    String.valueOf(first.getId()), dateText, List.of(),
+                    chain.stream().map(type -> String.valueOf(type.getId())).toList(),
+                    totalDuration, totalPrice, tenantCurrency(companyId)
             );
         }
-        return availability(companyId, sessionTypeIds, dateText, consultantId, guestUser);
+
+        Long requestedConsultantId = rules.employeeSelectionAllowed() ? consultantId : null;
+        if (chain.size() == 1 && isGuestGroupService(first)) {
+            List<GuestDtos.AvailabilitySlotResponse> slots = guestGroupSessionSlots(
+                    companyId, first, date, requestedConsultantId, guestUser, location.getId()
+            );
+            return new GuestDtos.AvailabilityResponse(
+                    String.valueOf(first.getId()), dateText, slots,
+                    List.of(String.valueOf(first.getId())),
+                    totalDuration, totalPrice, tenantCurrency(companyId)
+            );
+        }
+        if (chain.stream().anyMatch(this::isGuestGroupService)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Group services cannot be combined in one public booking.");
+        }
+        if (chain.size() > 1 && !guestSettings.publicSettings(companyId).multipleServicesEnabled()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Multiple services are disabled for this tenant.");
+        }
+
+        Map<String, GuestDtos.AvailabilitySlotResponse> merged = new LinkedHashMap<>();
+        if (chain.size() == 1) {
+            int durationMinutes = Math.max(1, first.getDurationMinutes() == null ? 60 : first.getDurationMinutes());
+            addSlotsFromBookableWindows(companyId, first, date, durationMinutes, requestedConsultantId, merged, rules, location.getId());
+            addSlotsFromWorkingHours(companyId, first, date, durationMinutes, requestedConsultantId, merged, rules, location.getId());
+        } else {
+            List<SessionBookingController.BookingServiceRequest> requests = new ArrayList<>();
+            for (int i = 0; i < chain.size(); i++) {
+                requests.add(new SessionBookingController.BookingServiceRequest(chain.get(i).getId(), i, null));
+            }
+            for (GuestDtos.AvailabilitySlotResponse candidate : multiServiceCandidateSlots(
+                    companyId, chain, date, totalDuration, requestedConsultantId, rules, location.getId())) {
+                try {
+                    String[] parts = candidate.slotId().split("\\|");
+                    if (parts.length < 3) continue;
+                    Long candidateConsultantId = parseOptionalConsultantId(parts[0]);
+                    if (candidateConsultantId == null
+                            || !consultantSupportsAll(candidateConsultantId, chain, companyId)
+                            || !consultantAvailableAt(candidateConsultantId, companyId, location.getId())) continue;
+                    LocalDateTime startsAt = LocalDateTime.parse(parts[1]);
+                    SessionServicePlanService.Plan plan = bookingCreationService.validateServiceChainWindow(
+                            companyId, List.of(), candidateConsultantId, startsAt, requests,
+                            SessionBookingCreationService.bookingExcludeIds((Long) null)
+                    );
+                    merged.putIfAbsent(
+                            availabilityMergeKey(plan.startTime(), plan.endTime()),
+                            new GuestDtos.AvailabilitySlotResponse(
+                                    slotToken(candidateConsultantId, plan.startTime(), plan.endTime()),
+                                    plan.startTime().toString(), plan.endTime().toString(), true
+                            )
+                    );
+                } catch (RuntimeException ignored) {
+                    // Candidate is omitted unless the complete ordered chain fits.
+                }
+            }
+        }
+
+        return new GuestDtos.AvailabilityResponse(
+                String.valueOf(first.getId()),
+                dateText,
+                merged.values().stream().sorted(Comparator.comparing(GuestDtos.AvailabilitySlotResponse::startsAt)).toList(),
+                chain.stream().map(type -> String.valueOf(type.getId())).toList(),
+                totalDuration,
+                totalPrice,
+                tenantCurrency(companyId)
+        );
     }
 
     /** Shared ordered-chain availability used by mobile, widget and public booking. */
@@ -340,7 +398,8 @@ public class GuestCatalogService {
                 date,
                 totalDuration,
                 requestedConsultantId,
-                rules
+                rules,
+                null
         );
         for (GuestDtos.AvailabilitySlotResponse candidate : candidates) {
             try {
@@ -383,12 +442,15 @@ public class GuestCatalogService {
     public List<GuestDtos.ConsultantResponse> consultants(
             Long companyId, List<Long> sessionTypeIds, Long locationId, GuestUser guestUser
     ) {
-        if (guestLocations != null) {
-            Location location = guestLocations.resolveBookable(companyId, locationId);
-            List<SessionType> chain = resolveGuestServiceChain(companyId, sessionTypeIds, guestUser);
-            chain.forEach(type -> guestLocations.requireServiceAvailableAt(type, location));
-        }
-        return consultants(companyId, sessionTypeIds, guestUser);
+        if (guestLocations == null) return consultants(companyId, sessionTypeIds, guestUser);
+        Location location = guestLocations.resolveBookable(companyId, locationId);
+        List<SessionType> chain = resolveGuestServiceChain(companyId, sessionTypeIds, guestUser);
+        chain.forEach(type -> guestLocations.requireServiceAvailableAt(type, location));
+        if (!guestSettings.bookingRules(companyId).employeeSelectionAllowed()) return List.of();
+        return supportedGuestConsultants(companyId, chain.get(0), location.getId()).stream()
+                .filter(user -> chain.stream().allMatch(type -> consultantSupportsSessionType(user, type)))
+                .map(u -> new GuestDtos.ConsultantResponse(String.valueOf(u.getId()), u.getFirstName(), u.getLastName(), u.getEmail()))
+                .toList();
     }
 
     /** Validates an authenticated guest booking chain against one location (used by slot holds/orders). */
@@ -441,12 +503,13 @@ public class GuestCatalogService {
             LocalDate date,
             int totalDurationMinutes,
             Long requiredConsultantId,
-            GuestSettingsService.GuestBookingRules rules
+            GuestSettingsService.GuestBookingRules rules,
+            Long locationId
     ) {
         Map<String, GuestDtos.AvailabilitySlotResponse> merged = new LinkedHashMap<>();
         DayOfWeek dayOfWeek = date.getDayOfWeek();
 
-        List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyId(companyId).stream()
+        List<BookableSlot> windows = (locationId == null ? bookableSlots.findAllForWidgetByCompanyId(companyId) : bookableSlots.findAllForWidgetByCompanyIdAndLocationId(companyId, locationId)).stream()
                 .filter(slot -> slot.getConsultant() != null)
                 .filter(slot -> slot.getConsultant().isActive())
                 .filter(slot -> slot.getConsultant().isConsultant())
@@ -471,10 +534,10 @@ public class GuestCatalogService {
             );
         }
 
-        for (User consultant : supportedGuestConsultants(companyId, chain.get(0))) {
+        for (User consultant : supportedGuestConsultants(companyId, chain.get(0), locationId)) {
             if (requiredConsultantId != null && !Objects.equals(consultant.getId(), requiredConsultantId)) continue;
             if (!chain.stream().allMatch(type -> consultantSupportsSessionType(consultant, type))) continue;
-            Optional<TimeWindow> workingWindow = resolveConsultantWorkingWindow(consultant, date);
+            Optional<TimeWindow> workingWindow = resolveConsultantWorkingWindow(consultant, date, locationId);
             if (workingWindow.isEmpty()) continue;
             addMultiServiceCandidateStarts(
                     merged,
@@ -700,6 +763,7 @@ public class GuestCatalogService {
             Long sessionTypeId,
             String slotId,
             Long excludeBookingId,
+            Long locationId,
             GuestUser guestUser
     ) {
         if (isGroupSlotToken(slotId)) {
@@ -734,7 +798,10 @@ public class GuestCatalogService {
         if (!consultantSupportsSessionType(consultant, type)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Consultant does not offer this service.");
         }
-        if (!isSlotInsideConfiguredGuestAvailability(companyId, type, consultant, slot, durationMinutes)) {
+        if (!consultantAvailableAt(consultant, locationId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Consultant is not available at this location.");
+        }
+        if (!isSlotInsideConfiguredGuestAvailability(companyId, type, consultant, slot, durationMinutes, locationId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected slot is outside the current guest booking availability.");
         }
         try {
@@ -785,20 +852,46 @@ public class GuestCatalogService {
     }
 
     private List<User> supportedGuestConsultants(Long companyId, SessionType type) {
-        return users.findAllByCompanyId(companyId).stream()
+        return supportedGuestConsultants(companyId, type, null);
+    }
+
+    private List<User> supportedGuestConsultants(Long companyId, SessionType type, Long locationId) {
+        List<User> candidates = locationId == null
+                ? users.findActiveBookableByCompanyId(companyId)
+                : users.findActiveBookableByCompanyIdAndLocationId(companyId, locationId);
+        return candidates.stream()
                 .filter(User::isActive)
                 .filter(this::isBookableGuestConsultant)
                 .filter(u -> consultantSupportsSessionType(u, type))
+                .filter(u -> locationId == null || consultantAvailableAt(u, locationId))
                 .sorted(Comparator.comparing(u -> ((u.getFirstName() + " " + u.getLastName()).trim()), String.CASE_INSENSITIVE_ORDER))
                 .toList();
+    }
+
+    private boolean consultantAvailableAt(User consultant, Long locationId) {
+        return locationId == null || consultantLocations == null || consultantLocations.isAvailableAt(consultant, locationId);
+    }
+
+    private boolean consultantAvailableAt(Long consultantId, Long companyId, Long locationId) {
+        return users.findByIdAndCompanyIdAndActiveTrue(consultantId, companyId)
+                .map(user -> consultantAvailableAt(user, locationId))
+                .orElse(false);
     }
 
     private void addSlotsFromBookableWindows(Long companyId, SessionType type, LocalDate date, int durationMinutes,
                                              Long requiredConsultantId,
                                              Map<String, GuestDtos.AvailabilitySlotResponse> merged,
                                              GuestSettingsService.GuestBookingRules rules) {
+        addSlotsFromBookableWindows(companyId, type, date, durationMinutes, requiredConsultantId, merged, rules, null);
+    }
+
+    private void addSlotsFromBookableWindows(Long companyId, SessionType type, LocalDate date, int durationMinutes,
+                                             Long requiredConsultantId,
+                                             Map<String, GuestDtos.AvailabilitySlotResponse> merged,
+                                             GuestSettingsService.GuestBookingRules rules,
+                                             Long locationId) {
         DayOfWeek dayOfWeek = date.getDayOfWeek();
-        List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyId(companyId).stream()
+        List<BookableSlot> windows = (locationId == null ? bookableSlots.findAllForWidgetByCompanyId(companyId) : bookableSlots.findAllForWidgetByCompanyIdAndLocationId(companyId, locationId)).stream()
                 .filter(slot -> slot.getConsultant() != null)
                 .filter(slot -> slot.getConsultant().isActive())
                 .filter(slot -> slot.getConsultant().isConsultant())
@@ -829,11 +922,19 @@ public class GuestCatalogService {
                                           Long requiredConsultantId,
                                           Map<String, GuestDtos.AvailabilitySlotResponse> merged,
                                           GuestSettingsService.GuestBookingRules rules) {
-        for (User consultant : supportedGuestConsultants(companyId, type)) {
+        addSlotsFromWorkingHours(companyId, type, date, durationMinutes, requiredConsultantId, merged, rules, null);
+    }
+
+    private void addSlotsFromWorkingHours(Long companyId, SessionType type, LocalDate date, int durationMinutes,
+                                          Long requiredConsultantId,
+                                          Map<String, GuestDtos.AvailabilitySlotResponse> merged,
+                                          GuestSettingsService.GuestBookingRules rules,
+                                          Long locationId) {
+        for (User consultant : supportedGuestConsultants(companyId, type, locationId)) {
             if (requiredConsultantId != null && !Objects.equals(consultant.getId(), requiredConsultantId)) {
                 continue;
             }
-            Optional<TimeWindow> dayWindow = resolveConsultantWorkingWindow(consultant, date);
+            Optional<TimeWindow> dayWindow = resolveConsultantWorkingWindow(consultant, date, locationId);
             if (dayWindow.isEmpty()) {
                 continue;
             }
@@ -857,13 +958,14 @@ public class GuestCatalogService {
             SessionType type,
             User consultant,
             SlotPayload slot,
-            int durationMinutes
+            int durationMinutes,
+            Long locationId
     ) {
         LocalDate date = slot.startsAt().toLocalDate();
-        if (isSlotInsideBookableWindow(companyId, type, consultant, slot, date, durationMinutes)) {
+        if (isSlotInsideBookableWindow(companyId, type, consultant, slot, date, durationMinutes, locationId)) {
             return true;
         }
-        Optional<TimeWindow> workingWindow = resolveConsultantWorkingWindow(consultant, date);
+        Optional<TimeWindow> workingWindow = resolveConsultantWorkingWindow(consultant, date, locationId);
         return workingWindow
                 .map(window -> generatedSlotMatchesWindow(slot, window.start(), window.end(), durationMinutes))
                 .orElse(false);
@@ -875,10 +977,14 @@ public class GuestCatalogService {
             User consultant,
             SlotPayload slot,
             LocalDate date,
-            int durationMinutes
+            int durationMinutes,
+            Long locationId
     ) {
         DayOfWeek dayOfWeek = date.getDayOfWeek();
-        return bookableSlots.findAllForWidgetByCompanyId(companyId).stream()
+        List<BookableSlot> configuredWindows = locationId == null
+                ? bookableSlots.findAllForWidgetByCompanyId(companyId)
+                : bookableSlots.findAllForWidgetByCompanyIdAndLocationId(companyId, locationId);
+        return configuredWindows.stream()
                 .filter(window -> window.getConsultant() != null)
                 .filter(window -> Objects.equals(window.getConsultant().getId(), consultant.getId()))
                 .filter(window -> window.getConsultant().isActive())
@@ -984,8 +1090,8 @@ public class GuestCatalogService {
         return true;
     }
 
-    private Optional<TimeWindow> resolveConsultantWorkingWindow(User consultant, LocalDate date) {
-        String raw = consultant.getWorkingHoursJson();
+    private Optional<TimeWindow> resolveConsultantWorkingWindow(User consultant, LocalDate date, Long locationId) {
+        String raw = consultantLocations == null ? consultant.getWorkingHoursJson() : consultantLocations.workingHoursJsonFor(consultant, locationId);
         if (raw == null || raw.isBlank()) {
             return Optional.empty();
         }

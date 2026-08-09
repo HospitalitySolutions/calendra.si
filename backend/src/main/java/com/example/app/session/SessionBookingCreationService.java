@@ -15,6 +15,7 @@ import com.example.app.company.CompanyRepository;
 import com.example.app.group.ClientGroup;
 import com.example.app.group.ClientGroupRepository;
 import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.location.LocationService;
 import com.example.app.google.GoogleMeetService;
 import com.example.app.guest.order.GuestEntitlementService;
@@ -23,6 +24,7 @@ import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.security.SecurityUtils;
+import com.example.app.user.ConsultantLocationService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
@@ -115,6 +117,12 @@ public class SessionBookingCreationService {
 
     @Autowired(required = false)
     private LocationService locationService;
+
+    @Autowired(required = false)
+    private LocationRepository locationRepository;
+
+    @Autowired(required = false)
+    private ConsultantLocationService consultantLocationService;
 
     @Autowired(required = false)
     private WorkspaceSchedulingLockService workspaceSchedulingLocks;
@@ -1952,7 +1960,7 @@ public class SessionBookingCreationService {
             Long consultantId,
             SessionServicePlanService.Plan servicePlan
     ) {
-        if (servicePlan == null || servicePlan.segments() == null || servicePlan.segments().size() <= 1) {
+        if (servicePlan == null || servicePlan.segments() == null || servicePlan.segments().isEmpty()) {
             return;
         }
         User consultant = users.findByIdAndCompanyId(consultantId, companyId)
@@ -2133,6 +2141,20 @@ public class SessionBookingCreationService {
         }
         if (serviceLocation != null) return serviceLocation;
         if (booking.getLocation() != null) return booking.getLocation();
+
+        // A new operational booking may only infer its location when the tenancy has exactly
+        // one active branch. Multi-location tenants must make the branch explicit rather than
+        // silently falling back to the default location. The optional repository fallback keeps
+        // focused unit tests that do not wire the full Spring graph backwards compatible.
+        if (locationRepository != null) {
+            List<Location> activeLocations = locationRepository
+                    .findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(actor.getCompany().getId());
+            if (activeLocations.size() == 1) return activeLocations.get(0);
+            if (activeLocations.size() > 1) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Location selection is required for multi-location businesses.");
+            }
+        }
         return locationService.requireDefault(actor.getCompany());
     }
 
@@ -2168,6 +2190,10 @@ public class SessionBookingCreationService {
             String meetingLink,
             String bookingStatus
     ) {
+        Long originalConsultantId = booking.getConsultant() == null ? null : booking.getConsultant().getId();
+        Long originalLocationId = booking.getLocation() == null ? null : booking.getLocation().getId();
+        boolean newBooking = booking.getId() == null;
+
         booking.setCompany(me.getCompany());
 
         String requestedRecurrenceSeriesKey = normalizeRecurrenceSeriesKey(req.recurrenceSeriesKey());
@@ -2220,7 +2246,15 @@ public class SessionBookingCreationService {
             }
         }
         if (locationService != null) {
-            booking.setLocation(resolveBookingLocation(req, booking, me));
+            Location resolvedLocation = resolveBookingLocation(req, booking, me);
+            Long resolvedConsultantId = booking.getConsultant() == null ? null : booking.getConsultant().getId();
+            boolean assignmentChanged = newBooking
+                    || !Objects.equals(originalConsultantId, resolvedConsultantId)
+                    || !Objects.equals(originalLocationId, resolvedLocation.getId());
+            if (assignmentChanged && consultantLocationService != null && booking.getConsultant() != null) {
+                consultantLocationService.requireAvailableAt(booking.getConsultant(), resolvedLocation);
+            }
+            booking.setLocation(resolvedLocation);
         }
         booking.setNotes(req.notes() != null ? req.notes().trim() : "");
         boolean hasMeeting = meetingLink != null && !meetingLink.isBlank();

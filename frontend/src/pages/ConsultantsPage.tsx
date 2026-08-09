@@ -194,6 +194,9 @@ type Consultant = {
   whatsappSenderNumber?: string | null
   whatsappPhoneNumberId?: string | null
   workingHours?: WorkingHoursConfig | null
+  availableAllLocations?: boolean
+  locationIds?: number[]
+  workingHoursByLocation?: Record<string, WorkingHoursConfig>
   permissions?: string[]
   accessRoleId?: number | null
   accessRoleName?: string | null
@@ -217,6 +220,13 @@ type UserQuota = {
   reached: boolean
 }
 
+type LocationOption = {
+  id: number
+  name: string
+  city?: string | null
+  active?: boolean
+}
+
 type ConsultantForm = {
   firstName: string
   lastName: string
@@ -227,6 +237,9 @@ type ConsultantForm = {
   vatId: string
   phone: string
   workingHours: WorkingHoursConfig
+  availableAllLocations: boolean
+  locationIds: number[]
+  workingHoursByLocation: Record<string, WorkingHoursConfig>
   permissions: EmployeePermission[]
   accessRoleId: string
 }
@@ -252,6 +265,9 @@ const emptyForm: ConsultantForm = {
   vatId: '',
   phone: '',
   workingHours: defaultByDayWorkingHours(),
+  availableAllLocations: true,
+  locationIds: [],
+  workingHoursByLocation: {},
   permissions: [...DEFAULT_ENABLED_EMPLOYEE_PERMISSIONS],
   accessRoleId: '',
 }
@@ -308,6 +324,9 @@ function consultantFormsEqual(a: ConsultantForm, b: ConsultantForm): boolean {
     a.accessRoleId === b.accessRoleId &&
     a.vatId === b.vatId &&
     a.phone === b.phone &&
+    a.availableAllLocations === b.availableAllLocations &&
+    JSON.stringify([...a.locationIds].sort((x, y) => x - y)) === JSON.stringify([...b.locationIds].sort((x, y) => x - y)) &&
+    JSON.stringify(a.workingHoursByLocation) === JSON.stringify(b.workingHoursByLocation) &&
     workingHoursEqual(a.workingHours, b.workingHours) &&
     permissionsEqual(a.permissions, b.permissions)
   )
@@ -328,6 +347,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const canEditEmployees = hasEmployeePermission(user, 'EMPLOYEES_EDIT')
   const canDeleteEmployees = hasEmployeePermission(user, 'EMPLOYEES_DELETE')
   const [consultants, setConsultants] = useState<Consultant[]>([])
+  const [locations, setLocations] = useState<LocationOption[]>([])
   const [accessRoleOptions, setAccessRoleOptions] = useState<AccessRoleOption[]>([])
   const [userQuota, setUserQuota] = useState<UserQuota | null>(null)
   const [employeeLimitDialog, setEmployeeLimitDialog] = useState<UserQuota | null>(null)
@@ -374,15 +394,17 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     setErrorMessage('')
 
     try {
-      const [usersResponse, quotaResponse, rolesResponse] = await Promise.all([
+      const [usersResponse, quotaResponse, rolesResponse, locationsResponse] = await Promise.all([
         api.get(`/users`),
         api.get<UserQuota>(`/users/quota`).catch(() => ({ data: null as UserQuota | null })),
         api.get<{ roles: AccessRoleOption[] }>(`/employee-roles`).catch(() => ({ data: { roles: [] as AccessRoleOption[] } })),
+        api.get<LocationOption[]>(`/locations`).catch(() => ({ data: [] as LocationOption[] })),
       ])
       const nextConsultants = usersResponse.data ?? []
       setConsultants(nextConsultants)
       setUserQuota(quotaResponse.data ?? null)
       setAccessRoleOptions((rolesResponse.data?.roles ?? []).filter((role) => !role.system))
+      setLocations((locationsResponse.data ?? []).filter((location) => location.active !== false))
     } catch (error: any) {
       console.error('Failed to load consultants', error)
 
@@ -546,6 +568,11 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
             allDays: { start: '09:00', end: '17:00' },
             byDay: {},
           },
+      availableAllLocations: c.availableAllLocations !== false,
+      locationIds: Array.isArray(c.locationIds) ? c.locationIds.map(Number).filter(Number.isFinite) : [],
+      workingHoursByLocation: c.workingHoursByLocation && typeof c.workingHoursByLocation === 'object'
+        ? JSON.parse(JSON.stringify(c.workingHoursByLocation))
+        : {},
       permissions: normalizeEmployeePermissions(c.permissions),
       accessRoleId: c.tenantOwner || c.accessRoleId == null ? '' : String(c.accessRoleId),
     }
@@ -640,6 +667,18 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
         vatId: form.vatId.trim() || null,
         phone: form.phone.trim() || null,
         workingHours: normalizeWorkingHoursForApi(form.workingHours),
+        availableAllLocations: form.availableAllLocations,
+        locationIds: form.availableAllLocations ? [] : form.locationIds,
+        workingHoursByLocation: Object.fromEntries(
+          Object.entries(form.workingHoursByLocation)
+            .filter(([locationId]) => {
+              const id = Number(locationId)
+              return Number.isFinite(id)
+                && locations.some((location) => location.id === id)
+                && (form.availableAllLocations || form.locationIds.includes(id))
+            })
+            .map(([locationId, hours]) => [locationId, normalizeWorkingHoursForApi(hours)]),
+        ),
         permissions: form.permissions,
         accessRoleId: editing?.tenantOwner ? null : form.accessRoleId ? Number(form.accessRoleId) : null,
       }
@@ -719,6 +758,100 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       return { ...f, workingHours: next }
     })
   }
+
+  const setConsultantAllLocations = (allLocations: boolean) => {
+    setForm((f) => ({
+      ...f,
+      availableAllLocations: allLocations,
+      locationIds: allLocations
+        ? f.locationIds
+        : (f.locationIds.length > 0 ? f.locationIds : locations.map((location) => location.id)),
+    }))
+  }
+
+  const toggleConsultantLocation = (locationId: number, checked: boolean) => {
+    setForm((f) => {
+      const nextIds = checked
+        ? Array.from(new Set([...f.locationIds, locationId])).sort((a, b) => a - b)
+        : f.locationIds.filter((id) => id !== locationId)
+      const nextOverrides = { ...f.workingHoursByLocation }
+      if (!checked) delete nextOverrides[String(locationId)]
+      return { ...f, locationIds: nextIds, workingHoursByLocation: nextOverrides }
+    })
+  }
+
+  const setLocationWorkingHoursOverride = (locationId: number, enabled: boolean) => {
+    setForm((f) => {
+      const next = { ...f.workingHoursByLocation }
+      if (enabled) {
+        next[String(locationId)] = JSON.parse(JSON.stringify(f.workingHours)) as WorkingHoursConfig
+      } else {
+        delete next[String(locationId)]
+      }
+      return { ...f, workingHoursByLocation: next }
+    })
+  }
+
+  const setLocationWorkingHoursSame = (locationId: number, same: boolean) => {
+    setForm((f) => {
+      const key = String(locationId)
+      const current = f.workingHoursByLocation[key] || JSON.parse(JSON.stringify(f.workingHours)) as WorkingHoursConfig
+      const currentByDay = current.byDay || {}
+      const firstConfiguredDay = dayOptions.map((day) => currentByDay[day]).find((row) => row?.start && row?.end)
+      const base = current.allDays || firstConfiguredDay || { start: '09:00', end: '17:00' }
+      let nextHours: WorkingHoursConfig
+      if (same) {
+        nextHours = { sameForAllDays: true, allDays: { start: base.start, end: base.end }, byDay: {} }
+      } else {
+        const byDay: WorkingHoursConfig['byDay'] = {}
+        for (const day of dayOptions) {
+          const existing = currentByDay[day]
+          byDay[day] = existing?.start && existing?.end
+            ? { start: existing.start, end: existing.end }
+            : { start: base.start, end: base.end }
+        }
+        nextHours = { sameForAllDays: false, allDays: null, byDay }
+      }
+      return { ...f, workingHoursByLocation: { ...f.workingHoursByLocation, [key]: nextHours } }
+    })
+  }
+
+  const setLocationAllDayHours = (locationId: number, patch: { start?: string; end?: string }) => {
+    setForm((f) => {
+      const key = String(locationId)
+      const current = f.workingHoursByLocation[key] || { sameForAllDays: true, allDays: { start: '09:00', end: '17:00' }, byDay: {} }
+      const prev = current.allDays || { start: '09:00', end: '17:00' }
+      const nextHours: WorkingHoursConfig = {
+        ...current,
+        sameForAllDays: true,
+        allDays: { start: patch.start ?? prev.start, end: patch.end ?? prev.end },
+      }
+      return { ...f, workingHoursByLocation: { ...f.workingHoursByLocation, [key]: nextHours } }
+    })
+  }
+
+  const setLocationDayHours = (locationId: number, day: DayOfWeek, patch: { start?: string; end?: string } | null) => {
+    setForm((f) => {
+      const key = String(locationId)
+      const current = f.workingHoursByLocation[key] || defaultByDayWorkingHours()
+      const next: WorkingHoursConfig = {
+        sameForAllDays: false,
+        allDays: null,
+        byDay: { ...(current.byDay || {}) },
+      }
+      if (patch == null) {
+        next.byDay![day] = null
+      } else {
+        const prev = current.byDay?.[day] || { start: '09:00', end: '17:00' }
+        next.byDay![day] = { start: patch.start ?? prev.start, end: patch.end ?? prev.end }
+      }
+      return { ...f, workingHoursByLocation: { ...f.workingHoursByLocation, [key]: next } }
+    })
+  }
+
+  const workingHoursOverrideLocations = locations.filter(
+    (location) => form.availableAllLocations || form.locationIds.includes(location.id),
+  )
 
   const activeStatusLabel = locale === 'sl' ? 'Aktivna' : 'Active'
   const inactiveStatusLabel = locale === 'sl' ? 'Neaktivna' : 'Inactive'
@@ -1090,6 +1223,40 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                   </>
                 )}
 
+                {!selfService && form.consultant && (
+                  <div className="full-span employee-location-scope-card">
+                    <div className="employee-location-scope-header">
+                      <div>
+                        <strong>{locale === 'sl' ? 'Lokacije zaposlenega' : 'Employee locations'}</strong>
+                        <span>{locale === 'sl' ? 'Določite, v katerih poslovnih prostorih je zaposleni na voljo za naročanje.' : 'Choose the locations where this employee can be booked.'}</span>
+                      </div>
+                      <div className="employee-location-scope-switch">
+                        <span>{locale === 'sl' ? 'Vse lokacije' : 'All locations'}</span>
+                        <GuestSwitch checked={form.availableAllLocations} onChange={setConsultantAllLocations} />
+                      </div>
+                    </div>
+                    {!form.availableAllLocations && (
+                      <div className="employee-location-options">
+                        {locations.length === 0 ? (
+                          <span className="muted">{locale === 'sl' ? 'Ni aktivnih lokacij.' : 'There are no active locations.'}</span>
+                        ) : locations.map((location) => (
+                          <label key={location.id} className="employee-location-option">
+                            <input
+                              type="checkbox"
+                              checked={form.locationIds.includes(location.id)}
+                              onChange={(e) => toggleConsultantLocation(location.id, e.target.checked)}
+                            />
+                            <span>
+                              <strong>{location.name}</strong>
+                              {location.city ? <small>{location.city}</small> : null}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {!selfService && (
                   <div className="full-span clients-session-tabs consultant-form-tabs employee-form-tabs" aria-label={t('employeesFormTabWorkingHours')}>
                     <button
@@ -1262,6 +1429,126 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                         )}
                       </div>
                     </div>
+
+                    {!selfService && form.consultant && workingHoursOverrideLocations.length > 0 && (
+                      <div className="full-span employee-location-hours-section">
+                        <div className="employee-location-hours-heading">
+                          <strong>{locale === 'sl' ? 'Delovni čas po lokacijah' : 'Working hours by location'}</strong>
+                          <span>{locale === 'sl'
+                            ? 'Zgornji delovni čas je privzet. Tukaj nastavite samo lokacije, kjer velja drugačen urnik.'
+                            : 'The schedule above is the default. Add an override only where a location uses different hours.'}</span>
+                        </div>
+                        <div className="employee-location-hours-list">
+                          {workingHoursOverrideLocations.map((location) => {
+                            const key = String(location.id)
+                            const overrideHours = form.workingHoursByLocation[key]
+                            const overrideEnabled = !!overrideHours
+                            return (
+                              <details key={location.id} className={`employee-location-hours-card${overrideEnabled ? ' employee-location-hours-card--enabled' : ''}`} open={overrideEnabled}>
+                                <summary>
+                                  <span className="employee-location-hours-name">
+                                    <strong>{location.name}</strong>
+                                    {location.city ? <small>{location.city}</small> : null}
+                                  </span>
+                                  <span className="employee-location-hours-toggle">
+                                    <span>{locale === 'sl' ? 'Drugačen urnik' : 'Different schedule'}</span>
+                                    <GuestSwitch
+                                      checked={overrideEnabled}
+                                      onChange={(enabled) => setLocationWorkingHoursOverride(location.id, enabled)}
+                                    />
+                                  </span>
+                                </summary>
+                                {overrideHours && (
+                                  <div className="employee-location-hours-body">
+                                    <div className="employee-location-hours-same-row">
+                                      <span>{t('employeesFormSameHoursEveryDay')}</span>
+                                      <GuestSwitch
+                                        checked={overrideHours.sameForAllDays}
+                                        onChange={(same) => setLocationWorkingHoursSame(location.id, same)}
+                                      />
+                                    </div>
+                                    <div className="consultant-wh-rows">
+                                      {overrideHours.sameForAllDays ? (
+                                        <div className="consultant-wh-row">
+                                          <div className="consultant-wh-day-col">
+                                            <span className="consultant-wh-all-days-label">{t('employeesFormAllDays')}</span>
+                                          </div>
+                                          <div className="consultant-wh-time-col">
+                                            <span className="consultant-wh-time-label">{t('employeesFormStart')}</span>
+                                            <div className="consultant-wh-time-input-wrap">
+                                              <ModernTimePicker
+                                                className="consultant-wh-time-input"
+                                                value={(overrideHours.allDays?.start ?? '09:00').slice(0, 5)}
+                                                ariaLabel={`${t('employeesFormStart')} – ${location.name}`}
+                                                onChange={(value) => setLocationAllDayHours(location.id, { start: value })}
+                                              />
+                                            </div>
+                                          </div>
+                                          <div className="consultant-wh-time-col">
+                                            <span className="consultant-wh-time-label">{t('employeesFormEnd')}</span>
+                                            <div className="consultant-wh-time-input-wrap">
+                                              <ModernTimePicker
+                                                className="consultant-wh-time-input"
+                                                value={(overrideHours.allDays?.end ?? '17:00').slice(0, 5)}
+                                                ariaLabel={`${t('employeesFormEnd')} – ${location.name}`}
+                                                onChange={(value) => setLocationAllDayHours(location.id, { end: value })}
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ) : dayOptions.map((day) => {
+                                        const row = overrideHours.byDay?.[day]
+                                        const active = !!(row?.start && row?.end)
+                                        return (
+                                          <div key={day} className={`consultant-wh-row${active ? '' : ' consultant-wh-row--inactive'}`}>
+                                            <div className="consultant-wh-day-col">
+                                              <label className="consultant-wh-day-check">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={active}
+                                                  onChange={(e) => e.target.checked
+                                                    ? setLocationDayHours(location.id, day, { start: '09:00', end: '17:00' })
+                                                    : setLocationDayHours(location.id, day, null)}
+                                                />
+                                                <span>{t(EMPLOYEE_DAY_LABEL_KEY[day])}</span>
+                                              </label>
+                                            </div>
+                                            <div className="consultant-wh-time-col">
+                                              <span className="consultant-wh-time-label">{t('employeesFormStart')}</span>
+                                              <div className="consultant-wh-time-input-wrap">
+                                                <ModernTimePicker
+                                                  className="consultant-wh-time-input"
+                                                  disabled={!active}
+                                                  value={(row?.start ?? '09:00').slice(0, 5)}
+                                                  ariaLabel={`${t('employeesFormStart')} – ${t(EMPLOYEE_DAY_LABEL_KEY[day])} – ${location.name}`}
+                                                  onChange={(value) => setLocationDayHours(location.id, day, { start: value, end: row?.end || '17:00' })}
+                                                />
+                                              </div>
+                                            </div>
+                                            <div className="consultant-wh-time-col">
+                                              <span className="consultant-wh-time-label">{t('employeesFormEnd')}</span>
+                                              <div className="consultant-wh-time-input-wrap">
+                                                <ModernTimePicker
+                                                  className="consultant-wh-time-input"
+                                                  disabled={!active}
+                                                  value={(row?.end ?? '17:00').slice(0, 5)}
+                                                  ariaLabel={`${t('employeesFormEnd')} – ${t(EMPLOYEE_DAY_LABEL_KEY[day])} – ${location.name}`}
+                                                  onChange={(value) => setLocationDayHours(location.id, day, { start: row?.start || '09:00', end: value })}
+                                                />
+                                              </div>
+                                            </div>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </details>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
 

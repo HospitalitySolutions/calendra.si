@@ -68,11 +68,25 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("""
             select distinct u from User u
             left join fetch u.types
+            left join fetch u.locations
             where u.company.id = :companyId
               and u.active = true
               and u.consultant = true
             """)
     List<User> findActiveBookableByCompanyId(@Param("companyId") Long companyId);
+
+    @Query("""
+            select distinct u from User u
+            left join fetch u.types
+            left join u.locations l
+            where u.company.id = :companyId
+              and u.active = true
+              and u.consultant = true
+              and (u.availableAllLocations = true or l.id = :locationId)
+            """)
+    List<User> findActiveBookableByCompanyIdAndLocationId(
+            @Param("companyId") Long companyId,
+            @Param("locationId") Long locationId);
 
     boolean existsByCompanyIdAndEmailIgnoreCase(Long companyId, String email);
     Optional<User> findByEmailIgnoreCaseAndCompanyId(String email, Long companyId);

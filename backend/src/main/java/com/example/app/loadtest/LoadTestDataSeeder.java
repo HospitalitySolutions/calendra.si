@@ -599,11 +599,16 @@ public class LoadTestDataSeeder implements CommandLineRunner {
     private void seedBookableSlots(Long companyId, Long adminUserId) {
         int existing = count("select count(*) from bookable_slot where company_id=?", companyId);
         if (existing > 0) return;
+        Long locationId = queryLongOrNull("""
+                select id from locations where company_id=? and active=true
+                order by default_location desc, id asc limit 1
+                """, companyId);
+        if (locationId == null) return;
         for (DayOfWeek day : DayOfWeek.values()) {
             jdbc.update("""
-                    insert into bookable_slot(created_at, updated_at, company_id, day_of_week, start_time, end_time, consultant_id, indefinite)
-                    values (now(), now(), ?, ?, ?, ?, ?, true)
-                    """, companyId, day.name(), LocalTime.of(8, 0), LocalTime.of(20, 0), adminUserId);
+                    insert into bookable_slot(created_at, updated_at, company_id, location_id, day_of_week, start_time, end_time, consultant_id, indefinite)
+                    values (now(), now(), ?, ?, ?, ?, ?, ?, true)
+                    """, companyId, locationId, day.name(), LocalTime.of(8, 0), LocalTime.of(20, 0), adminUserId);
         }
     }
 

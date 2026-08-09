@@ -10,7 +10,10 @@ import com.example.app.entitlement.PackageAccessService;
 import com.example.app.files.TenantFileS3Service;
 import com.example.app.security.SecurityUtils;
 import com.example.app.company.Company;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.session.SessionBookingRepository;
+import com.example.app.session.BookableSlotRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,6 +30,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -36,6 +40,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @RestController
@@ -53,12 +58,15 @@ public class UserController {
     private final TenantOwnerAccessService tenantOwnerAccessService;
     private final PasswordResetService passwordResetService;
     private final SessionBookingRepository sessionBookingRepository;
+    private final BookableSlotRepository bookableSlotRepository;
     private final LoginAccountService loginAccountService;
+    private final LocationRepository locationRepository;
+    private final ConsultantLocationService consultantLocationService;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ActivityLogService activityLogs;
 
-    public UserController(UserRepository userRepository, EmployeeAccessRoleRepository accessRoleRepository, PasswordEncoder passwordEncoder, ObjectMapper objectMapper, PackageAccessService packageAccessService, TenantFileS3Service fileStorage, TenantOwnerAccessService tenantOwnerAccessService, PasswordResetService passwordResetService, SessionBookingRepository sessionBookingRepository, LoginAccountService loginAccountService) {
+    public UserController(UserRepository userRepository, EmployeeAccessRoleRepository accessRoleRepository, PasswordEncoder passwordEncoder, ObjectMapper objectMapper, PackageAccessService packageAccessService, TenantFileS3Service fileStorage, TenantOwnerAccessService tenantOwnerAccessService, PasswordResetService passwordResetService, SessionBookingRepository sessionBookingRepository, BookableSlotRepository bookableSlotRepository, LoginAccountService loginAccountService, LocationRepository locationRepository, ConsultantLocationService consultantLocationService) {
         this.userRepository = userRepository;
         this.accessRoleRepository = accessRoleRepository;
         this.passwordEncoder = passwordEncoder;
@@ -68,7 +76,10 @@ public class UserController {
         this.tenantOwnerAccessService = tenantOwnerAccessService;
         this.passwordResetService = passwordResetService;
         this.sessionBookingRepository = sessionBookingRepository;
+        this.bookableSlotRepository = bookableSlotRepository;
         this.loginAccountService = loginAccountService;
+        this.locationRepository = locationRepository;
+        this.consultantLocationService = consultantLocationService;
     }
 
     @GetMapping
@@ -85,16 +96,28 @@ public class UserController {
     @GetMapping("/consultants")
     @PreAuthorize("isAuthenticated()")
     @Transactional(readOnly = true)
-    public List<ConsultantLookupResponse> consultants(@AuthenticationPrincipal User me) {
+    public List<ConsultantLookupResponse> consultants(
+            @RequestParam(required = false) Long locationId,
+            @AuthenticationPrincipal User me
+    ) {
         if (me == null || me.getCompany() == null || me.getCompany().getId() == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
-        return userRepository.findActiveBookableByCompanyId(me.getCompany().getId()).stream()
+        Long companyId = me.getCompany().getId();
+        if (locationId != null && locationRepository.findByIdAndCompanyId(locationId, companyId).filter(Location::isActive).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location is not available in this unit.");
+        }
+        List<User> rows = locationId == null
+                ? userRepository.findActiveBookableByCompanyId(companyId)
+                : userRepository.findActiveBookableByCompanyIdAndLocationId(companyId, locationId);
+        return rows.stream()
                 .map(user -> new ConsultantLookupResponse(
                         user.getId(),
                         user.getFirstName(),
                         user.getLastName(),
-                        user.getEmail()
+                        user.getEmail(),
+                        user.isAvailableAllLocations(),
+                        consultantLocationService.assignedLocationIds(user)
                 ))
                 .toList();
     }
@@ -237,6 +260,14 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", "Invalid working hours."));
         }
+        try {
+            applyConsultantLocationConfiguration(
+                    user, request.availableAllLocations(), request.locationIds(), request.workingHoursByLocation(), true);
+        } catch (ResponseStatusException ex) {
+            return ResponseEntity.status(ex.getStatusCode()).body(Map.of("message", ex.getReason() == null ? "Invalid location configuration." : ex.getReason()));
+        } catch (JsonProcessingException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Invalid location working hours."));
+        }
         user.setPermissionsJson(accessRole != null
                 ? accessRole.getPermissionsJson()
                 : writePermissionsJson(request.permissions() == null ? SecurityUtils.defaultEmployeePermissions() : request.permissions()));
@@ -305,6 +336,12 @@ public class UserController {
                                             "activeBookingCount", activeBookingCount
                                     ));
                         }
+                        if (!bookableSlotRepository.findByConsultantIdAndCompanyId(existing.getId(), companyId).isEmpty()) {
+                            return ResponseEntity.status(HttpStatus.CONFLICT)
+                                    .body(Map.of(
+                                            "message", "Remove this employee's recurring availability before switching off Zaposleni."
+                                    ));
+                        }
                     }
 
                     if (tenantOwner) {
@@ -336,6 +373,17 @@ public class UserController {
                             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                                     .body(Map.of("message", "Invalid working hours."));
                         }
+                    }
+
+                    try {
+                        applyConsultantLocationConfiguration(
+                                existing, request.availableAllLocations(), request.locationIds(), request.workingHoursByLocation(), false);
+                    } catch (ResponseStatusException ex) {
+                        TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+                        return ResponseEntity.status(ex.getStatusCode()).body(Map.of("message", ex.getReason() == null ? "Invalid location configuration." : ex.getReason()));
+                    } catch (JsonProcessingException ex) {
+                        TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Invalid location working hours."));
                     }
 
                     if (accessRole != null) {
@@ -514,6 +562,10 @@ public class UserController {
                 "consultant", response.consultant(),
                 "active", response.active(),
                 "accessRole", response.accessRoleName(),
+                "availableAllLocations", response.availableAllLocations(),
+                "locationIds", response.locationIds(),
+                "workingHours", response.workingHours(),
+                "workingHoursByLocation", response.workingHoursByLocation(),
                 "permissions", response.permissions()
         );
     }
@@ -534,6 +586,9 @@ public class UserController {
             String vatId,
             String phone,
             JsonNode workingHours,
+            Boolean availableAllLocations,
+            List<Long> locationIds,
+            JsonNode workingHoursByLocation,
             List<String> permissions,
             Long accessRoleId,
             String locale
@@ -550,6 +605,9 @@ public class UserController {
             String vatId,
             String phone,
             JsonNode workingHours,
+            Boolean availableAllLocations,
+            List<Long> locationIds,
+            JsonNode workingHoursByLocation,
             List<String> permissions,
             Long accessRoleId
     ) {
@@ -579,6 +637,9 @@ public class UserController {
             String whatsappSenderNumber,
             String whatsappPhoneNumberId,
             Object workingHours,
+            boolean availableAllLocations,
+            List<Long> locationIds,
+            Map<String, Object> workingHoursByLocation,
             List<String> permissions,
             Long accessRoleId,
             String accessRoleName,
@@ -593,7 +654,9 @@ public class UserController {
             Long id,
             String firstName,
             String lastName,
-            String email
+            String email,
+            boolean availableAllLocations,
+            List<Long> locationIds
     ) {
     }
 
@@ -623,6 +686,9 @@ public class UserController {
                 user.getWhatsappSenderNumber(),
                 user.getWhatsappPhoneNumberId(),
                 parseWorkingHoursJson(user.getWorkingHoursJson()),
+                user.isAvailableAllLocations(),
+                consultantLocationService.assignedLocationIds(user),
+                consultantLocationService.workingHoursOverridesForResponse(user),
                 SecurityUtils.permissionsForClientResponse(user.getPermissionsJson()),
                 user.getEmployeeAccessRole() == null ? null : user.getEmployeeAccessRole().getId(),
                 user.getEmployeeAccessRole() == null ? null : user.getEmployeeAccessRole().getName(),
@@ -682,6 +748,117 @@ public class UserController {
                                 .orElseThrow(() -> ex);
                     }
                 });
+    }
+
+    private void applyConsultantLocationConfiguration(
+            User user,
+            Boolean availableAllLocations,
+            List<Long> locationIds,
+            JsonNode workingHoursByLocation,
+            boolean creating
+    ) throws JsonProcessingException {
+        if (!user.isConsultant()) {
+            user.setAvailableAllLocations(true);
+            user.getLocations().clear();
+            user.setWorkingHoursByLocationJson(null);
+            return;
+        }
+
+        boolean allLocations = availableAllLocations == null
+                ? (creating || user.isAvailableAllLocations())
+                : Boolean.TRUE.equals(availableAllLocations);
+        user.setAvailableAllLocations(allLocations);
+
+        if (availableAllLocations != null || locationIds != null || creating) {
+            if (allLocations) {
+                user.getLocations().clear();
+            } else {
+                List<Long> requested = locationIds == null ? List.of() : locationIds.stream().filter(Objects::nonNull).distinct().toList();
+                if (requested.isEmpty()) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select at least one location or enable all locations.");
+                }
+                List<Location> resolved = locationRepository.findAllByCompanyIdAndIdIn(user.getCompany().getId(), requested).stream()
+                        .filter(Location::isActive)
+                        .toList();
+                if (resolved.size() != requested.size()) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "One or more selected locations do not belong to this operating unit.");
+                }
+                user.getLocations().clear();
+                user.getLocations().addAll(resolved);
+            }
+        }
+
+        if (!creating && !allLocations && user.getId() != null) {
+            var assignedLocationIds = user.getLocations().stream()
+                    .map(Location::getId)
+                    .filter(Objects::nonNull)
+                    .collect(java.util.stream.Collectors.toSet());
+            boolean hasAvailabilityOutsideScope = bookableSlotRepository
+                    .findByConsultantIdAndCompanyId(user.getId(), user.getCompany().getId())
+                    .stream()
+                    .anyMatch(slot -> slot.getLocation() == null
+                            || slot.getLocation().getId() == null
+                            || !assignedLocationIds.contains(slot.getLocation().getId()));
+            if (hasAvailabilityOutsideScope) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "This employee still has recurring availability at a location you are removing. Remove or move that availability first."
+                );
+            }
+        }
+
+        if (workingHoursByLocation == null && !allLocations) {
+            pruneStoredLocationWorkingHoursToAssignedScope(user);
+        }
+
+        if (workingHoursByLocation != null) {
+            if (workingHoursByLocation.isNull()) {
+                user.setWorkingHoursByLocationJson(null);
+            } else if (!workingHoursByLocation.isObject()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location working hours must be an object keyed by location id.");
+            } else {
+                var fields = workingHoursByLocation.fields();
+                while (fields.hasNext()) {
+                    var entry = fields.next();
+                    Long locationId;
+                    try {
+                        locationId = Long.valueOf(entry.getKey());
+                    } catch (NumberFormatException ex) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid location working-hours identifier.");
+                    }
+                    Location location = locationRepository.findByIdAndCompanyId(locationId, user.getCompany().getId())
+                            .filter(Location::isActive)
+                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location working hours reference another operating unit."));
+                    if (!allLocations && user.getLocations().stream().noneMatch(item -> Objects.equals(item.getId(), location.getId()))) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Working-hours override is configured for an unassigned location.");
+                    }
+                    if (entry.getValue() != null && !entry.getValue().isNull() && !entry.getValue().isObject()) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid location working-hours value.");
+                    }
+                }
+                user.setWorkingHoursByLocationJson(objectMapper.writeValueAsString(workingHoursByLocation));
+            }
+        }
+    }
+
+    private void pruneStoredLocationWorkingHoursToAssignedScope(User user) throws JsonProcessingException {
+        String raw = user.getWorkingHoursByLocationJson();
+        if (raw == null || raw.isBlank()) return;
+        JsonNode existing = objectMapper.readTree(raw);
+        if (existing == null || !existing.isObject()) {
+            user.setWorkingHoursByLocationJson(null);
+            return;
+        }
+        var allowed = user.getLocations().stream()
+                .map(Location::getId)
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .collect(java.util.stream.Collectors.toSet());
+        var pruned = objectMapper.createObjectNode();
+        existing.fields().forEachRemaining(entry -> {
+            if (allowed.contains(entry.getKey())) pruned.set(entry.getKey(), entry.getValue());
+        });
+        user.setWorkingHoursByLocationJson(pruned.isEmpty() ? null : objectMapper.writeValueAsString(pruned));
     }
 
     private String writePermissionsJson(List<String> permissions) {

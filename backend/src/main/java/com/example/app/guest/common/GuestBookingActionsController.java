@@ -241,6 +241,7 @@ public class GuestBookingActionsController {
                 booking.getType().getId(),
                 payload.newSlotId(),
                 booking.getId(),
+                booking.getLocation() == null ? null : booking.getLocation().getId(),
                 guestUser
         );
         var consultant = users.findByIdAndCompanyId(slot.consultantId(), booking.getCompany().getId())

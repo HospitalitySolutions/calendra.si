@@ -35,6 +35,7 @@ import com.example.app.settings.TenantReservationRulesService;
 import com.example.app.stripe.StripeConnectService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
+import com.example.app.user.ConsultantLocationService;
 import com.example.app.user.UserRepository;
 import com.example.app.workspaceclient.WorkspaceClient;
 import com.example.app.workspaceclient.WorkspaceClientRepository;
@@ -120,6 +121,9 @@ public class PublicBookingWidgetService {
 
     @Autowired(required = false)
     private LocationRepository locations;
+
+    @Autowired(required = false)
+    private ConsultantLocationService consultantLocations;
 
     @Autowired(required = false)
     private WorkspaceClientRepository workspaceClients;
@@ -376,7 +380,7 @@ public class PublicBookingWidgetService {
         if (!rules.employeeSelectionAllowed() || chainContainsGroupOnlyService(chain)) {
             return List.of();
         }
-        return supportedConsultants(company.getId(), chain).stream()
+        return supportedConsultants(company.getId(), chain, location.getId()).stream()
                 .map(consultant -> new PublicBookingWidgetController.WidgetConsultantResponse(
                         consultant.getId(),
                         consultantFullName(consultant)
@@ -443,11 +447,13 @@ public class PublicBookingWidgetService {
         Long resolvedConsultantId = !groupOnlyWebsiteBooking && requestedConsultantId != null
                 ? resolveConsultantForBooking(company.getId(), requestedConsultantId, false).getId()
                 : null;
-        if (resolvedConsultantId != null && !consultantSupportsChain(
-                users.findByIdAndCompanyIdAndActiveTrue(resolvedConsultantId, company.getId())
-                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid consultant.")),
-                chain
-        )) {
+        User resolvedConsultant = resolvedConsultantId == null ? null
+                : users.findByIdAndCompanyIdAndActiveTrue(resolvedConsultantId, company.getId())
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid consultant."));
+        if (resolvedConsultant != null && !consultantAvailableAt(resolvedConsultant, location.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The selected employee is not available at this location.");
+        }
+        if (resolvedConsultant != null && !consultantSupportsChain(resolvedConsultant, chain)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "The selected employee cannot perform every selected service."
@@ -462,7 +468,8 @@ public class PublicBookingWidgetService {
                         date.atStartOfDay(),
                         date.plusDays(1).atStartOfDay().plusMinutes(chainAvailabilityMinutes(chain)),
                         chain,
-                        resolvedConsultantId
+                        resolvedConsultantId,
+                        location.getId()
                 )
                 : WidgetAvailabilitySnapshot.empty();
         List<PublicBookingWidgetController.AvailabilitySlotResponse> slots;
@@ -479,12 +486,12 @@ public class PublicBookingWidgetService {
                 merged.put(widgetSlotMergeKey(slot, resolvedConsultantId), slot);
             }
             for (PublicBookingWidgetController.AvailabilitySlotResponse slot :
-                    buildWorkingHoursSlots(company, cfg, chain, date, resolvedConsultantId, availabilitySnapshot, rules)) {
+                    buildWorkingHoursSlots(company, cfg, chain, date, resolvedConsultantId, availabilitySnapshot, rules, location.getId())) {
                 merged.putIfAbsent(widgetSlotMergeKey(slot, resolvedConsultantId), slot);
             }
             slots = sortAvailabilitySlots(merged);
         } else {
-            slots = buildFallbackSlots(company, cfg, chain, date, resolvedConsultantId, availabilitySnapshot, rules);
+            slots = buildFallbackSlots(company, cfg, chain, date, resolvedConsultantId, availabilitySnapshot, rules, location.getId());
         }
 
         return new PublicBookingWidgetController.AvailabilityResponse(
@@ -549,6 +556,16 @@ public class PublicBookingWidgetService {
         Long resolvedConsultantId = !groupOnlyWebsiteBooking && requestedConsultantId != null
                 ? resolveConsultantForBooking(company.getId(), requestedConsultantId, false).getId()
                 : null;
+        if (resolvedConsultantId != null) {
+            User resolvedConsultant = users.findByIdAndCompanyIdAndActiveTrue(resolvedConsultantId, company.getId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid consultant."));
+            if (!consultantAvailableAt(resolvedConsultant, location.getId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The selected employee is not available at this location.");
+            }
+            if (!consultantSupportsChain(resolvedConsultant, chain)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The selected employee cannot perform every selected service.");
+            }
+        }
 
         LocalDate today = timeService.localDate(cfg.zoneId());
         LocalDate cursor = month.atDay(1);
@@ -567,7 +584,8 @@ public class PublicBookingWidgetService {
                         cursor.atStartOfDay(),
                         monthEnd.plusDays(1).atStartOfDay().plusMinutes(chainAvailabilityMinutes(chain)),
                         chain,
-                        resolvedConsultantId
+                        resolvedConsultantId,
+                        location.getId()
                 )
                 : WidgetAvailabilitySnapshot.empty();
         try {
@@ -621,9 +639,9 @@ public class PublicBookingWidgetService {
             if (hasAnyBookableSlot(company, cfg, chain, date, consultantId, rules, availabilitySnapshot)) {
                 return true;
             }
-            return hasAnyWorkingHoursSlot(company, cfg, chain, date, consultantId, rules, availabilitySnapshot);
+            return hasAnyWorkingHoursSlot(company, cfg, chain, date, consultantId, rules, availabilitySnapshot, location.getId());
         }
-        return hasAnyFallbackSlot(company, cfg, chain, date, consultantId, rules);
+        return hasAnyFallbackSlot(company, cfg, chain, date, consultantId, rules, location.getId());
     }
 
     /**
@@ -663,14 +681,15 @@ public class PublicBookingWidgetService {
             LocalDate date,
             Long consultantId,
             GuestSettingsService.GuestBookingRules rules,
-            WidgetAvailabilitySnapshot availabilitySnapshot
+            WidgetAvailabilitySnapshot availabilitySnapshot,
+            Long locationId
     ) {
         int bookingMinutes = chainBookingMinutes(chain);
         int availabilityMinutes = chainAvailabilityMinutes(chain);
         List<User> consultants = availabilitySnapshot.supportedConsultants();
 
         for (User consultant : consultants) {
-            Optional<TimeWindow> dayWindow = resolveConsultantWorkingWindow(consultant, date);
+            Optional<TimeWindow> dayWindow = resolveConsultantWorkingWindow(consultant, date, locationId);
             if (dayWindow.isEmpty()) {
                 continue;
             }
@@ -692,7 +711,8 @@ public class PublicBookingWidgetService {
             List<SessionType> chain,
             LocalDate date,
             Long consultantId,
-            GuestSettingsService.GuestBookingRules rules
+            GuestSettingsService.GuestBookingRules rules,
+            Long locationId
     ) {
         int availabilityMinutes = chainAvailabilityMinutes(chain);
         LocalTime rangeStart;
@@ -702,7 +722,7 @@ public class PublicBookingWidgetService {
             if (consultant == null || !consultantSupportsChain(consultant, chain)) {
                 return false;
             }
-            Optional<TimeWindow> window = resolveConsultantWorkingWindow(consultant, date);
+            Optional<TimeWindow> window = resolveConsultantWorkingWindow(consultant, date, locationId);
             if (window.isEmpty()) {
                 return false;
             }
@@ -814,6 +834,12 @@ public class PublicBookingWidgetService {
                     request.consultantId(),
                     cfg.availabilityEnabled()
             );
+            if (consultant != null && !consultantAvailableAt(consultant, selectedLocation.getId())) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "The selected employee is not available at this location."
+                );
+            }
             if (consultant != null && !consultantSupportsChain(consultant, chain)) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
@@ -959,7 +985,7 @@ public class PublicBookingWidgetService {
 
         User preferredEmployee = null;
         if (request.consultantId() != null && waitlistCfg.employeePreferenceEnabled()) {
-            preferredEmployee = supportedConsultants(company.getId(), chain).stream()
+            preferredEmployee = supportedConsultants(company.getId(), chain, selectedLocation.getId()).stream()
                     .filter(candidate -> Objects.equals(candidate.getId(), request.consultantId()))
                     .findFirst()
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid employee preference."));
@@ -1346,7 +1372,8 @@ public class PublicBookingWidgetService {
             LocalDate date,
             Long consultantId,
             WidgetAvailabilitySnapshot availabilitySnapshot,
-            GuestSettingsService.GuestBookingRules rules
+            GuestSettingsService.GuestBookingRules rules,
+            Long locationId
     ) {
         LocalDate today = timeService.localDate(cfg.zoneId());
         if (date.isBefore(today)) {
@@ -1359,7 +1386,7 @@ public class PublicBookingWidgetService {
 
         Map<String, PublicBookingWidgetController.AvailabilitySlotResponse> deduped = new LinkedHashMap<>();
         for (User consultant : consultants) {
-            Optional<TimeWindow> dayWindow = resolveConsultantWorkingWindow(consultant, date);
+            Optional<TimeWindow> dayWindow = resolveConsultantWorkingWindow(consultant, date, locationId);
             if (dayWindow.isEmpty()) {
                 continue;
             }
@@ -1394,8 +1421,8 @@ public class PublicBookingWidgetService {
      * Parses {@link User#getWorkingHoursJson()} ({@code sameForAllDays}, {@code allDays}, {@code byDay}) like the
      * calendar frontend. Missing config or closed day yields empty.
      */
-    private Optional<TimeWindow> resolveConsultantWorkingWindow(User consultant, LocalDate date) {
-        String raw = consultant.getWorkingHoursJson();
+    private Optional<TimeWindow> resolveConsultantWorkingWindow(User consultant, LocalDate date, Long locationId) {
+        String raw = consultantLocations == null ? consultant.getWorkingHoursJson() : consultantLocations.workingHoursJsonFor(consultant, locationId);
         if (raw == null || raw.isBlank()) {
             return Optional.empty();
         }
@@ -1474,7 +1501,8 @@ public class PublicBookingWidgetService {
             LocalDate date,
             Long consultantId,
             WidgetAvailabilitySnapshot availabilitySnapshot,
-            GuestSettingsService.GuestBookingRules rules
+            GuestSettingsService.GuestBookingRules rules,
+            Long locationId
     ) {
         LocalDate today = timeService.localDate(cfg.zoneId());
         if (date.isBefore(today)) {
@@ -1493,7 +1521,7 @@ public class PublicBookingWidgetService {
             if (consultant == null || !consultantSupportsChain(consultant, chain)) {
                 return new ArrayList<>();
             }
-            Optional<TimeWindow> window = resolveConsultantWorkingWindow(consultant, date);
+            Optional<TimeWindow> window = resolveConsultantWorkingWindow(consultant, date, locationId);
             if (window.isEmpty()) {
                 return new ArrayList<>();
             }
@@ -1615,10 +1643,11 @@ public class PublicBookingWidgetService {
             LocalDateTime rangeStart,
             LocalDateTime rangeEnd,
             List<SessionType> chain,
-            Long consultantId
+            Long consultantId,
+            Long locationId
     ) {
         long snapshotStartedNanos = System.nanoTime();
-        List<User> supportedConsultants = supportedConsultants(companyId, chain).stream()
+        List<User> supportedConsultants = supportedConsultants(companyId, chain, locationId).stream()
                 .filter(candidate -> consultantId == null || Objects.equals(candidate.getId(), consultantId))
                 .toList();
         java.util.Set<Long> supportedConsultantIds = supportedConsultants.stream()
@@ -1628,10 +1657,11 @@ public class PublicBookingWidgetService {
         LocalDate fromDate = rangeStart.toLocalDate();
         LocalDate toDate = rangeEnd.minusNanos(1).toLocalDate();
         List<BookableSlot> visibleBookableWindows = consultantId == null
-                ? bookableSlots.findVisibleByCompanyAndDateRange(companyId, fromDate, toDate)
-                : bookableSlots.findVisibleByConsultantAndCompanyAndDateRange(
+                ? bookableSlots.findVisibleByCompanyAndLocationAndDateRange(companyId, locationId, fromDate, toDate)
+                : bookableSlots.findVisibleByConsultantAndCompanyAndLocationAndDateRange(
                         consultantId,
                         companyId,
+                        locationId,
                         fromDate,
                         toDate
                 );
@@ -2114,14 +2144,27 @@ public class PublicBookingWidgetService {
     }
 
     private List<User> supportedConsultants(Long companyId, SessionType type) {
-        return supportedConsultants(companyId, List.of(type));
+        return supportedConsultants(companyId, List.of(type), null);
     }
 
     private List<User> supportedConsultants(Long companyId, List<SessionType> chain) {
-        return users.findActiveBookableByCompanyId(companyId).stream()
+        return supportedConsultants(companyId, chain, null);
+    }
+
+    private List<User> supportedConsultants(Long companyId, List<SessionType> chain, Long locationId) {
+        List<User> candidates = locationId == null
+                ? users.findActiveBookableByCompanyId(companyId)
+                : users.findActiveBookableByCompanyIdAndLocationId(companyId, locationId);
+        return candidates.stream()
                 .filter(consultant -> consultantSupportsChain(consultant, chain))
+                .filter(consultant -> locationId == null || consultantAvailableAt(consultant, locationId))
                 .sorted(Comparator.comparing(this::consultantFullName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
+    }
+
+    private boolean consultantAvailableAt(User consultant, Long locationId) {
+        if (locationId == null) return true;
+        return consultantLocations == null || consultantLocations.isAvailableAt(consultant, locationId);
     }
 
     private boolean consultantSupportsChain(User consultant, List<SessionType> chain) {

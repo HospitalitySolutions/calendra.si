@@ -125,6 +125,7 @@ export type AvailabilityFormQuery = {
   start: string
   end: string
   consultantId: number | null
+  locationId: number | null
   slotId: number | null
   indefinite: boolean
   rangeStartDate: string
@@ -138,6 +139,9 @@ export function buildAvailabilitySearchParams(a: AvailabilityFormQuery): string 
   sp.set('end', a.end)
   if (a.consultantId != null && Number.isFinite(a.consultantId)) {
     sp.set('consultantId', String(a.consultantId))
+  }
+  if (a.locationId != null && Number.isFinite(a.locationId)) {
+    sp.set('locationId', String(a.locationId))
   }
   if (a.slotId != null && Number.isFinite(a.slotId)) {
     sp.set('slotId', String(a.slotId))
@@ -166,16 +170,20 @@ export function parseAvailabilityQuery(search: string): AvailabilityFormQuery | 
   if (!start || !end) return null
   const consultantRaw = sp.get('consultantId')
   const slotRaw = sp.get('slotId')
+  const locationRaw = sp.get('locationId')
   const consultantId =
     consultantRaw != null && consultantRaw !== '' && Number.isFinite(Number(consultantRaw))
       ? Number(consultantRaw)
       : null
+  const locationId =
+    locationRaw != null && locationRaw !== '' && Number.isFinite(Number(locationRaw)) ? Number(locationRaw) : null
   const slotId =
     slotRaw != null && slotRaw !== '' && Number.isFinite(Number(slotRaw)) ? Number(slotRaw) : null
   return {
     start,
     end,
     consultantId,
+    locationId,
     slotId,
     indefinite: sp.get('indefinite') === '1',
     rangeStartDate: sp.get('rangeStart') || start.slice(0, 10),

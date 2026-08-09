@@ -37,10 +37,14 @@ export function consultantDayWindow(
   users: any[],
   fallbackStartMin: number,
   fallbackEndMin: number,
+  locationId?: number | null,
 ): { closed: true } | { closed?: false; startMin: number; endMin: number } | null {
   if (!Number.isFinite(consultantId as number)) return null
   const u = (users || []).find((x: any) => x.id === consultantId)
-  const wh = u?.workingHours as WorkingHoursConfig | null | undefined
+  const locationOverride = locationId != null && u?.workingHoursByLocation && typeof u.workingHoursByLocation === 'object'
+    ? u.workingHoursByLocation[String(locationId)]
+    : null
+  const wh = (locationOverride || u?.workingHours) as WorkingHoursConfig | null | undefined
   if (!wh || typeof wh !== 'object') return null
 
   const dow = DAY_NAMES[new Date(year, month0, day).getDay()]

@@ -51,6 +51,17 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   }
   const formSpaces = spacesForLocation(locationFilterId)
   const bookedSpaces = spacesForLocation(locationFilterId)
+  const consultantsForLocation = (locationId: unknown) => {
+    const normalized = Number(locationId)
+    return metaUsers.filter((candidate: any) => {
+      if (!candidate?.consultant || candidate?.active === false) return false
+      if (!Number.isFinite(normalized) || normalized <= 0 || candidate?.availableAllLocations !== false) return true
+      return Array.isArray(candidate?.locationIds)
+        && candidate.locationIds.some((id: unknown) => Number(id) === normalized)
+    })
+  }
+  const formConsultants = consultantsForLocation(form?.locationId ?? locationFilterId)
+  const bookedConsultants = consultantsForLocation(selectedBookedSession?.location?.id ?? locationFilterId)
   const typesForLocation = (types: any[], locationId: unknown) => {
     const normalized = Number(locationId)
     if (!Number.isFinite(normalized) || normalized <= 0) return types
@@ -3059,7 +3070,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     }}
                   >
                     <option value="">{t('formUnassigned')}</option>
-                    {metaConsultants.map((c: any) => (
+                    {bookedConsultants.map((c: any) => (
                       <option key={c.id} value={c.id}>{fullName(c)}</option>
                     ))}
                   </select>
@@ -4691,6 +4702,35 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             <div className={`form-row-layout${!availabilitySelection && !form.todo && !form.personal ? ' form-row-layout--booking' : ''}`}>
               {availabilitySelection ? (
                 <>
+                  {locationFilterId == null && metaLocations.filter((item: any) => item?.active !== false).length > 1 && (
+                    <div className="form-row form-row-infield">
+                      <span className="form-field-inline-label">{locale === 'sl' ? 'Lokacija' : 'Location'}</span>
+                      <div className="form-field-inline-control">
+                        <select
+                          value={availabilitySelection.locationId || ''}
+                          onChange={(e) => {
+                            const nextLocationId = Number(e.target.value) || null
+                            const candidates = metaConsultants.filter((candidate: any) =>
+                              nextLocationId == null
+                              || candidate.availableAllLocations !== false
+                              || (Array.isArray(candidate.locationIds) && candidate.locationIds.some((id: unknown) => Number(id) === Number(nextLocationId)))
+                            )
+                            const currentStillAllowed = candidates.some((candidate: any) => Number(candidate.id) === Number(availabilitySelection.consultantId))
+                            setAvailabilitySelection({
+                              ...availabilitySelection,
+                              locationId: nextLocationId,
+                              consultantId: currentStillAllowed ? availabilitySelection.consultantId : (candidates[0]?.id ?? null),
+                            })
+                          }}
+                        >
+                          <option value="">{locale === 'sl' ? 'Izberite lokacijo' : 'Select location'}</option>
+                          {metaLocations.filter((item: any) => item?.active !== false).map((item: any) => (
+                            <option key={item.id} value={item.id}>{item.name}{item.city ? ` – ${item.city}` : ''}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
                   {showBookingConsultantRow && (
                     <div className="form-row form-row-infield">
                       <span className="form-field-inline-label">{t('formConsultant')}</span>
@@ -4700,9 +4740,13 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         onChange={(e) => setAvailabilitySelection({ ...availabilitySelection, consultantId: Number(e.target.value) || null })}
                       >
                         <option value="">{t('formSelectConsultant')}</option>
-                        {metaConsultants.map((c: any) => (
-                          <option key={c.id} value={c.id}>{fullName(c)}</option>
-                        ))}
+                        {metaConsultants
+                          .filter((c: any) => availabilitySelection.locationId == null
+                            || c.availableAllLocations !== false
+                            || (Array.isArray(c.locationIds) && c.locationIds.some((id: unknown) => Number(id) === Number(availabilitySelection.locationId))))
+                          .map((c: any) => (
+                            <option key={c.id} value={c.id}>{fullName(c)}</option>
+                          ))}
                       </select>
                       </div>
                     </div>
@@ -5447,7 +5491,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <div className="form-row form-row-infield calendar-booking-field--consultant">
                   <span className="form-field-inline-label">{t('formConsultant')}</span>
                   <div className="form-field-inline-control">
-                  <select disabled={form.todo || form.personal} value={form.consultantId ?? ''} onChange={(e) => setForm({ ...form, consultantId: e.target.value === '' ? null : Number(e.target.value) })}><option value="">{t('formUnassigned')}</option>{metaConsultants.map((c: any) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}                  </select>
+                  <select disabled={form.todo || form.personal} value={form.consultantId ?? ''} onChange={(e) => setForm({ ...form, consultantId: e.target.value === '' ? null : Number(e.target.value) })}><option value="">{t('formUnassigned')}</option>{formConsultants.map((c: any) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}                  </select>
                   </div>
                 </div>
               )}

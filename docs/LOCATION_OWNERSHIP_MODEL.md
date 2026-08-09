@@ -1,6 +1,6 @@
 # Calendra location ownership model
 
-Status: Phase 5.5 audit / architecture baseline
+Status: Phase 5.5B implemented / architecture baseline
 
 ## Architectural rule
 
@@ -45,9 +45,9 @@ A one-location tenant should not have extra UX complexity: signup/provisioning c
 | `WaitlistBookingHold` | LOCATION | Phase 5.5A normalized | Direct non-null Location added; must match offer, room and session. |
 | `BookingSlotHold` | LOCATION | Phase 5.5A normalized | Direct non-null Location added and public flows carry selected location. |
 | `GuestOrder` | LOCATION for operational transaction | Phase 5.5A partially normalized | Direct `location_id` added and booking orders populate it. Keep nullable only until product/payment scope is migrated in 5.5C. |
-| `BookableSlot` | LOCATION | **Gap / high priority** | Add non-null Location. Current consultant weekly slots are company-wide and do not encode branch. |
-| `User` / consultant | SHARED USER + LOCATION SCOPE | **Gap / high priority** | Add explicit all/selected Location assignment. Do not duplicate login/user per branch. |
-| consultant working hours | LOCATION-aware configuration | **Gap / high priority** | Current `workingHoursJson` is user-wide. Support defaults plus per-location schedule/overrides. |
+| `BookableSlot` | LOCATION | Phase 5.5B hardened | Non-null Location; recurring availability is queried and edited in explicit branch context. |
+| `User` / consultant | SHARED USER + LOCATION SCOPE | Phase 5.5B implemented | One shared user with explicit all/selected Location assignment through `available_all_locations` + `user_locations`. |
+| consultant working hours | LOCATION-aware configuration | Phase 5.5B implemented | `workingHoursJson` remains the default; `workingHoursByLocationJson` holds optional branch overrides. |
 | `PaymentMethod` | SHARED + LOCATION SCOPE | **Gap** | Add all/selected Locations so cash/register/payment options can differ by branch. |
 | `GuestProduct` | SHARED + LOCATION SCOPE | **Gap** | Add all/selected Locations for packages, memberships, vouchers, courses and standalone purchases. |
 | `GuestEntitlement` | SHARED CUSTOMER ASSET + LOCATION SCOPE SNAPSHOT | **Gap** | Snapshot valid Location scope when entitlement is issued so later product edits do not rewrite historical rights. |
@@ -95,23 +95,47 @@ This phase establishes Location on records that represent a concrete transaction
 - Platform subscription open bills always carry the Platform Admin company's active/default Location.
 - Manual open-bill creation no longer falls back to an arbitrary/default branch when a multi-location unit has not selected a Location.
 - Invoice issuance itself only auto-resolves a Location when exactly one active Location exists; multi-location invoices must carry an explicit operational Location.
-- Billing list/summary queries no longer treat null Bill/OpenBill locations as globally visible legacy rows; Bill is already non-null and OpenBill becomes non-null in V47.
+- Billing list/summary queries no longer treat null Bill/OpenBill locations as globally visible legacy rows; Bill is already non-null and OpenBill becomes non-null in V48.
 
 ### Database guardrails
 
 Migration `V48__operational_location_ownership_foundation.sql` enforces cross-company/location consistency for booking holds, waitlist offers/holds and GuestOrders. The application cannot persist a branch belonging to another Company even if a service-layer check is bypassed. It also replaces the older Space, SessionBooking, OpenBill and WaitlistRequest trigger fallback: an omitted `location_id` is auto-resolved only when exactly one active Location exists; a multi-location Company must provide the branch explicitly.
 
-## Phase 5.5B – availability and staff (next)
+## Phase 5.5B – availability and staff (implemented)
 
-This is the next priority because availability cannot be truly branch-correct while `BookableSlot` and consultant working hours are company-wide.
+Phase 5.5B makes recurring availability and employee eligibility branch-aware without duplicating users.
 
-1. Add non-null `BookableSlot.location_id` and migrate existing slots to the default Location.
-2. Add explicit consultant Location scope (`availableAllLocations` + `user_locations`, or equivalent).
-3. Validate that a bookable slot's consultant is assigned to its Location.
-4. Make availability queries select slots for the requested Location only.
-5. Make working-hours logic Location-aware: a user-wide default plus optional Location overrides is preferable to copying users.
-6. Update Configuration/UI to choose the Location when editing recurring availability when multiple Locations exist.
-7. Ensure calendar location filtering shows recurring bookable slots correctly instead of dropping them because they currently have no direct Location/Space.
+### Schema/domain changes
+
+- `BookableSlot.location` is mandatory in JPA and the database. Existing recurring slots are migrated to the company default/only Location.
+- `User.availableAllLocations` defines whether an employee can work at every active branch.
+- `user_locations(user_id, location_id)` stores selected branch assignments when `availableAllLocations=false`.
+- `User.workingHoursJson` remains the global/default weekly schedule.
+- `User.workingHoursByLocationJson` stores optional Location-specific overrides keyed by Location id.
+- Database triggers reject cross-company user/location assignments and recurring slots whose consultant is not eligible for that Location.
+
+### Runtime rules
+
+- Creating recurring availability requires a Location when a company has more than one active Location; a one-location company auto-resolves safely.
+- Administrators cannot assign recurring availability to a consultant outside that consultant's Location scope.
+- Removing an employee from a Location is rejected while recurring `BookableSlot` rows still exist there; those windows must be removed or moved first.
+- Disabling consultant status is rejected while recurring availability still exists.
+- Website-widget and Guest App consultant lists, recurring windows and working-hour fallback are filtered by the selected Location.
+- A selected consultant is validated against both the selected service(s) and selected Location before availability/booking continues. This is enforced centrally for staff-created bookings as well as public/guest flows.
+- Booking management/rescheduling uses the booking's Location when evaluating recurring windows and working hours.
+- Calendar recurring availability responses include Location directly, so Location filtering no longer has to infer a branch.
+- Staff booking create/edit consultant selectors are filtered to the booking Location, while the backend still performs the authoritative consultant/service/Location validation.
+- Calendar availability editing carries `locationId`; with multiple Locations and no active Location filter, the availability dialog asks for the Location first.
+- Employee configuration supports **all locations / selected locations** and optional per-location working-hour overrides.
+- Voice-created recurring availability and voice-created bookings are only auto-resolved when the operating unit has exactly one active Location; a multi-location voice command must not silently choose a branch. Voice availability edits are filtered to that resolved branch before recurring slots are opened/trimmed.
+
+### Availability/absence distinction
+
+`PersonalCalendarBlock` remains user-wide by design: a personal absence (including the hidden recurring-availability exclusion marker used to close otherwise-open working hours) means that employee is unavailable across branches. Branch-specific recurring **availability** is represented by `BookableSlot.location`. If branch-specific personal absences are later needed as a separate feature, they should gain an explicit Location scope rather than changing the meaning of existing personal blocks.
+
+### Database verification
+
+Migration `V49__consultant_location_availability.sql` enforces the new schema and trigger invariants. `OperationalLocationOwnershipMigrationTest` verifies non-null `BookableSlot.location_id`, the consultant Location-scope table and rejection of cross-company/unassigned branch writes. `ConsultantLocationServiceTest` verifies all-location scope, selected-location scope and working-hours override fallback.
 
 ## Phase 5.5C – commerce, wallet and payment scope
 

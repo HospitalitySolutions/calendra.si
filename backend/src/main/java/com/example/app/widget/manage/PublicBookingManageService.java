@@ -25,6 +25,7 @@ import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.settings.TenantReservationRulesService;
 import com.example.app.user.User;
+import com.example.app.user.ConsultantLocationService;
 import com.example.app.widget.WebsiteWidgetSettingsService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -74,6 +75,9 @@ public class PublicBookingManageService {
 
     @Autowired(required = false)
     private ActivityLogService activityLogs;
+
+    @Autowired(required = false)
+    private ConsultantLocationService consultantLocations;
 
     public PublicBookingManageService(
             PublicBookingManageTokenService tokenService,
@@ -160,6 +164,14 @@ public class PublicBookingManageService {
         }
         List<Long> excludeIds = grouped.stream().map(SessionBooking::getId).filter(Objects::nonNull).toList();
         Long consultantId = booking.getConsultant() == null ? null : booking.getConsultant().getId();
+        Long locationId = booking.getLocation() == null ? null : booking.getLocation().getId();
+        if (consultantId != null && consultantLocations != null
+                && !consultantLocations.isAvailableAt(booking.getConsultant(), locationId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "This employee is no longer available at the booking location."
+            );
+        }
         bookingCreationService.validateExistingBookingWindow(
                 booking,
                 clientIdsOf(List.of(booking)),
@@ -286,11 +298,16 @@ public class PublicBookingManageService {
 
         int duration = durationMinutes(booking);
         Long consultantId = booking.getConsultant() == null ? null : booking.getConsultant().getId();
+        Long locationId = booking.getLocation() == null ? null : booking.getLocation().getId();
+        if (consultantId != null && consultantLocations != null
+                && !consultantLocations.isAvailableAt(booking.getConsultant(), locationId)) {
+            return List.of();
+        }
         List<LocalTime> starts = new ArrayList<>();
         if (consultantId != null) {
             starts.addAll(bookableStarts(company, booking, date, consultantId, duration));
             if (starts.isEmpty()) {
-                resolveConsultantWorkingWindow(booking.getConsultant(), date)
+                resolveConsultantWorkingWindow(booking.getConsultant(), date, locationId)
                         .ifPresent(window -> addWindowStarts(starts, date, window.start(), window.end(), duration));
             }
         } else {
@@ -680,7 +697,9 @@ public class PublicBookingManageService {
     private List<LocalTime> bookableStarts(Company company, SessionBooking booking, LocalDate date, Long consultantId, int duration) {
         DayOfWeek dayOfWeek = date.getDayOfWeek();
         List<LocalTime> starts = new ArrayList<>();
-        List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyIdAndDate(company.getId(), dayOfWeek, date, consultantId).stream()
+        Long locationId = booking.getLocation() == null ? null : booking.getLocation().getId();
+        if (locationId == null) return starts;
+        List<BookableSlot> windows = bookableSlots.findAllForWidgetByCompanyIdAndLocationIdAndDate(company.getId(), locationId, dayOfWeek, date, consultantId).stream()
                 .filter(slot -> slot.getConsultant() != null)
                 .filter(slot -> slot.getConsultant().getId().equals(consultantId))
                 .filter(slot -> consultantSupportsType(slot.getConsultant(), booking.getType()))
@@ -849,8 +868,10 @@ public class PublicBookingManageService {
                 + String.valueOf(consultant.getLastName() == null ? "" : consultant.getLastName())).trim();
     }
 
-    private Optional<TimeWindow> resolveConsultantWorkingWindow(User consultant, LocalDate date) {
-        String raw = consultant == null ? null : consultant.getWorkingHoursJson();
+    private Optional<TimeWindow> resolveConsultantWorkingWindow(User consultant, LocalDate date, Long locationId) {
+        String raw = consultant == null ? null : (consultantLocations == null
+                ? consultant.getWorkingHoursJson()
+                : consultantLocations.workingHoursJsonFor(consultant, locationId));
         if (raw == null || raw.isBlank()) return Optional.empty();
         try {
             JsonNode root = JSON.readTree(raw);
