@@ -99,6 +99,9 @@ public class SessionBookingController {
     private SessionTypeLocationPriceService locationPrices;
 
     @Autowired(required = false)
+    private SessionTypeRepository sessionTypes;
+
+    @Autowired(required = false)
     private ActivityLogService activityLogs;
 
     @Autowired
@@ -949,6 +952,7 @@ public class SessionBookingController {
                     return row.getConsultant() != null && row.getConsultant().getLoginAccount() != null
                             && Objects.equals(row.getConsultant().getLoginAccount().getId(), me.getLoginAccount().getId());
                 }).toList();
+        preloadBookingBillingGraph(rows);
 
         List<Map<String, Object>> booked = new ArrayList<>();
         rows.stream().collect(Collectors.groupingBy(row -> row.getCompany().getId(), LinkedHashMap::new, Collectors.toList()))
@@ -1057,9 +1061,41 @@ public class SessionBookingController {
     }
 
     private List<SessionBooking> loadBookingsForRange(User me, Long companyId, LocalDateTime rangeStart, LocalDateTime rangeEnd) {
-        return SecurityUtils.isAdmin(me)
+        List<SessionBooking> rows = SecurityUtils.isAdmin(me)
                 ? repo.findOverlappingDateRangeByCompanyId(companyId, rangeStart, rangeEnd)
                 : repo.findOverlappingDateRangeByConsultantIdAndCompanyId(me.getId(), companyId, rangeStart, rangeEnd);
+        preloadBookingBillingGraph(rows);
+        return rows;
+    }
+
+    /**
+     * Pre-initialize the billing links for every service type represented in a calendar response.
+     * The booking query already fetches session-service rows; this second bounded query prevents
+     * SessionBillingSupport from lazily loading linked transaction services one type at a time.
+     */
+    private void preloadBookingBillingGraph(List<SessionBooking> rows) {
+        if (sessionTypes == null || rows == null || rows.isEmpty()) return;
+        Set<Long> companyIds = new java.util.LinkedHashSet<>();
+        Set<Long> typeIds = new java.util.LinkedHashSet<>();
+        for (SessionBooking row : rows) {
+            if (row == null) continue;
+            if (row.getCompany() != null && row.getCompany().getId() != null) {
+                companyIds.add(row.getCompany().getId());
+            }
+            if (row.getType() != null && row.getType().getId() != null) {
+                typeIds.add(row.getType().getId());
+            }
+            if (row.getServices() != null) {
+                for (SessionService service : row.getServices()) {
+                    if (service != null && service.getSessionType() != null && service.getSessionType().getId() != null) {
+                        typeIds.add(service.getSessionType().getId());
+                    }
+                }
+            }
+        }
+        if (!companyIds.isEmpty() && !typeIds.isEmpty()) {
+            sessionTypes.findBillingGraphByCompanyIdsAndIdIn(companyIds, typeIds);
+        }
     }
 
     private DateRange resolveBookingListRange(LocalDate from, LocalDate to) {
@@ -1116,8 +1152,11 @@ public class SessionBookingController {
                 })
                 .forEach(row -> grouped.computeIfAbsent(groupKey(row), ignored -> new ArrayList<>()).add(row));
         PaymentStatusLookup lookup = buildPaymentStatusLookup(rows, companyId);
+        SessionBillingSupport.PriceResolver priceResolver = locationPrices == null
+                ? null
+                : locationPrices.bulkResolver(companyId, rows);
         return grouped.values().stream()
-                .map(group -> withPaymentStatuses(toGroupedResponse(group, locationPrices == null ? null : locationPrices::effectiveNet), group, lookup))
+                .map(group -> withPaymentStatuses(toGroupedResponse(group, priceResolver), group, lookup, priceResolver))
                 .toList();
     }
 
@@ -1126,7 +1165,16 @@ public class SessionBookingController {
     }
 
     private BookingResponse withPaymentStatuses(BookingResponse base, List<SessionBooking> rows, PaymentStatusLookup lookup) {
-        List<BookingPaymentStatusResponse> statuses = computePaymentStatuses(rows, lookup);
+        return withPaymentStatuses(base, rows, lookup, locationPrices == null ? null : locationPrices::effectiveNet);
+    }
+
+    private BookingResponse withPaymentStatuses(
+            BookingResponse base,
+            List<SessionBooking> rows,
+            PaymentStatusLookup lookup,
+            SessionBillingSupport.PriceResolver priceResolver
+    ) {
+        List<BookingPaymentStatusResponse> statuses = computePaymentStatuses(rows, lookup, priceResolver);
         return new BookingResponse(
                 base.id(),
                 base.bookingGroupKey(),
@@ -1188,6 +1236,14 @@ public class SessionBookingController {
     }
 
     private List<BookingPaymentStatusResponse> computePaymentStatuses(List<SessionBooking> rows, PaymentStatusLookup lookup) {
+        return computePaymentStatuses(rows, lookup, locationPrices == null ? null : locationPrices::effectiveNet);
+    }
+
+    private List<BookingPaymentStatusResponse> computePaymentStatuses(
+            List<SessionBooking> rows,
+            PaymentStatusLookup lookup,
+            SessionBillingSupport.PriceResolver priceResolver
+    ) {
         boolean groupSession = rows != null && rows.stream().anyMatch(row -> row.getClientGroup() != null);
         var participantRows = rows == null ? List.<SessionBooking>of() : rows.stream()
                 .filter(row -> row.getId() != null && row.getClient() != null)
@@ -1200,7 +1256,7 @@ public class SessionBookingController {
 
         List<BookingPaymentStatusResponse> result = new ArrayList<>();
         for (SessionBooking row : participantRows) {
-            BigDecimal totalGross = sessionGross(row, rows).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal totalGross = sessionGross(row, rows, priceResolver).setScale(2, RoundingMode.HALF_UP);
             BigDecimal paidGross = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
             BigDecimal pendingGross = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
             boolean hasBankTransferInvoice = false;
@@ -1423,10 +1479,18 @@ public class SessionBookingController {
     }
 
     private BigDecimal sessionGross(SessionBooking row, List<SessionBooking> groupRows) {
+        return sessionGross(row, groupRows, locationPrices == null ? null : locationPrices::effectiveNet);
+    }
+
+    private BigDecimal sessionGross(
+            SessionBooking row,
+            List<SessionBooking> groupRows,
+            SessionBillingSupport.PriceResolver priceResolver
+    ) {
         if (isTotalPriceCalculation(row) && !isPrimaryChargeRow(row, groupRows)) {
             return BigDecimal.ZERO;
         }
-        return sessionGross(row);
+        return SessionBillingSupport.grossTotal(row, priceResolver);
     }
 
     private BigDecimal sessionGross(SessionBooking row) {

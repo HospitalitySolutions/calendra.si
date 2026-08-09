@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,6 +16,18 @@ public interface SessionTypeRepository extends JpaRepository<SessionType, Long> 
     @Query("SELECT DISTINCT t FROM SessionType t LEFT JOIN FETCH t.serviceGroup LEFT JOIN FETCH t.locations LEFT JOIN FETCH t.linkedServices ls LEFT JOIN FETCH ls.transactionService " +
             "WHERE t.company.id = :companyId")
     List<SessionType> findAllWithLinkedServicesByCompanyId(@Param("companyId") Long companyId);
+
+    /** Billing graph preload for calendar/list responses; avoids loading linked billing items per booking. */
+    @Query("""
+            SELECT DISTINCT t FROM SessionType t
+            LEFT JOIN FETCH t.linkedServices ls
+            LEFT JOIN FETCH ls.transactionService
+            WHERE t.company.id IN :companyIds AND t.id IN :ids
+            """)
+    List<SessionType> findBillingGraphByCompanyIdsAndIdIn(
+            @Param("companyIds") Collection<Long> companyIds,
+            @Param("ids") Collection<Long> ids
+    );
 
     @Query("SELECT DISTINCT t FROM SessionType t LEFT JOIN FETCH t.serviceGroup LEFT JOIN FETCH t.locations LEFT JOIN FETCH t.linkedServices ls LEFT JOIN FETCH ls.transactionService " +
             "WHERE t.id = :id AND t.company.id = :companyId")

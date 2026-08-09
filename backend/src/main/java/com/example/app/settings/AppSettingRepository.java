@@ -12,6 +12,7 @@ import com.example.app.settings.SettingKey;
 public interface AppSettingRepository extends JpaRepository<AppSetting, Long> {
     Optional<AppSetting> findByKey(String key);
     List<AppSetting> findAllByKey(String key);
+    Optional<AppSetting> findFirstByKeyOrderByUpdatedAtDescIdDesc(String key);
 
     List<AppSetting> findAllByCompanyId(Long companyId);
 
@@ -29,6 +30,10 @@ public interface AppSettingRepository extends JpaRepository<AppSetting, Long> {
 
     default List<AppSetting> findAllByKey(SettingKey key) {
         return findAllByKey(key.name());
+    }
+
+    default Optional<AppSetting> findLatestByKey(SettingKey key) {
+        return findFirstByKeyOrderByUpdatedAtDescIdDesc(key.name());
     }
 
     default Optional<AppSetting> findByCompanyIdAndKey(Long companyId, SettingKey key) {

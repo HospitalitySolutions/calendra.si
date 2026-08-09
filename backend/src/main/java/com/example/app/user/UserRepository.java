@@ -17,6 +17,21 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findAllByCompanyId(Long companyId);
 
+    /**
+     * Employee-directory read model. Fetch the associations used by UserController.toResponse
+     * in one query so opening Sodelavci does not trigger one locations/role/login query per row.
+     */
+    @Query("""
+            select distinct u from User u
+            join fetch u.company
+            join fetch u.loginAccount
+            left join fetch u.locations
+            left join fetch u.employeeAccessRole
+            where u.company.id = :companyId
+            order by u.firstName, u.lastName, u.id
+            """)
+    List<User> findAllForDirectoryByCompanyId(@Param("companyId") Long companyId);
+
     List<User> findAllByLoginAccountIdOrderByIdAsc(Long loginAccountId);
     List<User> findAllByLoginAccountIdAndActiveTrueOrderByIdAsc(Long loginAccountId);
     long countByLoginAccountId(Long loginAccountId);
@@ -55,7 +70,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             select u from User u
             where u.company.id = :companyId
               and u.employeeAccessRole.id = :accessRoleId
-            order by lower(u.firstName), lower(u.lastName), u.id
+            order by u.firstName, u.lastName, u.id
             """)
     List<User> findAllRoleMembersByCompanyIdAndEmployeeAccessRoleId(@Param("companyId") Long companyId, @Param("accessRoleId") Long employeeAccessRoleId);
 

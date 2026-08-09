@@ -58,6 +58,8 @@ spring:
       ssl:
         enabled: ${SPRING_DATA_REDIS_SSL_ENABLED:false}
 app:
+  performance:
+    slow-request-threshold-ms: ${APP_PERFORMANCE_SLOW_REQUEST_THRESHOLD_MS:750}
   workspace-rollout:
     integrity-health-enabled: ${APP_WORKSPACE_INTEGRITY_HEALTH_ENABLED:true}
   public-base-url: ${APP_PUBLIC_BASE_URL:}

@@ -410,12 +410,16 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
 
     @Query("""
             SELECT DISTINCT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.location
             LEFT JOIN FETCH sb.client c
             LEFT JOIN FETCH c.billingCompany
             LEFT JOIN FETCH sb.payeeCompany
             LEFT JOIN FETCH sb.consultant
             LEFT JOIN FETCH sb.space
             LEFT JOIN FETCH sb.type
+            LEFT JOIN FETCH sb.services bookingService
+            LEFT JOIN FETCH bookingService.sessionType
+            LEFT JOIN FETCH bookingService.space
             LEFT JOIN FETCH sb.clientGroup
             LEFT JOIN FETCH sb.sessionGroupBillingCompany
             WHERE sb.company.id = :companyId
@@ -431,12 +435,16 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
 
     @Query("""
             SELECT DISTINCT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.location
             LEFT JOIN FETCH sb.client c
             LEFT JOIN FETCH c.billingCompany
             LEFT JOIN FETCH sb.payeeCompany
             LEFT JOIN FETCH sb.consultant
             LEFT JOIN FETCH sb.space
             LEFT JOIN FETCH sb.type
+            LEFT JOIN FETCH sb.services bookingService
+            LEFT JOIN FETCH bookingService.sessionType
+            LEFT JOIN FETCH bookingService.space
             LEFT JOIN FETCH sb.clientGroup
             LEFT JOIN FETCH sb.sessionGroupBillingCompany
             WHERE sb.company.id = :companyId
@@ -794,7 +802,7 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
             @Param("now") LocalDateTime now);
     long countByLocationId(Long locationId);
 
-    @EntityGraph(attributePaths = {"company", "location", "space", "space.location", "consultant", "consultant.loginAccount", "client", "type"})
+    @EntityGraph(attributePaths = {"company", "location", "space", "space.location", "consultant", "consultant.loginAccount", "client", "type", "services", "services.sessionType", "services.space"})
     @Query("SELECT DISTINCT sb FROM SessionBooking sb WHERE sb.company.id IN :companyIds " +
            "AND sb.startTime < :rangeEnd AND sb.endTime > :rangeStart " +
            "AND UPPER(COALESCE(sb.bookingStatus, 'RESERVED')) NOT IN ('CANCELLED', 'NO_SHOW')")

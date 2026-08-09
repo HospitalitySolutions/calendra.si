@@ -35,6 +35,11 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        # Collapse lazy/EAGER association N+1 reads into batched IN queries. Individual hot
+        # endpoints still use explicit fetch joins where that is cheaper and deterministic.
+        default_batch_fetch_size: ${HIBERNATE_DEFAULT_BATCH_FETCH_SIZE:64}
+        jdbc:
+          fetch_size: ${HIBERNATE_JDBC_FETCH_SIZE:100}
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
@@ -79,6 +84,16 @@ management:
   health:
     mail:
       enabled: false
+  metrics:
+    distribution:
+      # Retain endpoint percentiles so /api/platform-admin/monitoring/performance can report
+      # p50/p95/p99 without enabling verbose request logging.
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.50,0.95,0.99
+      slo:
+        http.server.requests: 100ms,250ms,500ms,1s,2s
   tracing:
     enabled: ${MANAGEMENT_TRACING_ENABLED:false}
     sampling:
@@ -88,6 +103,8 @@ management:
       endpoint: ${MANAGEMENT_OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
 
 app:
+  performance:
+    slow-request-threshold-ms: ${APP_PERFORMANCE_SLOW_REQUEST_THRESHOLD_MS:750}
   workspace-rollout:
     shared-clients: ${APP_WORKSPACE_ROLLOUT_SHARED_CLIENTS:true}
     consolidated-scheduling: ${APP_WORKSPACE_ROLLOUT_CONSOLIDATED_SCHEDULING:true}

@@ -767,15 +767,9 @@ public class SettingsController {
     }
 
     private java.util.Optional<String> latestGlobalSettingValue(SettingKey key) {
-        return repository.findAllByKey(key).stream()
-                .max((a, b) -> {
-                    var au = a.getUpdatedAt();
-                    var bu = b.getUpdatedAt();
-                    if (au == null && bu == null) return 0;
-                    if (au == null) return -1;
-                    if (bu == null) return 1;
-                    return au.compareTo(bu);
-                })
+        // Platform-wide settings are read on every /api/settings response. Ask PostgreSQL for
+        // the newest row directly instead of loading every tenant's copy and sorting in Java.
+        return repository.findLatestByKey(key)
                 .map(AppSetting::getValue)
                 .map(v -> decodeForRead(key.name(), v));
     }

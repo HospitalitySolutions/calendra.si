@@ -8,8 +8,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +48,62 @@ public class SessionTypeLocationPriceService {
         BigDecimal base = link.getPrice() != null ? link.getPrice() : tx.getNetPrice();
         if (locationId == null) return normalize(base);
         return normalize(overridePrice(companyId, type.getId(), tx.getId(), locationId).orElse(base));
+    }
+
+    /**
+     * Builds an in-memory location-price resolver for a calendar/list batch.
+     *
+     * <p>The old resolver performed one SELECT for every billing link of every booking. A week
+     * containing many sessions could therefore spend most of its time doing repeated
+     * session_type_location_prices lookups. This method loads every relevant override in one
+     * query and then resolves prices from a map while serializing the response.</p>
+     */
+    @Transactional(readOnly = true)
+    public SessionBillingSupport.PriceResolver bulkResolver(Long companyId, Collection<SessionBooking> bookings) {
+        if (companyId == null || bookings == null || bookings.isEmpty()) {
+            return SessionTypeLocationPriceService::baseNet;
+        }
+        Set<Long> locationIds = new LinkedHashSet<>();
+        Set<Long> typeIds = new LinkedHashSet<>();
+        for (SessionBooking booking : bookings) {
+            if (booking == null) continue;
+            if (booking.getLocation() != null && booking.getLocation().getId() != null) {
+                locationIds.add(booking.getLocation().getId());
+            }
+            if (booking.getType() != null && booking.getType().getId() != null) {
+                typeIds.add(booking.getType().getId());
+            }
+            if (booking.getServices() != null) {
+                for (SessionService service : booking.getServices()) {
+                    if (service != null && service.getSessionType() != null && service.getSessionType().getId() != null) {
+                        typeIds.add(service.getSessionType().getId());
+                    }
+                }
+            }
+        }
+        if (locationIds.isEmpty() || typeIds.isEmpty()) {
+            return SessionTypeLocationPriceService::baseNet;
+        }
+
+        Map<PriceKey, BigDecimal> overrides = new HashMap<>();
+        for (SessionTypeLocationPrice row : prices.findAllByCompanyIdAndLocationIdInAndSessionTypeIdIn(
+                companyId, locationIds, typeIds)) {
+            if (row.getSessionType() == null || row.getTransactionService() == null || row.getLocation() == null) continue;
+            overrides.put(
+                    new PriceKey(row.getSessionType().getId(), row.getTransactionService().getId(), row.getLocation().getId()),
+                    normalize(row.getPrice())
+            );
+        }
+        return (link, locationId) -> {
+            BigDecimal base = baseNet(link, locationId);
+            if (link == null || link.getSessionType() == null || link.getTransactionService() == null || locationId == null) {
+                return base;
+            }
+            return overrides.getOrDefault(
+                    new PriceKey(link.getSessionType().getId(), link.getTransactionService().getId(), locationId),
+                    base
+            );
+        };
     }
 
     public Map<Long, BigDecimal> overridesForType(Long companyId, Long typeId, Long locationId) {
@@ -98,6 +156,13 @@ public class SessionTypeLocationPriceService {
         } else {
             prices.deleteByCompanyIdAndSessionTypeIdAndTransactionServiceIdNotIn(companyId, typeId, linkedTransactionServiceIds);
         }
+    }
+
+    private record PriceKey(Long sessionTypeId, Long transactionServiceId, Long locationId) {}
+
+    private static BigDecimal baseNet(TypeTransactionService link, Long locationId) {
+        if (link == null || link.getTransactionService() == null) return BigDecimal.ZERO.setScale(4);
+        return normalize(link.getPrice() != null ? link.getPrice() : link.getTransactionService().getNetPrice());
     }
 
     private Location requireLocation(Long companyId, Long locationId) {

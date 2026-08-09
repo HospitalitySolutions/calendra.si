@@ -88,7 +88,7 @@ public class UserController {
     public List<UserResponse> findAll(@AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
         Long tenantOwnerId = tenantOwnerAccessService.ensureTenantOwnerAdministrator(companyId);
-        return userRepository.findAllByCompanyId(companyId)
+        return userRepository.findAllForDirectoryByCompanyId(companyId)
                 .stream().map(user -> toResponse(user, tenantOwnerId)).collect(Collectors.toList());
     }
 

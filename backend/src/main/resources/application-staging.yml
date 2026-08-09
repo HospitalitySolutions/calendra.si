@@ -44,6 +44,8 @@ spring:
       timeout: ${SPRING_DATA_REDIS_TIMEOUT:2s}
 
 app:
+  performance:
+    slow-request-threshold-ms: ${APP_PERFORMANCE_SLOW_REQUEST_THRESHOLD_MS:500}
   public-base-url: ${APP_PUBLIC_BASE_URL:https://staging.calendra.si}
   demo-booking-public-base-url: ${APP_DEMO_BOOKING_PUBLIC_BASE_URL:https://staging.calendra.si}
   demo-booking-management-base-url: ${APP_DEMO_BOOKING_MANAGEMENT_BASE_URL:${APP_AUTH_FRONTEND_URL:https://staging.calendra.si}}

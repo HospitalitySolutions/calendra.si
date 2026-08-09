@@ -5,6 +5,7 @@ import com.example.app.billing.BillPaymentStatus;
 import com.example.app.billing.BillRepository;
 import com.example.app.monitoring.ScheduledJobAlertService;
 import com.example.app.monitoring.ScheduledJobMonitoringService;
+import com.example.app.observability.BackendPerformanceDiagnosticsService;
 import com.example.app.observability.legacy.LegacyEndpointUsageService;
 import com.example.app.stripe.StripeWebhookEventRepository;
 import io.micrometer.core.instrument.Measurement;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import javax.sql.DataSource;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -32,6 +34,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -47,6 +50,9 @@ public class PlatformMonitoringController {
     private final ScheduledJobAlertService scheduledJobAlerts;
     private final LegacyEndpointUsageService legacyEndpointUsage;
     private final String publicBaseUrl;
+
+    @Autowired(required = false)
+    private BackendPerformanceDiagnosticsService performanceDiagnostics;
 
     public PlatformMonitoringController(
             DataSource dataSource,
@@ -142,6 +148,16 @@ public class PlatformMonitoringController {
                 metrics,
                 "Use this admin page for quick status checks. Use external uptime/log tools for real alerts, full logs, and backup monitoring."
         );
+    }
+
+    @GetMapping("/performance")
+    public BackendPerformanceDiagnosticsService.PerformanceSnapshot performance(
+            @RequestParam(required = false) Integer limit
+    ) {
+        if (performanceDiagnostics == null) {
+            throw new IllegalStateException("Performance diagnostics are unavailable.");
+        }
+        return performanceDiagnostics.snapshot(limit);
     }
 
     @GetMapping("/legacy-endpoints")
