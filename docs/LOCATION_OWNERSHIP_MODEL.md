@@ -1,6 +1,6 @@
 # Calendra location ownership model
 
-Status: Phase 5.5B implemented / architecture baseline
+Status: Phase 6A implemented / location ownership baseline
 
 ## Architectural rule
 
@@ -64,6 +64,7 @@ A one-location tenant should not have extra UX complexity: signup/provisioning c
 | booking/reservation rules | DEFAULT + LOCATION OVERRIDE | **Phase 5.5E implemented** | Company remains canonical default; optional Location override is resolved by public booking, guest booking and configuration flows. |
 | pricing | SHARED DEFAULT + LOCATION OVERRIDE | **Phase 5.5E implemented** | Shared service/billing links keep the base net price; optional per-Location price rows override it for catalog, checkout and billing. |
 | public directory / widget / Guest App provider | LOCATION | Phases 1–5 migrated | Keep Location as provider identity. |
+| public booking management | BOOKING LOCATION | **Phase 6A implemented** | Manage/cancel/reschedule resolves rules, presentation, timezone and availability from the immutable booking Location; group moves cannot cross branches. |
 | Google Place / public identity | LOCATION | Phases 1–3 migrated | Correct. |
 | inbox/messages | WORKSPACE/COMPANY CUSTOMER RELATIONSHIP | Keep shared | Attach booking/location context when a message originates from a booking; do not fragment conversation identity by branch by default. |
 | notifications | EVENT LOCATION when event-based | Needs consistency pass | Booking/waitlist/order notifications should render the concrete event's Location identity. General account notifications remain company/workspace scoped. |
@@ -217,13 +218,23 @@ Phase 5.5E implements **global default + optional Location override** rather tha
 
 Migration `V52__location_rule_pricing_overrides.sql` adds both override tables and database triggers that reject cross-Company Location writes and price rows whose SessionType/transaction service relationship is invalid. `LocationRulePricingOverrideMigrationTest` verifies optional inheritance storage, valid branch pricing, tenant isolation and rejection of unlinked billing-service prices.
 
-## Phase 6 and later
+## Phase 6A – public booking management
 
-After 5.5B–E, continue the previously planned secondary public-consumer pass:
+Phase 6A completes Location ownership for public manage/cancel/reschedule links:
 
-- public booking manage/cancel/reschedule pages use the booking Location identity,
-- waitlist public pages use request/offer Location identity,
-- workspace public booking uses the same Location presentation resolver,
+- Reservation, modification and cancellation rules resolve from `(company_id, booking.location_id)`, including 5.5E Location overrides.
+- Public management branding and contact details resolve through `LocationPublicPresentationService` from the booking Location.
+- Cutoff and availability calculations use the booking Location timezone; token expiry prefers that same timezone.
+- Non-group availability validates the existing booking service plan instead of reconstructing a Company-level legacy plan, preserving the snapshotted branch break/service chain.
+- Group-session availability only exposes sessions at the original booking Location.
+- Direct reschedule POSTs reject cross-Location group targets, and the original booking Location is explicitly preserved during a successful group move.
+
+## Phase 6B and later
+
+Continue the remaining secondary-consumer pass:
+
+- waitlist public pages and offer links use request/offer Location identity,
+- event-based booking/waitlist/order notifications use the concrete event Location identity,
 - analytics expose reliable Location dimensions,
 - remove remaining code paths that use `companyId` as a proxy for operational location.
 

@@ -1,0 +1,14 @@
+PHASE 6A — PUBLIC BOOKING MANAGEMENT LOCATION CONSISTENCY
+
+Implemented:
+- Public manage/cancel/reschedule resolves reservation rules by booking Location.
+- Booking Location public name/logo/address/phone/email is returned and rendered on the public management page.
+- Booking Location timezone drives cutoff, availability and management-token expiry calculations.
+- Availability validation reuses the existing booking/service plan so Location-aware break snapshots are preserved.
+- Group-session move availability is restricted to the original Location.
+- Direct cross-Location group reschedule attempts are rejected server-side.
+- Successful group moves explicitly preserve the original booking Location.
+
+Verification coverage added:
+- PublicBookingManageLocationScopeTest
+- PublicBookingManageTokenLocationTimezoneTest

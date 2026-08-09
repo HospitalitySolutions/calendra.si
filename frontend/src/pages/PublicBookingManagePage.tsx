@@ -6,8 +6,12 @@ import calendraLogo from '../assets/login-logo.png'
 
 type ManageInfo = {
   tenantCode: string
+  locationId: number
   tenantName: string
   tenantLogoUrl?: string | null
+  locationAddress?: string | null
+  locationPhone?: string | null
+  locationEmail?: string | null
   serviceName: string
   currentStart: string
   currentEnd: string
@@ -228,6 +232,31 @@ const pageStyles = `
     color: #64748b;
     font-size: clamp(1.05rem, 2vw, 1.35rem);
     line-height: 1.45;
+  }
+
+  .public-manage-location-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px 14px;
+    margin-top: 9px;
+    color: #64748b;
+    font-size: .92rem;
+    line-height: 1.45;
+  }
+
+  .public-manage-location-meta span,
+  .public-manage-location-meta a {
+    color: inherit;
+  }
+
+  .public-manage-location-meta a {
+    text-decoration: none;
+    font-weight: 650;
+  }
+
+  .public-manage-location-meta a:hover {
+    color: #2563eb;
+    text-decoration: underline;
   }
 
   .public-manage-illustration {
@@ -1029,6 +1058,13 @@ export function PublicBookingManagePage() {
           <header className="public-manage-heading">
             <h1>{copy.title}</h1>
             {info?.tenantName && <p>{info.tenantName}</p>}
+            {info && (info.locationAddress || info.locationPhone || info.locationEmail) && (
+              <div className="public-manage-location-meta">
+                {info.locationAddress && <span>{info.locationAddress}</span>}
+                {info.locationPhone && <a href={`tel:${info.locationPhone}`}>{info.locationPhone}</a>}
+                {info.locationEmail && <a href={`mailto:${info.locationEmail}`}>{info.locationEmail}</a>}
+              </div>
+            )}
           </header>
 
           {loading && <p className="public-manage-muted">{copy.loading}</p>}

@@ -8,6 +8,8 @@ import com.example.app.client.Client;
 import com.example.app.common.TimeService;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
+import com.example.app.location.Location;
+import com.example.app.location.LocationPublicPresentationService;
 import com.example.app.billing.OpenBillSyncService;
 import com.example.app.reminder.ReminderService;
 import com.example.app.session.AvailabilityWindowGrid;
@@ -70,6 +72,8 @@ public class PublicBookingManageService {
     private final BookingChangePublisher bookingChangePublisher;
     private final OpenBillSyncService openBillSyncService;
     private final WebsiteWidgetSettingsService websiteWidgetSettingsService;
+    private final TenantReservationRulesService reservationRulesService;
+    private final LocationPublicPresentationService locationPresentationService;
     private final TimeService timeService;
     private final ZoneId zoneId;
 
@@ -91,6 +95,8 @@ public class PublicBookingManageService {
             BookingChangePublisher bookingChangePublisher,
             OpenBillSyncService openBillSyncService,
             WebsiteWidgetSettingsService websiteWidgetSettingsService,
+            TenantReservationRulesService reservationRulesService,
+            LocationPublicPresentationService locationPresentationService,
             TimeService timeService,
             @Value("${app.reminders.timezone:Europe/Ljubljana}") String bookingTimezoneId
     ) {
@@ -105,6 +111,8 @@ public class PublicBookingManageService {
         this.bookingChangePublisher = bookingChangePublisher;
         this.openBillSyncService = openBillSyncService;
         this.websiteWidgetSettingsService = websiteWidgetSettingsService;
+        this.reservationRulesService = reservationRulesService;
+        this.locationPresentationService = locationPresentationService;
         this.timeService = timeService;
         this.zoneId = ZoneId.of(bookingTimezoneId == null || bookingTimezoneId.isBlank() ? "Europe/Ljubljana" : bookingTimezoneId.trim());
     }
@@ -112,7 +120,7 @@ public class PublicBookingManageService {
     @Transactional
     public PublicBookingManageController.BookingManageResponse get(String rawToken) {
         PublicBookingManageToken token = tokenService.resolve(rawToken);
-        return toManageResponse(token.getBooking(), token.getCompany(), rules(token.getCompany().getId()));
+        return toManageResponse(token.getBooking(), token.getCompany(), rulesFor(token.getBooking()));
     }
 
     @Transactional
@@ -120,7 +128,7 @@ public class PublicBookingManageService {
         PublicBookingManageToken token = tokenService.resolve(rawToken);
         SessionBooking booking = token.getBooking();
         Company company = token.getCompany();
-        TenantReservationRulesService.TenantReservationRules rules = rules(company.getId());
+        TenantReservationRulesService.TenantReservationRules rules = rulesFor(booking);
         if (!canModify(booking, rules)) {
             return new PublicBookingManageController.AvailabilityResponse(dateText, List.of());
         }
@@ -140,7 +148,7 @@ public class PublicBookingManageService {
         SessionBooking booking = bookings.findByIdAndCompanyId(token.getBooking().getId(), token.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found."));
         Company company = token.getCompany();
-        TenantReservationRulesService.TenantReservationRules rules = rules(company.getId());
+        TenantReservationRulesService.TenantReservationRules rules = rulesFor(booking);
         if (!canModify(booking, rules)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, modifyBlockedReason(booking, rules));
         }
@@ -154,7 +162,7 @@ public class PublicBookingManageService {
         LocalDateTime newStart = parseStartTime(request.startTime());
         int durationMinutes = durationMinutes(booking);
         LocalDateTime newEnd = newStart.plusMinutes(durationMinutes);
-        if (!slotAllowedByReservationRules(newStart, rules)) {
+        if (!slotAllowedByReservationRules(booking, newStart, rules)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected time is outside the allowed reservation window.");
         }
 
@@ -220,7 +228,7 @@ public class PublicBookingManageService {
         SessionBooking booking = bookings.findByIdAndCompanyId(token.getBooking().getId(), token.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found."));
         Company company = token.getCompany();
-        TenantReservationRulesService.TenantReservationRules rules = rules(company.getId());
+        TenantReservationRulesService.TenantReservationRules rules = rulesFor(booking);
         if (!canCancel(booking, rules)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, cancelBlockedReason(booking, rules));
         }
@@ -266,10 +274,17 @@ public class PublicBookingManageService {
             Company company,
             TenantReservationRulesService.TenantReservationRules rules
     ) {
+        Location location = requireBookingLocation(booking);
+        LocationPublicPresentationService.PublicPresentation presentation = locationPresentationService.resolve(location);
+        ZoneId bookingZone = zoneForBooking(booking);
         return new PublicBookingManageController.BookingManageResponse(
                 company.getTenantCode(),
-                tenantName(company),
-                tenantLogoUrl(company),
+                location.getId(),
+                presentation == null ? location.getName() : presentation.publicName(),
+                presentation == null ? null : presentation.publicLogoUrl(),
+                presentation == null ? null : presentation.publicAddress(),
+                presentation == null ? null : presentation.publicPhone(),
+                presentation == null ? null : presentation.publicEmail(),
                 booking.getType() == null ? "" : booking.getType().getName(),
                 booking.getStartTime() == null ? null : booking.getStartTime().format(DATE_TIME_FORMAT),
                 booking.getEndTime() == null ? null : booking.getEndTime().format(DATE_TIME_FORMAT),
@@ -281,7 +296,7 @@ public class PublicBookingManageService {
                 canCancel(booking, rules),
                 modifyBlockedReason(booking, rules),
                 cancelBlockedReason(booking, rules),
-                zoneId.getId(),
+                bookingZone.getId(),
                 "If payment has already been made, the business will handle any refund according to its own terms."
         );
     }
@@ -293,7 +308,7 @@ public class PublicBookingManageService {
             TenantReservationRulesService.TenantReservationRules rules
     ) {
         if (date == null || booking.getType() == null) return List.of();
-        LocalDate today = timeService.localDate(zoneId);
+        LocalDate today = timeService.localDate(zoneForBooking(booking));
         if (date.isBefore(today) || date.isAfter(today.plusDays(rules.maxAdvanceBookingDays()))) return List.of();
 
         int duration = durationMinutes(booking);
@@ -321,16 +336,14 @@ public class PublicBookingManageService {
             LocalDateTime start = date.atTime(t);
             LocalDateTime end = start.plusMinutes(duration);
             if (Objects.equals(start, booking.getStartTime())) continue;
-            if (!slotAllowedByReservationRules(start, rules)) continue;
+            if (!slotAllowedByReservationRules(booking, start, rules)) continue;
             try {
-                bookingCreationService.validateBookingWindow(
-                        company.getId(),
+                bookingCreationService.validateExistingBookingWindow(
+                        booking,
                         clientIdsOf(List.of(booking)),
                         consultantId,
-                        booking.getSpace() == null ? null : booking.getSpace().getId(),
                         start,
                         end,
-                        booking.getType().getId(),
                         excludeIds,
                         bookingCreationService.isSpacesEnabled(company.getId()),
                         bookingCreationService.isMultipleSessionsPerSpaceEnabled(company.getId()),
@@ -360,7 +373,7 @@ public class PublicBookingManageService {
             TenantReservationRulesService.TenantReservationRules rules
     ) {
         if (date == null || booking.getType() == null || booking.getClient() == null) return List.of();
-        LocalDate today = timeService.localDate(zoneId);
+        LocalDate today = timeService.localDate(zoneForBooking(booking));
         if (date.isBefore(today) || date.isAfter(today.plusDays(rules.maxAdvanceBookingDays()))) return List.of();
 
         LocalDateTime from = date.atStartOfDay();
@@ -389,10 +402,11 @@ public class PublicBookingManageService {
                     .min(Comparator.comparing(SessionBooking::getId))
                     .orElse(null);
             if (representative == null || representative.getClientGroup() == null) continue;
+            if (!sameLocation(booking, representative)) continue;
             if (representative.getType() == null
                     || !Objects.equals(representative.getType().getId(), booking.getType().getId())) continue;
-            if (representative.getStartTime() == null || !representative.getStartTime().isAfter(timeService.localDateTime(zoneId))) continue;
-            if (!slotAllowedByReservationRules(representative.getStartTime(), rules)) continue;
+            if (representative.getStartTime() == null || !representative.getStartTime().isAfter(timeService.localDateTime(zoneForBooking(booking)))) continue;
+            if (!slotAllowedByReservationRules(booking, representative.getStartTime(), rules)) continue;
             if (groupContainsClient(activeRows, booking.getClient().getId())) continue;
 
             int bookedParticipants = activeParticipantCount(activeRows);
@@ -407,14 +421,12 @@ public class PublicBookingManageService {
                     .toList());
             if (booking.getId() != null) excludeIds.add(booking.getId());
             try {
-                bookingCreationService.validateBookingWindow(
-                        company.getId(),
+                bookingCreationService.validateExistingBookingWindow(
+                        representative,
                         clientIdsOf(List.of(booking)),
                         representative.getConsultant() == null ? null : representative.getConsultant().getId(),
-                        representative.getSpace() == null ? null : representative.getSpace().getId(),
                         representative.getStartTime(),
                         representative.getEndTime(),
-                        representative.getType().getId(),
                         excludeIds,
                         bookingCreationService.isSpacesEnabled(company.getId()),
                         bookingCreationService.isMultipleSessionsPerSpaceEnabled(company.getId()),
@@ -460,6 +472,9 @@ public class PublicBookingManageService {
         if (!isGroupSession(requestedTarget)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected booking is not a group session.");
         }
+        if (!sameLocation(booking, requestedTarget)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select a group session at the original booking location.");
+        }
         if (Objects.equals(groupKey(booking), groupKey(requestedTarget))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select a different group session.");
         }
@@ -470,14 +485,17 @@ public class PublicBookingManageService {
         SessionBooking target = activeTargetRows.stream()
                 .min(Comparator.comparing(SessionBooking::getId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session is no longer available."));
+        if (!sameLocation(booking, target)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select a group session at the original booking location.");
+        }
         if (target.getType() == null || booking.getType() == null
                 || !Objects.equals(target.getType().getId(), booking.getType().getId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session uses a different service.");
         }
-        if (!target.getStartTime().isAfter(timeService.localDateTime(zoneId))) {
+        if (!target.getStartTime().isAfter(timeService.localDateTime(zoneForBooking(booking)))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session is in the past.");
         }
-        if (!slotAllowedByReservationRules(target.getStartTime(), rules)) {
+        if (!slotAllowedByReservationRules(booking, target.getStartTime(), rules)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session is outside the allowed reservation window.");
         }
         Long clientId = booking.getClient().getId();
@@ -497,14 +515,12 @@ public class PublicBookingManageService {
                 .filter(Objects::nonNull)
                 .toList());
         excludeIds.add(booking.getId());
-        bookingCreationService.validateBookingWindow(
-                company.getId(),
+        bookingCreationService.validateExistingBookingWindow(
+                target,
                 List.of(clientId),
                 target.getConsultant() == null ? null : target.getConsultant().getId(),
-                target.getSpace() == null ? null : target.getSpace().getId(),
                 target.getStartTime(),
                 target.getEndTime(),
-                target.getType().getId(),
                 excludeIds,
                 bookingCreationService.isSpacesEnabled(company.getId()),
                 bookingCreationService.isMultipleSessionsPerSpaceEnabled(company.getId()),
@@ -518,10 +534,12 @@ public class PublicBookingManageService {
         LocalDateTime oldEnd = booking.getEndTime();
         Optional<SessionBooking> placeholder = ensureGroupSessionRemainsWhenParticipantLeaves(booking);
 
+        Location originalLocation = requireBookingLocation(booking);
         copyGroupSessionFields(target, booking);
+        booking.setLocation(originalLocation);
         booking.setBookingStatus(SessionBookingStatus.RESERVED);
         booking = bookings.save(booking);
-        token.setExpiresAt(booking.getEndTime().atZone(zoneId).toInstant());
+        token.setExpiresAt(booking.getEndTime().atZone(zoneForBooking(booking)).toInstant());
 
         reminderService.sendSessionRescheduled(booking, oldStart, oldEnd);
         bookingChangePublisher.publish(
@@ -633,12 +651,10 @@ public class PublicBookingManageService {
 
     private void copyGroupSessionFields(SessionBooking source, SessionBooking target) {
         target.setCompany(source.getCompany());
-        target.setLocation(source.getLocation());
         target.setBookingGroupKey(groupKey(source));
         target.setRecurrenceSeriesKey(source.getRecurrenceSeriesKey());
         target.setConsultant(source.getConsultant());
         servicePlans.copy(source, target);
-        if (target.getLocation() == null) target.setLocation(source.getLocation());
         target.setNotes(source.getNotes());
         target.setMeetingLink(source.getMeetingLink());
         target.setMeetingProvider(source.getMeetingProvider());
@@ -750,7 +766,7 @@ public class PublicBookingManageService {
 
     private boolean beforeCutoff(SessionBooking booking, int cutoffHours) {
         if (booking == null || booking.getStartTime() == null) return false;
-        LocalDateTime now = timeService.localDateTime(zoneId);
+        LocalDateTime now = timeService.localDateTime(zoneForBooking(booking));
         if (!booking.getStartTime().isAfter(now)) return false;
         LocalDateTime deadline = booking.getStartTime().minusHours(Math.max(0, cutoffHours));
         return !now.isAfter(deadline);
@@ -766,13 +782,19 @@ public class PublicBookingManageService {
         return booking != null && booking.getClientGroup() != null;
     }
 
-    private TenantReservationRulesService.TenantReservationRules rules(Long companyId) {
-        return TenantReservationRulesService.resolve(settings.findAllByCompanyId(companyId).stream()
-                .collect(Collectors.toMap(AppSetting::getKey, AppSetting::getValue, (a, b) -> b)));
+    private TenantReservationRulesService.TenantReservationRules rulesFor(SessionBooking booking) {
+        Location location = requireBookingLocation(booking);
+        return reservationRulesService.resolve(booking.getCompany().getId(), location.getId());
     }
 
-    private boolean slotAllowedByReservationRules(LocalDateTime slotStart, TenantReservationRulesService.TenantReservationRules rules) {
-        return TenantReservationRulesService.slotAllowed(rules, slotStart, zoneId, timeService.localDateTime(zoneId));
+    private boolean slotAllowedByReservationRules(
+            SessionBooking booking,
+            LocalDateTime slotStart,
+            TenantReservationRulesService.TenantReservationRules rules
+    ) {
+        ZoneId bookingZone = zoneForBooking(booking);
+        return TenantReservationRulesService.slotAllowed(
+                rules, slotStart, bookingZone, timeService.localDateTime(bookingZone));
     }
 
     private LocalDate parseDate(String value) {
@@ -824,34 +846,29 @@ public class PublicBookingManageService {
         return booking.isOnlineSession();
     }
 
-    private String tenantName(Company company) {
-        if (company == null) return "Calendra";
-        String value = settings.findByCompanyIdAndKey(company.getId(), SettingKey.COMPANY_NAME)
-                .map(AppSetting::getValue)
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .orElse(company.getName());
-        return value == null || value.isBlank() ? "Calendra" : value;
+    private Location requireBookingLocation(SessionBooking booking) {
+        if (booking == null || booking.getLocation() == null || booking.getLocation().getId() == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "This booking has no location and cannot be managed online."
+            );
+        }
+        return booking.getLocation();
     }
 
-    private String tenantLogoUrl(Company company) {
-        if (company == null || company.getId() == null) return null;
-        String canonicalLogo = settings.findByCompanyIdAndKey(company.getId(), SettingKey.COMPANY_LOGO_URL)
-                .map(AppSetting::getValue)
-                .map(String::trim)
-                .filter(value -> !value.isEmpty())
-                .orElse(null);
-        if (canonicalLogo != null) return canonicalLogo;
+    private boolean sameLocation(SessionBooking left, SessionBooking right) {
+        if (left == null || right == null || left.getLocation() == null || right.getLocation() == null) return false;
+        return Objects.equals(left.getLocation().getId(), right.getLocation().getId());
+    }
 
-        String guestSettingsJson = settings.findByCompanyIdAndKey(company.getId(), SettingKey.GUEST_APP_SETTINGS_JSON)
-                .map(AppSetting::getValue)
-                .orElse(null);
-        if (guestSettingsJson == null || guestSettingsJson.isBlank()) return null;
+    private ZoneId zoneForBooking(SessionBooking booking) {
+        Location location = booking == null ? null : booking.getLocation();
+        String timezone = location == null ? null : location.getTimezone();
+        if (timezone == null || timezone.isBlank()) return zoneId;
         try {
-            String legacyLogo = JSON.readTree(guestSettingsJson).path("logoImageUrl").asText("").trim();
-            return legacyLogo.isEmpty() ? null : legacyLogo;
+            return ZoneId.of(timezone.trim());
         } catch (Exception ignored) {
-            return null;
+            return zoneId;
         }
     }
 

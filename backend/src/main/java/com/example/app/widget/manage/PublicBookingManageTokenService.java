@@ -36,7 +36,7 @@ public class PublicBookingManageTokenService {
         row.setCompany(booking.getCompany());
         row.setBooking(booking);
         row.setTokenHash(hash(token));
-        row.setExpiresAt(booking.getEndTime().atZone(zoneId).toInstant());
+        row.setExpiresAt(booking.getEndTime().atZone(bookingZone(booking, zoneId)).toInstant());
         tokens.save(row);
         return token;
     }
@@ -55,6 +55,19 @@ public class PublicBookingManageTokenService {
         }
         token.setLastUsedAt(now);
         return tokens.save(token);
+    }
+
+
+    private static ZoneId bookingZone(SessionBooking booking, ZoneId fallback) {
+        String timezone = booking == null || booking.getLocation() == null ? null : booking.getLocation().getTimezone();
+        if (timezone != null && !timezone.isBlank()) {
+            try {
+                return ZoneId.of(timezone.trim());
+            } catch (Exception ignored) {
+                // Fall back to the configured public-booking zone for malformed legacy data.
+            }
+        }
+        return fallback == null ? ZoneId.systemDefault() : fallback;
     }
 
     private static String normalize(String token) {

@@ -21,8 +21,12 @@ public class PublicBookingManageController {
 
     public record BookingManageResponse(
             String tenantCode,
+            Long locationId,
             String tenantName,
             String tenantLogoUrl,
+            String locationAddress,
+            String locationPhone,
+            String locationEmail,
             String serviceName,
             String currentStart,
             String currentEnd,
