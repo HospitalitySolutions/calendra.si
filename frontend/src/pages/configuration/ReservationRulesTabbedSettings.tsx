@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { api } from "../../api";
 import type { Dispatch, SetStateAction } from "react";
 import { Card } from "../../components/ui";
 import { useLocale } from "../../locale";
 import { ConfigurationWaitlistSettingsSection } from "./ConfigurationWaitlistSettingsSection";
-import { ReservationRulesSettingsSection } from "./ReservationRulesSettingsSection";
+import { ReservationRulesSettingsSection, TENANT_RESERVATION_RULES_KEY } from "./ReservationRulesSettingsSection";
 
 type ReservationRulesTabbedSettingsProps = {
   settings: Record<string, string>;
@@ -12,6 +13,8 @@ type ReservationRulesTabbedSettingsProps = {
   onSave: () => void | Promise<void>;
   waitlistEnabled: boolean;
   hasChanges: boolean;
+  locationId?: number | null;
+  locationName?: string | null;
 };
 
 type ReservationRulesSubtab = "reservations" | "waitlist";
@@ -23,10 +26,121 @@ export function ReservationRulesTabbedSettings({
   onSave,
   waitlistEnabled,
   hasChanges,
+  locationId = null,
+  locationName = null,
 }: ReservationRulesTabbedSettingsProps) {
   const { locale } = useLocale();
   const [activeSubtab, setActiveSubtab] =
     useState<ReservationRulesSubtab>("reservations");
+  const [locationReservationBase, setLocationReservationBase] = useState<string | null>(null);
+  const [locationReservationDraft, setLocationReservationDraft] = useState<string | null>(null);
+  const [locationBreakBase, setLocationBreakBase] = useState<string | null>(null);
+  const [locationBreakDraft, setLocationBreakDraft] = useState<string | null>(null);
+  const [locationSaving, setLocationSaving] = useState(false);
+
+  useEffect(() => {
+    if (locationId == null) {
+      setLocationReservationBase(null);
+      setLocationReservationDraft(null);
+      setLocationBreakBase(null);
+      setLocationBreakDraft(null);
+      return;
+    }
+    let cancelled = false;
+    api.get("/settings/location-overrides", { params: { locationId } })
+      .then(({ data }) => {
+        if (cancelled) return;
+        const raw = data?.values?.[TENANT_RESERVATION_RULES_KEY];
+        const effective = typeof raw === "string" ? raw : (settings[TENANT_RESERVATION_RULES_KEY] || "");
+        const breakRaw = data?.values?.DEFAULT_SERVICE_BREAK_MINUTES;
+        const effectiveBreak = typeof breakRaw === "string" ? breakRaw : (settings.DEFAULT_SERVICE_BREAK_MINUTES || "0");
+        setLocationReservationBase(effective);
+        setLocationReservationDraft(effective);
+        setLocationBreakBase(effectiveBreak);
+        setLocationBreakDraft(effectiveBreak);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          const effective = settings[TENANT_RESERVATION_RULES_KEY] || "";
+          const effectiveBreak = settings.DEFAULT_SERVICE_BREAK_MINUTES || "0";
+          setLocationReservationBase(effective);
+          setLocationReservationDraft(effective);
+          setLocationBreakBase(effectiveBreak);
+          setLocationBreakDraft(effectiveBreak);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [locationId, settings[TENANT_RESERVATION_RULES_KEY], settings.DEFAULT_SERVICE_BREAK_MINUTES]);
+
+  const scopedSettings = useMemo(() => {
+    if (locationId == null || locationReservationDraft == null) return settings;
+    return { ...settings, [TENANT_RESERVATION_RULES_KEY]: locationReservationDraft };
+  }, [settings, locationId, locationReservationDraft]);
+
+  const scopedSetSettings: Dispatch<SetStateAction<Record<string, string>>> = (action) => {
+    if (locationId == null) {
+      setSettings(action);
+      return;
+    }
+    const current = scopedSettings;
+    const next = typeof action === "function" ? action(current) : action;
+    setLocationReservationDraft(next[TENANT_RESERVATION_RULES_KEY] || "");
+  };
+
+  const scopedHasChanges = locationId == null
+    ? hasChanges
+    : (locationReservationDraft != null && locationReservationDraft !== locationReservationBase)
+      || (locationBreakDraft != null && locationBreakDraft !== locationBreakBase);
+
+  const saveReservationRules = async () => {
+    if (locationId == null) {
+      await onSave();
+      return;
+    }
+    if (locationReservationDraft == null) return;
+    setLocationSaving(true);
+    try {
+      if (locationReservationDraft !== locationReservationBase) {
+        await api.put(
+          `/settings/location-overrides/${TENANT_RESERVATION_RULES_KEY}`,
+          { value: locationReservationDraft },
+          { params: { locationId } },
+        );
+        setLocationReservationBase(locationReservationDraft);
+      }
+      if (locationBreakDraft != null && locationBreakDraft !== locationBreakBase) {
+        const normalizedBreak = String(Math.max(0, Math.min(180, Math.round(Number(locationBreakDraft) || 0))));
+        await api.put(
+          "/settings/location-overrides/DEFAULT_SERVICE_BREAK_MINUTES",
+          { value: normalizedBreak },
+          { params: { locationId } },
+        );
+        setLocationBreakBase(normalizedBreak);
+        setLocationBreakDraft(normalizedBreak);
+      }
+    } finally {
+      setLocationSaving(false);
+    }
+  };
+
+  const inheritReservationRules = async () => {
+    if (locationId == null) return;
+    setLocationSaving(true);
+    try {
+      await Promise.all([
+        api.delete(`/settings/location-overrides/${TENANT_RESERVATION_RULES_KEY}`, { params: { locationId } }),
+        api.delete("/settings/location-overrides/DEFAULT_SERVICE_BREAK_MINUTES", { params: { locationId } }),
+      ]);
+      const effective = settings[TENANT_RESERVATION_RULES_KEY] || "";
+      const effectiveBreak = settings.DEFAULT_SERVICE_BREAK_MINUTES || "0";
+      setLocationReservationBase(effective);
+      setLocationReservationDraft(effective);
+      setLocationBreakBase(effectiveBreak);
+      setLocationBreakDraft(effectiveBreak);
+    } finally {
+      setLocationSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!waitlistEnabled && activeSubtab === "waitlist") {
@@ -105,13 +219,37 @@ export function ReservationRulesTabbedSettings({
         }
         role="tabpanel"
       >
+        {locationId != null ? (
+          <div className="location-override-banner">
+            <span>
+              {locale === "sl"
+                ? `Pravila za poslovalnico ${locationName || locationId}. Spremembe veljajo samo tukaj.`
+                : `Rules for ${locationName || locationId}. Changes apply only to this location.`}
+            </span>
+            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span>{locale === "sl" ? "Privzeta pavza (min)" : "Default break (min)"}</span>
+              <input
+                type="number"
+                min={0}
+                max={180}
+                step={5}
+                value={locationBreakDraft ?? settings.DEFAULT_SERVICE_BREAK_MINUTES ?? "0"}
+                onChange={(event) => setLocationBreakDraft(event.target.value)}
+                style={{ width: 86 }}
+              />
+            </label>
+            <button type="button" className="secondary slim-btn" disabled={locationSaving} onClick={inheritReservationRules}>
+              {locale === "sl" ? "Uporabi privzeto podjetja" : "Use company default"}
+            </button>
+          </div>
+        ) : null}
         <Card className="settings-card modules-design-card reservation-rules-page-card">
           <ReservationRulesSettingsSection
-            settings={settings}
-            setSettings={setSettings}
-            saving={saving}
-            onSave={onSave}
-            hasChanges={hasChanges}
+            settings={scopedSettings}
+            setSettings={scopedSetSettings}
+            saving={saving || locationSaving}
+            onSave={saveReservationRules}
+            hasChanges={scopedHasChanges}
           />
         </Card>
       </div>
@@ -127,7 +265,7 @@ export function ReservationRulesTabbedSettings({
           role="tabpanel"
         >
           <Card className="settings-card modules-design-card reservation-rules-page-card reservation-rules-waitlist-card">
-            <ConfigurationWaitlistSettingsSection />
+            <ConfigurationWaitlistSettingsSection locationId={locationId} />
           </Card>
         </div>
       ) : null}

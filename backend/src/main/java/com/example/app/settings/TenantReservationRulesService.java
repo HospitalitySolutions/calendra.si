@@ -9,6 +9,7 @@ import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -34,16 +35,32 @@ public class TenantReservationRulesService {
     public static final int DEFAULT_NO_SHOW_AFTER_MINUTES = 15;
 
     private final AppSettingRepository settings;
+    private final LocationSettingOverrideService locationOverrides;
 
-    public TenantReservationRulesService(AppSettingRepository settings) {
+    @Autowired
+    public TenantReservationRulesService(AppSettingRepository settings, LocationSettingOverrideService locationOverrides) {
         this.settings = settings;
+        this.locationOverrides = locationOverrides;
+    }
+
+    /** Backwards-compatible constructor used by older unit tests. */
+    public TenantReservationRulesService(AppSettingRepository settings) {
+        this(settings, null);
     }
 
     public TenantReservationRules resolve(Long companyId) {
+        return resolve(companyId, null);
+    }
+
+    public TenantReservationRules resolve(Long companyId, Long locationId) {
         Map<String, String> values = companyId == null
                 ? Map.of()
                 : settings.findAllByCompanyId(companyId).stream()
                 .collect(Collectors.toMap(AppSetting::getKey, AppSetting::getValue, (a, b) -> b));
+        if (companyId != null && locationId != null && locationOverrides != null) {
+            locationOverrides.overrideValue(companyId, locationId, SettingKey.TENANT_RESERVATION_RULES_JSON)
+                    .ifPresent(value -> values.put(SettingKey.TENANT_RESERVATION_RULES_JSON.name(), value));
+        }
         return resolve(values);
     }
 

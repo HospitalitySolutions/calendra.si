@@ -2,7 +2,9 @@ package com.example.app.session;
 
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.settings.LocationSettingOverrideService;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,27 +17,49 @@ public class SessionTypeBreakSettingsService {
 
     private final AppSettingRepository settings;
     private final SessionTypeRepository sessionTypes;
+    private final LocationSettingOverrideService locationOverrides;
 
-    public SessionTypeBreakSettingsService(AppSettingRepository settings, SessionTypeRepository sessionTypes) {
+    @Autowired
+    public SessionTypeBreakSettingsService(
+            AppSettingRepository settings,
+            SessionTypeRepository sessionTypes,
+            LocationSettingOverrideService locationOverrides
+    ) {
         this.settings = settings;
         this.sessionTypes = sessionTypes;
+        this.locationOverrides = locationOverrides;
+    }
+
+    /** Backwards-compatible constructor for older unit tests. */
+    public SessionTypeBreakSettingsService(AppSettingRepository settings, SessionTypeRepository sessionTypes) {
+        this(settings, sessionTypes, null);
     }
 
     public int defaultBreakMinutes(Long companyId) {
+        return defaultBreakMinutes(companyId, null);
+    }
+
+    public int defaultBreakMinutes(Long companyId, Long locationId) {
         if (companyId == null) return 0;
-        String raw = settings.findByCompanyIdAndKey(companyId, SettingKey.DEFAULT_SERVICE_BREAK_MINUTES)
-                .map(setting -> setting.getValue())
-                .orElse("0");
+        String raw = locationId != null && locationOverrides != null
+                ? locationOverrides.effectiveValue(companyId, locationId, SettingKey.DEFAULT_SERVICE_BREAK_MINUTES, "0")
+                : settings.findByCompanyIdAndKey(companyId, SettingKey.DEFAULT_SERVICE_BREAK_MINUTES)
+                    .map(setting -> setting.getValue())
+                    .orElse("0");
         return normalizeDefault(raw);
     }
 
     public int effectiveBreakMinutes(SessionType type) {
+        return effectiveBreakMinutes(type, null);
+    }
+
+    public int effectiveBreakMinutes(SessionType type, Long locationId) {
         if (type == null) return 0;
         if (type.isBreakMinutesOverridden()) {
             return normalizeSpecific(type.getBreakMinutes());
         }
         Long companyId = type.getCompany() == null ? null : type.getCompany().getId();
-        return defaultBreakMinutes(companyId);
+        return defaultBreakMinutes(companyId, locationId);
     }
 
     @Transactional

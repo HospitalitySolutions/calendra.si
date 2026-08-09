@@ -3,19 +3,29 @@ package com.example.app.waitlist;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.settings.LocationSettingOverrideService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class WaitlistSettingsService {
     private final AppSettingRepository settings;
     private final ObjectMapper json;
+    private final LocationSettingOverrideService locationOverrides;
 
-    public WaitlistSettingsService(AppSettingRepository settings, ObjectMapper json) {
+    @Autowired
+    public WaitlistSettingsService(AppSettingRepository settings, ObjectMapper json, LocationSettingOverrideService locationOverrides) {
         this.settings = settings;
         this.json = json;
+        this.locationOverrides = locationOverrides;
+    }
+
+    /** Backwards-compatible constructor for unit tests that do not exercise location overrides. */
+    public WaitlistSettingsService(AppSettingRepository settings, ObjectMapper json) {
+        this(settings, json, null);
     }
 
     public record WaitlistSettings(
@@ -34,9 +44,15 @@ public class WaitlistSettingsService {
     ) {}
 
     public WaitlistSettings get(Long companyId) {
-        String raw = settings.findByCompanyIdAndKey(companyId, SettingKey.WAITLIST_SETTINGS_JSON)
-                .map(AppSetting::getValue)
-                .orElse("");
+        return get(companyId, null);
+    }
+
+    public WaitlistSettings get(Long companyId, Long locationId) {
+        String raw = locationId != null && locationOverrides != null
+                ? locationOverrides.effectiveValue(companyId, locationId, SettingKey.WAITLIST_SETTINGS_JSON, "")
+                : settings.findByCompanyIdAndKey(companyId, SettingKey.WAITLIST_SETTINGS_JSON)
+                    .map(AppSetting::getValue)
+                    .orElse("");
         try {
             JsonNode node = raw.isBlank() ? json.createObjectNode() : json.readTree(raw);
             return new WaitlistSettings(

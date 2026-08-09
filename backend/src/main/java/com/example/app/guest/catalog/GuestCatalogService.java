@@ -26,6 +26,8 @@ import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionType;
 import com.example.app.session.TypeTransactionService;
 import com.example.app.session.SessionTypeRepository;
+import com.example.app.session.SessionTypeLocationPriceService;
+import com.example.app.session.SessionTypeBreakSettingsService;
 import com.example.app.settings.CourseModuleAccessService;
 import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.settings.TenantReservationRulesService;
@@ -82,6 +84,12 @@ public class GuestCatalogService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private CommerceLocationScopeService commerceLocations;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private SessionTypeLocationPriceService locationPrices;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private SessionTypeBreakSettingsService breakSettings;
+
     public GuestCatalogService(
             SessionTypeRepository sessionTypes,
             GuestProductRepository guestProducts,
@@ -126,7 +134,7 @@ public class GuestCatalogService {
         for (SessionType type : sessionTypes.findAllWithLinkedServicesByCompanyId(companyId)) {
             if (!isVisibleInGuestServiceStep(companyId, type, guestUser)) continue;
             if (selectedLocation != null && !guestLocations.isServiceAvailableAt(type, selectedLocation.getId())) continue;
-            BigDecimal price = sessionTypePriceGross(type);
+            BigDecimal price = sessionTypePriceGross(type, selectedLocation == null ? null : selectedLocation.getId());
             String productType = Boolean.TRUE.equals(type.isWidgetGroupBookingEnabled()) ? "CLASS_TICKET" : "SESSION_SINGLE";
             out.add(new GuestDtos.ProductResponse(
                     derivedProductId(type),
@@ -264,11 +272,11 @@ public class GuestCatalogService {
 
         SimulatedTimeContext.set(companyId);
         LocalDate date = LocalDate.parse(dateText);
-        GuestSettingsService.GuestBookingRules rules = guestSettings.bookingRules(companyId);
+        GuestSettingsService.GuestBookingRules rules = guestSettings.bookingRules(companyId, location.getId());
         int totalDuration = chain.stream()
                 .mapToInt(service -> Math.max(1, service.getDurationMinutes() == null ? 60 : service.getDurationMinutes()))
                 .sum();
-        double totalPrice = chain.stream().map(GuestCatalogService::sessionTypePriceGross)
+        double totalPrice = chain.stream().map(type -> sessionTypePriceGross(type, location.getId()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add).doubleValue();
         SessionType first = chain.get(0);
         if (!dateAllowedByReservationRules(companyId, date, rules)) {
@@ -317,9 +325,9 @@ public class GuestCatalogService {
                             || !consultantSupportsAll(candidateConsultantId, chain, companyId)
                             || !consultantAvailableAt(candidateConsultantId, companyId, location.getId())) continue;
                     LocalDateTime startsAt = LocalDateTime.parse(parts[1]);
-                    SessionServicePlanService.Plan plan = bookingCreationService.validateServiceChainWindow(
+                    SessionServicePlanService.Plan plan = bookingCreationService.validateServiceChainWindowAtLocation(
                             companyId, List.of(), candidateConsultantId, startsAt, requests,
-                            SessionBookingCreationService.bookingExcludeIds((Long) null)
+                            SessionBookingCreationService.bookingExcludeIds((Long) null), location.getId()
                     );
                     merged.putIfAbsent(
                             availabilityMergeKey(plan.startTime(), plan.endTime()),
@@ -453,7 +461,7 @@ public class GuestCatalogService {
         Location location = guestLocations.resolveBookable(companyId, locationId);
         List<SessionType> chain = resolveGuestServiceChain(companyId, sessionTypeIds, guestUser);
         chain.forEach(type -> guestLocations.requireServiceAvailableAt(type, location));
-        if (!guestSettings.bookingRules(companyId).employeeSelectionAllowed()) return List.of();
+        if (!guestSettings.bookingRules(companyId, location.getId()).employeeSelectionAllowed()) return List.of();
         return supportedGuestConsultants(companyId, chain.get(0), location.getId()).stream()
                 .filter(user -> chain.stream().allMatch(type -> consultantSupportsSessionType(user, type)))
                 .map(u -> new GuestDtos.ConsultantResponse(String.valueOf(u.getId()), u.getFirstName(), u.getLastName(), u.getEmail()))
@@ -514,6 +522,7 @@ public class GuestCatalogService {
             Long locationId
     ) {
         Map<String, GuestDtos.AvailabilitySlotResponse> merged = new LinkedHashMap<>();
+        int availabilityMinutes = totalDurationMinutes + finalServiceBreakMinutes(chain, locationId);
         DayOfWeek dayOfWeek = date.getDayOfWeek();
 
         List<BookableSlot> windows = (locationId == null ? bookableSlots.findAllForWidgetByCompanyId(companyId) : bookableSlots.findAllForWidgetByCompanyIdAndLocationId(companyId, locationId)).stream()
@@ -536,6 +545,7 @@ public class GuestCatalogService {
                     window.getStartTime(),
                     window.getEndTime(),
                     totalDurationMinutes,
+                    availabilityMinutes,
                     companyId,
                     rules
             );
@@ -553,6 +563,7 @@ public class GuestCatalogService {
                     workingWindow.get().start(),
                     workingWindow.get().end(),
                     totalDurationMinutes,
+                    availabilityMinutes,
                     companyId,
                     rules
             );
@@ -571,6 +582,7 @@ public class GuestCatalogService {
             LocalTime windowStart,
             LocalTime windowEnd,
             int totalDurationMinutes,
+            int availabilityMinutes,
             Long companyId,
             GuestSettingsService.GuestBookingRules rules
     ) {
@@ -578,7 +590,7 @@ public class GuestCatalogService {
                 date,
                 windowStart,
                 windowEnd,
-                totalDurationMinutes,
+                availabilityMinutes,
                 SLOT_GRID_MINUTES
         )) {
             if (!slotAllowedByReservationRules(companyId, start, rules)) continue;
@@ -631,7 +643,7 @@ public class GuestCatalogService {
     }
 
     public ResolvedProduct resolveProduct(Long companyId, String productId) {
-        return resolveProduct(companyId, productId, null);
+        return resolveProduct(companyId, productId, null, null);
     }
 
     /**
@@ -646,6 +658,11 @@ public class GuestCatalogService {
      */
     @Transactional(readOnly = true)
     public ResolvedProduct resolveWebsiteSessionProduct(Long companyId, Long sessionTypeId) {
+        return resolveWebsiteSessionProduct(companyId, sessionTypeId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public ResolvedProduct resolveWebsiteSessionProduct(Long companyId, Long sessionTypeId, Long locationId) {
         if (sessionTypeId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing service identifier.");
         }
@@ -659,7 +676,7 @@ public class GuestCatalogService {
                     "This service is not available in the website widget."
             );
         }
-        BigDecimal price = sessionTypePriceGross(type);
+        BigDecimal price = sessionTypePriceGross(type, locationId);
         String productType = type.getMaxParticipantsPerSession() == null
                 ? "SESSION_SINGLE"
                 : "CLASS_TICKET";
@@ -704,6 +721,10 @@ public class GuestCatalogService {
     }
 
     public ResolvedProduct resolveProduct(Long companyId, String productId, GuestUser guestUser) {
+        return resolveProduct(companyId, productId, null, guestUser);
+    }
+
+    public ResolvedProduct resolveProduct(Long companyId, String productId, Long locationId, GuestUser guestUser) {
         if (productId == null || productId.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing product identifier.");
         if (productId.startsWith("session-")) {
             Long typeId = parseId(productId.substring("session-".length()));
@@ -713,7 +734,7 @@ public class GuestCatalogService {
             if (!isVisibleInGuestServiceStep(companyId, type, guestUser)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not available in the guest app.");
             }
-            BigDecimal price = sessionTypePriceGross(type);
+            BigDecimal price = sessionTypePriceGross(type, locationId);
             return new ResolvedProduct(null, type, type.getName(), type.isWidgetGroupBookingEnabled() ? "CLASS_TICKET" : "SESSION_SINGLE", price, tenantCurrency(companyId), true);
         }
         GuestProduct product = guestProducts.findByIdAndCompanyId(parseId(productId), companyId)
@@ -794,7 +815,7 @@ public class GuestCatalogService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected slot no longer matches the booking service duration.");
         }
         LocalDate slotDate = slot.startsAt().toLocalDate();
-        GuestSettingsService.GuestBookingRules rules = guestSettings.bookingRules(companyId);
+        GuestSettingsService.GuestBookingRules rules = guestSettings.bookingRules(companyId, locationId);
         if (!slotAllowedByReservationRules(companyId, slot.startsAt(), rules)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected slot is no longer bookable.");
         }
@@ -812,7 +833,7 @@ public class GuestCatalogService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected slot is outside the current guest booking availability.");
         }
         try {
-            bookingCreationService.validateBookingWindow(
+            bookingCreationService.validateBookingWindowAtLocation(
                     companyId,
                     List.of(),
                     consultant.getId(),
@@ -825,7 +846,8 @@ public class GuestCatalogService {
                     bookingCreationService.isMultipleSessionsPerSpaceEnabled(companyId),
                     bookingCreationService.isMultipleClientsPerSessionEnabled(companyId),
                     false,
-                    false
+                    false,
+                    locationId
             );
         } catch (ResponseStatusException ex) {
             if (HttpStatus.CONFLICT.equals(ex.getStatusCode())) {
@@ -837,7 +859,11 @@ public class GuestCatalogService {
     }
 
     public GuestSettingsService.GuestBookingRules bookingRules(Long companyId) {
-        return guestSettings.bookingRules(companyId);
+        return bookingRules(companyId, null);
+    }
+
+    public GuestSettingsService.GuestBookingRules bookingRules(Long companyId, Long locationId) {
+        return guestSettings.bookingRules(companyId, locationId);
     }
 
     /**
@@ -897,6 +923,7 @@ public class GuestCatalogService {
                                              Map<String, GuestDtos.AvailabilitySlotResponse> merged,
                                              GuestSettingsService.GuestBookingRules rules,
                                              Long locationId) {
+        int availabilityMinutes = durationMinutes + serviceBreakMinutes(type, locationId);
         DayOfWeek dayOfWeek = date.getDayOfWeek();
         List<BookableSlot> windows = (locationId == null ? bookableSlots.findAllForWidgetByCompanyId(companyId) : bookableSlots.findAllForWidgetByCompanyIdAndLocationId(companyId, locationId)).stream()
                 .filter(slot -> slot.getConsultant() != null)
@@ -912,12 +939,12 @@ public class GuestCatalogService {
 
         for (BookableSlot window : windows) {
             for (LocalDateTime start : AvailabilityWindowGrid.starts(
-                    date, window.getStartTime(), window.getEndTime(), durationMinutes, SLOT_GRID_MINUTES)) {
+                    date, window.getStartTime(), window.getEndTime(), availabilityMinutes, SLOT_GRID_MINUTES)) {
                 LocalDateTime end = start.plusMinutes(durationMinutes);
                 if (!slotAllowedByReservationRules(companyId, start, rules)) {
                     continue;
                 }
-                if (isActuallyGuestBookable(companyId, window.getConsultant().getId(), start, end, type.getId())) {
+                if (isActuallyGuestBookable(companyId, window.getConsultant().getId(), start, end, type.getId(), locationId)) {
                     String id = slotToken(window.getConsultant().getId(), start, end);
                     merged.putIfAbsent(availabilityMergeKey(start, end), new GuestDtos.AvailabilitySlotResponse(id, start.toString(), end.toString(), true));
                 }
@@ -937,6 +964,7 @@ public class GuestCatalogService {
                                           Map<String, GuestDtos.AvailabilitySlotResponse> merged,
                                           GuestSettingsService.GuestBookingRules rules,
                                           Long locationId) {
+        int availabilityMinutes = durationMinutes + serviceBreakMinutes(type, locationId);
         for (User consultant : supportedGuestConsultants(companyId, type, locationId)) {
             if (requiredConsultantId != null && !Objects.equals(consultant.getId(), requiredConsultantId)) {
                 continue;
@@ -946,12 +974,12 @@ public class GuestCatalogService {
                 continue;
             }
             for (LocalDateTime start : AvailabilityWindowGrid.starts(
-                    date, dayWindow.get().start(), dayWindow.get().end(), durationMinutes, SLOT_GRID_MINUTES)) {
+                    date, dayWindow.get().start(), dayWindow.get().end(), availabilityMinutes, SLOT_GRID_MINUTES)) {
                 LocalDateTime end = start.plusMinutes(durationMinutes);
                 if (!slotAllowedByReservationRules(companyId, start, rules)) {
                     continue;
                 }
-                if (isActuallyGuestBookable(companyId, consultant.getId(), start, end, type.getId())) {
+                if (isActuallyGuestBookable(companyId, consultant.getId(), start, end, type.getId(), locationId)) {
                     String id = slotToken(consultant.getId(), start, end);
                     merged.putIfAbsent(availabilityMergeKey(start, end), new GuestDtos.AvailabilitySlotResponse(id, start.toString(), end.toString(), true));
                 }
@@ -969,12 +997,13 @@ public class GuestCatalogService {
             Long locationId
     ) {
         LocalDate date = slot.startsAt().toLocalDate();
-        if (isSlotInsideBookableWindow(companyId, type, consultant, slot, date, durationMinutes, locationId)) {
+        int availabilityMinutes = durationMinutes + serviceBreakMinutes(type, locationId);
+        if (isSlotInsideBookableWindow(companyId, type, consultant, slot, date, durationMinutes, availabilityMinutes, locationId)) {
             return true;
         }
         Optional<TimeWindow> workingWindow = resolveConsultantWorkingWindow(consultant, date, locationId);
         return workingWindow
-                .map(window -> generatedSlotMatchesWindow(slot, window.start(), window.end(), durationMinutes))
+                .map(window -> generatedSlotMatchesWindow(slot, window.start(), window.end(), durationMinutes, availabilityMinutes))
                 .orElse(false);
     }
 
@@ -985,6 +1014,7 @@ public class GuestCatalogService {
             SlotPayload slot,
             LocalDate date,
             int durationMinutes,
+            int availabilityMinutes,
             Long locationId
     ) {
         DayOfWeek dayOfWeek = date.getDayOfWeek();
@@ -999,15 +1029,15 @@ public class GuestCatalogService {
                 .filter(window -> window.getDayOfWeek() == dayOfWeek)
                 .filter(window -> window.isIndefinite() || withinBookableDateRange(window, date))
                 .filter(window -> consultantSupportsSessionType(window.getConsultant(), type))
-                .anyMatch(window -> generatedSlotMatchesWindow(slot, window.getStartTime(), window.getEndTime(), durationMinutes));
+                .anyMatch(window -> generatedSlotMatchesWindow(slot, window.getStartTime(), window.getEndTime(), durationMinutes, availabilityMinutes));
     }
 
-    private boolean generatedSlotMatchesWindow(SlotPayload slot, LocalTime windowStart, LocalTime windowEnd, int durationMinutes) {
+    private boolean generatedSlotMatchesWindow(SlotPayload slot, LocalTime windowStart, LocalTime windowEnd, int durationMinutes, int availabilityMinutes) {
         if (windowStart == null || windowEnd == null || !windowEnd.isAfter(windowStart)) {
             return false;
         }
         for (LocalDateTime candidateStart : AvailabilityWindowGrid.starts(
-                slot.startsAt().toLocalDate(), windowStart, windowEnd, durationMinutes, SLOT_GRID_MINUTES)) {
+                slot.startsAt().toLocalDate(), windowStart, windowEnd, availabilityMinutes, SLOT_GRID_MINUTES)) {
             LocalDateTime candidateEnd = candidateStart.plusMinutes(durationMinutes);
             if (candidateStart.equals(slot.startsAt()) && candidateEnd.equals(slot.endsAt())) {
                 return true;
@@ -1064,9 +1094,9 @@ public class GuestCatalogService {
         return zoneId;
     }
 
-    private boolean isActuallyGuestBookable(Long companyId, Long consultantId, LocalDateTime start, LocalDateTime end, Long typeId) {
+    private boolean isActuallyGuestBookable(Long companyId, Long consultantId, LocalDateTime start, LocalDateTime end, Long typeId, Long locationId) {
         try {
-            bookingCreationService.validateBookingWindow(
+            bookingCreationService.validateBookingWindowAtLocation(
                     companyId,
                     List.of(),
                     consultantId,
@@ -1079,7 +1109,8 @@ public class GuestCatalogService {
                     bookingCreationService.isMultipleSessionsPerSpaceEnabled(companyId),
                     bookingCreationService.isMultipleClientsPerSessionEnabled(companyId),
                     false,
-                    false
+                    false,
+                    locationId
             );
             return true;
         } catch (ResponseStatusException ex) {
@@ -1345,6 +1376,39 @@ public class GuestCatalogService {
     /**
      * Session types store per-linked-service net prices; guest checkout and app UI require gross.
      */
+
+    private int serviceBreakMinutes(SessionType type, Long locationId) {
+        if (type == null) return 0;
+        if (locationId != null && breakSettings != null) {
+            return Math.max(0, breakSettings.effectiveBreakMinutes(type, locationId));
+        }
+        return Math.max(0, type.getBreakMinutes() == null ? 0 : type.getBreakMinutes());
+    }
+
+    private int finalServiceBreakMinutes(List<SessionType> chain, Long locationId) {
+        if (chain == null || chain.isEmpty()) return 0;
+        return serviceBreakMinutes(chain.get(chain.size() - 1), locationId);
+    }
+
+    private BigDecimal sessionTypePriceGross(SessionType type, Long locationId) {
+        if (type == null || type.getLinkedServices() == null || type.getLinkedServices().isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        for (TypeTransactionService link : type.getLinkedServices()) {
+            if (link == null || link.getTransactionService() == null) continue;
+            BigDecimal net = locationId != null && locationPrices != null
+                    ? locationPrices.effectiveNet(link, locationId)
+                    : (link.getPrice() != null ? link.getPrice() : link.getTransactionService().getNetPrice());
+            if (net == null) net = BigDecimal.ZERO;
+            BigDecimal multiplier = link.getTransactionService().getTaxRate() == null
+                    ? BigDecimal.ZERO
+                    : link.getTransactionService().getTaxRate().multiplier;
+            total = total.add(net.add(net.multiply(multiplier)).setScale(2, java.math.RoundingMode.HALF_UP));
+        }
+        return total.setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
     public static BigDecimal sessionTypePriceGross(SessionType type) {
         if (type == null || type.getLinkedServices() == null || type.getLinkedServices().isEmpty()) {
             return BigDecimal.ZERO;

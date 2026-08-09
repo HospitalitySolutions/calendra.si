@@ -13,6 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -20,10 +21,22 @@ public class GuestSettingsService {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final AppSettingRepository settings;
     private final GlobalPaymentProviderService globalPaymentProviders;
+    private final TenantReservationRulesService reservationRulesService;
 
-    public GuestSettingsService(AppSettingRepository settings, GlobalPaymentProviderService globalPaymentProviders) {
+    @Autowired
+    public GuestSettingsService(
+            AppSettingRepository settings,
+            GlobalPaymentProviderService globalPaymentProviders,
+            TenantReservationRulesService reservationRulesService
+    ) {
         this.settings = settings;
         this.globalPaymentProviders = globalPaymentProviders;
+        this.reservationRulesService = reservationRulesService;
+    }
+
+    /** Backwards-compatible constructor for unit tests. */
+    public GuestSettingsService(AppSettingRepository settings, GlobalPaymentProviderService globalPaymentProviders) {
+        this(settings, globalPaymentProviders, null);
     }
 
     public GuestPublicSettings publicSettings(Long companyId) {
@@ -198,11 +211,17 @@ public class GuestSettingsService {
     }
 
     public GuestBookingRules bookingRules(Long companyId) {
+        return bookingRules(companyId, null);
+    }
+
+    public GuestBookingRules bookingRules(Long companyId, Long locationId) {
         Map<String, String> values = settings.findAllByCompanyId(companyId).stream()
                 .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
         JsonNode root = parse(values.get(SettingKey.GUEST_BOOKING_RULES_JSON.name()));
         JsonNode guestAppRoot = parse(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
-        TenantReservationRulesService.TenantReservationRules reservationRules = TenantReservationRulesService.resolve(values);
+        TenantReservationRulesService.TenantReservationRules reservationRules = reservationRulesService == null
+                ? TenantReservationRulesService.resolve(values)
+                : reservationRulesService.resolve(companyId, locationId);
         boolean billingEnabled = settingEnabled(values, SettingKey.BILLING_ENABLED, true);
         boolean advanceBillingEnabled = billingEnabled && settingEnabled(values, SettingKey.BILLING_ADVANCE_ENABLED, true);
         if (!billingEnabled || !advanceBillingEnabled) {

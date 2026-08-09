@@ -10,6 +10,7 @@ import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.common.GuestInvoiceSettingsSupport;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBillingSupport;
+import com.example.app.session.SessionTypeLocationPriceService;
 import com.example.app.session.SessionTypeRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.app.settings.AppSetting;
@@ -54,6 +55,8 @@ public class GuestBankTransferBillingService {
 
     private InvoiceIssuanceService invoiceIssuanceService;
     private CommerceLocationScopeService commerceLocations;
+    @Autowired(required = false)
+    private SessionTypeLocationPriceService locationPrices;
 
     public GuestBankTransferBillingService(
             BillRepository bills,
@@ -231,7 +234,7 @@ public class GuestBankTransferBillingService {
 
     private List<SessionBillingSupport.Charge> resolveLinkedBillingServices(GuestOrder order, Long companyId, SessionBooking booking) {
         if (booking == null) return List.of();
-        return SessionBillingSupport.charges(booking, Set.of(), entitlementCoveredServicePositions(order));
+        return SessionBillingSupport.charges(booking, Set.of(), entitlementCoveredServicePositions(order), locationPrices == null ? null : locationPrices::effectiveNet);
     }
 
     private List<SessionBillingSupport.PositionedCharge> resolvePositionedLinkedBillingServices(
@@ -239,7 +242,7 @@ public class GuestBankTransferBillingService {
             SessionBooking booking
     ) {
         if (booking == null) return List.of();
-        return SessionBillingSupport.positionedCharges(booking, Set.of(), entitlementCoveredServicePositions(order));
+        return SessionBillingSupport.positionedCharges(booking, Set.of(), entitlementCoveredServicePositions(order), locationPrices == null ? null : locationPrices::effectiveNet);
     }
 
     /**

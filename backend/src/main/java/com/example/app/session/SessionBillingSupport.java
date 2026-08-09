@@ -13,6 +13,16 @@ import java.util.Set;
 public final class SessionBillingSupport {
     private SessionBillingSupport() {}
 
+    @FunctionalInterface
+    public interface PriceResolver {
+        BigDecimal netPrice(TypeTransactionService link, Long locationId);
+    }
+
+    private static final PriceResolver BASE_PRICE = (link, locationId) -> {
+        if (link == null || link.getTransactionService() == null) return BigDecimal.ZERO;
+        return link.getPrice() != null ? link.getPrice() : link.getTransactionService().getNetPrice();
+    };
+
     public record Charge(TransactionService transactionService, BigDecimal netPrice, int quantity) {}
 
     /** One billing component tied to the exact selected service position. */
@@ -21,7 +31,13 @@ public final class SessionBillingSupport {
     private record ChargeKey(Long transactionServiceId, BigDecimal netPrice) {}
 
     public static List<Charge> charges(SessionBooking booking, Set<Long> excludedTransactionServiceIds) {
-        return charges(booking, excludedTransactionServiceIds, Set.of());
+        return charges(booking, excludedTransactionServiceIds, Set.of(), BASE_PRICE);
+    }
+
+    public static List<Charge> charges(
+            SessionBooking booking, Set<Long> excludedTransactionServiceIds, PriceResolver priceResolver
+    ) {
+        return charges(booking, excludedTransactionServiceIds, Set.of(), priceResolver);
     }
 
     /**
@@ -35,20 +51,31 @@ public final class SessionBillingSupport {
             Set<Long> excludedTransactionServiceIds,
             Set<Integer> excludedServicePositions
     ) {
+        return charges(booking, excludedTransactionServiceIds, excludedServicePositions, BASE_PRICE);
+    }
+
+    public static List<Charge> charges(
+            SessionBooking booking,
+            Set<Long> excludedTransactionServiceIds,
+            Set<Integer> excludedServicePositions,
+            PriceResolver priceResolver
+    ) {
         Set<Long> excludedTransactions = excludedTransactionServiceIds == null ? Set.of() : excludedTransactionServiceIds;
         Set<Integer> excludedPositions = excludedServicePositions == null ? Set.of() : excludedServicePositions;
         LinkedHashMap<ChargeKey, Charge> charges = new LinkedHashMap<>();
+        PriceResolver resolver = priceResolver == null ? BASE_PRICE : priceResolver;
+        Long locationId = booking == null || booking.getLocation() == null ? null : booking.getLocation().getId();
 
         List<SessionService> services = SessionServiceSupport.orderedServices(booking);
         if (!services.isEmpty()) {
             for (SessionService service : services) {
                 if (service == null || excludedPositions.contains(service.getPosition())) continue;
-                addTypeCharges(charges, service.getSessionType(), excludedTransactions);
+                addTypeCharges(charges, service.getSessionType(), excludedTransactions, locationId, resolver);
             }
         } else {
             // Legacy single-service bookings do not have session_service rows.
             for (SessionType type : SessionServiceSupport.orderedTypes(booking)) {
-                addTypeCharges(charges, type, excludedTransactions);
+                addTypeCharges(charges, type, excludedTransactions, locationId, resolver);
             }
         }
         return new ArrayList<>(charges.values());
@@ -64,20 +91,31 @@ public final class SessionBillingSupport {
             Set<Long> excludedTransactionServiceIds,
             Set<Integer> excludedServicePositions
     ) {
+        return positionedCharges(booking, excludedTransactionServiceIds, excludedServicePositions, BASE_PRICE);
+    }
+
+    public static List<PositionedCharge> positionedCharges(
+            SessionBooking booking,
+            Set<Long> excludedTransactionServiceIds,
+            Set<Integer> excludedServicePositions,
+            PriceResolver priceResolver
+    ) {
         Set<Long> excludedTransactions = excludedTransactionServiceIds == null ? Set.of() : excludedTransactionServiceIds;
         Set<Integer> excludedPositions = excludedServicePositions == null ? Set.of() : excludedServicePositions;
         List<PositionedCharge> out = new ArrayList<>();
+        PriceResolver resolver = priceResolver == null ? BASE_PRICE : priceResolver;
+        Long locationId = booking == null || booking.getLocation() == null ? null : booking.getLocation().getId();
         List<SessionService> services = SessionServiceSupport.orderedServices(booking);
         if (!services.isEmpty()) {
             for (SessionService service : services) {
                 if (service == null || excludedPositions.contains(service.getPosition())) continue;
-                addPositionedTypeCharges(out, service.getPosition(), service.getSessionType(), excludedTransactions);
+                addPositionedTypeCharges(out, service.getPosition(), service.getSessionType(), excludedTransactions, locationId, resolver);
             }
         } else {
             List<SessionType> types = SessionServiceSupport.orderedTypes(booking);
             for (int position = 0; position < types.size(); position++) {
                 if (excludedPositions.contains(position)) continue;
-                addPositionedTypeCharges(out, position, types.get(position), excludedTransactions);
+                addPositionedTypeCharges(out, position, types.get(position), excludedTransactions, locationId, resolver);
             }
         }
         return out;
@@ -87,14 +125,16 @@ public final class SessionBillingSupport {
             List<PositionedCharge> out,
             int position,
             SessionType type,
-            Set<Long> excludedTransactionServiceIds
+            Set<Long> excludedTransactionServiceIds,
+            Long locationId,
+            PriceResolver priceResolver
     ) {
         if (type == null || type.getLinkedServices() == null) return;
         for (TypeTransactionService link : type.getLinkedServices()) {
             if (link == null || link.getTransactionService() == null || link.getTransactionService().getId() == null) continue;
             TransactionService tx = link.getTransactionService();
             if (excludedTransactionServiceIds.contains(tx.getId())) continue;
-            BigDecimal net = link.getPrice() != null ? link.getPrice() : tx.getNetPrice();
+            BigDecimal net = priceResolver.netPrice(link, locationId);
             if (net == null) net = BigDecimal.ZERO;
             out.add(new PositionedCharge(position, tx, net.setScale(4, RoundingMode.HALF_UP)));
         }
@@ -103,14 +143,16 @@ public final class SessionBillingSupport {
     private static void addTypeCharges(
             LinkedHashMap<ChargeKey, Charge> charges,
             SessionType type,
-            Set<Long> excludedTransactionServiceIds
+            Set<Long> excludedTransactionServiceIds,
+            Long locationId,
+            PriceResolver priceResolver
     ) {
         if (type == null || type.getLinkedServices() == null) return;
         for (TypeTransactionService link : type.getLinkedServices()) {
             if (link == null || link.getTransactionService() == null || link.getTransactionService().getId() == null) continue;
             TransactionService tx = link.getTransactionService();
             if (excludedTransactionServiceIds.contains(tx.getId())) continue;
-            BigDecimal net = link.getPrice() != null ? link.getPrice() : tx.getNetPrice();
+            BigDecimal net = priceResolver.netPrice(link, locationId);
             if (net == null) net = BigDecimal.ZERO;
             net = net.setScale(4, RoundingMode.HALF_UP);
             ChargeKey key = new ChargeKey(tx.getId(), net);
@@ -123,9 +165,17 @@ public final class SessionBillingSupport {
         return !charges(booking, Set.of()).isEmpty();
     }
 
+    public static boolean hasTransactionServices(SessionBooking booking, PriceResolver priceResolver) {
+        return !charges(booking, Set.of(), priceResolver).isEmpty();
+    }
+
     public static BigDecimal grossTotal(SessionBooking booking) {
+        return grossTotal(booking, BASE_PRICE);
+    }
+
+    public static BigDecimal grossTotal(SessionBooking booking, PriceResolver priceResolver) {
         BigDecimal total = BigDecimal.ZERO;
-        for (Charge charge : charges(booking, Set.of())) {
+        for (Charge charge : charges(booking, Set.of(), priceResolver)) {
             TransactionService tx = charge.transactionService();
             BigDecimal multiplier = tx.getTaxRate() == null ? BigDecimal.ZERO : tx.getTaxRate().multiplier;
             BigDecimal unitGross = charge.netPrice()

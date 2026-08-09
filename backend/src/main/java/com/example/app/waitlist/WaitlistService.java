@@ -360,7 +360,12 @@ public class WaitlistService {
     @Transactional
     public RequestView create(User me, RequestInput input) {
         Long companyId = companyId(me);
-        WaitlistSettingsService.WaitlistSettings cfg = waitlistSettings.get(companyId);
+        SessionBooking targetSession = input != null && input.targetSessionId() != null
+                ? bookings.findByIdAndCompanyId(input.targetSessionId(), companyId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target session not found."))
+                : null;
+        Location location = resolveLocation(input == null ? null : input.locationId(), companyId, targetSession);
+        WaitlistSettingsService.WaitlistSettings cfg = waitlistSettings.get(companyId, location.getId());
         if (!cfg.enabled() || !cfg.staffManualEntryEnabled()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Manual waitlist entry is disabled.");
         }
@@ -369,9 +374,6 @@ public class WaitlistService {
         Client client = clients.findByIdAndCompanyId(input.clientId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found."));
         ServiceSelection selection = resolveServiceSelection(input, companyId);
-        SessionBooking targetSession = input.targetSessionId() == null ? null : bookings.findByIdAndCompanyId(input.targetSessionId(), companyId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target session not found."));
-        Location location = resolveLocation(input.locationId(), companyId, targetSession);
         requireServicesAvailableAtLocation(selection.eligibleServices(), location);
         User specificEmployee = input.specificEmployeeId() == null ? null : users.findByIdAndCompanyIdAndActiveTrue(input.specificEmployeeId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found."));
@@ -423,15 +425,6 @@ public class WaitlistService {
                 || client.getCompany() == null || !Objects.equals(client.getCompany().getId(), companyId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A tenant client is required.");
         }
-        WaitlistSettingsService.WaitlistSettings cfg = waitlistSettings.get(companyId);
-        if (!cfg.enabled() || !cfg.widgetEnabled()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Website waitlist entry is disabled.");
-        }
-        if (requests.countByCompanyIdAndClientIdAndStatusIn(companyId, client.getId(), DUPLICATE_BLOCKING_STATUSES)
-                >= cfg.maxActiveRequestsPerGuest()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "The maximum number of active waitlist requests has been reached.");
-        }
-
         WaitlistSource widgetSource = input != null && input.source() == WaitlistSource.PUBLIC_BOOKING_PAGE
                 ? WaitlistSource.PUBLIC_BOOKING_PAGE
                 : WaitlistSource.WIDGET;
@@ -454,13 +447,21 @@ public class WaitlistService {
                 input == null ? List.of() : input.windows(),
                 input == null ? List.of() : input.serviceIds()
         );
+        SessionBooking targetSession = input.targetSessionId() == null ? null : bookings.findByIdAndCompanyId(input.targetSessionId(), companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target session not found."));
+        Location location = resolveLocation(input.locationId(), companyId, targetSession);
+        WaitlistSettingsService.WaitlistSettings cfg = waitlistSettings.get(companyId, location.getId());
+        if (!cfg.enabled() || !cfg.widgetEnabled()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Website waitlist entry is disabled.");
+        }
+        if (requests.countByCompanyIdAndClientIdAndStatusIn(companyId, client.getId(), DUPLICATE_BLOCKING_STATUSES)
+                >= cfg.maxActiveRequestsPerGuest()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The maximum number of active waitlist requests has been reached.");
+        }
         input = normalizeInput(input, cfg);
         validateInput(input, cfg);
 
         ServiceSelection selection = resolveServiceSelection(input, companyId);
-        SessionBooking targetSession = input.targetSessionId() == null ? null : bookings.findByIdAndCompanyId(input.targetSessionId(), companyId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target session not found."));
-        Location location = resolveLocation(input.locationId(), companyId, targetSession);
         requireServicesAvailableAtLocation(selection.eligibleServices(), location);
         User specificEmployee = input.specificEmployeeId() == null ? null : users.findByIdAndCompanyIdAndActiveTrue(input.specificEmployeeId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found."));
@@ -516,16 +517,21 @@ public class WaitlistService {
         if (row.getStatus() == WaitlistRequestStatus.OFFERED || row.getStatus() == WaitlistRequestStatus.OFFER_ACCEPTED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A request cannot be edited while an offer is active.");
         }
-        WaitlistSettingsService.WaitlistSettings cfg = waitlistSettings.get(companyId);
+        SessionBooking targetSession = input != null && input.targetSessionId() != null
+                ? bookings.findByIdAndCompanyId(input.targetSessionId(), companyId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target session not found."))
+                : null;
+        Long requestedLocationId = input != null && input.locationId() != null
+                ? input.locationId()
+                : row.getLocation() == null ? null : row.getLocation().getId();
+        Location location = resolveLocation(requestedLocationId, companyId, targetSession);
+        WaitlistSettingsService.WaitlistSettings cfg = waitlistSettings.get(companyId, location.getId());
         input = normalizeInput(input, cfg);
         validateInput(input, cfg);
         ServiceSelection selection = resolveServiceSelection(input, companyId, orderedServiceChain(row).size());
         row.setClient(clients.findByIdAndCompanyId(input.clientId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found.")));
         applyServiceSelection(row, selection);
-        SessionBooking targetSession = input.targetSessionId() == null ? null : bookings.findByIdAndCompanyId(input.targetSessionId(), companyId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target session not found."));
-        Location location = resolveLocation(input.locationId(), companyId, targetSession);
         requireServicesAvailableAtLocation(selection.eligibleServices(), location);
         row.setLocation(location);
         row.setTargetSession(targetSession);
@@ -836,7 +842,7 @@ public class WaitlistService {
         }
         addEvent(request, null, me, WaitlistEventType.CONVERTED_TO_BOOKING, "Čakalna zahteva je bila pretvorjena v rezervacijo #" + bookingId + ".");
         guestNotifications.publish(request, convertedOffer, WaitlistGuestNotificationService.EventKind.BOOKED);
-        if (waitlistSettings.get(companyId).closeEquivalentAfterBooking()) {
+        if (waitlistSettings.get(companyId, request.getLocation() == null ? null : request.getLocation().getId()).closeEquivalentAfterBooking()) {
             requests.findAllDetailedByCompanyId(companyId).stream()
                     .filter(other -> !Objects.equals(other.getId(), request.getId()))
                     .filter(other -> DUPLICATE_BLOCKING_STATUSES.contains(other.getStatus()))
@@ -935,10 +941,11 @@ public class WaitlistService {
     public void handleReleasedSlot(Long companyId, Long bookingId, LocalDateTime slotStart, LocalDateTime slotEnd, String kind, LocalDateTime previousStart) {
         if (companyId == null || slotStart == null || slotEnd == null) return;
         if (!featureAccess.isWaitlistEnabled(companyId)) return;
-        WaitlistSettingsService.WaitlistSettings cfg = waitlistSettings.get(companyId);
-        if (!cfg.enabled() || !cfg.autoOfferEnabled()) return;
         SessionBooking booking = bookingId == null ? null : bookings.findById(bookingId).orElse(null);
         if (booking == null && previousStart == null) return;
+        Long releasedLocationId = booking == null || booking.getLocation() == null ? null : booking.getLocation().getId();
+        WaitlistSettingsService.WaitlistSettings cfg = waitlistSettings.get(companyId, releasedLocationId);
+        if (!cfg.enabled() || !cfg.autoOfferEnabled()) return;
         LocalDateTime releasedStart = previousStart != null ? previousStart : slotStart;
         LocalDateTime releasedEnd = previousStart != null ? previousStart.plus(Duration.between(slotStart, slotEnd)) : slotEnd;
         Long serviceId = booking == null || booking.getType() == null ? null : booking.getType().getId();
@@ -1189,7 +1196,7 @@ public class WaitlistService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "The proposed slot does not match the waitlist request.");
         }
         validateSlotAvailable(request, concreteService, start, end, employee, room, session, null, releasedSlot);
-        int validity = Math.max(5, Math.min(Optional.ofNullable(input.validityMinutes()).orElse(waitlistSettings.get(companyId).offerValidityMinutes()), 1440));
+        int validity = Math.max(5, Math.min(Optional.ofNullable(input.validityMinutes()).orElse(waitlistSettings.get(companyId, request.getLocation() == null ? null : request.getLocation().getId()).offerValidityMinutes()), 1440));
         Instant now = Instant.now();
         Location requestLocation = request.getLocation();
         if (requestLocation == null) {
@@ -1250,13 +1257,15 @@ public class WaitlistService {
 
     private void offerNextCandidate(Long companyId, LocalDateTime start, LocalDateTime availableEnd, Long employeeId, Long roomId, Long sessionId, Long excludedRequestId) {
         if (!featureAccess.isWaitlistEnabled(companyId)) return;
-        if (!waitlistSettings.get(companyId).autoOfferEnabled()) return;
         User employee = employeeId == null ? null : users.findByIdAndCompanyIdAndActiveTrue(employeeId, companyId).orElse(null);
         Space room = roomId == null ? null : spaces.findByIdAndCompanyId(roomId, companyId).orElse(null);
         SessionBooking session = sessionId == null ? null : bookings.findByIdAndCompanyId(sessionId, companyId).orElse(null);
         List<MatchCandidate> candidates = new ArrayList<>();
         for (WaitlistRequest request : requests.findActiveCandidates(companyId, start.toLocalDate(), Instant.now())) {
             if (Objects.equals(request.getId(), excludedRequestId)) continue;
+            Long requestLocationId = request.getLocation() == null ? null : request.getLocation().getId();
+            WaitlistSettingsService.WaitlistSettings requestCfg = waitlistSettings.get(companyId, requestLocationId);
+            if (!requestCfg.enabled() || !requestCfg.autoOfferEnabled()) continue;
             if (skips.existsByRequestIdAndSlotStartAndEmployeeId(request.getId(), start, employeeId)) continue;
             List<WaitlistRequestWindow> requestWindows = windows.findAllByRequestIdOrderByDateAscDayOfWeekAscTimeFromAsc(request.getId());
             List<WaitlistRequestEmployee> selectedEmployees = requestEmployees.findAllByRequestId(request.getId());

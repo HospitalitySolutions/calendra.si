@@ -8,6 +8,7 @@ import com.example.app.commerce.CommerceLocationScopeService;
 import com.example.app.location.Location;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBillingSupport;
+import com.example.app.session.SessionTypeLocationPriceService;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionPriceCalculationMode;
@@ -61,6 +62,9 @@ public class OpenBillSyncService {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private CommerceLocationScopeService commerceLocations;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private SessionTypeLocationPriceService locationPrices;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -389,7 +393,7 @@ public class OpenBillSyncService {
             return;
         }
         var type = sb.getType();
-        if (!isNoShowSession(sb) && !SessionBillingSupport.hasTransactionServices(sb)) {
+        if (!isNoShowSession(sb) && !SessionBillingSupport.hasTransactionServices(sb, locationPrices == null ? null : locationPrices::effectiveNet)) {
             return;
         }
         if (isTotalPriceCalculation(sb) && !Objects.equals(billingSourceSessionForPriceMode(sb, companyId).getId(), sb.getId())) {
@@ -457,7 +461,7 @@ public class OpenBillSyncService {
             if (SessionBookingStatus.CANCELLED.equals(SessionBookingStatus.normalizeStored(row.getBookingStatus()))) {
                 continue;
             }
-            if (!isNoShowSession(row) && !SessionBillingSupport.hasTransactionServices(row)) {
+            if (!isNoShowSession(row) && !SessionBillingSupport.hasTransactionServices(row, locationPrices == null ? null : locationPrices::effectiveNet)) {
                 continue;
             }
             SessionBooking billable = billingSourceSessionForPriceMode(row, companyId);
@@ -467,7 +471,7 @@ public class OpenBillSyncService {
             if (SessionBookingStatus.CANCELLED.equals(SessionBookingStatus.normalizeStored(billable.getBookingStatus()))) {
                 continue;
             }
-            if (!isNoShowSession(billable) && !SessionBillingSupport.hasTransactionServices(billable)) {
+            if (!isNoShowSession(billable) && !SessionBillingSupport.hasTransactionServices(billable, locationPrices == null ? null : locationPrices::effectiveNet)) {
                 continue;
             }
             billableById.putIfAbsent(billable.getId(), billable);
@@ -1074,7 +1078,7 @@ public class OpenBillSyncService {
     }
 
     private List<SessionBillingSupport.Charge> sessionChargesForBilling(SessionBooking session, Long companyId) {
-        return SessionBillingSupport.charges(session, resolveAdvanceDeductionServiceIds(companyId));
+        return SessionBillingSupport.charges(session, resolveAdvanceDeductionServiceIds(companyId), locationPrices == null ? null : locationPrices::effectiveNet);
     }
 
     private Set<Long> chargeServiceIds(List<SessionBillingSupport.Charge> charges) {

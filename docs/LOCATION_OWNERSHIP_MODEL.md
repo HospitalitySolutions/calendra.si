@@ -61,8 +61,8 @@ A one-location tenant should not have extra UX complexity: signup/provisioning c
 | consumable stock | LOCATION | **Phase 5.5D implemented** | `ConsumableLocationStock` owns quantity, minimum and cost per branch. |
 | `ConsumablePurchaseOrder` | LOCATION | **Phase 5.5D hardened** | Receiving/order destination is a mandatory Location. |
 | `ConsumableStockMovement` | LOCATION | **Phase 5.5D hardened** | Every movement stores a mandatory Location and updates only that branch's ledger. |
-| booking/reservation rules | DEFAULT + LOCATION OVERRIDE | **Gap** | Company can hold defaults; Location should optionally override customer-facing/operational rules. |
-| pricing | SHARED DEFAULT + LOCATION OVERRIDE | Partial | Service definition can be shared; add Location price override only where branches need different prices. |
+| booking/reservation rules | DEFAULT + LOCATION OVERRIDE | **Phase 5.5E implemented** | Company remains canonical default; optional Location override is resolved by public booking, guest booking and configuration flows. |
+| pricing | SHARED DEFAULT + LOCATION OVERRIDE | **Phase 5.5E implemented** | Shared service/billing links keep the base net price; optional per-Location price rows override it for catalog, checkout and billing. |
 | public directory / widget / Guest App provider | LOCATION | Phases 1–5 migrated | Keep Location as provider identity. |
 | Google Place / public identity | LOCATION | Phases 1–3 migrated | Correct. |
 | inbox/messages | WORKSPACE/COMPANY CUSTOMER RELATIONSHIP | Keep shared | Attach booking/location context when a message originates from a booking; do not fragment conversation identity by branch by default. |
@@ -191,15 +191,31 @@ The consumables API accepts optional `locationId` on overview/item/movement/purc
 
 ## Phase 5.5E – rules, pricing and configuration
 
-Prefer **global default + Location override** rather than cloning every setting:
+Phase 5.5E implements **global default + optional Location override** rather than cloning whole configuration records. A Location with no override continues to inherit the Company default, so one-location tenants keep the existing simple behavior.
 
-- reservation/cancellation windows
-- waitlist rules
-- break/default scheduling rules where operationally relevant
-- pricing overrides
-- notification/contact defaults where branches differ
+### Operational setting overrides
 
-A Location without an override inherits the Company default, keeping one-location UX simple.
+- `location_setting_overrides` stores only explicit branch overrides for `TENANT_RESERVATION_RULES_JSON`, `WAITLIST_SETTINGS_JSON` and `DEFAULT_SERVICE_BREAK_MINUTES`.
+- Reservation/cancellation windows are resolved in the selected Location for website-widget and Guest App booking flows, including availability/date validation.
+- Waitlist enablement, entry limits, automatic offers, offer validity and equivalent-request closing resolve from the request/offer Location where the branch is known.
+- The default service break can differ by Location. A service-level explicit break still wins; otherwise the booking Location's inherited default is used and snapshotted into the booking service plan. Public and Guest App slot generation uses the same effective branch break so displayed availability matches final booking validation.
+- The configuration UI follows the global **Poslovalnice** selection. **All locations** edits the Company default; selecting a concrete branch edits only its overrides and provides a reset-to-company-default action.
+
+### Pricing overrides
+
+- `session_type_location_prices` stores optional net-price overrides by `(session_type, transaction_service, location)` while `TypeTransactionService.price` remains the shared Company default.
+- Location-specific prices are returned in public/Guest App catalogs and are used when resolving public products/orders.
+- Staff billing/open-bill synchronization and bank-transfer billing resolve the booking's Location price instead of assuming the shared default.
+- Service configuration exposes a gross branch price when one Location is selected; leaving it blank removes the override and restores inheritance.
+- Removing a billing service link from a SessionType also removes obsolete Location-price rows for that link.
+
+### Contact and notification identity
+
+`Location` already owns branch-specific `phone`, `email` and public presentation fields, so 5.5E does not duplicate those values into the generic override table. Event-notification rendering still belongs to the Phase 6 consistency pass: booking/waitlist/order messages should always choose the concrete event Location presentation, while general account notifications remain Company/workspace scoped.
+
+### Database verification
+
+Migration `V52__location_rule_pricing_overrides.sql` adds both override tables and database triggers that reject cross-Company Location writes and price rows whose SessionType/transaction service relationship is invalid. `LocationRulePricingOverrideMigrationTest` verifies optional inheritance storage, valid branch pricing, tenant isolation and rejection of unlinked billing-service prices.
 
 ## Phase 6 and later
 

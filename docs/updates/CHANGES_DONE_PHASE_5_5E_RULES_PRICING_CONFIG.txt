@@ -1,0 +1,48 @@
+PHASE 5.5E — LOCATION-AWARE RULES, PRICING AND CONFIGURATION
+
+Implemented architecture
+- Company settings remain the canonical defaults.
+- Locations store only explicit overrides; missing rows inherit the Company value.
+- No per-location cloning of full settings records.
+
+Database
+- Added V52__location_rule_pricing_overrides.sql.
+- Added location_setting_overrides for reservation rules, waitlist rules and default service break.
+- Added session_type_location_prices for per-location service/billing-link net prices.
+- Added DB triggers that reject cross-company location ownership and invalid/unlinked service price rows.
+
+Reservation / cancellation rules
+- TenantReservationRulesService resolves optional Location overrides.
+- Website widget and Guest App booking rules use the selected Location.
+- Public availability date/slot checks use the Location-effective rule set.
+
+Waitlist
+- Waitlist settings can be overridden per Location.
+- Website/manual waitlist creation, updates, automatic offers, offer validity and equivalent-request closing resolve rules from the request/booking Location where available.
+- Configuration supports resetting a Location to Company inheritance.
+
+Break / scheduling defaults
+- DEFAULT_SERVICE_BREAK_MINUTES can be overridden per Location.
+- Explicit SessionType break remains authoritative.
+- Inherited break is resolved from booking Location and snapshotted into SessionService plan segments.
+- Website-widget and Guest App slot generation/validation use the same branch-effective break.
+
+Pricing
+- Shared TypeTransactionService price stays the default.
+- SessionTypeLocationPrice stores optional per-Location net overrides.
+- Guest/public catalog and order resolution use Location-effective pricing.
+- Billing, open-bill sync and guest bank-transfer billing use the booking Location's effective price.
+- Service configuration exposes a branch gross-price field when a concrete Location is selected; blank means inherit Company price.
+- Removing a linked billing service purges obsolete Location price overrides.
+
+Configuration UI
+- Configuration follows the global Poslovalnice selector.
+- All-locations mode edits Company defaults.
+- Concrete-Location mode edits branch overrides and offers reset-to-default.
+
+Contact identity
+- Location already owns phone/email/public presentation, so these are not duplicated into the generic override table.
+- Event notification presentation remains part of the Phase 6 final Location-consistency pass.
+
+Verification
+- Added LocationRulePricingOverrideMigrationTest (V51 -> V52), covering schema creation, valid overrides, cross-company rejection and rejection of unlinked service prices.

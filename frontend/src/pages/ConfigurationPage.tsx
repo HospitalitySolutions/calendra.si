@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuthenticatedUser } from "../authUserContext";
+import { useSelectedLocationId } from "../lib/locationContext";
 import type { InvoiceIssuerOption, PaymentMethod, PaymentType } from "../lib/types";
 import { normalizePaymentMethod } from "../lib/types";
 import {
@@ -1227,6 +1228,7 @@ const parseRegisteredPremises = (raw: string | undefined): string[] => {
 
 export function ConfigurationPage() {
   const me = useAuthenticatedUser();
+  const [selectedLocationId] = useSelectedLocationId(me.activeUnitId ?? me.companyId);
   const canManageOperatingUnits = hasEmployeePermission(me, 'SETTINGS_VIEW');
   const canViewConfiguration = hasAnyEmployeePermission(me, [
     'SETTINGS_VIEW',
@@ -15276,6 +15278,8 @@ export function ConfigurationPage() {
                   onSave={() => saveSettings()}
                   waitlistEnabled={waitlistEnabledCommitted}
                   hasChanges={reservationRulesSnapshot(settings[TENANT_RESERVATION_RULES_KEY]) !== committedReservationRulesRef.current}
+                  locationId={selectedLocationId}
+                  locationName={locations.find((location) => location.id === selectedLocationId)?.name ?? null}
                 />
               ) : tab === "customFields" ? (
                 <ConfigurationCustomFieldsSection />

@@ -49,6 +49,7 @@ import {
 import { CoursesSection, type CoursesSectionHandle } from "./CoursesSection";
 import { WorkspaceServiceManager } from "../components/WorkspaceServiceManager";
 import { useMobileKeyboardOpen } from "../hooks/useMobileKeyboardOpen";
+import { useSelectedLocationId } from "../lib/locationContext";
 import { useMediaMaxWidth } from "../hooks/useCalendarResponsiveLayout";
 
 const SESSION_TYPES_SUBTAB_GROUPS = "service-groups";
@@ -84,7 +85,7 @@ function normalizeServiceTypeColorForUi(raw?: string | null): string {
     : SERVICE_TYPE_DEFAULT_COLOR;
 }
 
-type TypeServiceLine = { transactionServiceId: number; price: string };
+type TypeServiceLine = { transactionServiceId: number; price: string; locationPrice?: string };
 
 type ServiceTypeModalTab = "basic" | "services" | "booking" | "group";
 type LinkedEntityModalTab = "existing" | "create";
@@ -328,6 +329,8 @@ function typeFormsEqual(a: TypeFormState, b: TypeFormState): boolean {
     )
       return false;
     if (a.serviceLines[i].price.trim() !== b.serviceLines[i].price.trim())
+      return false;
+    if ((a.serviceLines[i].locationPrice || "").trim() !== (b.serviceLines[i].locationPrice || "").trim())
       return false;
   }
   return true;
@@ -722,6 +725,7 @@ function transactionServiceGross(service: BillingService): number {
 
 export function SessionTypesPage() {
   const me = useAuthenticatedUser();
+  const [selectedLocationId] = useSelectedLocationId(me.activeUnitId ?? me.companyId);
   const isAdmin = me.role === "ADMIN" || me.role === "SUPER_ADMIN";
   const { t, locale } = useLocale();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1628,8 +1632,33 @@ export function SessionTypesPage() {
       })),
     };
     try {
-      if (editingType) await api.put(`/types/${editingType.id}`, payload);
-      else await api.post("/types", payload);
+      const savedResponse = editingType
+        ? await api.put(`/types/${editingType.id}`, payload)
+        : await api.post("/types", payload);
+      const savedTypeId = Number(savedResponse.data?.id ?? editingType?.id);
+      if (selectedLocationId != null && Number.isFinite(savedTypeId)) {
+        await api.put(
+          `/types/${savedTypeId}/location-prices`,
+          {
+            items: typeForm.serviceLines.map((line) => {
+              const gross = parseOptionalNumber(line.locationPrice || "");
+              const selectedService = services.find(
+                (service) => service.id === line.transactionServiceId,
+              );
+              return {
+                transactionServiceId: line.transactionServiceId,
+                price:
+                  gross == null
+                    ? null
+                    : selectedService
+                      ? netFromGross(gross, selectedService.taxRate)
+                      : gross,
+              };
+            }),
+          },
+          { params: { locationId: selectedLocationId } },
+        );
+      }
       setEditingType(null);
       setTypeForm({
         name: "",
@@ -2108,7 +2137,7 @@ export function SessionTypesPage() {
     return <div className="stack gap-lg" aria-busy="true" />;
   }
 
-  const openTypeEdit = (type: SessionTypeT) => {
+  const openTypeEdit = async (type: SessionTypeT) => {
     setEditingType(type);
     const next: TypeFormState = {
       name: type.name,
@@ -2162,6 +2191,25 @@ export function SessionTypesPage() {
               : "",
       })),
     };
+    if (selectedLocationId != null) {
+      try {
+        const response = await api.get(`/types/${type.id}/location-prices`, {
+          params: { locationId: selectedLocationId },
+        });
+        const byService = new Map<number, string>(
+          (Array.isArray(response.data) ? response.data : []).map((row: any) => [
+            Number(row.transactionServiceId),
+            row.overrideGrossPrice == null ? "" : String(row.overrideGrossPrice),
+          ]),
+        );
+        next.serviceLines = next.serviceLines.map((line) => ({
+          ...line,
+          locationPrice: byService.get(line.transactionServiceId) || "",
+        }));
+      } catch {
+        next.serviceLines = next.serviceLines.map((line) => ({ ...line, locationPrice: "" }));
+      }
+    }
     setTypeForm(next);
     setTypeFormSnapshot({
       ...next,
@@ -4128,6 +4176,39 @@ export function SessionTypesPage() {
                                 setTypeForm({ ...typeForm, serviceLines: next });
                               }}
                             />
+                            {selectedLocationId != null ? (
+                              <div className="session-type-location-price-field">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder={
+                                    locale === "sl"
+                                      ? "Cena poslovalnice (prazno = privzeto)"
+                                      : "Location price (blank = default)"
+                                  }
+                                  value={line.locationPrice || ""}
+                                  onChange={(e) => {
+                                    const next = typeForm.serviceLines.map(
+                                      (item, lineIndex) =>
+                                        lineIndex === idx
+                                          ? { ...item, locationPrice: e.target.value }
+                                          : item,
+                                    );
+                                    setTypeForm({ ...typeForm, serviceLines: next });
+                                  }}
+                                  aria-label={
+                                    locale === "sl"
+                                      ? "Bruto cena za izbrano poslovalnico"
+                                      : "Gross price for selected location"
+                                  }
+                                />
+                                <small>
+                                  {locale === "sl"
+                                    ? `Poslovalnica: ${locations.find((item) => item.id === selectedLocationId)?.name || selectedLocationId}`
+                                    : `Location: ${locations.find((item) => item.id === selectedLocationId)?.name || selectedLocationId}`}
+                                </small>
+                              </div>
+                            ) : null}
                             <div className="session-type-linked-card-actions">
                               <button
                                 type="button"

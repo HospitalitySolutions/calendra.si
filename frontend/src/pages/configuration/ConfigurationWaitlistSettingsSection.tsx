@@ -60,7 +60,7 @@ function waitlistIconForKey(key: keyof WaitlistSettings): WaitlistSettingsIconKi
   return "grid";
 }
 
-export function ConfigurationWaitlistSettingsSection() {
+export function ConfigurationWaitlistSettingsSection({ locationId }: { locationId?: number | null }) {
   const [value, setValue] = useState<WaitlistSettings>(defaults);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -70,7 +70,7 @@ export function ConfigurationWaitlistSettingsSection() {
   useEffect(() => {
     let cancelled = false;
     api
-      .get("/waitlists/settings")
+      .get("/waitlists/settings", { params: locationId != null ? { locationId } : undefined })
       .then(({ data }) => {
         if (!cancelled) setValue({ ...defaults, ...(data || {}) });
       })
@@ -88,7 +88,7 @@ export function ConfigurationWaitlistSettingsSection() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [locationId]);
 
   const toggle = (key: keyof WaitlistSettings) => (checked: boolean) => {
     setMessage("");
@@ -106,9 +106,11 @@ export function ConfigurationWaitlistSettingsSection() {
       maxRequestedDateRangeDays: clamp(value.maxRequestedDateRangeDays, 1, 365),
     };
     try {
-      const { data } = await api.put("/waitlists/settings", {
-        value: JSON.stringify(normalized),
-      });
+      const { data } = await api.put(
+        "/waitlists/settings",
+        { value: JSON.stringify(normalized) },
+        { params: locationId != null ? { locationId } : undefined },
+      );
       setValue({ ...defaults, ...(data || normalized) });
       setMessage("Nastavitve čakalne vrste so shranjene.");
     } catch (err: any) {
@@ -116,6 +118,22 @@ export function ConfigurationWaitlistSettingsSection() {
         err?.response?.data?.message ||
           "Nastavitev čakalne vrste ni bilo mogoče shraniti.",
       );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inheritCompanyDefaults = async () => {
+    if (locationId == null) return;
+    setSaving(true);
+    setMessage("");
+    setError("");
+    try {
+      const { data } = await api.delete("/waitlists/settings", { params: { locationId } });
+      setValue({ ...defaults, ...(data || {}) });
+      setMessage("Poslovalnica ponovno uporablja privzete nastavitve podjetja.");
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Privzetih nastavitev ni bilo mogoče obnoviti.");
     } finally {
       setSaving(false);
     }
@@ -366,6 +384,11 @@ export function ConfigurationWaitlistSettingsSection() {
 
       <div className="waitlist-settings-savebar">
         {message ? <span className="waitlist-settings-message">{message}</span> : null}
+        {locationId != null ? (
+          <button type="button" className="secondary" disabled={saving} onClick={inheritCompanyDefaults}>
+            Uporabi privzete nastavitve podjetja
+          </button>
+        ) : null}
         <button type="button" disabled={saving} onClick={save}>
           {saving ? "Shranjevanje …" : "Shrani nastavitve"}
         </button>

@@ -15,6 +15,7 @@ import com.example.app.client.InvoiceRecipientType;
 import com.example.app.client.ClientRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBillingSupport;
+import com.example.app.session.SessionTypeLocationPriceService;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionPriceCalculationMode;
@@ -132,6 +133,8 @@ public class BillingController {
     private LocationRepository locations;
     private ActivityLogService activityLogs;
     private CommerceLocationScopeService commerceLocations;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private SessionTypeLocationPriceService locationPrices;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private GuestEntitlementRepository giftEntitlements;
@@ -1272,7 +1275,7 @@ public class BillingController {
         if (session.getClient() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected session has no client.");
         }
-        if (!isNoShowSession(session) && !SessionBillingSupport.hasTransactionServices(session)) {
+        if (!isNoShowSession(session) && !SessionBillingSupport.hasTransactionServices(session, locationPrices == null ? null : locationPrices::effectiveNet)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected session has no transaction services.");
         }
 
@@ -1310,7 +1313,7 @@ public class BillingController {
         return sessionBookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(bookingGroupKey(sourceSession), companyId).stream()
                 .filter(row -> row.getClient() != null)
                 .filter(row -> !"CANCELLED".equalsIgnoreCase(String.valueOf(row.getBookingStatus())))
-                .filter(row -> isNoShowSession(row) || SessionBillingSupport.hasTransactionServices(row))
+                .filter(row -> isNoShowSession(row) || SessionBillingSupport.hasTransactionServices(row, locationPrices == null ? null : locationPrices::effectiveNet))
                 .filter(row -> !isTotalPriceCalculation(row))
                 .limit(2)
                 .count() > 1;
@@ -1320,7 +1323,7 @@ public class BillingController {
         var groupRows = sessionBookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(bookingGroupKey(sourceSession), companyId).stream()
                 .filter(row -> row.getClient() != null)
                 .filter(row -> !"CANCELLED".equalsIgnoreCase(String.valueOf(row.getBookingStatus())))
-                .filter(row -> isNoShowSession(row) || SessionBillingSupport.hasTransactionServices(row))
+                .filter(row -> isNoShowSession(row) || SessionBillingSupport.hasTransactionServices(row, locationPrices == null ? null : locationPrices::effectiveNet))
                 .filter(row -> !isTotalPriceCalculation(row))
                 .toList();
         if (groupRows.isEmpty()) {
@@ -1371,7 +1374,7 @@ public class BillingController {
         var groupRows = sessionBookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(bookingGroupKey(sourceSession), companyId).stream()
                 .filter(row -> row.getClient() != null)
                 .filter(row -> !"CANCELLED".equalsIgnoreCase(String.valueOf(row.getBookingStatus())))
-                .filter(row -> isNoShowSession(row) || SessionBillingSupport.hasTransactionServices(row))
+                .filter(row -> isNoShowSession(row) || SessionBillingSupport.hasTransactionServices(row, locationPrices == null ? null : locationPrices::effectiveNet))
                 .toList();
         if (groupRows.isEmpty()) {
             groupRows = List.of(sourceSession);
@@ -1382,7 +1385,7 @@ public class BillingController {
             var billable = billingSourceSessionForPriceMode(row, companyId);
             if (billable == null || billable.getId() == null || billable.getClient() == null) continue;
             if ("CANCELLED".equalsIgnoreCase(String.valueOf(billable.getBookingStatus()))) continue;
-            if (!isNoShowSession(billable) && !SessionBillingSupport.hasTransactionServices(billable)) continue;
+            if (!isNoShowSession(billable) && !SessionBillingSupport.hasTransactionServices(billable, locationPrices == null ? null : locationPrices::effectiveNet)) continue;
             billableById.putIfAbsent(billable.getId(), billable);
         }
         var billableRows = new ArrayList<>(billableById.values());
@@ -3053,7 +3056,7 @@ public class BillingController {
     private void syncOpenBillsFromPastSessions(Long companyId) {
         var past = sessionBookings.findPastSessionsWithTypeAndCompanyId(timeService.localDateTime(), companyId);
         for (SessionBooking sb : past) {
-            if (!SessionBillingSupport.hasTransactionServices(sb)) continue;
+            if (!SessionBillingSupport.hasTransactionServices(sb, locationPrices == null ? null : locationPrices::effectiveNet)) continue;
             if (isTotalPriceCalculation(sb) && !Objects.equals(billingSourceSessionForPriceMode(sb, companyId).getId(), sb.getId())) continue;
 
             var client = sb.getClient();
@@ -3556,7 +3559,7 @@ public class BillingController {
     }
 
     private List<SessionBillingSupport.Charge> sessionChargesForBilling(SessionBooking session, Long companyId) {
-        return SessionBillingSupport.charges(session, resolveAdvanceDeductionServiceIds(companyId));
+        return SessionBillingSupport.charges(session, resolveAdvanceDeductionServiceIds(companyId), locationPrices == null ? null : locationPrices::effectiveNet);
     }
 
     private Set<Long> chargeServiceIds(List<SessionBillingSupport.Charge> charges) {

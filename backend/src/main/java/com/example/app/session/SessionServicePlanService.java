@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -16,10 +17,22 @@ import org.springframework.web.server.ResponseStatusException;
 public class SessionServicePlanService {
     private final SessionTypeRepository sessionTypes;
     private final SpaceRepository spaces;
+    private final SessionTypeBreakSettingsService breakSettings;
 
-    public SessionServicePlanService(SessionTypeRepository sessionTypes, SpaceRepository spaces) {
+    @Autowired
+    public SessionServicePlanService(
+            SessionTypeRepository sessionTypes,
+            SpaceRepository spaces,
+            SessionTypeBreakSettingsService breakSettings
+    ) {
         this.sessionTypes = sessionTypes;
         this.spaces = spaces;
+        this.breakSettings = breakSettings;
+    }
+
+    /** Backwards-compatible constructor for older unit tests. */
+    public SessionServicePlanService(SessionTypeRepository sessionTypes, SpaceRepository spaces) {
+        this(sessionTypes, spaces, null);
     }
 
     public record Segment(
@@ -108,7 +121,7 @@ public class SessionServicePlanService {
         }
         List<SessionBookingController.BookingServiceRequest> requested = request.services();
         if (requested == null || requested.isEmpty()) {
-            return resolveLegacy(companyId, request.typeId(), request.spaceId(), start, legacyEnd);
+            return resolveLegacy(companyId, request.typeId(), request.spaceId(), request.locationId(), start, legacyEnd);
         }
         if (start == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking start time is required.");
@@ -145,11 +158,6 @@ public class SessionServicePlanService {
                 );
             }
             int durationMinutes = Math.max(1, type.getDurationMinutes() == null ? 60 : type.getDurationMinutes());
-            // A combined appointment is continuous. Only the final service contributes its
-            // configured cleanup/buffer time after the visible booked block.
-            int breakMinutes = position == ordered.size() - 1
-                    ? Math.max(0, type.getBreakMinutes() == null ? 0 : type.getBreakMinutes())
-                    : 0;
             Long requestedSpaceId = serviceRequest.spaceId() != null ? serviceRequest.spaceId() : request.spaceId();
             Space space = resolveSpace(requestedSpaceId, companyId);
             if (space != null && space.getLocation() != null) {
@@ -162,6 +170,13 @@ public class SessionServicePlanService {
                     );
                 }
             }
+            Long effectiveLocationId = normalizedLocationId != null ? normalizedLocationId : request.locationId();
+            // A combined appointment is continuous. Only the final service contributes its
+            // configured cleanup/buffer time after the visible booked block. Inherited breaks
+            // resolve through the location override layer.
+            int breakMinutes = position == ordered.size() - 1
+                    ? effectiveBreakMinutes(type, effectiveLocationId)
+                    : 0;
             LocalDateTime serviceEnd = cursor.plusMinutes(durationMinutes);
             segments.add(new Segment(position, type, space, cursor, serviceEnd, durationMinutes, breakMinutes));
             cursor = serviceEnd;
@@ -177,6 +192,17 @@ public class SessionServicePlanService {
             LocalDateTime start,
             LocalDateTime end
     ) {
+        return resolveLegacy(companyId, typeId, spaceId, null, start, end);
+    }
+
+    public Plan resolveLegacy(
+            Long companyId,
+            Long typeId,
+            Long spaceId,
+            Long locationId,
+            LocalDateTime start,
+            LocalDateTime end
+    ) {
         if (start == null || end == null || !end.isAfter(start)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid booking time window.");
         }
@@ -186,7 +212,8 @@ public class SessionServicePlanService {
         SessionType type = requireActiveType(typeId, companyId);
         Space space = resolveSpace(spaceId, companyId);
         int actualDuration = Math.max(1, (int) Duration.between(start, end).toMinutes());
-        int breakMinutes = Math.max(0, type.getBreakMinutes() == null ? 0 : type.getBreakMinutes());
+        Long effectiveLocationId = space != null && space.getLocation() != null ? space.getLocation().getId() : locationId;
+        int breakMinutes = effectiveBreakMinutes(type, effectiveLocationId);
         Segment segment = new Segment(0, type, space, start, end, actualDuration, breakMinutes);
         return new Plan(List.of(segment), start, end, segment.availabilityEndTime(), false);
     }
@@ -376,6 +403,13 @@ public class SessionServicePlanService {
     public void copy(SessionBooking source, SessionBooking target) {
         if (source == null || target == null) return;
         synchronize(target, fromBooking(source));
+    }
+
+
+    private int effectiveBreakMinutes(SessionType type, Long locationId) {
+        if (type == null) return 0;
+        if (breakSettings != null) return Math.max(0, breakSettings.effectiveBreakMinutes(type, locationId));
+        return Math.max(0, type.getBreakMinutes() == null ? 0 : type.getBreakMinutes());
     }
 
     private static String visibleServiceDescription(SessionType type) {

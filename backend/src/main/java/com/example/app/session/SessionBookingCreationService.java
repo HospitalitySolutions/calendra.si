@@ -122,6 +122,9 @@ public class SessionBookingCreationService {
     private LocationRepository locationRepository;
 
     @Autowired(required = false)
+    private SessionTypeLocationPriceService locationPrices;
+
+    @Autowired(required = false)
     private ConsultantLocationService consultantLocationService;
 
     @Autowired(required = false)
@@ -451,7 +454,7 @@ public class SessionBookingCreationService {
             consumableService.ensureSessionDefaultsForBookings(saved, companyId);
             consumableService.applySessionUsageIfCheckedOut(me, saved, java.util.Map.of());
         }
-        SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(saved);
+        SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(saved, locationPrices == null ? null : locationPrices::effectiveNet);
         bookingChangePublisher.publish(
                 companyId,
                 response.id(),
@@ -676,7 +679,7 @@ public class SessionBookingCreationService {
         }
         openBillSyncService.syncSessionGroup(companyId, groupKey);
         openBillSyncService.enqueueBookingsSync(companyId, saved);
-        SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(saved);
+        SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(saved, locationPrices == null ? null : locationPrices::effectiveNet);
         bookingChangePublisher.publish(
                 companyId,
                 response.id(),
@@ -722,7 +725,7 @@ public class SessionBookingCreationService {
                 BookingSource.MANUAL
         ), false, false);
         List<SessionBooking> refreshed = loadGroupedRows(joined, companyId);
-        SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(refreshed);
+        SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(refreshed, locationPrices == null ? null : locationPrices::effectiveNet);
         String clientLabel = clientActivityLabel(joined.getClient());
         recordBookingActivity(me, ActivityAction.SESSION_PARTICIPANT_ADDED, response,
                 "CLIENT", clientId, clientLabel, Map.of("clientId", clientId));
@@ -790,7 +793,7 @@ public class SessionBookingCreationService {
         // placeholder projection. Reuse the known-good session snapshot and only replace
         // the participant-specific fields after the shared cancellation core succeeds.
         SessionBookingController.BookingResponse beforeRemovalResponse =
-                SessionBookingController.toGroupedResponse(rows);
+                SessionBookingController.toGroupedResponse(rows, locationPrices == null ? null : locationPrices::effectiveNet);
 
         // Use the exact same cancellation core as the public e-mail manage link.
         // Keep the placeholder returned by that core. In the last-participant case
@@ -859,7 +862,7 @@ public class SessionBookingCreationService {
                         "Group session placeholder is missing after guest removal."
                 );
             }
-            response = SessionBookingController.toGroupedResponse(activeRows);
+            response = SessionBookingController.toGroupedResponse(activeRows, locationPrices == null ? null : locationPrices::effectiveNet);
         }
         // #region agent log
         agentDebugLog("SessionBookingCreationService.removeGroupSessionParticipant", "grouped response built", "B1-H3",
@@ -1661,13 +1664,45 @@ public class SessionBookingCreationService {
             boolean allowAvailabilityBlockOverlap,
             String excludedBookingHoldToken
     ) {
+        return validateServiceChainWindowInternal(
+                companyId, clientIds, consultantId, start, services, excludeIds,
+                allowAvailabilityBlockOverlap, excludedBookingHoldToken, null
+        );
+    }
+
+    /** Location-aware public validation so inherited break rules resolve for the selected branch. */
+    public SessionServicePlanService.Plan validateServiceChainWindowAtLocation(
+            Long companyId,
+            List<Long> clientIds,
+            Long consultantId,
+            LocalDateTime start,
+            List<SessionBookingController.BookingServiceRequest> services,
+            List<Long> excludeIds,
+            Long locationId
+    ) {
+        return validateServiceChainWindowInternal(
+                companyId, clientIds, consultantId, start, services, excludeIds, false, null, locationId
+        );
+    }
+
+    private SessionServicePlanService.Plan validateServiceChainWindowInternal(
+            Long companyId,
+            List<Long> clientIds,
+            Long consultantId,
+            LocalDateTime start,
+            List<SessionBookingController.BookingServiceRequest> services,
+            List<Long> excludeIds,
+            boolean allowAvailabilityBlockOverlap,
+            String excludedBookingHoldToken,
+            Long locationId
+    ) {
         if (services == null || services.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one service is required.");
         }
         SessionBookingController.BookingRequest request = new SessionBookingController.BookingRequest(
                 null, clientIds, consultantId, start == null ? null : start.toString(), null, null,
                 services.get(0).typeId(), null, null, false, null, false, null, null, null,
-                "CONFIRMED", null, null, services
+                "CONFIRMED", null, null, services, locationId
         );
         SessionServicePlanService.Plan plan = servicePlans.resolve(request, companyId, start, start == null ? null : start.plusMinutes(1));
         validateBookingWindow(
@@ -1706,6 +1741,21 @@ public class SessionBookingCreationService {
                 false,
                 null,
                 null
+        );
+    }
+
+    public void validateBookingWindowAtLocation(
+            Long companyId, List<Long> clientIds, Long consultantId, Long spaceId,
+            LocalDateTime start, LocalDateTime end, Long typeId, List<Long> excludeIds,
+            boolean spacesEnabled, boolean multipleSessionsPerSpaceEnabled,
+            boolean multipleClientsPerSessionEnabled, boolean online, boolean allowPersonalBlockOverlap,
+            Long locationId
+    ) {
+        SessionServicePlanService.Plan plan = servicePlans.resolveLegacy(companyId, typeId, spaceId, locationId, start, end);
+        validateBookingWindow(
+                companyId, clientIds, consultantId, plan, excludeIds, spacesEnabled,
+                multipleSessionsPerSpaceEnabled, multipleClientsPerSessionEnabled, online,
+                allowPersonalBlockOverlap, false, null, null
         );
     }
 
@@ -2719,7 +2769,7 @@ public class SessionBookingCreationService {
         mergeSessionGroupOverrides(keep, req, companyId, group);
         mergeSessionPayeeOverride(keep, req, companyId, null);
         keep = repo.save(keep);
-        SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(List.of(keep));
+        SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(List.of(keep), locationPrices == null ? null : locationPrices::effectiveNet);
         bookingChangePublisher.publish(
                 companyId,
                 response.id(),

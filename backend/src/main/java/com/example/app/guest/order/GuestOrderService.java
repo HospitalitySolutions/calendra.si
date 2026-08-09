@@ -254,7 +254,7 @@ public class GuestOrderService {
             }
         }
         GuestPaymentMethodType paymentMethodType = parsePaymentMethod(request.paymentMethodType());
-        GuestSettingsService.GuestBookingRules rules = bookingRulesForChannel(companyId, channel);
+        GuestSettingsService.GuestBookingRules rules = bookingRulesForChannel(companyId, channel, resolvedOrderLocation == null ? null : resolvedOrderLocation.getId());
         if (request.slotId() != null && !request.slotId().isBlank() && isSessionLikeProductType(product.productType())) {
             catalogService.assertSlotWithinReservationWindow(companyId, request.slotId(), rules);
             if (bookingSlotHolds != null) {
@@ -501,6 +501,11 @@ public class GuestOrderService {
             PaymentChannel channel
     ) {
         List<GuestDtos.SelectedServiceRequest> requested = request.services();
+        Long orderLocationId = parseNullableLocationId(request.locationId());
+        if (orderLocationId == null && locations != null) {
+            List<Location> activeLocations = locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(companyId);
+            if (activeLocations.size() == 1) orderLocationId = activeLocations.getFirst().getId();
+        }
         if (requested == null || requested.isEmpty()) {
             String productId = normalizeId(request.productId());
             GuestCatalogService.ResolvedProduct product;
@@ -509,12 +514,12 @@ public class GuestOrderService {
                         productId.substring("session-".length()),
                         "Invalid service identifier."
                 );
-                product = catalogService.resolveWebsiteSessionProduct(companyId, sessionTypeId);
+                product = catalogService.resolveWebsiteSessionProduct(companyId, sessionTypeId, orderLocationId);
             } else {
-                product = catalogService.resolveProduct(companyId, productId, guestUser);
+                product = catalogService.resolveProduct(companyId, productId, orderLocationId, guestUser);
             }
             List<OrderServiceLine> legacy = List.of(new OrderServiceLine(0, product, normalizeId(request.entitlementId()), null));
-            validateSelectedEntitlementLines(client, companyId, legacy, parseNullableLocationId(request.locationId()));
+            validateSelectedEntitlementLines(client, companyId, legacy, orderLocationId);
             return legacy;
         }
         record Indexed(int index, GuestDtos.SelectedServiceRequest value) {}
@@ -533,10 +538,10 @@ public class GuestOrderService {
             if (sessionTypeId != null && (productId == null || productId.equals("session-" + sessionTypeId))) {
                 Long parsedSessionTypeId = parseRequiredId(sessionTypeId, "Invalid service identifier.");
                 resolved = channel == PaymentChannel.WEBSITE
-                        ? catalogService.resolveWebsiteSessionProduct(companyId, parsedSessionTypeId)
-                        : catalogService.resolveProduct(companyId, "session-" + parsedSessionTypeId, guestUser);
+                        ? catalogService.resolveWebsiteSessionProduct(companyId, parsedSessionTypeId, orderLocationId)
+                        : catalogService.resolveProduct(companyId, "session-" + parsedSessionTypeId, orderLocationId, guestUser);
             } else {
-                resolved = catalogService.resolveProduct(companyId, productId, guestUser);
+                resolved = catalogService.resolveProduct(companyId, productId, orderLocationId, guestUser);
             }
             if (!isSessionLikeProductType(resolved.productType()) || resolved.sessionType() == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only bookable services can be combined in one session.");
@@ -549,7 +554,7 @@ public class GuestOrderService {
             lines.add(new OrderServiceLine(position, resolved, normalizeId(item.entitlementId()), spaceId));
         }
         if (lines.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one service is required.");
-        validateSelectedEntitlementLines(client, companyId, lines, parseNullableLocationId(request.locationId()));
+        validateSelectedEntitlementLines(client, companyId, lines, orderLocationId);
         return List.copyOf(lines);
     }
 
@@ -1441,7 +1446,7 @@ public class GuestOrderService {
     }
 
     private void assertPaymentMethodAllowed(Long companyId, Long locationId, GuestPaymentMethodType paymentMethodType, String productType, PaymentChannel channel) {
-        GuestSettingsService.GuestBookingRules rules = bookingRulesForChannel(companyId, channel);
+        GuestSettingsService.GuestBookingRules rules = bookingRulesForChannel(companyId, channel, locationId);
         boolean billingEnabled = billingEnabledForChannel(companyId, channel);
         boolean advanceBillingEnabled = advanceBillingEnabledForChannel(companyId, channel);
 
@@ -1465,7 +1470,7 @@ public class GuestOrderService {
             }
             boolean websitePayAtVenueAllowed = channel == PaymentChannel.WEBSITE
                     && websiteWidgetSettings != null
-                    && websiteWidgetSettings.widgetSettings(companyId).paymentOnLocation();
+                    && websiteWidgetSettings.widgetSettings(companyId, locationId).paymentOnLocation();
             if (rules.requireOnlinePayment() && !websitePayAtVenueAllowed) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This tenant requires online payment for bookings.");
             }
@@ -1543,11 +1548,11 @@ public class GuestOrderService {
         }
     }
 
-    private GuestSettingsService.GuestBookingRules bookingRulesForChannel(Long companyId, PaymentChannel channel) {
+    private GuestSettingsService.GuestBookingRules bookingRulesForChannel(Long companyId, PaymentChannel channel, Long locationId) {
         if (channel == PaymentChannel.WEBSITE && websiteWidgetSettings != null) {
-            return websiteWidgetSettings.bookingRules(companyId);
+            return websiteWidgetSettings.bookingRules(companyId, locationId);
         }
-        return catalogService.bookingRules(companyId);
+        return catalogService.bookingRules(companyId, locationId);
     }
 
     private boolean billingEnabledForChannel(Long companyId, PaymentChannel channel) {

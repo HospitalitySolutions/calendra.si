@@ -47,6 +47,7 @@ public class SessionTypeController {
     private final SessionTypeBreakSettingsService breakSettings;
     private final WorkspaceServiceTemplateRepository workspaceServiceTemplates;
     private final LocationRepository locations;
+    private final SessionTypeLocationPriceService locationPrices;
 
     @Autowired(required = false)
     private ActivityLogService activityLogs;
@@ -60,7 +61,8 @@ public class SessionTypeController {
             TenantFeatureAccessService featureAccess,
             SessionTypeBreakSettingsService breakSettings,
             WorkspaceServiceTemplateRepository workspaceServiceTemplates,
-            LocationRepository locations
+            LocationRepository locations,
+            SessionTypeLocationPriceService locationPrices
     ) {
         this.repo = repo;
         this.txRepo = txRepo;
@@ -70,6 +72,7 @@ public class SessionTypeController {
         this.breakSettings = breakSettings;
         this.workspaceServiceTemplates = workspaceServiceTemplates;
         this.locations = locations;
+        this.locationPrices = locationPrices;
     }
 
     /** Backwards-compatible constructor used by existing controller unit tests. */
@@ -79,7 +82,7 @@ public class SessionTypeController {
             SessionBookingRepository bookingRepo,
             ServiceGroupRepository groupRepo
     ) {
-        this(repo, txRepo, bookingRepo, groupRepo, null, null, null, null);
+        this(repo, txRepo, bookingRepo, groupRepo, null, null, null, null, null);
     }
 
     public record TypeServiceItem(Long transactionServiceId, BigDecimal price) {}
@@ -325,6 +328,7 @@ public class SessionTypeController {
         type.getLinkedServices().clear();
         repo.saveAndFlush(type);
         saveLinkedServices(type, req.services() != null ? req.services() : List.of(), companyId);
+        purgeLocationPrices(type, companyId);
         TypeResponse result = toResponse(repo.findAllWithLinkedServicesByCompanyId(companyId).stream()
                 .filter(t -> t.getId().equals(id))
                 .findFirst()
@@ -427,6 +431,17 @@ public class SessionTypeController {
             type.getLinkedServices().add(link);
         }
         repo.save(type);
+    }
+
+
+    private void purgeLocationPrices(SessionType type, Long companyId) {
+        if (locationPrices == null || type == null || type.getId() == null) return;
+        List<Long> linkedIds = type.getLinkedServices().stream()
+                .filter(link -> link != null && link.getTransactionService() != null && link.getTransactionService().getId() != null)
+                .map(link -> link.getTransactionService().getId())
+                .distinct()
+                .toList();
+        locationPrices.purgeUnlinked(companyId, type.getId(), linkedIds);
     }
 
     private void validateSingleVatRate(String serviceCode, List<TransactionService> services) {

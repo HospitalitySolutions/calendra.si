@@ -14,6 +14,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -30,13 +31,29 @@ public class WebsiteWidgetSettingsService {
 
     private final AppSettingRepository settings;
     private final GlobalPaymentProviderService globalPaymentProviders;
+    private final TenantReservationRulesService reservationRulesService;
 
-    public WebsiteWidgetSettingsService(AppSettingRepository settings, GlobalPaymentProviderService globalPaymentProviders) {
+    @Autowired
+    public WebsiteWidgetSettingsService(
+            AppSettingRepository settings,
+            GlobalPaymentProviderService globalPaymentProviders,
+            TenantReservationRulesService reservationRulesService
+    ) {
         this.settings = settings;
         this.globalPaymentProviders = globalPaymentProviders;
+        this.reservationRulesService = reservationRulesService;
+    }
+
+    /** Backwards-compatible constructor for unit tests. */
+    public WebsiteWidgetSettingsService(AppSettingRepository settings, GlobalPaymentProviderService globalPaymentProviders) {
+        this(settings, globalPaymentProviders, null);
     }
 
     public WebsiteWidgetSettings widgetSettings(Long companyId) {
+        return widgetSettings(companyId, null);
+    }
+
+    public WebsiteWidgetSettings widgetSettings(Long companyId, Long locationId) {
         Map<String, String> values = values(companyId);
         JsonNode root = parse(firstNonBlank(
                 values.get(SettingKey.WEBSITE_WIDGET_SETTINGS_JSON.name()),
@@ -49,7 +66,7 @@ public class WebsiteWidgetSettingsService {
         boolean paymentOnLocation = root.has("paymentOnLocation")
                 ? root.path("paymentOnLocation").asBoolean(true)
                 : "none".equalsIgnoreCase(rulesRoot.path("paymentRequirement").asText(""));
-        var reservationRules = TenantReservationRulesService.resolve(values);
+        var reservationRules = reservationRules(companyId, locationId, values);
         boolean giftCardsEnabled = giftCardsEnabled(values);
         return new WebsiteWidgetSettings(
                 reservationRules.employeeSelectionAllowed(),
@@ -59,12 +76,16 @@ public class WebsiteWidgetSettingsService {
     }
 
     public GuestSettingsService.GuestBookingRules bookingRules(Long companyId) {
+        return bookingRules(companyId, null);
+    }
+
+    public GuestSettingsService.GuestBookingRules bookingRules(Long companyId, Long locationId) {
         Map<String, String> values = values(companyId);
         JsonNode root = parse(firstNonBlank(
                 values.get(SettingKey.WEBSITE_BOOKING_RULES_JSON.name()),
                 values.get(SettingKey.GUEST_BOOKING_RULES_JSON.name())
         ));
-        TenantReservationRulesService.TenantReservationRules reservationRules = TenantReservationRulesService.resolve(values);
+        TenantReservationRulesService.TenantReservationRules reservationRules = reservationRules(companyId, locationId, values);
         JsonNode widgetRoot = parse(firstNonBlank(
                 values.get(SettingKey.WEBSITE_WIDGET_SETTINGS_JSON.name()),
                 values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name())
@@ -207,6 +228,14 @@ public class WebsiteWidgetSettingsService {
         return (values == null ? List.<String>of() : values).stream()
                 .filter(value -> !"GIFT_CARD".equalsIgnoreCase(value))
                 .toList();
+    }
+
+    private TenantReservationRulesService.TenantReservationRules reservationRules(
+            Long companyId, Long locationId, Map<String, String> values
+    ) {
+        return reservationRulesService == null
+                ? TenantReservationRulesService.resolve(values)
+                : reservationRulesService.resolve(companyId, locationId);
     }
 
     private Map<String, String> values(Long companyId) {

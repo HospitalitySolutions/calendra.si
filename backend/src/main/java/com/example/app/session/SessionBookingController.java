@@ -96,6 +96,9 @@ public class SessionBookingController {
     private LocationRepository locationRepository;
 
     @Autowired(required = false)
+    private SessionTypeLocationPriceService locationPrices;
+
+    @Autowired(required = false)
     private ActivityLogService activityLogs;
 
     @Autowired
@@ -621,7 +624,7 @@ public class SessionBookingController {
         dirtyGroups.addAll(aGroup);
         dirtyGroups.addAll(bGroup);
         openBillSyncService.enqueueBookingsSync(companyId, dirtyGroups);
-        return List.of(withPaymentStatuses(toGroupedResponse(aGroup), aGroup, companyId), withPaymentStatuses(toGroupedResponse(bGroup), bGroup, companyId));
+        return List.of(withPaymentStatuses(toGroupedResponse(aGroup, locationPrices == null ? null : locationPrices::effectiveNet), aGroup, companyId), withPaymentStatuses(toGroupedResponse(bGroup, locationPrices == null ? null : locationPrices::effectiveNet), bGroup, companyId));
     }
 
     public record SwapRequest(Long firstId, Long secondId) {}
@@ -712,7 +715,7 @@ public class SessionBookingController {
         if (refreshed == null || refreshed.isEmpty()) {
             refreshed = grouped;
         }
-        return withPaymentStatuses(toGroupedResponse(refreshed), refreshed, companyId);
+        return withPaymentStatuses(toGroupedResponse(refreshed, locationPrices == null ? null : locationPrices::effectiveNet), refreshed, companyId);
     }
 
 
@@ -1114,7 +1117,7 @@ public class SessionBookingController {
                 .forEach(row -> grouped.computeIfAbsent(groupKey(row), ignored -> new ArrayList<>()).add(row));
         PaymentStatusLookup lookup = buildPaymentStatusLookup(rows, companyId);
         return grouped.values().stream()
-                .map(group -> withPaymentStatuses(toGroupedResponse(group), group, lookup))
+                .map(group -> withPaymentStatuses(toGroupedResponse(group, locationPrices == null ? null : locationPrices::effectiveNet), group, lookup))
                 .toList();
     }
 
@@ -1419,15 +1422,15 @@ public class SessionBookingController {
         return proportional.setScale(2, RoundingMode.HALF_UP);
     }
 
-    private static BigDecimal sessionGross(SessionBooking row, List<SessionBooking> groupRows) {
+    private BigDecimal sessionGross(SessionBooking row, List<SessionBooking> groupRows) {
         if (isTotalPriceCalculation(row) && !isPrimaryChargeRow(row, groupRows)) {
             return BigDecimal.ZERO;
         }
         return sessionGross(row);
     }
 
-    private static BigDecimal sessionGross(SessionBooking row) {
-        return SessionBillingSupport.grossTotal(row);
+    private BigDecimal sessionGross(SessionBooking row) {
+        return SessionBillingSupport.grossTotal(row, locationPrices == null ? null : locationPrices::effectiveNet);
     }
 
     private static boolean isTotalPriceCalculation(SessionBooking row) {
@@ -1445,6 +1448,13 @@ public class SessionBookingController {
     }
 
     static BookingResponse toGroupedResponse(List<SessionBooking> rows) {
+        return toGroupedResponse(rows, null);
+    }
+
+    static BookingResponse toGroupedResponse(
+            List<SessionBooking> rows,
+            SessionBillingSupport.PriceResolver priceResolver
+    ) {
         if (rows == null || rows.isEmpty()) {
             throw new IllegalArgumentException("rows are required");
         }
@@ -1576,7 +1586,7 @@ public class SessionBookingController {
                 SessionServiceSupport.availabilityEnd(representative),
                 SessionServiceSupport.totalServiceMinutes(representative),
                 SessionServiceSupport.totalBreakMinutes(representative),
-                SessionBillingSupport.grossTotal(representative),
+                SessionBillingSupport.grossTotal(representative, priceResolver),
                 representative.getLocation() == null ? null : new LocationSummary(
                         representative.getLocation().getId(), representative.getLocation().getName(),
                         representative.getLocation().getCity(), representative.getLocation().getTimezone()),
