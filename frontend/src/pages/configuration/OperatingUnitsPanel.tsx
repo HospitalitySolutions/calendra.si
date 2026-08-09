@@ -388,7 +388,7 @@ export function OperatingUnitsPanel({
     }
   }
 
-  const useCompanyLogo = async () => {
+  const resetPublicLogoToCompany = async () => {
     if (!selectedLocation?.publicLogoS3Key) return
     setPublicLogoBusy(true)
     try {
@@ -661,7 +661,7 @@ export function OperatingUnitsPanel({
                         onFile={(file) => void uploadPublicLogo(file)}
                       />
                       {selectedLocation.publicLogoS3Key ? (
-                        <button type="button" className="ou-logo-fallback-button" disabled={publicLogoBusy} onClick={() => void useCompanyLogo()}>
+                        <button type="button" className="ou-logo-fallback-button" disabled={publicLogoBusy} onClick={() => void resetPublicLogoToCompany()}>
                           {companyLogoUrl
                             ? (sl ? 'Uporabi logotip podjetja' : 'Use company logo')
                             : (sl ? 'Odstrani logotip lokacije' : 'Remove location logo')}
