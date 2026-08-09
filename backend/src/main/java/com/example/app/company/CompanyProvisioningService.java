@@ -6,6 +6,7 @@ import com.example.app.billing.PaymentType;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.location.LocationService;
 import com.example.app.workspace.Workspace;
 import org.springframework.beans.factory.annotation.Autowired;
 import jakarta.transaction.Transactional;
@@ -18,18 +19,21 @@ public class CompanyProvisioningService {
     private final PaymentMethodRepository paymentMethods;
     private final TenantCodeService tenantCodeService;
     private final AppSettingRepository settings;
+    private final LocationService locationService;
 
     @Autowired
     public CompanyProvisioningService(
             CompanyRepository companies,
             PaymentMethodRepository paymentMethods,
             TenantCodeService tenantCodeService,
-            AppSettingRepository settings
+            AppSettingRepository settings,
+            LocationService locationService
     ) {
         this.companies = companies;
         this.paymentMethods = paymentMethods;
         this.tenantCodeService = tenantCodeService;
         this.settings = settings;
+        this.locationService = locationService;
     }
 
     /** Backwards-compatible constructor for older unit tests. Runtime wiring uses the @Autowired constructor above. */
@@ -38,7 +42,17 @@ public class CompanyProvisioningService {
             PaymentMethodRepository paymentMethods,
             TenantCodeService tenantCodeService
     ) {
-        this(companies, paymentMethods, tenantCodeService, null);
+        this(companies, paymentMethods, tenantCodeService, null, null);
+    }
+
+    /** Backwards-compatible constructor for tests that provide settings but not location provisioning. */
+    public CompanyProvisioningService(
+            CompanyRepository companies,
+            PaymentMethodRepository paymentMethods,
+            TenantCodeService tenantCodeService,
+            AppSettingRepository settings
+    ) {
+        this(companies, paymentMethods, tenantCodeService, settings, null);
     }
 
     @Transactional
@@ -47,7 +61,9 @@ public class CompanyProvisioningService {
         company.setName(companyName);
         company = companies.saveAndFlush(company);
         company.setTenantCode(tenantCodeService.generate(company.getId(), companyName));
-        return companies.save(company);
+        Company saved = companies.save(company);
+        ensureDefaultLocation(saved);
+        return saved;
     }
 
     @Transactional
@@ -61,8 +77,37 @@ public class CompanyProvisioningService {
         company = companies.saveAndFlush(company);
         company.setTenantCode(tenantCodeService.generate(company.getId(), companyName));
         Company saved = companies.save(company);
+        ensureDefaultLocation(saved);
         ensureDefaultPaymentMethods(saved);
         return saved;
+    }
+
+
+    /**
+     * Fill the provisioned tenant's default location with the contact/address data
+     * captured during signup or manual tenant creation.
+     */
+    @Transactional
+    public void initializeDefaultLocation(
+            Company company,
+            String name,
+            String address,
+            String postalCode,
+            String city,
+            String country,
+            String phone,
+            String email
+    ) {
+        if (locationService == null || company == null || company.getId() == null) return;
+        locationService.initializeDefaultLocation(company, new LocationService.InitialLocationDetails(
+                name, address, postalCode, city, country, phone, email
+        ));
+    }
+
+    private void ensureDefaultLocation(Company company) {
+        if (locationService != null && company != null && company.getId() != null) {
+            locationService.requireDefault(company);
+        }
     }
 
     @Transactional
@@ -70,11 +115,13 @@ public class CompanyProvisioningService {
         if (company == null) {
             return null;
         }
+        Company result = company;
         if (company.getTenantCode() == null || company.getTenantCode().isBlank()) {
             company.setTenantCode(tenantCodeService.generate(company.getId(), company.getName()));
-            return companies.save(company);
+            result = companies.save(company);
         }
-        return company;
+        ensureDefaultLocation(result);
+        return result;
     }
 
     @Transactional

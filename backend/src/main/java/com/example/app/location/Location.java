@@ -43,6 +43,24 @@ public class Location extends BaseEntity {
     private String openingHoursJson;
     @Column(name = "public_booking_enabled", nullable = false)
     private boolean publicBookingEnabled = true;
+
+    @Column(name = "public_name", length = 255)
+    private String publicName;
+    @Column(name = "public_address", length = 512)
+    private String publicAddress;
+    @Column(name = "public_description", length = 500)
+    private String publicDescription;
+    @Column(name = "public_logo_s3_key", length = 1024)
+    private String publicLogoS3Key;
+    @Column(name = "public_directory_enabled", nullable = false)
+    private boolean publicDirectoryEnabled;
+    @Column(name = "guest_app_discoverable", nullable = false)
+    private boolean guestAppDiscoverable;
+    @Column(name = "website_presentation_enabled", nullable = false)
+    private boolean websitePresentationEnabled = true;
+    @Column(name = "google_place_id", length = 255)
+    private String googlePlaceId;
+
     @Column(name = "default_location", nullable = false)
     private boolean defaultLocation;
     @Column(nullable = false)

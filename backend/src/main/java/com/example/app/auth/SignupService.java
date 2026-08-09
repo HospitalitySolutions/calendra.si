@@ -591,6 +591,9 @@ public class SignupService {
         if (phone != null) {
             seedSetting(company, SettingKey.COMPANY_TELEPHONE, phone);
         }
+        companyProvisioningService.initializeDefaultLocation(
+                company, companyName, null, null, null, null, phone, normalizedEmail
+        );
         seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, normalizedPackageType);
         applyModuleConfigPreset(company, "salon", normalizedPackageType);
         seedGuestAppTenantType(company, "salon", normalizedPackageType);
@@ -734,6 +737,16 @@ public class SignupService {
         seedSetting(company, SettingKey.COMPANY_ADDRESS, stringOrEmpty(request.address()));
         seedSetting(company, SettingKey.COMPANY_POSTAL_CODE, stringOrEmpty(request.postalCode()));
         seedSetting(company, SettingKey.COMPANY_CITY, stringOrEmpty(request.city()));
+        companyProvisioningService.initializeDefaultLocation(
+                company,
+                company.getName(),
+                request.address(),
+                request.postalCode(),
+                request.city(),
+                null,
+                owner.getPhone(),
+                owner.getEmail()
+        );
 
         String normalizedPackageType = normalizePackageType(request.packageName(), "PROFESSIONAL");
         String interval = normalizeBillingInterval(request.billingInterval());

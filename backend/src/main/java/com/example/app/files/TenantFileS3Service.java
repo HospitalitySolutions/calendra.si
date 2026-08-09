@@ -30,6 +30,7 @@ public class TenantFileS3Service {
     private static final long MAX_FILE_SIZE_BYTES = 50L * 1024L * 1024L;
     private static final long GUEST_PROFILE_PICTURE_MAX_BYTES = 5L * 1024L * 1024L;
     private static final long GUEST_APP_ASSET_MAX_BYTES = 10L * 1024L * 1024L;
+    private static final long LOCATION_PUBLIC_LOGO_MAX_BYTES = 5L * 1024L * 1024L;
 
     private final InvoiceS3Properties properties;
     private final ObjectProvider<S3Client> s3ClientProvider;
@@ -67,6 +68,13 @@ public class TenantFileS3Service {
     public StoredS3File uploadUserAvatar(Company tenant, long userId, MultipartFile file) {
         String key = basePrefix() + "/" + safeTenantCode(tenant) + "/users/" + userId + "/" + storedFileName(file == null ? null : file.getOriginalFilename());
         return uploadWithLimit(key, file, GUEST_PROFILE_PICTURE_MAX_BYTES, "inline");
+    }
+
+    /** Public-facing logo override for one physical location. */
+    public StoredS3File uploadLocationPublicLogo(Company tenant, long locationId, MultipartFile file) {
+        String key = basePrefix() + "/" + safeTenantCode(tenant) + "/locations/" + locationId
+                + "/public-logo/" + storedFileName(file == null ? null : file.getOriginalFilename());
+        return uploadWithLimit(key, file, LOCATION_PUBLIC_LOGO_MAX_BYTES, "inline");
     }
 
     public String publicUrlFor(String objectKey, String awsRegion) {

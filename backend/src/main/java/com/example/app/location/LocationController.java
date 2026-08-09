@@ -11,6 +11,7 @@ import com.example.app.billingissuer.InvoiceSeries;
 import com.example.app.billingissuer.InvoiceSeriesRepository;
 import com.example.app.billingissuer.InvoiceSeriesResetPolicy;
 import com.example.app.billingissuer.LegalEntity;
+import com.example.app.files.TenantFileS3Service;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SpaceRepository;
 import com.example.app.settings.AppSetting;
@@ -30,6 +31,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -54,6 +57,9 @@ public class LocationController {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ActivityLogService activityLogs;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private TenantFileS3Service fileStorage;
 
     public LocationController(
             LocationRepository locations,
@@ -85,6 +91,13 @@ public class LocationController {
             String phone,
             String email,
             String openingHoursJson,
+            String publicName,
+            String publicAddress,
+            String publicDescription,
+            Boolean publicDirectoryEnabled,
+            Boolean guestAppDiscoverable,
+            Boolean websitePresentationEnabled,
+            String googlePlaceId,
             Boolean publicBookingEnabled,
             Boolean defaultLocation,
             Boolean active,
@@ -107,6 +120,15 @@ public class LocationController {
             String phone,
             String email,
             String openingHoursJson,
+            String publicName,
+            String publicAddress,
+            String publicDescription,
+            String publicLogoS3Key,
+            String publicLogoUrl,
+            boolean publicDirectoryEnabled,
+            boolean guestAppDiscoverable,
+            boolean websitePresentationEnabled,
+            String googlePlaceId,
             boolean publicBookingEnabled,
             boolean defaultLocation,
             boolean active,
@@ -202,7 +224,9 @@ public class LocationController {
         invoiceSeries.deleteAll(invoiceSeries.findAllByLocationId(id));
         Long deletedId = location.getId();
         String deletedName = location.getName();
+        String deletedPublicLogoKey = location.getPublicLogoS3Key();
         locations.delete(location);
+        deletePublicLogoAfterCommit(deletedPublicLogoKey);
         if (activityLogs != null) {
             activityLogs.recordUser(me, ActivityModule.CONFIGURATION, ActivityAction.LOCATION_DELETED,
                     "LOCATION", deletedId, deletedName, "Deleted location", deletedId, null,
@@ -210,21 +234,41 @@ public class LocationController {
         }
     }
 
+    private void deletePublicLogoAfterCommit(String objectKey) {
+        if (fileStorage == null || objectKey == null || objectKey.isBlank()) return;
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            fileStorage.deleteQuietly(objectKey);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                fileStorage.deleteQuietly(objectKey);
+            }
+        });
+    }
+
     private void recordLocation(User me, ActivityAction action, LocationResponse row, String summary, LocationResponse before) {
         if (activityLogs == null || row == null) return;
         var details = ActivityDetails.of(
                 "city", row.city(), "country", row.country(), "timezone", row.timezone(),
                 "active", row.active(), "defaultLocation", row.defaultLocation(),
+                "publicName", row.publicName(), "publicDirectoryEnabled", row.publicDirectoryEnabled(),
+                "guestAppDiscoverable", row.guestAppDiscoverable(), "websitePresentationEnabled", row.websitePresentationEnabled(),
                 "invoiceResetPolicy", row.invoiceResetPolicy(), "targetPath", "/configuration?tab=company&subtab=operatingUnits"
         );
         if (before != null) {
             details.put("before", ActivityDetails.of(
                     "name", before.name(), "city", before.city(), "country", before.country(), "timezone", before.timezone(),
                     "active", before.active(), "defaultLocation", before.defaultLocation(),
+                    "publicName", before.publicName(), "publicDirectoryEnabled", before.publicDirectoryEnabled(),
+                    "guestAppDiscoverable", before.guestAppDiscoverable(), "websitePresentationEnabled", before.websitePresentationEnabled(),
                     "invoiceResetPolicy", before.invoiceResetPolicy(), "invoiceElectronicDeviceId", before.invoiceElectronicDeviceId()));
             details.put("after", ActivityDetails.of(
                     "name", row.name(), "city", row.city(), "country", row.country(), "timezone", row.timezone(),
                     "active", row.active(), "defaultLocation", row.defaultLocation(),
+                    "publicName", row.publicName(), "publicDirectoryEnabled", row.publicDirectoryEnabled(),
+                    "guestAppDiscoverable", row.guestAppDiscoverable(), "websitePresentationEnabled", row.websitePresentationEnabled(),
                     "invoiceResetPolicy", row.invoiceResetPolicy(), "invoiceElectronicDeviceId", row.invoiceElectronicDeviceId()));
         }
         activityLogs.recordUser(me, ActivityModule.CONFIGURATION, action,
@@ -287,6 +331,16 @@ public class LocationController {
         location.setPhone(trim(input.phone()));
         location.setEmail(trim(input.email()));
         location.setOpeningHoursJson(trim(input.openingHoursJson()));
+        // Null means "field not supplied" so older clients can update a location
+        // without erasing the newly-migrated public presentation. An explicit blank
+        // string clears an override.
+        if (input.publicName() != null) location.setPublicName(trimMax(input.publicName(), 255, "Public name"));
+        if (input.publicAddress() != null) location.setPublicAddress(trimMax(input.publicAddress(), 512, "Public address"));
+        if (input.publicDescription() != null) location.setPublicDescription(trimMax(input.publicDescription(), 500, "Public description"));
+        if (input.googlePlaceId() != null) location.setGooglePlaceId(trimMax(input.googlePlaceId(), 255, "Google Place ID"));
+        if (input.publicDirectoryEnabled() != null) location.setPublicDirectoryEnabled(input.publicDirectoryEnabled());
+        if (input.guestAppDiscoverable() != null) location.setGuestAppDiscoverable(input.guestAppDiscoverable());
+        if (input.websitePresentationEnabled() != null) location.setWebsitePresentationEnabled(input.websitePresentationEnabled());
         if (input.publicBookingEnabled() != null) location.setPublicBookingEnabled(input.publicBookingEnabled());
         if (input.defaultLocation() != null) location.setDefaultLocation(input.defaultLocation());
         if (input.active() != null) location.setActive(input.active());
@@ -414,6 +468,14 @@ public class LocationController {
         return value == null || value.trim().isEmpty() ? null : value.trim();
     }
 
+    private static String trimMax(String value, int maxLength, String label) {
+        String normalized = trim(value);
+        if (normalized != null && normalized.length() > maxLength) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, label + " is too long.");
+        }
+        return normalized;
+    }
+
     private static String nonBlank(String value, String fallback) {
         String normalized = trim(value);
         return normalized == null ? fallback : normalized;
@@ -432,6 +494,15 @@ public class LocationController {
                 l.getPhone(),
                 l.getEmail(),
                 l.getOpeningHoursJson(),
+                l.getPublicName(),
+                l.getPublicAddress(),
+                l.getPublicDescription(),
+                l.getPublicLogoS3Key(),
+                LocationPublicPresentationService.publicLogoPath(l.getPublicLogoS3Key()),
+                l.isPublicDirectoryEnabled(),
+                l.isGuestAppDiscoverable(),
+                l.isWebsitePresentationEnabled(),
+                l.getGooglePlaceId(),
                 l.isPublicBookingEnabled(),
                 l.isDefaultLocation(),
                 l.isActive(),

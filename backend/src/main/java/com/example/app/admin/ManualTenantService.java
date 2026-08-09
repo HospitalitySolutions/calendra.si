@@ -199,6 +199,16 @@ public class ManualTenantService {
 
         seedTenantDefaults(company, companyName, tenantType);
         seedBillingAndCompanySettings(company, request, packageName, interval, userCount, smsCount, paymentMethod, true);
+        companyProvisioningService.initializeDefaultLocation(
+                company,
+                companyName,
+                request.address(),
+                request.postalCode(),
+                request.city(),
+                request.country(),
+                request.phone(),
+                email
+        );
         applyFeatureSelection(company, request.enabledFeatureKeys(), packageName);
         seedSetting(company, SettingKey.SIGNUP_OWNER_PASSWORD_PENDING, "true");
 
