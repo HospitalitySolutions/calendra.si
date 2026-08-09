@@ -110,6 +110,9 @@ jobs:
       - name: Enforce frontend bundle budget
         run: npm run check:bundle
 
+      - name: Enforce frontend performance guardrails
+        run: npm run check:performance
+
       - name: Upload frontend production bundle
         if: success()
         uses: actions/upload-artifact@v6

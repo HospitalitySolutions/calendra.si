@@ -18,13 +18,30 @@ interface Window {
     snapshot: () => {
       api: Array<{ method: string; endpoint: string; status: number | null; durationMs: number; recordedAt: number }>
       queries: Array<{ queryKey: string; durationMs: number; outcome: 'success' | 'error'; recordedAt: number }>
-      navigations: Array<{ pathname: string; durationMs: number; recordedAt: number }>
+      duplicates: Array<{ method: 'GET'; endpoint: string; recordedAt: number }>
+      navigations: Array<{
+        pathname: string
+        family: string | null
+        durationMs: number
+        apiGetCount: number
+        uniqueApiGetCount: number
+        duplicateGetCount: number
+        recordedAt: number
+      }>
     }
     summary: () => {
       apiByEndpoint: Record<string, { count: number; averageMs: number; p50Ms: number; p95Ms: number; maxMs: number }>
       queryOverall: { count: number; averageMs: number; p50Ms: number; p95Ms: number; maxMs: number } | null
+      duplicateInflightGets: number
       navigationByPath: Record<string, { count: number; averageMs: number; p50Ms: number; p95Ms: number; maxMs: number }>
     }
+    guardrails: () => {
+      passed: boolean
+      violations: Array<{ code: string; message: string; examples?: string[] }>
+      warnings: Array<{ code: string; message: string; examples?: string[] }>
+      observations: Array<{ type: 'api' | 'navigation'; key: string; samples: number; p95Ms: number | null; budgetMs: number }>
+    }
+    budgets: () => unknown
     clear: () => void
   }
 }

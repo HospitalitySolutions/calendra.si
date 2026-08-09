@@ -17,6 +17,8 @@
     "prebuild:production": "node scripts/validate-production-env.mjs",
     "build:production": "tsc -b && vite build --mode production",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
+    "check:performance": "node scripts/check-performance-guardrails.mjs",
+    "check:runtime-performance": "node scripts/check-runtime-performance.mjs",
     "quality": "npm run typecheck && npm run lint && npm run knip"
   },
   "dependencies": {

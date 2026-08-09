@@ -1,4 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
+import performanceBudgets from '../config/performanceBudgets.json'
+import { navigationRouteFamily, type NavigationRouteFamily } from '../queries/navigationRouteFamily'
+import { evaluatePerformanceSnapshot, type PerformanceGuardrailReport } from './performanceGuardrails.mjs'
 
 type ApiTiming = {
   method: string
@@ -15,15 +18,26 @@ type QueryTiming = {
   recordedAt: number
 }
 
+type DuplicateRequest = {
+  method: 'GET'
+  endpoint: string
+  recordedAt: number
+}
+
 type NavigationTiming = {
   pathname: string
+  family: NavigationRouteFamily | null
   durationMs: number
+  apiGetCount: number
+  uniqueApiGetCount: number
+  duplicateGetCount: number
   recordedAt: number
 }
 
 type PerformanceSnapshot = {
   api: ApiTiming[]
   queries: QueryTiming[]
+  duplicates: DuplicateRequest[]
   navigations: NavigationTiming[]
 }
 
@@ -38,14 +52,30 @@ type TimingSummary = {
 type PerformanceSummary = {
   apiByEndpoint: Record<string, TimingSummary>
   queryOverall: TimingSummary | null
+  duplicateInflightGets: number
   navigationByPath: Record<string, TimingSummary>
 }
 
+type ActiveNavigation = {
+  pathname: string
+  family: NavigationRouteFamily | null
+  startedAt: number
+  renderedDurationMs: number | null
+  apiGetCount: number
+  apiGetIdentities: Set<string>
+  duplicateGetCount: number
+  finalizeTimer: ReturnType<typeof setTimeout> | null
+}
+
 const MAX_ENTRIES = 250
+const NAVIGATION_FANOUT_CAPTURE_MS = 750
 const apiTimings: ApiTiming[] = []
 const queryTimings: QueryTiming[] = []
+const duplicateRequests: DuplicateRequest[] = []
 const navigationTimings: NavigationTiming[] = []
-const pendingNavigations = new Map<string, number>()
+const activeGetRequests = new Map<string, number>()
+let activeNavigation: ActiveNavigation | null = null
+let requestSequence = 0
 
 function now() {
   return typeof performance !== 'undefined' ? performance.now() : Date.now()
@@ -96,6 +126,21 @@ function normalizeEndpoint(url?: string) {
     .replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':uuid')
 }
 
+function stableSerialize(value: unknown): string {
+  if (value == null) return ''
+  if (value instanceof URLSearchParams) return value.toString()
+  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(',')}]`
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    return `{${Object.keys(record).sort().map((key) => `${key}:${stableSerialize(record[key])}`).join(',')}}`
+  }
+  return String(value)
+}
+
+function requestIdentity(method: string, url: string | undefined, params: unknown): string {
+  return `${method}:${url || 'unknown'}?${stableSerialize(params)}`
+}
+
 function debugEnabled() {
   if (typeof window === 'undefined') return false
   try {
@@ -103,6 +148,75 @@ function debugEnabled() {
   } catch {
     return import.meta.env.DEV
   }
+}
+
+function finalizeActiveNavigation() {
+  const navigation = activeNavigation
+  if (!navigation) return
+  if (navigation.finalizeTimer) clearTimeout(navigation.finalizeTimer)
+  activeNavigation = null
+  if (navigation.renderedDurationMs == null) return
+
+  const entry: NavigationTiming = {
+    pathname: navigation.pathname,
+    family: navigation.family,
+    durationMs: navigation.renderedDurationMs,
+    apiGetCount: navigation.apiGetCount,
+    uniqueApiGetCount: navigation.apiGetIdentities.size,
+    duplicateGetCount: navigation.duplicateGetCount,
+    recordedAt: Date.now(),
+  }
+  navigationTimings.push(entry)
+  trim(navigationTimings)
+
+  if (debugEnabled()) {
+    console.debug(
+      `[perf] navigation ${entry.pathname}: ${entry.durationMs}ms; `
+      + `${entry.uniqueApiGetCount} unique GETs (${entry.duplicateGetCount} duplicate in-flight)`,
+    )
+  }
+}
+
+export function recordApiRequestStarted(method: string | undefined, url: string | undefined, params?: unknown): string {
+  const normalizedMethod = String(method || 'GET').toUpperCase()
+  const identity = requestIdentity(normalizedMethod, url, params)
+  const token = `${++requestSequence}:${identity}`
+
+  if (normalizedMethod === 'GET') {
+    const existing = activeGetRequests.get(identity) ?? 0
+    const duplicate = existing > 0
+    activeGetRequests.set(identity, existing + 1)
+
+    if (activeNavigation) {
+      activeNavigation.apiGetCount += 1
+      activeNavigation.apiGetIdentities.add(identity)
+      if (duplicate) activeNavigation.duplicateGetCount += 1
+    }
+
+    if (duplicate) {
+      const entry: DuplicateRequest = {
+        method: 'GET',
+        endpoint: normalizeEndpoint(url),
+        recordedAt: Date.now(),
+      }
+      duplicateRequests.push(entry)
+      trim(duplicateRequests)
+      if (debugEnabled()) console.warn(`[perf] duplicate in-flight GET ${entry.endpoint}`)
+    }
+  }
+
+  return token
+}
+
+export function recordApiRequestFinished(token: string | undefined) {
+  if (!token) return
+  const separator = token.indexOf(':')
+  if (separator < 0) return
+  const identity = token.slice(separator + 1)
+  if (!identity.startsWith('GET:')) return
+  const existing = activeGetRequests.get(identity) ?? 0
+  if (existing <= 1) activeGetRequests.delete(identity)
+  else activeGetRequests.set(identity, existing - 1)
 }
 
 export function recordApiTiming(method: string | undefined, url: string | undefined, status: number | null, durationMs: number) {
@@ -121,21 +235,24 @@ export function recordApiTiming(method: string | undefined, url: string | undefi
 }
 
 export function markNavigationStart(pathname: string) {
-  pendingNavigations.set(pathname, now())
+  finalizeActiveNavigation()
+  activeNavigation = {
+    pathname,
+    family: navigationRouteFamily(pathname),
+    startedAt: now(),
+    renderedDurationMs: null,
+    apiGetCount: 0,
+    apiGetIdentities: new Set<string>(),
+    duplicateGetCount: 0,
+    finalizeTimer: null,
+  }
 }
 
 export function markNavigationRendered(pathname: string) {
-  const startedAt = pendingNavigations.get(pathname)
-  if (startedAt == null) return
-  pendingNavigations.delete(pathname)
-  const entry: NavigationTiming = {
-    pathname,
-    durationMs: Math.round((now() - startedAt) * 10) / 10,
-    recordedAt: Date.now(),
-  }
-  navigationTimings.push(entry)
-  trim(navigationTimings)
-  if (debugEnabled()) console.debug(`[perf] navigation ${pathname}: ${entry.durationMs}ms`)
+  const navigation = activeNavigation
+  if (!navigation || navigation.pathname !== pathname || navigation.renderedDurationMs != null) return
+  navigation.renderedDurationMs = Math.round((now() - navigation.startedAt) * 10) / 10
+  navigation.finalizeTimer = setTimeout(finalizeActiveNavigation, NAVIGATION_FANOUT_CAPTURE_MS)
 }
 
 export function installQueryPerformanceTracking(queryClient: QueryClient) {
@@ -167,6 +284,7 @@ export function getPerformanceSnapshot(): PerformanceSnapshot {
   return {
     api: [...apiTimings],
     queries: [...queryTimings],
+    duplicates: [...duplicateRequests],
     navigations: [...navigationTimings],
   }
 }
@@ -175,15 +293,23 @@ export function getPerformanceSummary(): PerformanceSummary {
   return {
     apiByEndpoint: summarizeGroups(apiTimings, (entry) => `${entry.method} ${entry.endpoint}`, (entry) => entry.durationMs),
     queryOverall: summarizeDurations(queryTimings.map((entry) => entry.durationMs)),
+    duplicateInflightGets: duplicateRequests.length,
     navigationByPath: summarizeGroups(navigationTimings, (entry) => entry.pathname, (entry) => entry.durationMs),
   }
+}
+
+export function getPerformanceGuardrailReport(): PerformanceGuardrailReport {
+  return evaluatePerformanceSnapshot(getPerformanceSnapshot(), performanceBudgets)
 }
 
 export function clearPerformanceSnapshot() {
   apiTimings.length = 0
   queryTimings.length = 0
+  duplicateRequests.length = 0
   navigationTimings.length = 0
-  pendingNavigations.clear()
+  activeGetRequests.clear()
+  if (activeNavigation?.finalizeTimer) clearTimeout(activeNavigation.finalizeTimer)
+  activeNavigation = null
 }
 
 export function installPerformanceDebugApi() {
@@ -191,6 +317,8 @@ export function installPerformanceDebugApi() {
   window.calendraPerformance = {
     snapshot: getPerformanceSnapshot,
     summary: getPerformanceSummary,
+    guardrails: getPerformanceGuardrailReport,
+    budgets: () => performanceBudgets,
     clear: clearPerformanceSnapshot,
   }
 }

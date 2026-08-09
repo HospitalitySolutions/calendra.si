@@ -274,8 +274,8 @@ export default function App() {
       const resolved = resolveAnchor(event)
       if (!resolved) return
       clearHoverIntent()
-      prefetchDestination(resolved.url.pathname, 'commit')
       if (location.pathname !== resolved.url.pathname) markNavigationStart(resolved.url.pathname)
+      prefetchDestination(resolved.url.pathname, 'commit')
     }
 
     const onFocusIn = (event: FocusEvent) => {
@@ -284,16 +284,26 @@ export default function App() {
       prefetchDestination(resolved.url.pathname, 'intent')
     }
 
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+      const resolved = resolveAnchor(event)
+      if (!resolved) return
+      if (location.pathname !== resolved.url.pathname) markNavigationStart(resolved.url.pathname)
+      prefetchDestination(resolved.url.pathname, 'commit')
+    }
+
     document.addEventListener('pointerover', onPointerOver, true)
     document.addEventListener('pointerout', onPointerOut, true)
     document.addEventListener('pointerdown', onPointerDown, true)
     document.addEventListener('focusin', onFocusIn, true)
+    document.addEventListener('keydown', onKeyDown, true)
     return () => {
       clearHoverIntent()
       document.removeEventListener('pointerover', onPointerOver, true)
       document.removeEventListener('pointerout', onPointerOut, true)
       document.removeEventListener('pointerdown', onPointerDown, true)
       document.removeEventListener('focusin', onFocusIn, true)
+      document.removeEventListener('keydown', onKeyDown, true)
     }
   }, [activeQueryUnitId, location.pathname, user])
 

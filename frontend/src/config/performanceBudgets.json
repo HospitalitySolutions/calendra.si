@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "runtime": {
+    "minimumSamples": 5,
+    "apiP95Ms": 300,
+    "complexApiP95Ms": 500,
+    "complexApiPatterns": [
+      "/analytics",
+      "/reports",
+      "/platform-admin/monitoring"
+    ],
+    "navigationTargetMs": 150,
+    "navigationP95MaxMs": 500,
+    "duplicateInflightGetsMax": 0,
+    "fanOut": {
+      "calendar": { "target": 6, "max": 10, "prefetchMax": 8 },
+      "clients": { "target": 6, "max": 8, "prefetchMax": 7 },
+      "appointments": { "target": 5, "max": 7, "prefetchMax": 5 },
+      "billing": { "target": 6, "max": 8, "prefetchMax": 6 },
+      "analytics": { "target": 6, "max": 8, "prefetchMax": 7 },
+      "inbox": { "target": 4, "max": 6, "prefetchMax": 3 },
+      "configuration": { "target": 7, "max": 10, "prefetchMax": 7 },
+      "session-types": { "target": 6, "max": 8, "prefetchMax": 6 },
+      "consultants": { "target": 5, "max": 7, "prefetchMax": 5 },
+      "consumables": { "target": 6, "max": 8, "prefetchMax": 6 }
+    }
+  },
+  "bundle": {
+    "assetLimitsKiB": {
+      "js": 900,
+      "css": 1125
+    },
+    "criticalChunks": [
+      { "prefix": "index-", "extension": ".js", "maxKiB": 900, "required": true },
+      { "prefix": "CalendarPage-", "extension": ".js", "maxKiB": 900, "required": true },
+      { "prefix": "ConfigurationPage-", "extension": ".js", "maxKiB": 850, "required": true },
+      { "prefix": "BillingPage-", "extension": ".js", "maxKiB": 400, "required": true },
+      { "prefix": "ClientsPage-", "extension": ".js", "maxKiB": 300, "required": true }
+    ]
+  }
+}

@@ -1,11 +1,15 @@
-import { readdir, stat } from 'node:fs/promises'
+import { readFile, readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 
 const DIST_DIR = path.resolve('dist')
+const BUDGET_PATH = path.resolve('src/config/performanceBudgets.json')
+
+const budgets = JSON.parse(await readFile(BUDGET_PATH, 'utf8'))
+const configuredLimits = budgets?.bundle?.assetLimitsKiB || {}
 const ASSET_LIMITS = new Map([
-  ['.js', 900 * 1024],
-  ['.css', 1125 * 1024],
+  ['.js', Number(configuredLimits.js || 900) * 1024],
+  ['.css', Number(configuredLimits.css || 1125) * 1024],
 ])
 
 async function walk(directory) {
