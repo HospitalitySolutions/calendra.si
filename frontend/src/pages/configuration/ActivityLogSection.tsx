@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { api } from "../../api";
+import { useAuthenticatedUser } from "../../authUserContext";
+import { locationsQueryOptions, usersQueryOptions } from "../../queries/sharedQueryOptions";
+import { activityLogPageQueryOptions, type ActivityLogPageParams } from "../../queries/remainingQueryOptions";
 
 type ActivityModule =
   | "CALENDAR" | "CLIENTS" | "BILLING" | "INBOX" | "WAITLIST" | "SERVICES" | "CONSUMABLES"
@@ -196,6 +199,9 @@ const formatValue = (value: unknown, locale: string): string => {
 
 export function ActivityLogSection({ locale }: { locale: string }) {
   const navigate = useNavigate();
+  const me = useAuthenticatedUser();
+  const activeUnitId = me.activeUnitId ?? me.companyId;
+  const queryClient = useQueryClient();
   const sl = locale === "sl";
   const [items, setItems] = useState<ActivityLogItem[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -216,14 +222,18 @@ export function ActivityLogSection({ locale }: { locale: string }) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   useEffect(() => {
+    setItems([]);
+    setUsers([]);
+    setLocations([]);
+    setPage(0);
     void Promise.all([
-      api.get<UserOption[]>("/users").catch(() => ({ data: [] as UserOption[] })),
-      api.get<LocationOption[]>("/locations").catch(() => ({ data: [] as LocationOption[] })),
-    ]).then(([userRes, locationRes]) => {
-      setUsers(userRes.data || []);
-      setLocations(locationRes.data || []);
+      queryClient.fetchQuery(usersQueryOptions<UserOption>(activeUnitId)).catch(() => [] as UserOption[]),
+      queryClient.fetchQuery(locationsQueryOptions(activeUnitId)).catch(() => [] as LocationOption[]),
+    ]).then(([nextUsers, nextLocations]) => {
+      setUsers(nextUsers || []);
+      setLocations(nextLocations || []);
     });
-  }, []);
+  }, [activeUnitId, queryClient]);
 
   useEffect(() => setPage(0), [search, module, action, actorType, actorUserId, locationId, from, to]);
 
@@ -231,7 +241,7 @@ export function ActivityLogSection({ locale }: { locale: string }) {
     const timer = window.setTimeout(() => {
       setLoading(true);
       setError("");
-      const params: Record<string, string | number> = { page, size: 50 };
+      const params: ActivityLogPageParams = { page, size: 50 };
       if (search.trim()) params.search = search.trim();
       if (module) params.module = module;
       if (action) params.action = action;
@@ -240,8 +250,8 @@ export function ActivityLogSection({ locale }: { locale: string }) {
       if (locationId) params.locationId = locationId;
       if (from) params.from = new Date(`${from}T00:00:00`).toISOString();
       if (to) params.to = new Date(`${to}T23:59:59.999`).toISOString();
-      void api.get<ActivityLogPage>("/activity-logs", { params })
-        .then(({ data }) => {
+      void queryClient.fetchQuery(activityLogPageQueryOptions<ActivityLogPage>(activeUnitId, params))
+        .then((data) => {
           setItems(data.content || []);
           setTotalElements(data.totalElements || 0);
           setTotalPages(data.totalPages || 0);
@@ -250,7 +260,7 @@ export function ActivityLogSection({ locale }: { locale: string }) {
         .finally(() => setLoading(false));
     }, 220);
     return () => window.clearTimeout(timer);
-  }, [search, module, action, actorType, actorUserId, locationId, from, to, page, sl]);
+  }, [activeUnitId, queryClient, search, module, action, actorType, actorUserId, locationId, from, to, page, sl]);
 
   const locationNames = useMemo(() => new Map(locations.map(l => [l.id, l.name])), [locations]);
   const dtf = useMemo(() => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }), [locale]);

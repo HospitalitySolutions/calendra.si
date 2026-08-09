@@ -96,4 +96,37 @@ export const queryKeys = {
     details: ['waitlist', 'detail'] as const,
     detail: (unitId: ScopeId, requestId: number) => ['waitlist', 'detail', scopeId(unitId), requestId] as const,
   },
+  staff: {
+    all: ['staff'] as const,
+    quota: (unitId: ScopeId) => ['staff', 'quota', scopeId(unitId)] as const,
+    roles: (unitId: ScopeId) => ['staff', 'roles', scopeId(unitId)] as const,
+  },
+  configuration: {
+    all: ['configuration'] as const,
+    inboxCapabilities: ['configuration', 'inbox-capabilities'] as const,
+    paymentCapabilities: ['configuration', 'payment-capabilities'] as const,
+    fiscalCertificate: (unitId: ScopeId) => ['configuration', 'fiscal-certificate', scopeId(unitId)] as const,
+    paypalConfig: (unitId: ScopeId) => ['configuration', 'paypal-config', scopeId(unitId)] as const,
+    stripeConnectConfig: (unitId: ScopeId) => ['configuration', 'stripe-connect-config', scopeId(unitId)] as const,
+    receivedInvoices: (unitId: ScopeId) => ['configuration', 'received-invoices', scopeId(unitId)] as const,
+    registerCatalog: ['configuration', 'register-catalog'] as const,
+  },
+  consumables: {
+    all: ['consumables'] as const,
+    overview: (unitId: ScopeId, locationId: ScopeId) => ['consumables', 'overview', scopeId(unitId), scopeId(locationId)] as const,
+    items: (unitId: ScopeId, locationId: ScopeId) => ['consumables', 'items', scopeId(unitId), scopeId(locationId)] as const,
+    categories: (unitId: ScopeId) => ['consumables', 'categories', scopeId(unitId)] as const,
+    movements: (unitId: ScopeId, locationId: ScopeId) => ['consumables', 'movements', scopeId(unitId), scopeId(locationId)] as const,
+    suppliers: (unitId: ScopeId) => ['consumables', 'suppliers', scopeId(unitId)] as const,
+    purchaseOrders: (unitId: ScopeId, locationId: ScopeId) => ['consumables', 'purchase-orders', scopeId(unitId), scopeId(locationId)] as const,
+  },
+  analytics: {
+    all: ['analytics'] as const,
+    filters: (unitId: ScopeId, signature: string) => ['analytics', 'filters', scopeId(unitId), signature] as const,
+    overview: (unitId: ScopeId, signature: string) => ['analytics', 'overview', scopeId(unitId), signature] as const,
+  },
+  activityLog: {
+    all: ['activity-log'] as const,
+    page: (unitId: ScopeId, signature: string) => ['activity-log', 'page', scopeId(unitId), signature] as const,
+  },
 }

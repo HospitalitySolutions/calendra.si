@@ -545,6 +545,7 @@ export function EmployeeRolesPermissionsTab() {
         permissions: ['CALENDAR_BOOKINGS_VIEW', 'CLIENTS_VIEW'],
       })
       setSuccessMessage(copy.createSuccess)
+      window.dispatchEvent(new Event('users-updated'))
       await loadRoles(data.id)
     } catch (error: any) {
       setErrorMessage(error?.response?.data?.message || copy.createError)
@@ -564,6 +565,7 @@ export function EmployeeRolesPermissionsTab() {
         name: `${copy.duplicatePrefix} ${roleDisplayName(selectedRole, locale)}`,
       })
       setSuccessMessage(copy.duplicateSuccess)
+      window.dispatchEvent(new Event('users-updated'))
       await loadRoles(data.id)
     } catch (error: any) {
       setErrorMessage(error?.response?.data?.message || copy.duplicateError)
@@ -584,6 +586,7 @@ export function EmployeeRolesPermissionsTab() {
         permissions: enforceViewDependenciesForDraft(draftPermissions),
       })
       setSuccessMessage(copy.saveSuccess)
+      window.dispatchEvent(new Event('users-updated'))
       await loadRoles(data.id)
     } catch (error: any) {
       setErrorMessage(error?.response?.data?.message || copy.saveError)
@@ -602,6 +605,7 @@ export function EmployeeRolesPermissionsTab() {
     try {
       await api.delete(`/employee-roles/custom/${selectedRole.customRoleId}`)
       setSuccessMessage(copy.archiveSuccess)
+      window.dispatchEvent(new Event('users-updated'))
       await loadRoles()
     } catch (error: any) {
       setErrorMessage(error?.response?.data?.message || copy.archiveError)

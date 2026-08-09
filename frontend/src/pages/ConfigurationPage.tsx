@@ -1,8 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuthenticatedUser } from "../authUserContext";
+import {
+  invoiceIssuersQueryOptions,
+  locationsQueryOptions,
+  paymentMethodsQueryOptions,
+  settingsQueryOptions,
+  usersQueryOptions,
+} from "../queries/sharedQueryOptions";
+import { calendarSpacesQueryOptions } from "../queries/calendarQueryOptions";
+import {
+  fiscalCertificateMetaQueryOptions,
+  inboxCapabilitiesQueryOptions,
+  paymentCapabilitiesQueryOptions,
+  paypalConfigQueryOptions,
+  receivedInvoicesQueryOptions,
+  registerCatalogQueryOptions,
+  stripeConnectConfigQueryOptions,
+} from "../queries/remainingQueryOptions";
+import { queryKeys } from "../queries/queryKeys";
 import { useSelectedLocationId } from "../lib/locationContext";
 import type { InvoiceIssuerOption, PaymentMethod, PaymentType } from "../lib/types";
 import { normalizePaymentMethod } from "../lib/types";
@@ -1228,7 +1247,9 @@ const parseRegisteredPremises = (raw: string | undefined): string[] => {
 
 export function ConfigurationPage() {
   const me = useAuthenticatedUser();
-  const [selectedLocationId] = useSelectedLocationId(me.activeUnitId ?? me.companyId);
+  const activeUnitId = me.activeUnitId ?? me.companyId;
+  const queryClient = useQueryClient();
+  const [selectedLocationId] = useSelectedLocationId(activeUnitId);
   const canManageOperatingUnits = hasEmployeePermission(me, 'SETTINGS_VIEW');
   const canViewConfiguration = hasAnyEmployeePermission(me, [
     'SETTINGS_VIEW',
@@ -3050,60 +3071,56 @@ export function ConfigurationPage() {
   useEffect(() => {
     if (!canViewConfiguration) return;
     let cancelled = false;
-    void (async () => {
-      try {
-        const { data } = await api.get<InboxGlobalCapabilities>(
-          "/inbox/global-capabilities",
-        );
+    void queryClient.fetchQuery(inboxCapabilitiesQueryOptions<InboxGlobalCapabilities>())
+      .then((data) => {
         if (cancelled || !data) return;
         setInboxGlobalCapabilities({
           whatsappEnabled: data.whatsappEnabled === true,
           viberEnabled: data.viberEnabled === true,
         });
-      } catch {
+      })
+      .catch(() => {
         if (!cancelled) {
           setInboxGlobalCapabilities({
             whatsappEnabled: false,
             viberEnabled: false,
           });
         }
-      } finally {
+      })
+      .finally(() => {
         if (!cancelled) setInboxCapabilitiesLoaded(true);
-      }
-    })();
+      });
     return () => {
       cancelled = true;
     };
-  }, [canViewConfiguration]);
+  }, [canViewConfiguration, queryClient]);
 
   useEffect(() => {
     if (!canViewConfiguration) return;
     let cancelled = false;
-    void (async () => {
-      try {
-        const { data } = await api.get<PaymentGlobalCapabilities>(
-          "/settings/payment-capabilities",
-        );
+    void queryClient.fetchQuery(paymentCapabilitiesQueryOptions<PaymentGlobalCapabilities>())
+      .then((data) => {
         if (cancelled || !data) return;
         setPaymentGlobalCapabilities({
           stripeEnabled: data.stripeEnabled !== false,
           paypalEnabled: data.paypalEnabled === true,
         });
-      } catch {
+      })
+      .catch(() => {
         if (!cancelled) {
           setPaymentGlobalCapabilities({
             stripeEnabled: true,
             paypalEnabled: false,
           });
         }
-      } finally {
+      })
+      .finally(() => {
         if (!cancelled) setPaymentCapabilitiesLoaded(true);
-      }
-    })();
+      });
     return () => {
       cancelled = true;
     };
-  }, [canViewConfiguration]);
+  }, [canViewConfiguration, queryClient]);
 
   useEffect(() => {
     if (!settingsLoaded || !inboxCapabilitiesLoaded) return;
@@ -3185,45 +3202,65 @@ export function ConfigurationPage() {
     );
   };
 
-  const load = async () => {
+  const load = async (force = true) => {
     setAccountReceivedInvoicesLoading(true);
-    const settingsRes = await api.get("/settings");
-    const rawSettings = (settingsRes.data || {}) as Record<string, string>;
+    if (force) {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.settings.all, refetchType: "none" }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.locations.all, refetchType: "none" }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.spacesAll, refetchType: "none" }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.billing.all, refetchType: "none" }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.users.all, refetchType: "none" }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.configuration.fiscalCertificate(activeUnitId), refetchType: "none" }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.configuration.paypalConfig(activeUnitId), refetchType: "none" }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.configuration.stripeConnectConfig(activeUnitId), refetchType: "none" }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.configuration.receivedInvoices(activeUnitId), refetchType: "none" }),
+      ]);
+    }
+    const settingsRaw = await queryClient
+      .fetchQuery(settingsQueryOptions(activeUnitId))
+      .catch(() => ({} as Record<string, string>));
+    const settingsRes = { data: settingsRaw };
+    const rawSettings = settingsRaw;
     const canReadFiscalCertificate =
       rawSettings.BILLING_ENABLED !== "false" &&
       rawSettings.BILLING_FISCAL_CASH_REGISTER_ENABLED === "true" &&
       hasEmployeePermission(me, "BILLING_INVOICES_VIEW");
     const [
-      locationsRes,
-      locationIssuersRes,
-      spacesRes,
-      paymentMethodsRes,
-      certificateMetaRes,
-      paypalConfigRes,
-      stripeConnectRes,
-      receivedInvoicesRes,
-      catalogRes,
-      tenantUsersRes,
+      locationsData,
+      locationIssuersData,
+      spacesData,
+      paymentMethodsData,
+      certificateMetaData,
+      paypalConfigData,
+      stripeConnectData,
+      receivedInvoicesData,
+      catalogData,
+      tenantUsersData,
     ] = await Promise.all([
-      api.get("/locations").catch(() => ({ data: [] })),
-      api.get("/billing/issuers").catch(() => ({ data: [] })),
-      api.get("/spaces").catch(() => ({ data: [] })),
-      api.get("/billing/payment-methods").catch(() => ({ data: [] })),
+      queryClient.fetchQuery(locationsQueryOptions(activeUnitId)).catch(() => []),
+      queryClient.fetchQuery(invoiceIssuersQueryOptions<InvoiceIssuerOption>(activeUnitId)).catch(() => [] as InvoiceIssuerOption[]),
+      queryClient.fetchQuery(calendarSpacesQueryOptions<any>(activeUnitId)).catch(() => []),
+      queryClient.fetchQuery(paymentMethodsQueryOptions<PaymentMethod>(activeUnitId)).catch(() => [] as PaymentMethod[]),
       canReadFiscalCertificate
-        ? api
-            .get("/fiscal/certificate/meta")
-            .catch(() => ({ data: { uploaded: false } }))
-        : Promise.resolve({ data: { uploaded: false } }),
-      api.get("/paypal/onboarding/config").catch(() => ({ data: null })),
-      api.get("/stripe/connect/config").catch(() => ({ data: null })),
-      api
-        .get("/account-management/received-invoices")
-        .catch(() => ({ data: [] })),
-      api
-        .get<AccountRegisterCatalog>("/register/catalog")
-        .catch(() => ({ data: DEFAULT_ACCOUNT_REGISTER_CATALOG })),
-      api.get<AccountUserResponse[]>("/users").catch(() => ({ data: [] })),
+        ? queryClient.fetchQuery(fiscalCertificateMetaQueryOptions<any>(activeUnitId)).catch(() => ({ uploaded: false }))
+        : Promise.resolve({ uploaded: false }),
+      queryClient.fetchQuery(paypalConfigQueryOptions<any>(activeUnitId)).catch(() => null),
+      queryClient.fetchQuery(stripeConnectConfigQueryOptions<StripeConnectTenantStatus>(activeUnitId)).catch(() => null),
+      queryClient.fetchQuery(receivedInvoicesQueryOptions<AccountReceivedInvoice>(activeUnitId)).catch(() => [] as AccountReceivedInvoice[]),
+      queryClient.fetchQuery(registerCatalogQueryOptions<AccountRegisterCatalog>()).catch(() => DEFAULT_ACCOUNT_REGISTER_CATALOG),
+      queryClient.fetchQuery(usersQueryOptions<AccountUserResponse>(activeUnitId)).catch(() => [] as AccountUserResponse[]),
     ]);
+    const locationsRes = { data: locationsData };
+    const locationIssuersRes = { data: locationIssuersData };
+    const spacesRes = { data: spacesData };
+    const paymentMethodsRes = { data: paymentMethodsData };
+    const certificateMetaRes = { data: certificateMetaData };
+    const paypalConfigRes = { data: paypalConfigData };
+    const stripeConnectRes = { data: stripeConnectData };
+    const receivedInvoicesRes = { data: receivedInvoicesData };
+    const catalogRes = { data: catalogData };
+    const tenantUsersRes = { data: tenantUsersData };
     const paypalData = paypalConfigRes.data || {};
     const settingsData: Record<string, string> = applyNotificationModuleAvailability(
       mergeNotificationSettingsJsonIntoFlat({
@@ -3406,8 +3443,15 @@ export function ConfigurationPage() {
   };
 
   useEffect(() => {
-    if (canViewConfiguration) void load();
-  }, [canViewConfiguration]);
+    if (!canViewConfiguration) return;
+    setSettingsLoaded(false);
+    setLocations([]);
+    setLocationIssuerOptions([]);
+    setSpaces([]);
+    setPaymentMethods([]);
+    setAccountReceivedInvoices([]);
+    void load(false);
+  }, [activeUnitId, canViewConfiguration]);
 
   useEffect(() => {
     if (!canViewConfiguration || !billingEnabledCommitted) return;

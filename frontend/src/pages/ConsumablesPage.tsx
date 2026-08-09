@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 import { useAuthenticatedUser } from '../authUserContext'
 import { useToast } from '../components/Toast'
 import { useSelectedLocationId } from '../lib/locationContext'
 import type { Location } from '../lib/types'
+import { locationsQueryOptions } from '../queries/sharedQueryOptions'
+import {
+  consumablesCategoriesQueryOptions,
+  consumablesItemsQueryOptions,
+  consumablesMovementsQueryOptions,
+  consumablesOverviewQueryOptions,
+  consumablesPurchaseOrdersQueryOptions,
+  consumablesSuppliersQueryOptions,
+} from '../queries/remainingQueryOptions'
+import { queryKeys } from '../queries/queryKeys'
 
 type Category = { id: number; name: string; color?: string | null; active: boolean }
 type Item = {
@@ -143,6 +154,7 @@ export function ConsumablesPage() {
   const me = useAuthenticatedUser()
   const activeUnitId = me.activeUnitId ?? me.companyId
   const [selectedLocationId] = useSelectedLocationId(activeUnitId)
+  const queryClient = useQueryClient()
   const { showToast } = useToast()
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
   const [loading, setLoading] = useState(true)
@@ -164,31 +176,68 @@ export function ConsumablesPage() {
     name: '', sku: '', categoryId: '', locationId: '', unit: 'kos', currentStock: '0', minimumStock: '0', costPrice: '0', billable: false, trackStock: true,
   })
 
-  const load = useCallback(() => {
+  const load = useCallback(async (force = true) => {
     setLoading(true)
-    const scopedConfig = selectedLocationId != null ? { params: { locationId: selectedLocationId } } : undefined
-    Promise.all([
-      api.get('/consumables/overview', scopedConfig).catch(() => ({ data: emptyOverview })),
-      api.get('/consumables/items', scopedConfig).catch(() => ({ data: [] })),
-      api.get('/consumables/categories').catch(() => ({ data: [] })),
-      api.get('/consumables/movements', scopedConfig).catch(() => ({ data: [] })),
-      api.get('/consumables/suppliers').catch(() => ({ data: [] })),
-      api.get('/consumables/purchase-orders', scopedConfig).catch(() => ({ data: [] })),
-      api.get('/locations').catch(() => ({ data: [] })),
-    ])
-      .then(([overviewRes, itemRes, catRes, movRes, supplierRes, poRes, locationRes]) => {
-        setOverview(overviewRes.data || emptyOverview)
-        setItems(Array.isArray(itemRes.data) ? itemRes.data : [])
-        setCategories(Array.isArray(catRes.data) ? catRes.data : [])
-        setMovements(Array.isArray(movRes.data) ? movRes.data : [])
-        setSuppliers(Array.isArray(supplierRes.data) ? supplierRes.data : [])
-        setPurchaseOrders(Array.isArray(poRes.data) ? poRes.data : [])
-        setOperationalLocations(Array.isArray(locationRes.data) ? locationRes.data : [])
-      })
-      .finally(() => setLoading(false))
-  }, [selectedLocationId])
+    try {
+      if (force) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.consumables.all, refetchType: 'none' })
+      }
 
-  useEffect(() => { load() }, [load])
+      const locationsPromise = queryClient
+        .fetchQuery(locationsQueryOptions(activeUnitId))
+        .catch(() => [] as Location[])
+
+      const tasks: Promise<void>[] = []
+      const loadItems = () => queryClient
+        .fetchQuery(consumablesItemsQueryOptions<Item>(activeUnitId, selectedLocationId))
+        .then(setItems)
+        .catch(() => setItems([]))
+      const loadCategories = () => queryClient
+        .fetchQuery(consumablesCategoriesQueryOptions<Category>(activeUnitId))
+        .then(setCategories)
+        .catch(() => setCategories([]))
+      const loadMovements = () => queryClient
+        .fetchQuery(consumablesMovementsQueryOptions<Movement>(activeUnitId, selectedLocationId))
+        .then(setMovements)
+        .catch(() => setMovements([]))
+
+      if (activeTab === 'overview') {
+        tasks.push(
+          queryClient.fetchQuery(consumablesOverviewQueryOptions<Overview>(activeUnitId, selectedLocationId)).then((data) => setOverview(data || emptyOverview)).catch(() => setOverview(emptyOverview)),
+          loadItems(),
+          loadCategories(),
+          loadMovements(),
+        )
+      } else if (activeTab === 'items') {
+        tasks.push(loadItems(), loadCategories())
+      } else if (activeTab === 'procurement') {
+        tasks.push(
+          loadItems(),
+          queryClient.fetchQuery(consumablesPurchaseOrdersQueryOptions<PurchaseOrder>(activeUnitId, selectedLocationId)).then(setPurchaseOrders).catch(() => setPurchaseOrders([])),
+        )
+      } else if (activeTab === 'suppliers') {
+        tasks.push(queryClient.fetchQuery(consumablesSuppliersQueryOptions<Supplier>(activeUnitId)).then(setSuppliers).catch(() => setSuppliers([])))
+      } else if (activeTab === 'movements') {
+        tasks.push(loadMovements())
+      } else if (activeTab === 'inventory') {
+        tasks.push(loadItems())
+      }
+
+      const [nextLocations] = await Promise.all([locationsPromise, Promise.all(tasks).then(() => undefined)])
+      setOperationalLocations(nextLocations)
+    } finally {
+      setLoading(false)
+    }
+  }, [activeTab, activeUnitId, queryClient, selectedLocationId])
+
+  useEffect(() => {
+    setOverview(emptyOverview)
+    setItems([])
+    setMovements([])
+    setPurchaseOrders([])
+    setOperationalLocations([])
+  }, [activeUnitId, selectedLocationId])
+  useEffect(() => { void load(false) }, [load])
   useEffect(() => { setLocationFilter('') }, [selectedLocationId])
 
   const activeInventoryLocations = useMemo(() => operationalLocations.filter((location) => location.active), [operationalLocations])

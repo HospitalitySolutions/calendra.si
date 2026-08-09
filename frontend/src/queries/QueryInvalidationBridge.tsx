@@ -7,28 +7,40 @@ export function QueryInvalidationBridge() {
 
   useEffect(() => {
     const invalidateSettings = () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.settings.all })
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.settings.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all }),
+      ])
     }
     const invalidateLocations = () => {
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.locations.all }),
         queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.spacesAll }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all }),
       ])
     }
     const invalidateUsers = () => {
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.users.all }),
         queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.consultantsAll }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.staff.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all }),
       ])
     }
     const invalidateClients = () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.clients.all })
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.clients.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all }),
+      ])
     }
     const invalidateCompanies = () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.companies.all })
     }
     const invalidateGroups = () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.groups.all })
+    }
+    const invalidateAnalytics = () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all })
     }
 
     window.addEventListener('settings-updated', invalidateSettings)
@@ -37,6 +49,7 @@ export function QueryInvalidationBridge() {
     window.addEventListener('clients-updated', invalidateClients)
     window.addEventListener('companies-updated', invalidateCompanies)
     window.addEventListener('groups-updated', invalidateGroups)
+    window.addEventListener('bookings-updated', invalidateAnalytics)
 
     return () => {
       window.removeEventListener('settings-updated', invalidateSettings)
@@ -45,6 +58,7 @@ export function QueryInvalidationBridge() {
       window.removeEventListener('clients-updated', invalidateClients)
       window.removeEventListener('companies-updated', invalidateCompanies)
       window.removeEventListener('groups-updated', invalidateGroups)
+      window.removeEventListener('bookings-updated', invalidateAnalytics)
     }
   }, [queryClient])
 

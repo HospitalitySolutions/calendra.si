@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Area,
   AreaChart,
@@ -14,7 +14,9 @@ import {
   YAxis,
 } from 'recharts'
 import { api } from '../api'
-import { settingsQueryOptions } from '../queries/sharedQueryOptions'
+import { settingsQueryOptions, usersQueryOptions } from '../queries/sharedQueryOptions'
+import { calendarSpacesQueryOptions, calendarTypesQueryOptions, serviceGroupsQueryOptions } from '../queries/calendarQueryOptions'
+import { queryKeys } from '../queries/queryKeys'
 import { useAuthenticatedUser } from '../authUserContext'
 import { Card, EmptyState } from '../components/ui'
 import { fullName } from '../lib/format'
@@ -602,6 +604,8 @@ function serviceGroupMetricKey(group: ServiceGroupMetric) {
 
 export function AnalyticsPage() {
   const me = useAuthenticatedUser()
+  const activeUnitId = me.activeUnitId ?? me.companyId
+  const queryClient = useQueryClient()
   const { locale } = useLocale()
   const [periodPreset, setPeriodPreset] = useState<Preset>('month')
   const [customFrom, setCustomFrom] = useState('')
@@ -623,31 +627,35 @@ export function AnalyticsPage() {
   const canFetch = periodPreset !== 'custom' || (!!customFrom && !!customTo)
   const appLocaleTag = localeTagFor(toReportLanguage(locale))
 
-  const settingsQuery = useQuery(settingsQueryOptions(me.activeUnitId ?? me.companyId))
+  const settingsQuery = useQuery(settingsQueryOptions(activeUnitId))
 
+  const groupsEnabledForFilters = (settingsQuery.data?.SERVICE_GROUPS_ENABLED ?? 'true') !== 'false'
+  const filterSignature = `${me.role}:${groupsEnabledForFilters ? 'groups' : 'no-groups'}`
   const { data: filterData } = useQuery<{
     consultants: ConsultantOption[]
     spaces: SpaceOption[]
     types: TypeOption[]
     serviceGroups: ServiceGroupOption[]
   }>({
-    queryKey: ['analytics-filters-meta', me.role, settingsQuery.data?.SERVICE_GROUPS_ENABLED],
+    queryKey: queryKeys.analytics.filters(activeUnitId, filterSignature),
     enabled: settingsQuery.isSuccess,
+    staleTime: 3 * 60_000,
     queryFn: async () => {
-      const groupsEnabled = (settingsQuery.data?.SERVICE_GROUPS_ENABLED ?? 'true') !== 'false'
-      const [usersRes, spacesRes, typesRes, serviceGroupsRes] = await Promise.all([
-        isAdmin ? api.get<ConsultantOption[]>('/users').catch(() => ({ data: [] as ConsultantOption[] })) : Promise.resolve({ data: [] as ConsultantOption[] }),
-        api.get<SpaceOption[]>('/spaces').catch(() => ({ data: [] as SpaceOption[] })),
-        api.get<TypeOption[]>('/types').catch(() => ({ data: [] as TypeOption[] })),
-        groupsEnabled
-          ? api.get<ServiceGroupOption[]>('/service-groups').catch(() => ({ data: [] as ServiceGroupOption[] }))
-          : Promise.resolve({ data: [] as ServiceGroupOption[] }),
+      const [users, spaces, types, serviceGroups] = await Promise.all([
+        isAdmin
+          ? queryClient.fetchQuery(usersQueryOptions<ConsultantOption>(activeUnitId)).catch(() => [] as ConsultantOption[])
+          : Promise.resolve([] as ConsultantOption[]),
+        queryClient.fetchQuery(calendarSpacesQueryOptions<SpaceOption>(activeUnitId)).catch(() => [] as SpaceOption[]),
+        queryClient.fetchQuery(calendarTypesQueryOptions<TypeOption>(activeUnitId)).catch(() => [] as TypeOption[]),
+        groupsEnabledForFilters
+          ? queryClient.fetchQuery(serviceGroupsQueryOptions<ServiceGroupOption>(activeUnitId)).catch(() => [] as ServiceGroupOption[])
+          : Promise.resolve([] as ServiceGroupOption[]),
       ])
       return {
-        consultants: (usersRes.data ?? []).filter((u) => u.consultant),
-        spaces: spacesRes.data ?? [],
-        types: typesRes.data ?? [],
-        serviceGroups: serviceGroupsRes.data ?? [],
+        consultants: users.filter((u) => u.consultant),
+        spaces,
+        types,
+        serviceGroups,
       }
     },
   })
@@ -681,8 +689,9 @@ export function AnalyticsPage() {
 
 
   const { data, isLoading, isError } = useQuery<AnalyticsOverview>({
-    queryKey: ['analytics-overview', periodPreset, customFrom, customTo, consultantId, spaceId, serviceGroupId, typeId],
+    queryKey: queryKeys.analytics.overview(activeUnitId, JSON.stringify([periodPreset, customFrom, customTo, consultantId, spaceId, serviceGroupId, typeId])),
     enabled: canFetch,
+    staleTime: 20_000,
     queryFn: async () => {
       const params: Record<string, string | number> = { period: periodPreset }
       if (periodPreset === 'custom') {
@@ -701,7 +710,7 @@ export function AnalyticsPage() {
       if (spaceId) params.spaceId = Number(spaceId)
       if (serviceGroupsReportsEnabled && serviceGroupId) params.serviceGroupId = Number(serviceGroupId)
       if (typeId) params.typeId = Number(typeId)
-      const res = await api.get<AnalyticsOverview>('/analytics/overview', { params })
+      const res = await api.get<AnalyticsOverview>('/analytics/overview', { headers: activeUnitId == null ? undefined : { 'X-Calendra-Unit-Id': String(activeUnitId) }, params })
       return res.data
     },
   })

@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { api } from "../api";
 import { useAuthenticatedUser } from "../authUserContext";
@@ -51,6 +52,17 @@ import { WorkspaceServiceManager } from "../components/WorkspaceServiceManager";
 import { useMobileKeyboardOpen } from "../hooks/useMobileKeyboardOpen";
 import { useSelectedLocationId } from "../lib/locationContext";
 import { useMediaMaxWidth } from "../hooks/useCalendarResponsiveLayout";
+import {
+  billingServicesQueryOptions,
+  clientOptionsQueryOptions,
+  locationsQueryOptions,
+  settingsQueryOptions,
+} from "../queries/sharedQueryOptions";
+import {
+  calendarTypesQueryOptions,
+  serviceGroupsQueryOptions,
+} from "../queries/calendarQueryOptions";
+import { queryKeys } from "../queries/queryKeys";
 
 const SESSION_TYPES_SUBTAB_GROUPS = "service-groups";
 const SESSION_TYPES_SUBTAB_TRANSACTION = "transaction-services";
@@ -725,7 +737,9 @@ function transactionServiceGross(service: BillingService): number {
 
 export function SessionTypesPage() {
   const me = useAuthenticatedUser();
-  const [selectedLocationId] = useSelectedLocationId(me.activeUnitId ?? me.companyId);
+  const activeUnitId = me.activeUnitId ?? me.companyId;
+  const queryClient = useQueryClient();
+  const [selectedLocationId] = useSelectedLocationId(activeUnitId);
   const isAdmin = me.role === "ADMIN" || me.role === "SUPER_ADMIN";
   const { t, locale } = useLocale();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1116,23 +1130,32 @@ export function SessionTypesPage() {
     return () => document.removeEventListener("mousedown", onDocPointerDown);
   }, [openServiceMenuId]);
 
-  const load = async () => {
-    // Load the visible service configuration in parallel. Client data is deliberately
-    // excluded here and fetched only when the group-booking user picker is opened.
-    const [settingsRes, typesRes, groupsRes, servicesRes, locationsRes] = await Promise.all([
-      api.get("/settings").catch(() => ({ data: {} as Record<string, string> })),
-      api.get("/types").catch(() => ({ data: [] })),
-      api.get("/service-groups").catch(() => ({ data: [] })),
-      api.get("/billing/services").catch(() => ({ data: [] })),
-      api.get<LocationT[]>("/locations").catch(() => ({ data: [] as LocationT[] })),
+  const load = async (force = true) => {
+    // Shared service metadata is cached across Calendar, Analytics, Billing and Storitve.
+    // Mutation paths keep the old behaviour by forcing these keys stale before reloading.
+    if (force) {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.settings.all, refetchType: "none" }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.typesAll, refetchType: "none" }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.serviceGroupsAll, refetchType: "none" }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.billing.all, refetchType: "none" }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.locations.all, refetchType: "none" }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all, refetchType: "none" }),
+      ]);
+    }
+    const [nextSettings, nextTypes, nextGroups, nextServices, nextLocations] = await Promise.all([
+      queryClient.fetchQuery(settingsQueryOptions(activeUnitId)).catch(() => ({} as Record<string, string>)),
+      queryClient.fetchQuery(calendarTypesQueryOptions<SessionTypeT>(activeUnitId)).catch(() => [] as SessionTypeT[]),
+      queryClient.fetchQuery(serviceGroupsQueryOptions<ServiceGroup>(activeUnitId)).catch(() => [] as ServiceGroup[]),
+      queryClient.fetchQuery(billingServicesQueryOptions<BillingService>(activeUnitId)).catch(() => [] as BillingService[]),
+      queryClient.fetchQuery(locationsQueryOptions(activeUnitId)).catch(() => [] as LocationT[]),
     ]);
-    const nextSettings = settingsRes.data || {};
     const groupsEnabled = nextSettings.SERVICE_GROUPS_ENABLED !== "false";
     setSettings(nextSettings);
-    setTypes(typesRes.data || []);
-    setGroups(groupsEnabled ? groupsRes.data || [] : []);
-    setServices(servicesRes.data || []);
-    setLocations((locationsRes.data || []).filter((location) => location.active !== false));
+    setTypes(nextTypes);
+    setGroups(groupsEnabled ? nextGroups : []);
+    setServices(nextServices);
+    setLocations(nextLocations.filter((location) => location.active !== false));
   };
 
   const loadGuestAppClients = useCallback(async () => {
@@ -1143,10 +1166,10 @@ export function SessionTypesPage() {
     }
 
     setGuestAppClientsLoading(true);
-    const request = api
-      .get<Client[]>("/clients/options", { params: { size: 500 } })
-      .then((response) => {
-        setClients((response.data || []).filter((client) => client.active !== false));
+    const request = queryClient
+      .fetchQuery(clientOptionsQueryOptions<Client>(activeUnitId, null, 500))
+      .then((clientOptions) => {
+        setClients((clientOptions || []).filter((client) => client.active !== false));
         guestAppClientsLoadedRef.current = true;
       })
       .catch(() => {
@@ -1158,12 +1181,23 @@ export function SessionTypesPage() {
       });
     guestAppClientsLoadPromiseRef.current = request;
     await request;
-  }, []);
+  }, [activeUnitId, queryClient]);
+
+  useEffect(() => {
+    guestAppClientsLoadedRef.current = false;
+    guestAppClientsLoadPromiseRef.current = null;
+    setClients([]);
+  }, [activeUnitId]);
 
   useEffect(() => {
     if (!isAdmin) return;
-    void load().finally(() => setBoot(false));
-  }, [isAdmin]);
+    setBoot(true);
+    setTypes([]);
+    setGroups([]);
+    setServices([]);
+    setLocations([]);
+    void load(false).finally(() => setBoot(false));
+  }, [activeUnitId, isAdmin]);
 
   useEffect(() => {
     if (!boot && showServiceGroupsParam && !serviceGroupsModuleEnabled) {

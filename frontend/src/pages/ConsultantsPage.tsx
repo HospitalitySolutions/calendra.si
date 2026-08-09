@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
+import { locationsQueryOptions, usersQueryOptions } from '../queries/sharedQueryOptions'
+import { employeeRolesQueryOptions, staffQuotaQueryOptions } from '../queries/remainingQueryOptions'
+import { queryKeys } from '../queries/queryKeys'
 import { getStoredUser } from '../auth'
 import { Card, EmptyState, Field, PageHeader } from '../components/ui'
 import { GuestConfigSaveIcon } from '../components/GuestConfigSaveIcon'
@@ -341,6 +345,8 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const { t, locale } = useLocale()
   const navigate = useNavigate()
   const user = getStoredUser()
+  const activeUnitId = user?.activeUnitId ?? user?.companyId
+  const queryClient = useQueryClient()
   const canViewEmployeesTab = hasEmployeePermission(user, 'EMPLOYEES_VIEW')
   const canViewRolesTab = hasEmployeePermission(user, 'ROLES_PERMISSIONS_VIEW')
   const canCreateEmployees = hasEmployeePermission(user, 'EMPLOYEES_CREATE')
@@ -384,7 +390,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     return () => mq.removeEventListener('change', apply)
   }, [])
 
-  async function loadConsultants() {
+  async function loadConsultants(force = true) {
     if (!canViewEmployeesTab) {
       setConsultants([])
       if (!canViewRolesTab) setErrorMessage(locale === 'sl' ? 'Nimate dovoljenja za ogled zaposlenih.' : 'You do not have permission to view employees.')
@@ -394,17 +400,23 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     setErrorMessage('')
 
     try {
-      const [usersResponse, quotaResponse, rolesResponse, locationsResponse] = await Promise.all([
-        api.get(`/users`),
-        api.get<UserQuota>(`/users/quota`).catch(() => ({ data: null as UserQuota | null })),
-        api.get<{ roles: AccessRoleOption[] }>(`/employee-roles`).catch(() => ({ data: { roles: [] as AccessRoleOption[] } })),
-        api.get<LocationOption[]>(`/locations`).catch(() => ({ data: [] as LocationOption[] })),
+      if (force) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.users.all, refetchType: 'none' }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.locations.all, refetchType: 'none' }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.staff.all, refetchType: 'none' }),
+        ])
+      }
+      const [nextConsultants, quota, rolesResponse, nextLocations] = await Promise.all([
+        queryClient.fetchQuery(usersQueryOptions<Consultant>(activeUnitId)),
+        queryClient.fetchQuery(staffQuotaQueryOptions<UserQuota>(activeUnitId)).catch(() => null),
+        queryClient.fetchQuery(employeeRolesQueryOptions<{ roles: AccessRoleOption[] }>(activeUnitId)).catch(() => ({ roles: [] as AccessRoleOption[] })),
+        queryClient.fetchQuery(locationsQueryOptions(activeUnitId)).catch(() => [] as LocationOption[]),
       ])
-      const nextConsultants = usersResponse.data ?? []
-      setConsultants(nextConsultants)
-      setUserQuota(quotaResponse.data ?? null)
-      setAccessRoleOptions((rolesResponse.data?.roles ?? []).filter((role) => !role.system))
-      setLocations((locationsResponse.data ?? []).filter((location) => location.active !== false))
+      setConsultants(nextConsultants ?? [])
+      setUserQuota(quota ?? null)
+      setAccessRoleOptions((rolesResponse?.roles ?? []).filter((role) => !role.system))
+      setLocations((nextLocations ?? []).filter((location) => location.active !== false))
     } catch (error: any) {
       console.error('Failed to load consultants', error)
 
@@ -419,7 +431,8 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const refreshUserQuota = async (): Promise<UserQuota | null> => {
     if (!canCreateEmployees) return null
     try {
-      const { data } = await api.get<UserQuota>(`/users/quota`)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.staff.quota(activeUnitId), refetchType: 'none' })
+      const data = await queryClient.fetchQuery(staffQuotaQueryOptions<UserQuota>(activeUnitId))
       setUserQuota(data ?? null)
       return data ?? null
     } catch {
@@ -472,8 +485,12 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
 
   useEffect(() => {
     if (selfService || !canViewEmployeesTab) return
-    void loadConsultants()
-  }, [canViewEmployeesTab, selfService])
+    setConsultants([])
+    setLocations([])
+    setAccessRoleOptions([])
+    setUserQuota(null)
+    void loadConsultants(false)
+  }, [activeUnitId, canViewEmployeesTab, selfService])
 
   useEffect(() => {
     if (!selfService) return
@@ -923,7 +940,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
               className={`clients-session-tab employee-page-tab${employeesTab === 'employees' ? ' active employee-page-tab--active' : ''}`}
               onClick={() => {
                 setEmployeesTab('employees')
-                void loadConsultants()
+                void loadConsultants(false)
               }}
             >
               <EmployeePageTabIcon name="employees" />

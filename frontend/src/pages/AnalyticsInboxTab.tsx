@@ -12,6 +12,8 @@ import { formatDateTime } from '../lib/format'
 import { useLocale } from '../locale'
 import { clientOptionsQueryOptions, settingsQueryOptions, usersQueryOptions } from '../queries/sharedQueryOptions'
 import { queryKeys } from '../queries/queryKeys'
+import { calendarGroupsQueryOptions } from '../queries/calendarQueryOptions'
+import { inboxCapabilitiesQueryOptions } from '../queries/remainingQueryOptions'
 
 type ConsultantOption = { id: number; firstName: string; lastName: string; email: string; consultant?: boolean }
 
@@ -799,16 +801,11 @@ export function AnalyticsInboxTab() {
   }, [isCompactInbox])
 
   const clientsQuery = useQuery(clientOptionsQueryOptions<Client>(activeUnitId, null, 500))
-  const groupsQuery = useQuery<ClientGroup[]>({
-    queryKey: ['inbox-groups'],
-    queryFn: async () => {
-      const res = await api.get<ClientGroup[]>('/groups')
-      return res.data ?? []
-    },
-  })
+  const groupsQuery = useQuery(calendarGroupsQueryOptions<ClientGroup>(activeUnitId, null))
 
   const scheduledQuery = useQuery<ScheduledItem[]>({
-    queryKey: ['inbox-scheduled'],
+    queryKey: ['inbox-scheduled', activeUnitId ?? 'none'],
+    staleTime: 15_000,
     queryFn: async () => {
       const res = await api.get<ScheduledItem[]>('/inbox/scheduled')
       return res.data ?? []
@@ -825,13 +822,7 @@ export function AnalyticsInboxTab() {
     [usersQuery.data],
   )
 
-  const capabilitiesQuery = useQuery<{ whatsappEnabled: boolean; viberEnabled: boolean }>({
-    queryKey: ['inbox-global-capabilities'],
-    queryFn: async () => {
-      const res = await api.get<{ whatsappEnabled: boolean; viberEnabled: boolean }>('/inbox/global-capabilities')
-      return res.data
-    },
-  })
+  const capabilitiesQuery = useQuery(inboxCapabilitiesQueryOptions<{ whatsappEnabled: boolean; viberEnabled: boolean }>())
   const guestSettingsQuery = useQuery(settingsQueryOptions(activeUnitId))
 
   const globalWhatsAppEnabled = capabilitiesQuery.data?.whatsappEnabled === true
@@ -858,7 +849,7 @@ export function AnalyticsInboxTab() {
   )
 
   const threadsQuery = useQuery<InboxThread[]>({
-    queryKey: ['inbox-threads', search, clientIdFilter, channelFilter, statusFilter, from, to, assigneeFilter],
+    queryKey: ['inbox-threads', activeUnitId ?? 'none', search, clientIdFilter, channelFilter, statusFilter, from, to, assigneeFilter],
     refetchInterval: 10000,
     queryFn: async () => {
       const res = await api.get<InboxThread[]>('/inbox/threads', {
@@ -976,7 +967,7 @@ export function AnalyticsInboxTab() {
   }, [])
 
   const messagesQuery = useQuery<ClientMessage[]>({
-    queryKey: ['inbox-messages', selectedClientId, selectedThreadKey],
+    queryKey: ['inbox-messages', activeUnitId ?? 'none', selectedClientId, selectedThreadKey],
     enabled: selectedClientId != null,
     refetchInterval: selectedClientId != null ? 5000 : false,
     queryFn: async () => {
@@ -1179,7 +1170,7 @@ export function AnalyticsInboxTab() {
   const invalidateInboxQueries = async (sentClientIds: number[]) => {
     await queryClient.invalidateQueries({ queryKey: ['inbox-threads'] })
     if (selectedClientId != null && sentClientIds.includes(selectedClientId)) {
-      await queryClient.invalidateQueries({ queryKey: ['inbox-messages', selectedClientId] })
+      await queryClient.invalidateQueries({ queryKey: ['inbox-messages', activeUnitId ?? 'none', selectedClientId] })
     }
     window.dispatchEvent(new Event('clients-updated'))
   }
