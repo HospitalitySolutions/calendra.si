@@ -8045,7 +8045,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return `${day}/${month}/${year}${rest || ''}`
   }
 
-  const openBillDescription = (ob: OpenBill) => {
+  function openBillDescription(ob: OpenBill) {
     const names = getOpenBillItems(ob)
       .map((item) => services.find((service) => service.id === item.transactionServiceId)?.description || '')
       .map((name) => name.trim())

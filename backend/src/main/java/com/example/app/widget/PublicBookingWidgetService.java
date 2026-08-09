@@ -13,6 +13,7 @@ import com.example.app.company.CompanyRepository;
 import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
+import com.example.app.location.LocationPublicPresentationService;
 import com.example.app.session.AvailabilityBlockMetadata;
 import com.example.app.session.AvailabilityWindowGrid;
 import com.example.app.session.BookableSlot;
@@ -115,6 +116,7 @@ public class PublicBookingWidgetService {
     private final PaymentMethodRepository paymentMethods;
     private final StripeConnectService stripeConnectService;
     private final TimeService timeService;
+    private final LocationPublicPresentationService locationPresentation;
 
     @Autowired(required = false)
     private LocationRepository locations;
@@ -147,6 +149,7 @@ public class PublicBookingWidgetService {
             PaymentMethodRepository paymentMethods,
             StripeConnectService stripeConnectService,
             TimeService timeService,
+            LocationPublicPresentationService locationPresentation,
             @Value("${app.reminders.timezone:Europe/Ljubljana}") String widgetTimezoneId
     ) {
         this.companies = companies;
@@ -173,15 +176,22 @@ public class PublicBookingWidgetService {
         this.paymentMethods = paymentMethods;
         this.stripeConnectService = stripeConnectService;
         this.timeService = timeService;
+        this.locationPresentation = locationPresentation;
         this.widgetZoneId = (widgetTimezoneId == null || widgetTimezoneId.isBlank())
                 ? ZoneId.of("Europe/Ljubljana")
                 : ZoneId.of(widgetTimezoneId.trim());
     }
 
-    public PublicBookingWidgetController.WidgetConfigResponse config(String tenantCode, HttpServletRequest request) {
+    public PublicBookingWidgetController.WidgetConfigResponse config(
+            String tenantCode,
+            Long locationId,
+            HttpServletRequest request
+    ) {
         Company company = resolveCompany(tenantCode);
         guardPublicWidgetRequest(company, request, false, "config");
-        var cfg = loadConfig(company.getId());
+        Location location = resolvePresentationLocation(company, locationId);
+        var cfg = loadConfig(company.getId(), location);
+        var publicPresentation = locationPresentation.resolve(location);
         var websiteSettings = websiteWidgetSettingsService.widgetSettings(company.getId());
         var bookingRules = websiteWidgetSettingsService.bookingRules(company.getId());
         var waitlistSettings = waitlistSettingsService.get(company.getId());
@@ -189,9 +199,15 @@ public class PublicBookingWidgetService {
         var allowedPaymentMethods = resolveAllowedPaymentMethods(company);
         return new PublicBookingWidgetController.WidgetConfigResponse(
                 company.getTenantCode(),
-                cfg.companyName(),
-                cfg.companyLogoUrl(),
-                cfg.companyAddress(),
+                publicPresentation.locationId(),
+                publicPresentation.publicName(),
+                publicPresentation.publicDescription(),
+                publicPresentation.publicLogoUrl(),
+                publicPresentation.publicAddress(),
+                publicPresentation.publicPhone(),
+                publicPresentation.publicEmail(),
+                publicPresentation.websitePresentationEnabled(),
+                publicPresentation.publicBookingEnabled(),
                 cfg.availabilityEnabled(),
                 cfg.typesEnabled(),
                 cfg.sessionLengthMinutes(),
@@ -2227,6 +2243,23 @@ public class PublicBookingWidgetService {
     }
 
 
+    private Location resolvePresentationLocation(Company company, Long locationId) {
+        if (locations == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No active location is available.");
+        }
+        if (locationId != null) {
+            return locations.findByIdAndCompanyId(locationId, company.getId())
+                    .filter(Location::isActive)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown location."));
+        }
+        Optional<Location> defaultLocation = locations.findFirstByCompanyIdAndDefaultLocationTrue(company.getId())
+                .filter(Location::isActive);
+        if (defaultLocation.isPresent()) return defaultLocation.get();
+        return locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(company.getId()).stream()
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No active location is available."));
+    }
+
     private Location requirePublicLocation(Company company, Long locationId, boolean required) {
         if (locationId == null) {
             if (!required) return null;
@@ -2325,6 +2358,10 @@ public class PublicBookingWidgetService {
     }
 
     private WidgetConfig loadConfig(Long companyId) {
+        return loadConfig(companyId, null);
+    }
+
+    private WidgetConfig loadConfig(Long companyId, Location location) {
         Map<String, String> values = settings.findAllByCompanyId(companyId).stream()
                 .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
         boolean availabilityEnabled = !"false".equalsIgnoreCase(values.getOrDefault(SettingKey.BOOKABLE_ENABLED.name(), "true"));
@@ -2332,83 +2369,15 @@ public class PublicBookingWidgetService {
         int sessionLengthMinutes = parseInteger(values.get(SettingKey.SESSION_LENGTH_MINUTES.name()), 60);
         LocalTime workingHoursStart = parseTime(values.get(SettingKey.WORKING_HOURS_START.name()), LocalTime.of(8, 0));
         LocalTime workingHoursEnd = parseTime(values.get(SettingKey.WORKING_HOURS_END.name()), LocalTime.of(18, 0));
-        JsonNode guestSettings = parseJson(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
-        String companyName = firstNonBlank(
-                textValue(guestSettings.path("publicName")),
-                values.get(SettingKey.COMPANY_NAME.name()),
-                "Calendra"
-        );
-        String companyLogoUrl = firstNonBlank(
-                values.get(SettingKey.COMPANY_LOGO_URL.name()),
-                textValue(guestSettings.path("logoImageUrl"))
-        );
-        String companyAddress = formatAddress(
-                firstNonBlank(
-                        values.get(SettingKey.COMPANY_PHYSICAL_ADDRESS.name()),
-                        values.get(SettingKey.COMPANY_ADDRESS.name())
-                ),
-                firstNonBlank(
-                        values.get(SettingKey.COMPANY_PHYSICAL_POSTAL_CODE.name()),
-                        values.get(SettingKey.COMPANY_POSTAL_CODE.name())
-                ),
-                firstNonBlank(
-                        values.get(SettingKey.COMPANY_PHYSICAL_CITY.name()),
-                        values.get(SettingKey.COMPANY_CITY.name())
-                )
-        );
+        ZoneId zoneId = parseZoneId(location == null ? null : location.getTimezone(), widgetZoneId);
         return new WidgetConfig(
-                companyName,
-                companyLogoUrl,
-                companyAddress,
                 availabilityEnabled,
                 typesEnabled,
                 sessionLengthMinutes,
                 workingHoursStart,
                 workingHoursEnd,
-                widgetZoneId
+                zoneId
         );
-    }
-
-    private static JsonNode parseJson(String raw) {
-        if (raw == null || raw.isBlank()) return JSON.createObjectNode();
-        try {
-            return JSON.readTree(raw);
-        } catch (Exception ignored) {
-            return JSON.createObjectNode();
-        }
-    }
-
-    private static String textValue(JsonNode node) {
-        if (node == null || node.isMissingNode() || node.isNull()) return null;
-        String value = node.asText("").trim();
-        return value.isBlank() ? null : value;
-    }
-
-    private static String firstNonBlank(String... values) {
-        if (values == null) return null;
-        for (String value : values) {
-            if (value != null && !value.trim().isBlank()) return value.trim();
-        }
-        return null;
-    }
-
-    private static String formatAddress(String street, String postalCode, String city) {
-        String locality = firstNonBlank(
-                joinWithSpace(postalCode, city),
-                city,
-                postalCode
-        );
-        if (street == null || street.isBlank()) return locality;
-        if (locality == null || locality.isBlank()) return street.trim();
-        return street.trim() + ", " + locality;
-    }
-
-    private static String joinWithSpace(String first, String second) {
-        String left = first == null ? "" : first.trim();
-        String right = second == null ? "" : second.trim();
-        if (left.isBlank()) return right.isBlank() ? null : right;
-        if (right.isBlank()) return left;
-        return left + " " + right;
     }
 
     private int parseInteger(String value, int fallback) {
@@ -2427,10 +2396,15 @@ public class PublicBookingWidgetService {
         }
     }
 
+    private ZoneId parseZoneId(String value, ZoneId fallback) {
+        try {
+            return value == null || value.isBlank() ? fallback : ZoneId.of(value.trim());
+        } catch (Exception ex) {
+            return fallback;
+        }
+    }
+
     private record WidgetConfig(
-            String companyName,
-            String companyLogoUrl,
-            String companyAddress,
             boolean availabilityEnabled,
             boolean typesEnabled,
             int sessionLengthMinutes,

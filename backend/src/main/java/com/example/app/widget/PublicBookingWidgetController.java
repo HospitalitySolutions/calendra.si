@@ -25,9 +25,15 @@ public class PublicBookingWidgetController {
 
     public record WidgetConfigResponse(
             String tenantCode,
-            String companyName,
-            String companyLogoUrl,
-            String companyAddress,
+            Long locationId,
+            String publicName,
+            String publicDescription,
+            String publicLogoUrl,
+            String publicAddress,
+            String publicPhone,
+            String publicEmail,
+            boolean websitePresentationEnabled,
+            boolean publicBookingEnabled,
             boolean availabilityEnabled,
             boolean typesEnabled,
             int sessionLengthMinutes,
@@ -177,8 +183,12 @@ public class PublicBookingWidgetController {
     ) {}
 
     @GetMapping("/{tenantCode}/config")
-    public WidgetConfigResponse config(@PathVariable String tenantCode, HttpServletRequest request) {
-        return service.config(tenantCode, request);
+    public WidgetConfigResponse config(
+            @PathVariable String tenantCode,
+            @RequestParam(required = false) Long locationId,
+            HttpServletRequest request
+    ) {
+        return service.config(tenantCode, locationId, request);
     }
 
     @GetMapping("/{tenantCode}/services")

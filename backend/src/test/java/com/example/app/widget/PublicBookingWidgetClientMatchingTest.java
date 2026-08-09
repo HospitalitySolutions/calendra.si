@@ -152,6 +152,7 @@ class PublicBookingWidgetClientMatchingTest {
                 null,
                 null,
                 null,
+                null,
                 "Europe/Ljubljana"
         );
     }

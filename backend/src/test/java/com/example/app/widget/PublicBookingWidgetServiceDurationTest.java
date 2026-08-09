@@ -36,6 +36,7 @@ class PublicBookingWidgetServiceDurationTest {
                 null,
                 null,
                 null,
+                null,
                 "Europe/Ljubljana"
         );
 

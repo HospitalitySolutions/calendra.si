@@ -688,11 +688,17 @@
         throw new Error('Missing tenant code. Set the tenant attribute on <calendra-booking-widget>.');
       }
 
-      const locationQuery = this.options.locationId ? `?locationId=${encodeURIComponent(this.options.locationId)}` : '';
-      const [config, services] = await Promise.all([
-        this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/config`),
-        this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/services${locationQuery}`),
-      ]);
+      const requestedLocationId = this.options.locationId;
+      const requestedLocationQuery = requestedLocationId ? `?locationId=${encodeURIComponent(requestedLocationId)}` : '';
+      const config = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/config${requestedLocationQuery}`);
+      const effectiveLocationId = requestedLocationId || config?.locationId || '';
+      if (!this.options.locationId && effectiveLocationId) {
+        // Keep no-location embeds deterministic by using the tenant's default active
+        // location until an explicit location-selection flow is shown.
+        this.options.locationId = String(effectiveLocationId);
+      }
+      const effectiveLocationQuery = effectiveLocationId ? `?locationId=${encodeURIComponent(effectiveLocationId)}` : '';
+      const services = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/services${effectiveLocationQuery}`);
 
       const effectiveConfig = this.options.employeeSelectionAllowed
         ? config
@@ -795,6 +801,44 @@
 
     calendraLogoMarkup() {
       return `<img class="calendra-logo-image" src="${escapeHtml(this.widgetAssetUrl('/widget/calendra-transparent-logo.png'))}" alt="Calendra" loading="lazy" decoding="async">`;
+    }
+
+    publicPresentationLogoUrl(raw) {
+      const value = String(raw || '').trim();
+      if (!value) return '';
+      if (/^https?:\/\//i.test(value) || value.startsWith('data:')) return value;
+      if (value.startsWith('/')) return this.widgetAssetUrl(value);
+      return this.widgetAssetUrl(`/api/public/widget/guest-assets?key=${encodeURIComponent(value)}`);
+    }
+
+    publicPresentationMarkup() {
+      const config = this.state.config;
+      const presentation = String(this.getAttribute('presentation') || '').trim().toLowerCase();
+      if (!config?.websitePresentationEnabled || presentation === 'standalone' || presentation === 'directory') return '';
+
+      const name = String(config.publicName || '').trim();
+      const description = String(config.publicDescription || '').trim();
+      const address = String(config.publicAddress || '').trim();
+      const phone = String(config.publicPhone || '').trim();
+      const logoUrl = this.publicPresentationLogoUrl(config.publicLogoUrl);
+      if (!name && !description && !address && !phone && !logoUrl) return '';
+
+      const fallback = (name || 'C').slice(0, 1).toUpperCase();
+      const meta = [address, phone].filter(Boolean);
+      return `
+        <section class="public-presentation" aria-label="${escapeHtml(name || 'Location')}">
+          <div class="public-presentation__logo">
+            ${logoUrl
+              ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(name)}" loading="lazy" decoding="async">`
+              : `<span>${escapeHtml(fallback)}</span>`}
+          </div>
+          <div class="public-presentation__copy">
+            ${name ? `<strong>${escapeHtml(name)}</strong>` : ''}
+            ${meta.length ? `<div class="public-presentation__meta">${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join('<span class="public-presentation__dot">•</span>')}</div>` : ''}
+            ${description ? `<p>${escapeHtml(description)}</p>` : ''}
+          </div>
+        </section>
+      `;
     }
 
     uiIcon(name) {
@@ -3195,6 +3239,41 @@
           padding: clamp(28px, 4vw, 52px);
           overflow: hidden;
         }
+        .public-presentation {
+          display: flex;
+          align-items: flex-start;
+          gap: 14px;
+          margin: 0 0 24px;
+          padding: 16px 18px;
+          border: 1px solid var(--calendra-border);
+          border-radius: 18px;
+          background: linear-gradient(180deg, #fbfdff 0%, #f7faff 100%);
+        }
+        .public-presentation__logo {
+          width: 52px;
+          height: 52px;
+          flex: 0 0 52px;
+          overflow: hidden;
+          display: grid;
+          place-items: center;
+          border: 1px solid var(--calendra-border);
+          border-radius: 15px;
+          background: #fff;
+          color: var(--calendra-primary);
+          font-size: 20px;
+          font-weight: 900;
+        }
+        .public-presentation__logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .public-presentation__copy { min-width: 0; display: grid; gap: 5px; }
+        .public-presentation__copy strong { color: var(--calendra-text); font-size: 18px; line-height: 1.25; }
+        .public-presentation__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; color: var(--calendra-muted); font-size: 13px; line-height: 1.4; }
+        .public-presentation__dot { opacity: .55; }
+        .public-presentation__copy p { margin: 1px 0 0; color: var(--calendra-muted); font-size: 14px; line-height: 1.5; }
+        :host([data-layout="micro"]) .public-presentation { padding: 14px; border-radius: 16px; }
+        :host([data-layout="micro"]) .public-presentation__logo { width: 46px; height: 46px; flex-basis: 46px; border-radius: 13px; }
+        :host([data-layout="micro"]) .public-presentation__meta { display: grid; gap: 2px; }
+        :host([data-layout="micro"]) .public-presentation__dot { display: none; }
+
         .headline { margin: 28px 0 26px; max-width: 760px; }
         .headline h2 {
           margin: 0;
@@ -4074,6 +4153,7 @@
         <div class="widget step-${escapeHtml(this.state.activeStep || 'service')}">
           <div class="shell">
             <div class="panel">
+              ${this.publicPresentationMarkup()}
               ${this.renderProgress()}
               <div class="headline">
                 <h2>${escapeHtml(this.activeStepHeadline())}</h2>

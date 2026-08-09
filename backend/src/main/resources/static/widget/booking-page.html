@@ -153,12 +153,31 @@
       font-size: 14px;
     }
 
+    .booking-business__copy p {
+      max-width: 760px;
+      margin: 8px 0 0;
+      color: var(--booking-muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .booking-business__copy a {
+      display: inline-flex;
+      margin-top: 6px;
+      color: var(--booking-blue);
+      font-size: 14px;
+      font-weight: 650;
+      text-decoration: none;
+    }
+
     .booking-business__copy svg { width: 15px; height: 15px; flex: 0 0 auto; }
 
     .booking-widget-host {
       border-top: 1px solid rgba(223, 231, 242, .85);
       padding: 0 clamp(18px, 3vw, 34px) 8px;
     }
+
+    .booking-shell.is-presentation-hidden .booking-widget-host { border-top: 0; }
 
     .booking-loading,
     .booking-error {
@@ -210,7 +229,7 @@
   </header>
 
   <main class="booking-page">
-    <section class="booking-shell" aria-label="Naročanje">
+    <section class="booking-shell" id="booking-shell" aria-label="Naročanje">
       <header class="booking-shell__header">
         <div class="booking-business">
           <div class="booking-business__logo" id="booking-business-logo" aria-hidden="true">
@@ -222,6 +241,8 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>
               <i style="font-style:normal"></i>
             </span>
+            <a id="booking-business-phone" class="is-hidden"></a>
+            <p id="booking-business-description" class="is-hidden"></p>
           </div>
         </div>
       </header>
@@ -257,9 +278,13 @@
       const loading = document.getElementById('booking-loading');
       const errorBox = document.getElementById('booking-error');
       const host = document.getElementById('booking-widget-host');
+      const shell = document.getElementById('booking-shell');
+      const presentationHeader = shell.querySelector('.booking-shell__header');
       const companyName = document.getElementById('booking-company-name');
       const companyAddress = document.getElementById('booking-company-address');
       const companyAddressText = companyAddress.querySelector('i');
+      const businessPhone = document.getElementById('booking-business-phone');
+      const businessDescription = document.getElementById('booking-business-description');
       const logoHost = document.getElementById('booking-business-logo');
       const fallback = document.getElementById('booking-business-fallback');
 
@@ -285,17 +310,36 @@
       }
 
       function setBranding(config) {
-        const name = String(config && config.companyName || 'Calendra').trim() || 'Calendra';
+        if (config && config.websitePresentationEnabled === false) {
+          presentationHeader.classList.add('is-hidden');
+          shell.classList.add('is-presentation-hidden');
+          return;
+        }
+
+        const name = String(config && config.publicName || 'Calendra').trim() || 'Calendra';
         companyName.textContent = name;
         fallback.textContent = name.slice(0, 1).toLocaleUpperCase(locale === 'sl' ? 'sl-SI' : 'en-US');
 
-        const address = String(config && config.companyAddress || '').trim();
+        const address = String(config && config.publicAddress || '').trim();
         if (address) {
           companyAddressText.textContent = address;
           companyAddress.classList.remove('is-hidden');
         }
 
-        const logoUrl = resolveLogoUrl(config && config.companyLogoUrl);
+        const phone = String(config && config.publicPhone || '').trim();
+        if (phone) {
+          businessPhone.textContent = phone;
+          businessPhone.href = `tel:${phone.replace(/[^+\d]/g, '')}`;
+          businessPhone.classList.remove('is-hidden');
+        }
+
+        const description = String(config && config.publicDescription || '').trim();
+        if (description) {
+          businessDescription.textContent = description;
+          businessDescription.classList.remove('is-hidden');
+        }
+
+        const logoUrl = resolveLogoUrl(config && config.publicLogoUrl);
         if (logoUrl) {
           const image = new Image();
           image.alt = name;
@@ -366,7 +410,9 @@
         return;
       }
 
-      fetch(`/api/public/widget/${encodeURIComponent(tenantCode)}/config`, {
+      const brandingLocationId = query.get('locationId');
+      const brandingQuery = brandingLocationId ? `?locationId=${encodeURIComponent(brandingLocationId)}` : '';
+      fetch(`/api/public/widget/${encodeURIComponent(tenantCode)}/config${brandingQuery}`, {
         credentials: 'same-origin',
         headers: { Accept: 'application/json' },
       })
