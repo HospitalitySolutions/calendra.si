@@ -189,7 +189,7 @@ public class PublicBookingWidgetService {
     ) {
         Company company = resolveCompany(tenantCode);
         guardPublicWidgetRequest(company, request, false, "config");
-        Location location = resolvePresentationLocation(company, locationId);
+        Location location = requirePublicLocation(company, locationId, false);
         var cfg = loadConfig(company.getId(), location);
         var publicPresentation = locationPresentation.resolve(location);
         var websiteSettings = websiteWidgetSettingsService.widgetSettings(company.getId());
@@ -236,6 +236,32 @@ public class PublicBookingWidgetService {
                 publicSettings.multipleServicesEnabled(),
                 allowedPaymentMethods
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<PublicBookingWidgetController.WidgetLocationResponse> locations(
+            String tenantCode,
+            HttpServletRequest request
+    ) {
+        Company company = resolveCompany(tenantCode);
+        guardPublicWidgetRequest(company, request, false, "locations");
+        String companyLogoUrl = locationPresentation.companyLogoUrl(company.getId());
+        return bookableLocations(company).stream()
+                .map(location -> {
+                    var presentation = locationPresentation.resolve(location, companyLogoUrl);
+                    return new PublicBookingWidgetController.WidgetLocationResponse(
+                            location.getId(),
+                            presentation.publicName(),
+                            presentation.publicAddress(),
+                            presentation.publicDescription(),
+                            presentation.publicLogoUrl(),
+                            presentation.publicPhone(),
+                            presentation.publicEmail(),
+                            presentation.websitePresentationEnabled(),
+                            location.isDefaultLocation()
+                    );
+                })
+                .toList();
     }
 
     /**
@@ -389,10 +415,10 @@ public class PublicBookingWidgetService {
         Company company = resolveCompany(tenantCode);
         SimulatedTimeContext.set(company.getId());
         guardPublicWidgetRequest(company, request, false, "availability");
-        WidgetConfig cfg = loadConfig(company.getId());
+        Location location = requirePublicLocation(company, locationId, false);
+        WidgetConfig cfg = loadConfig(company.getId(), location);
         var rules = websiteWidgetSettingsService.bookingRules(company.getId());
         LocalDate date = parseDate(dateText);
-        Location location = requirePublicLocation(company, locationId, false);
         List<SessionType> chain = resolveServiceChain(company.getId(), typeId, serviceIds);
         requireChainAvailableAtLocation(chain, location);
         SessionType primaryType = chain.get(0);
@@ -504,9 +530,9 @@ public class PublicBookingWidgetService {
         Company company = resolveCompany(tenantCode);
         SimulatedTimeContext.set(company.getId());
         guardPublicWidgetRequest(company, request, false, "availability-month");
-        WidgetConfig cfg = loadConfig(company.getId());
-        var rules = websiteWidgetSettingsService.bookingRules(company.getId());
         Location location = requirePublicLocation(company, locationId, false);
+        WidgetConfig cfg = loadConfig(company.getId(), location);
+        var rules = websiteWidgetSettingsService.bookingRules(company.getId());
         List<SessionType> chain = resolveServiceChain(company.getId(), typeId, serviceIds);
         requireChainAvailableAtLocation(chain, location);
         SessionType primaryType = chain.get(0);
@@ -727,9 +753,9 @@ public class PublicBookingWidgetService {
                 request.turnstileToken(),
                 widgetPublicAuditLogger.clientIp(httpRequest)
         );
-        WidgetConfig cfg = loadConfig(company.getId());
-        var rules = websiteWidgetSettingsService.bookingRules(company.getId());
         Location selectedLocation = requirePublicLocation(company, request.locationId(), true);
+        WidgetConfig cfg = loadConfig(company.getId(), selectedLocation);
+        var rules = websiteWidgetSettingsService.bookingRules(company.getId());
         List<SessionType> chain = resolveServiceChain(company.getId(), request.typeId(), extractServiceIds(request));
         requireChainAvailableAtLocation(chain, selectedLocation);
         SessionType type = chain.get(0);
@@ -913,7 +939,7 @@ public class PublicBookingWidgetService {
         LocalDate dateFrom = parseDate(request.dateFrom());
         LocalDate requestedDateTo = parseDate(request.dateTo());
         LocalDate dateTo = request.flexible() ? requestedDateTo : dateFrom;
-        LocalDate today = timeService.localDate(loadConfig(company.getId()).zoneId());
+        LocalDate today = timeService.localDate(loadConfig(company.getId(), selectedLocation).zoneId());
         if (dateFrom.isBefore(today)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dateFrom cannot be in the past.");
         }
@@ -1079,7 +1105,7 @@ public class PublicBookingWidgetService {
                 || !Objects.equals(representative.getLocation().getId(), selectedLocation.getId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session is not at this location.");
         }
-        WidgetConfig cfg = loadConfig(company.getId());
+        WidgetConfig cfg = loadConfig(company.getId(), selectedLocation);
         var rules = websiteWidgetSettingsService.bookingRules(company.getId());
         if (!slotAllowedByReservationRules(representative.getStartTime(), cfg, rules)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected group session is outside the allowed reservation window.");
@@ -2243,41 +2269,37 @@ public class PublicBookingWidgetService {
     }
 
 
-    private Location resolvePresentationLocation(Company company, Long locationId) {
+    private List<Location> bookableLocations(Company company) {
+        if (company == null || locations == null) return List.of();
+        return locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(company.getId()).stream()
+                .filter(Location::isPublicBookingEnabled)
+                .toList();
+    }
+
+    /**
+     * Resolves the physical location for every public widget operation. A tenant with one
+     * bookable location remains zero-config and is auto-selected. A multi-location tenant
+     * must send locationId so services, availability, waitlist and booking can never drift
+     * across branches.
+     */
+    private Location requirePublicLocation(Company company, Long locationId, boolean bookingMutation) {
         if (locations == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No active location is available.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location selection is unavailable.");
         }
         if (locationId != null) {
             return locations.findByIdAndCompanyId(locationId, company.getId())
                     .filter(Location::isActive)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown location."));
-        }
-        Optional<Location> defaultLocation = locations.findFirstByCompanyIdAndDefaultLocationTrue(company.getId())
-                .filter(Location::isActive);
-        if (defaultLocation.isPresent()) return defaultLocation.get();
-        return locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(company.getId()).stream()
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No active location is available."));
-    }
-
-    private Location requirePublicLocation(Company company, Long locationId, boolean required) {
-        if (locationId == null) {
-            if (!required) return null;
-            if (locations == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location is required.");
-            }
-            return locations.findFirstByCompanyIdAndDefaultLocationTrue(company.getId())
-                    .filter(Location::isActive)
                     .filter(Location::isPublicBookingEnabled)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location is required."));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid location."));
         }
-        if (locations == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location selection is unavailable.");
+
+        List<Location> available = bookableLocations(company);
+        if (available.size() == 1) return available.get(0);
+        if (available.isEmpty()) {
+            HttpStatus status = bookingMutation ? HttpStatus.BAD_REQUEST : HttpStatus.NOT_FOUND;
+            throw new ResponseStatusException(status, "No locations are available for online booking.");
         }
-        return locations.findByIdAndCompanyId(locationId, company.getId())
-                .filter(Location::isActive)
-                .filter(Location::isPublicBookingEnabled)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid location."));
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location selection is required.");
     }
 
     private void requireChainAvailableAtLocation(List<SessionType> chain, Location location) {

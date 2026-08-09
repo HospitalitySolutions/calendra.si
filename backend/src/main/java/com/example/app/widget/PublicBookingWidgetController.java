@@ -69,6 +69,18 @@ public class PublicBookingWidgetController {
             boolean giftCard
     ) {}
 
+    public record WidgetLocationResponse(
+            Long id,
+            String publicName,
+            String publicAddress,
+            String publicDescription,
+            String publicLogoUrl,
+            String publicPhone,
+            String publicEmail,
+            boolean websitePresentationEnabled,
+            boolean defaultLocation
+    ) {}
+
     public record WidgetServiceResponse(
             Long id,
             String name,
@@ -189,6 +201,14 @@ public class PublicBookingWidgetController {
             HttpServletRequest request
     ) {
         return service.config(tenantCode, locationId, request);
+    }
+
+    @GetMapping("/{tenantCode}/locations")
+    public List<WidgetLocationResponse> locations(
+            @PathVariable String tenantCode,
+            HttpServletRequest request
+    ) {
+        return service.locations(tenantCode, request);
     }
 
     @GetMapping("/{tenantCode}/services")

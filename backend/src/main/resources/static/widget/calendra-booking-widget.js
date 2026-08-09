@@ -25,6 +25,14 @@
       badge: 'Calendra booking',
       title: 'Choose service',
       subtitle: '',
+      locationTitle: 'Choose location',
+      locationSubtitle: 'Choose the location where you want to book.',
+      stepLocation: 'Location',
+      chooseLocation: 'Choose location',
+      locationHelp: 'Select one of the available locations to continue.',
+      summaryLocation: 'Location',
+      noBookableLocations: 'Online booking is currently unavailable at all locations.',
+      selectedLocationUnavailable: 'The selected location is not available for online booking.',
       dateTitle: 'Choose date and time',
       dateSubtitle: 'Choose a date and an available time that works best for you.',
       detailsTitle: 'Payment & review',
@@ -153,6 +161,7 @@
       failedToLoadAvailability: 'Failed to load availability.',
       failedToLoadConsultants: 'Failed to load consultants.',
       bookingFailed: 'Booking failed.',
+      location: 'location',
       service: 'service',
       consultant: 'consultant',
       date: 'date',
@@ -212,6 +221,14 @@
       badge: 'Naročanje',
       title: 'Izberite storitev',
       subtitle: '',
+      locationTitle: 'Izberite lokacijo',
+      locationSubtitle: 'Izberite lokacijo, kjer želite rezervirati termin.',
+      stepLocation: 'Lokacija',
+      chooseLocation: 'Izberite lokacijo',
+      locationHelp: 'Za nadaljevanje izberite eno od razpoložljivih lokacij.',
+      summaryLocation: 'Lokacija',
+      noBookableLocations: 'Spletno naročanje trenutno ni na voljo na nobeni lokaciji.',
+      selectedLocationUnavailable: 'Izbrana lokacija ni na voljo za spletno naročanje.',
       dateTitle: 'Izberite datum in uro',
       dateSubtitle: 'Izberite datum in razpoložljiv termin, ki vam najbolj ustreza.',
       detailsTitle: 'Plačilo in pregled',
@@ -340,6 +357,7 @@
       failedToLoadAvailability: 'Razpoložljivosti ni bilo mogoče naložiti.',
       failedToLoadConsultants: 'Zaposlenih ni bilo mogoče naložiti.',
       bookingFailed: 'Rezervacija ni uspela.',
+      location: 'lokacijo',
       service: 'storitev',
       consultant: 'zaposlenega',
       date: 'datum',
@@ -455,6 +473,9 @@
         loadingAvailability: false,
         error: '',
         config: null,
+        locations: [],
+        selectedLocationId: null,
+        locationSelectionRequired: false,
         services: [],
         expandedServiceGroupKeys: [],
         consultants: [],
@@ -688,17 +709,84 @@
         throw new Error('Missing tenant code. Set the tenant attribute on <calendra-booking-widget>.');
       }
 
-      const requestedLocationId = this.options.locationId;
-      const requestedLocationQuery = requestedLocationId ? `?locationId=${encodeURIComponent(requestedLocationId)}` : '';
-      const config = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/config${requestedLocationQuery}`);
-      const effectiveLocationId = requestedLocationId || config?.locationId || '';
-      if (!this.options.locationId && effectiveLocationId) {
-        // Keep no-location embeds deterministic by using the tenant's default active
-        // location until an explicit location-selection flow is shown.
-        this.options.locationId = String(effectiveLocationId);
+      const tenant = encodeURIComponent(this.options.tenant);
+      const availableLocations = await this.fetchJson(`/api/public/widget/${tenant}/locations`);
+      const locations = Array.isArray(availableLocations) ? availableLocations : [];
+      const requestedLocationId = String(this.options.locationId || '').trim();
+      let selectedLocation = null;
+
+      if (requestedLocationId) {
+        selectedLocation = locations.find((item) => String(item?.id) === requestedLocationId) || null;
+        if (!selectedLocation) throw new Error(this.text().selectedLocationUnavailable);
+      } else if (locations.length === 1) {
+        selectedLocation = locations[0];
+      } else if (locations.length === 0) {
+        throw new Error(this.text().noBookableLocations);
       }
-      const effectiveLocationQuery = effectiveLocationId ? `?locationId=${encodeURIComponent(effectiveLocationId)}` : '';
-      const services = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/services${effectiveLocationQuery}`);
+
+      if (!selectedLocation) {
+        // Multi-location tenant without a fixed location-id: load tenant-level widget settings
+        // through one known bookable location, but do not load services until the guest chooses
+        // the actual branch. Public presentation is suppressed while this step is active.
+        const seedLocationId = String(locations[0].id);
+        const seedConfig = await this.fetchJson(`/api/public/widget/${tenant}/config?locationId=${encodeURIComponent(seedLocationId)}`);
+        const effectiveConfig = this.options.employeeSelectionAllowed
+          ? seedConfig
+          : { ...seedConfig, employeeSelectionStep: false };
+        const selectedDate = this.todayInWidgetTimezone();
+        const defaultPaymentMethod = this.defaultPaymentMethod(effectiveConfig);
+        this.setState({
+          loading: false,
+          config: effectiveConfig,
+          locations,
+          selectedLocationId: null,
+          locationSelectionRequired: true,
+          services: [],
+          selectedServiceId: null,
+          selectedServiceIds: [],
+          selectedConsultantId: null,
+          selectedDate,
+          calendarMonth: this.monthKeyForDate(selectedDate),
+          paymentMethod: defaultPaymentMethod,
+          paymentMethodVariant: defaultPaymentMethod ? defaultPaymentMethod.toLowerCase() : '',
+          activeStep: 'location',
+        });
+        return;
+      }
+
+      await this.loadLocationContext(String(selectedLocation.id), {
+        locations,
+        locationSelectionRequired: false,
+      });
+    }
+
+    async loadLocationContext(locationId, options = {}) {
+      const normalizedLocationId = String(locationId || '').trim();
+      if (!normalizedLocationId) throw new Error(this.text().selectedLocationUnavailable);
+      const knownLocations = Array.isArray(options.locations) ? options.locations : this.state.locations;
+      const selectedLocation = (knownLocations || []).find((item) => String(item?.id) === normalizedLocationId);
+      if (!selectedLocation) throw new Error(this.text().selectedLocationUnavailable);
+
+      if (this.availabilityAbortController) {
+        this.availabilityAbortController.abort();
+        this.availabilityAbortController = null;
+      }
+      if (this.monthAvailabilityAbortController) {
+        this.monthAvailabilityAbortController.abort();
+        this.monthAvailabilityAbortController = null;
+      }
+      this.availabilityInFlightKey = null;
+      this.availabilityCache.clear();
+      this.monthAvailabilityCache.clear();
+      await this.releaseSlotHold(false);
+      this.setState({ loading: true, error: '' });
+
+      const tenant = encodeURIComponent(this.options.tenant);
+      const query = `?locationId=${encodeURIComponent(normalizedLocationId)}`;
+      const [config, services] = await Promise.all([
+        this.fetchJson(`/api/public/widget/${tenant}/config${query}`),
+        this.fetchJson(`/api/public/widget/${tenant}/services${query}`),
+      ]);
 
       const effectiveConfig = this.options.employeeSelectionAllowed
         ? config
@@ -718,21 +806,44 @@
           ? `group-${firstGroupedService.serviceGroupId}`
           : null;
       const selectedDate = this.todayInWidgetTimezone();
-
       const defaultPaymentMethod = this.defaultPaymentMethod(effectiveConfig);
+      const locationSelectionRequired = options.locationSelectionRequired != null
+        ? Boolean(options.locationSelectionRequired)
+        : Boolean(this.state.locationSelectionRequired);
 
       this.setState({
         loading: false,
         config: effectiveConfig,
+        locations: knownLocations,
+        selectedLocationId: normalizedLocationId,
+        locationSelectionRequired,
         services: effectiveServices,
         expandedServiceGroupKeys: initiallyExpandedGroup ? [initiallyExpandedGroup] : [],
         selectedServiceId,
         selectedServiceIds: selectedServiceId != null ? [selectedServiceId] : [],
+        consultants: [],
+        selectedConsultantId: null,
         selectedDate,
         calendarMonth: this.monthKeyForDate(selectedDate),
+        availableDates: null,
+        monthAvailabilityKey: '',
+        slots: [],
+        groupSessions: [],
+        selectedSlot: null,
+        selectedGroupSession: null,
+        manualTime: '',
+        bookingSuccess: null,
+        paymentResult: null,
         paymentMethod: defaultPaymentMethod,
         paymentMethodVariant: defaultPaymentMethod ? defaultPaymentMethod.toLowerCase() : '',
         activeStep: 'service',
+        error: '',
+      });
+
+      this.emit('calendra-widget-location-change', {
+        tenant: this.options.tenant,
+        locationId: normalizedLocationId,
+        location: selectedLocation,
       });
 
       await this.loadConsultantsAndAvailability();
@@ -753,9 +864,11 @@
 
     stepDefinitions() {
       const t = this.text();
-      const steps = [
-        { id: 'service', label: t.stepService },
-      ];
+      const steps = [];
+      if (this.state.locationSelectionRequired) {
+        steps.push({ id: 'location', label: t.stepLocation });
+      }
+      steps.push({ id: 'service', label: t.stepService });
       if (this.shouldShowConsultantStep()) {
         steps.push({ id: 'consultant', label: t.stepConsultant });
       }
@@ -779,6 +892,7 @@
     activeStepHeadline() {
       const t = this.text();
       if (this.state.bookingSuccess) return t.confirmed;
+      if (this.state.activeStep === 'location') return t.locationTitle;
       if (this.state.activeStep === 'consultant') return t.sectionConsultant || t.chooseConsultantRequired;
       if (this.state.activeStep === 'datetime') return t.dateTitle || t.sectionDateTime;
       if (this.state.activeStep === 'details') return t.detailsTitle || t.sectionGuest;
@@ -788,6 +902,7 @@
     activeStepSubtitle() {
       const t = this.text();
       if (this.state.bookingSuccess) return t.confirmationSent;
+      if (this.state.activeStep === 'location') return t.locationSubtitle;
       if (this.state.activeStep === 'consultant') return '';
       if (this.state.activeStep === 'datetime') return t.dateSubtitle || t.subtitle;
       if (this.state.activeStep === 'details') return t.detailsSubtitle || t.summaryPrivacyText;
@@ -814,7 +929,7 @@
     publicPresentationMarkup() {
       const config = this.state.config;
       const presentation = String(this.getAttribute('presentation') || '').trim().toLowerCase();
-      if (!config?.websitePresentationEnabled || presentation === 'standalone' || presentation === 'directory') return '';
+      if (this.state.activeStep === 'location' || !config?.websitePresentationEnabled || presentation === 'standalone' || presentation === 'directory') return '';
 
       const name = String(config.publicName || '').trim();
       const description = String(config.publicDescription || '').trim();
@@ -844,6 +959,7 @@
     uiIcon(name) {
       const icons = {
         calendar: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M7 3v3M17 3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>',
+        pin: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>',
         group: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M16 11a4 4 0 1 0-8 0M3 20a7 7 0 0 1 18 0M18 11.5a3 3 0 0 1 4 2.8M6 11.5a3 3 0 0 0-4 2.8"/></svg>',
         phone: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M6.6 4.5 9 3l3 5-2 1.5a10 10 0 0 0 4.5 4.5L16 12l5 3-1.5 2.4a3 3 0 0 1-3.1 1.4C10.2 17.5 6.5 13.8 5.2 7.6a3 3 0 0 1 1.4-3.1z"/></svg>',
         screen: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M4 5h16v11H4zM9 20h6M12 16v4"/></svg>',
@@ -1027,7 +1143,24 @@
       const steps = this.stepDefinitions();
       const index = this.activeStepIndex();
       const next = steps[index + 1];
-      if (!next || this.state.creatingSlotHold) return;
+      if (!next || this.state.creatingSlotHold || this.state.loading) return;
+
+      if (this.state.activeStep === 'location' && next.id === 'service') {
+        if (!this.validateCurrentStep()) return;
+        try {
+          await this.loadLocationContext(this.effectiveLocationId(), {
+            locations: this.state.locations,
+            locationSelectionRequired: true,
+          });
+        } catch (error) {
+          this.setState({
+            loading: false,
+            activeStep: 'location',
+            error: this.normalizeError(error, this.text().selectedLocationUnavailable),
+          });
+        }
+        return;
+      }
 
       if (next.id === 'details') {
         const held = await this.createSlotHold();
@@ -1126,7 +1259,7 @@
         this.setState({ slots: [], groupSessions: [], selectedSlot: null, selectedGroupSession: null, loadingAvailability: false, error: '' });
         return;
       }
-      const requestKey = `${serviceIds.join(',')}|${selectedDate}|${selectedConsultantId != null ? selectedConsultantId : ''}`;
+      const requestKey = `${this.effectiveLocationId()}|${serviceIds.join(',')}|${selectedDate}|${selectedConsultantId != null ? selectedConsultantId : ''}`;
       // Coalesce identical requests. Aborting and immediately restarting the same availability
       // calculation still leaves the backend doing duplicate work after the browser disconnects.
       if (this.availabilityAbortController && this.availabilityInFlightKey === requestKey) return;
@@ -1161,7 +1294,7 @@
         const params = this.appendSelectedServiceParams(new URLSearchParams({ date: selectedDate }));
         if (selectedConsultantId != null) params.set('consultantId', String(selectedConsultantId));
         const data = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/availability?${params.toString()}`, { signal: controller.signal });
-        const currentKey = `${this.selectedServiceKey()}|${this.state.selectedDate}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}`;
+        const currentKey = `${this.effectiveLocationId()}|${this.selectedServiceKey()}|${this.state.selectedDate}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}`;
         if (requestSequence !== this.availabilityRequestSequence || currentKey !== requestKey) return;
         const filteredSlots = this.filterSlotsForSelectedConsultant(data.slots || [], selectedConsultantId);
         const filteredGroupSessions = this.filterItemsForSelectedConsultant(data.groupSessions || [], selectedConsultantId);
@@ -1172,7 +1305,7 @@
         }
         this.setState({ slots: supportsGroupSessions ? [] : (consultantRequiredForRegularSlots ? [] : filteredSlots), groupSessions: filteredGroupSessions, loadingAvailability: false });
       } catch (error) {
-        const currentKey = `${this.selectedServiceKey()}|${this.state.selectedDate}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}`;
+        const currentKey = `${this.effectiveLocationId()}|${this.selectedServiceKey()}|${this.state.selectedDate}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}`;
         if (error?.name === 'AbortError') {
           if (requestTimedOut && requestSequence === this.availabilityRequestSequence && currentKey === requestKey) {
             this.setState({ loadingAvailability: false, error: this.text().failedToLoadAvailability });
@@ -1230,7 +1363,7 @@
         return;
       }
       const monthKey = String(calendarMonth).slice(0, 7);
-      const cacheKey = `${serviceIds.join(',')}|${selectedConsultantId != null ? selectedConsultantId : ''}|${monthKey}`;
+      const cacheKey = `${this.effectiveLocationId()}|${serviceIds.join(',')}|${selectedConsultantId != null ? selectedConsultantId : ''}|${monthKey}`;
       const cachedDates = this.monthAvailabilityCache.get(cacheKey);
       if (Array.isArray(cachedDates)) {
         if (cacheKey !== this.state.monthAvailabilityKey || this.state.availableDates !== cachedDates) this.setState({ availableDates: cachedDates, monthAvailabilityKey: cacheKey, loadingMonthAvailability: false });
@@ -1254,14 +1387,14 @@
         if (selectedConsultantId != null) params.set('consultantId', String(selectedConsultantId));
         const data = await this.fetchJson(`/api/public/widget/${encodeURIComponent(this.options.tenant)}/availability-month?${params.toString()}`, { signal: controller.signal });
         const currentMonthKey = String(this.state.calendarMonth || '').slice(0, 7);
-        const currentCacheKey = `${this.selectedServiceKey()}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}|${currentMonthKey}`;
+        const currentCacheKey = `${this.effectiveLocationId()}|${this.selectedServiceKey()}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}|${currentMonthKey}`;
         if (requestSequence !== this.monthAvailabilityRequestSequence || currentCacheKey !== cacheKey) return;
         const availableDates = Array.isArray(data.availableDates) ? data.availableDates : [];
         this.monthAvailabilityCache.set(cacheKey, availableDates);
         this.setState({ availableDates, monthAvailabilityKey: cacheKey, loadingMonthAvailability: false });
       } catch (error) {
         const currentMonthKey = String(this.state.calendarMonth || '').slice(0, 7);
-        const currentCacheKey = `${this.selectedServiceKey()}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}|${currentMonthKey}`;
+        const currentCacheKey = `${this.effectiveLocationId()}|${this.selectedServiceKey()}|${this.state.selectedConsultantId != null ? this.state.selectedConsultantId : ''}|${currentMonthKey}`;
         if (requestSequence === this.monthAvailabilityRequestSequence && currentCacheKey === cacheKey) {
           // Month availability is an optimisation only. Fail open so the guest can still select
           // a date and let the authoritative daily availability request decide whether slots exist.
@@ -1389,11 +1522,25 @@
       return this.selectedServiceIdsForRequest().join(',');
     }
 
+    effectiveLocationId() {
+      const selected = String(this.state?.selectedLocationId || '').trim();
+      if (selected) return selected;
+      return String(this.options?.locationId || '').trim();
+    }
+
+    currentLocation() {
+      const id = this.effectiveLocationId();
+      if (!id) return null;
+      return (Array.isArray(this.state.locations) ? this.state.locations : [])
+        .find((item) => String(item?.id) === id) || null;
+    }
+
     appendSelectedServiceParams(params) {
       const ids = this.selectedServiceIdsForRequest();
       if (ids.length) params.set('typeId', String(ids[0]));
       ids.forEach((id) => params.append('typeIds', String(id)));
-      if (this.options.locationId) params.set('locationId', String(this.options.locationId));
+      const locationId = this.effectiveLocationId();
+      if (locationId) params.set('locationId', locationId);
       return params;
     }
 
@@ -1499,6 +1646,7 @@
 
     isStepComplete(stepId) {
       const { form } = this.state;
+      if (stepId === 'location') return Boolean(this.effectiveLocationId());
       if (stepId === 'service') return this.selectedServiceIdsForRequest().length > 0;
       if (stepId === 'consultant') return !this.shouldShowConsultantStep() || this.consultantSelectionOptional() || Boolean(this.state.selectedConsultantId);
       if (stepId === 'datetime') {
@@ -1744,6 +1892,7 @@
       const t = this.text();
       const missing = [];
 
+      if (this.state.activeStep === 'location' && !this.effectiveLocationId()) missing.push(t.location);
       if (this.state.activeStep === 'service' && this.selectedServiceIdsForRequest().length === 0) missing.push(t.service);
       if (this.state.activeStep === 'consultant' && this.shouldShowConsultantStep() && !this.consultantSelectionOptional() && !this.state.selectedConsultantId) missing.push(t.consultant);
 
@@ -2060,7 +2209,7 @@
             paymentMethodType: effectivePaymentMethod,
             locale: this.options.locale || 'sl',
             holdToken: this.state.slotHoldToken || null,
-            locationId: this.options.locationId || null,
+            locationId: this.effectiveLocationId() || null,
           },
         });
 
@@ -2191,7 +2340,7 @@
         giftCardCodes: [],
         termsAccepted: true,
         paymentResult: null,
-        activeStep: 'service',
+        activeStep: this.state.locationSelectionRequired ? 'location' : 'service',
         availableDates: null,
         monthAvailabilityKey: '',
       });
@@ -2311,7 +2460,7 @@
             body: {
               typeId: this.state.selectedServiceId,
               consultantId: form.consultantId ? Number(form.consultantId) : null,
-              locationId: this.options.locationId ? Number(this.options.locationId) : null,
+              locationId: this.effectiveLocationId() ? Number(this.effectiveLocationId()) : null,
               flexible: Boolean(form.flexible),
               dateFrom: form.dateFrom,
               dateTo: form.flexible ? form.dateTo : form.dateFrom,
@@ -2820,9 +2969,39 @@
       return `${this.serviceCatalogMarkup()}${this.selectedServiceChainMarkup()}`;
     }
 
+    locationCardMarkup(item) {
+      const t = this.text();
+      const id = String(item?.id || '');
+      const selected = id && id === this.effectiveLocationId();
+      const name = String(item?.publicName || '').trim() || t.stepLocation;
+      const address = String(item?.publicAddress || '').trim();
+      const showPresentation = item?.websitePresentationEnabled !== false;
+      const description = showPresentation ? String(item?.publicDescription || '').trim() : '';
+      const phone = showPresentation ? String(item?.publicPhone || '').trim() : '';
+      const logoUrl = showPresentation ? this.publicPresentationLogoUrl(item?.publicLogoUrl) : '';
+      const fallback = name.slice(0, 1).toUpperCase();
+      return `
+        <button class="location-card ${selected ? 'is-active' : ''}" type="button" data-action="location" data-id="${escapeHtml(id)}" aria-pressed="${selected ? 'true' : 'false'}">
+          <span class="location-card-logo">
+            ${logoUrl
+              ? `<img src="${escapeHtml(logoUrl)}" alt="" loading="lazy" decoding="async">`
+              : `<span>${escapeHtml(fallback)}</span>`}
+          </span>
+          <span class="location-card-copy">
+            <strong>${escapeHtml(name)}</strong>
+            ${address ? `<span class="location-card-meta">${this.uiIcon('pin')}<span>${escapeHtml(address)}</span></span>` : ''}
+            ${phone ? `<span class="location-card-meta">${this.uiIcon('phone')}<span>${escapeHtml(phone)}</span></span>` : ''}
+            ${description ? `<small>${escapeHtml(description)}</small>` : ''}
+          </span>
+          <span class="location-card-check">${this.uiIcon('check')}</span>
+        </button>
+      `;
+    }
+
     renderStepContent() {
       const t = this.text();
       const service = this.currentService();
+      const location = this.currentLocation();
       const showConsultantPicker = this.shouldShowConsultantStep();
 
       if (this.state.bookingSuccess) {
@@ -2838,6 +3017,7 @@
           </div>
         ` : '';
         const successDetails = [
+          detailCard('pin', t.summaryLocation, location?.publicName),
           detailCard('calendar', t.summaryDateTime || t.labelDate, success.dateLabel || this.displaySelectedDate()),
           detailCard('clock', t.summaryTime || t.labelTime, success.timeLabel || this.bookingStartTimeLabel(success)),
           detailCard('duration', t.summaryDuration, success.durationLabel || this.formatDurationLabel(success.durationMinutes)),
@@ -2867,6 +3047,26 @@
         `;
       }
 
+      if (this.state.activeStep === 'location') {
+        const locations = Array.isArray(this.state.locations) ? this.state.locations : [];
+        return `
+          <section class="panel-section panel-section--location">
+            <div class="location-selection">
+              <p class="location-help">${escapeHtml(t.locationHelp)}</p>
+              <div class="location-grid">
+                ${locations.length
+                  ? locations.map((item) => this.locationCardMarkup(item)).join('')
+                  : `<div class="empty">${escapeHtml(t.noBookableLocations)}</div>`}
+              </div>
+            </div>
+            <div class="panel-actions panel-actions--footer">
+              <div class="trust-note">${this.uiIcon('shield')}<span>${escapeHtml(t.secureData)}</span></div>
+              <button class="primary" type="button" data-action="next" ${!this.isStepComplete('location') ? 'disabled' : ''}>${escapeHtml(t.continue)} ${this.uiIcon('arrowRight')}</button>
+            </div>
+          </section>
+        `;
+      }
+
       if (this.state.activeStep === 'service') {
         return `
           <section class="panel-section panel-section--service">
@@ -2885,6 +3085,12 @@
           <aside class="summary-card summary-card--consultant-step">
             <div class="summary-heading">${escapeHtml(t.summaryTitle)}</div>
             <div class="summary-detail-list">
+              ${location?.publicName ? `
+                <div class="summary-detail-row">
+                  <span class="summary-detail-label">${escapeHtml(t.summaryLocation)}</span>
+                  <strong class="summary-detail-value">${escapeHtml(location.publicName)}</strong>
+                </div>
+              ` : ''}
               <div class="summary-detail-row">
                 <span class="summary-detail-label">${escapeHtml(t.selectedService)}</span>
                 <strong class="summary-detail-value">${escapeHtml(this.selectedServiceDisplayName())}</strong>
@@ -3010,6 +3216,12 @@
         const summaryConsultant = this.currentSummaryConsultant();
         const durationText = service ? `${this.selectedServicesDurationMinutes()} ${t.durationSuffix}` : '';
         const datetimeSummaryRows = [
+          location?.publicName ? `
+            <div class="summary-detail-row">
+              <span class="summary-detail-label">${escapeHtml(t.summaryLocation)}</span>
+              <strong class="summary-detail-value">${escapeHtml(location.publicName)}</strong>
+            </div>
+          ` : '',
           `
             <div class="summary-detail-row">
               <span class="summary-detail-label">${escapeHtml(t.selectedService)}</span>
@@ -3096,6 +3308,12 @@
       const activePaymentMethod = this.state.paymentMethod || (payAtVenueOnly ? 'PAY_AT_VENUE' : null);
       const paymentLabel = activePaymentMethod ? this.paymentMethodSummaryLabel(activePaymentMethod) : '';
       const detailsSummaryRows = [
+        location?.publicName ? `
+          <div class="summary-detail-row">
+            <span class="summary-detail-label">${escapeHtml(t.summaryLocation)}</span>
+            <strong class="summary-detail-value">${escapeHtml(location.publicName)}</strong>
+          </div>
+        ` : '',
         service ? `
           <div class="summary-detail-row">
             <span class="summary-detail-label">${escapeHtml(t.selectedService)}</span>
@@ -3426,6 +3644,31 @@
         .standalone-service-duration svg { width: 16px; height: 16px; }
         .standalone-service-row.is-active .standalone-service-price { color: var(--calendra-primary); font-weight: 850; }
         .standalone-ungrouped-title { padding: 14px 18px 0; color: var(--calendra-muted); font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+        .location-selection { display: grid; gap: 18px; }
+        .location-help { margin: 0; color: var(--calendra-muted); font-size: 15px; line-height: 1.55; }
+        .location-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+        .location-card {
+          position: relative; display: grid; grid-template-columns: 62px minmax(0, 1fr) 30px; gap: 15px; align-items: center;
+          width: 100%; min-height: 112px; padding: 17px 18px; border: 1px solid var(--calendra-border); border-radius: 18px;
+          background: var(--calendra-surface); color: var(--calendra-text); text-align: left; cursor: pointer; transition: .18s ease;
+        }
+        .location-card:hover { transform: translateY(-1px); border-color: rgba(15,107,255,.45); box-shadow: var(--calendra-card-shadow); }
+        .location-card.is-active { border-color: var(--calendra-primary); background: var(--calendra-blue-soft); box-shadow: 0 0 0 2px rgba(15,107,255,.08); }
+        .location-card-logo { width: 62px; height: 62px; border-radius: 16px; overflow: hidden; display: grid; place-items: center; background: #eef4ff; color: var(--calendra-primary); font-size: 22px; font-weight: 900; }
+        .location-card-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .location-card-copy { min-width: 0; display: grid; gap: 5px; }
+        .location-card-copy > strong { font-size: 17px; line-height: 1.3; }
+        .location-card-copy > small { color: var(--calendra-muted); font-size: 13px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .location-card-meta { display: flex; align-items: flex-start; gap: 7px; min-width: 0; color: var(--calendra-muted); font-size: 13px; line-height: 1.4; }
+        .location-card-meta .line-icon { width: 15px; height: 15px; flex: 0 0 15px; margin-top: 1px; }
+        .location-card-meta > span { min-width: 0; overflow-wrap: anywhere; }
+        .location-card-check { width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center; background: var(--calendra-primary); color: #fff; opacity: 0; transform: scale(.75); transition: .18s ease; }
+        .location-card.is-active .location-card-check { opacity: 1; transform: scale(1); }
+        .location-card-check .line-icon { width: 15px; height: 15px; }
+        :host([data-layout="narrow"]) .location-grid, :host([data-layout="micro"]) .location-grid { grid-template-columns: 1fr; }
+        :host([data-layout="micro"]) .location-card { grid-template-columns: 50px minmax(0,1fr) 26px; min-height: 96px; padding: 14px; gap: 12px; border-radius: 16px; }
+        :host([data-layout="micro"]) .location-card-logo { width: 50px; height: 50px; border-radius: 13px; font-size: 18px; }
+
         .service-card {
           position: relative;
           min-height: 134px;
@@ -4200,6 +4443,14 @@
     }
 
     bindEvents() {
+      this.shadowRoot.querySelectorAll('[data-action="location"]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const locationId = String(button.dataset.id || '').trim();
+          if (!locationId) return;
+          this.setState({ selectedLocationId: locationId, error: '' });
+        });
+      });
+
       this.shadowRoot.querySelectorAll('[data-action="service-group-toggle"]').forEach((button) => {
         button.addEventListener('click', () => {
           const key = String(button.dataset.groupKey || '').trim();

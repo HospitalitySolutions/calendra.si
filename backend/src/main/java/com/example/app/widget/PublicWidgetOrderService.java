@@ -227,6 +227,7 @@ public class PublicWidgetOrderService {
         GuestUser guestUser = requireGuest(httpRequest);
         // The widget endpoint is tenant-scoped via the URL path, so always force the
         // request's companyId to match the resolved tenant to prevent spoofing.
+        String effectiveLocationId = resolvePublicLocationId(company, request.locationId());
         GuestDtos.CreateOrderRequest normalized = new GuestDtos.CreateOrderRequest(
                 String.valueOf(company.getId()),
                 request.productId(),
@@ -238,7 +239,7 @@ public class PublicWidgetOrderService {
                 request.services(),
                 request.consultantId(),
                 request.holdToken(),
-                request.locationId()
+                effectiveLocationId
         );
         validatePublicLocationAndServices(company, normalized);
         String idempotencyKey = idempotencyKey(httpRequest);
@@ -283,8 +284,39 @@ public class PublicWidgetOrderService {
 
 
 
+    private String resolvePublicLocationId(Company company, String requestedLocationId) {
+        if (publicLocations == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location-aware booking is unavailable.");
+        }
+        if (requestedLocationId != null && !requestedLocationId.isBlank()) {
+            Long parsed;
+            try {
+                parsed = Long.valueOf(requestedLocationId.trim());
+            } catch (NumberFormatException ex) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid location.");
+            }
+            Location location = publicLocations.findByIdAndCompanyId(parsed, company.getId())
+                    .filter(Location::isActive)
+                    .filter(Location::isPublicBookingEnabled)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid location."));
+            return String.valueOf(location.getId());
+        }
+
+        List<Location> available = publicLocations
+                .findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(company.getId()).stream()
+                .filter(Location::isPublicBookingEnabled)
+                .toList();
+        if (available.size() == 1) return String.valueOf(available.get(0).getId());
+        if (available.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No locations are available for online booking.");
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location selection is required.");
+    }
+
     private void validatePublicLocationAndServices(Company company, GuestDtos.CreateOrderRequest request) {
-        if (request == null || request.locationId() == null || request.locationId().isBlank()) return;
+        if (request == null || request.locationId() == null || request.locationId().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location selection is required.");
+        }
         if (publicLocations == null || sessionTypes == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location-aware booking is unavailable.");
         }

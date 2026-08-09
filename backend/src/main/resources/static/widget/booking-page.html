@@ -310,6 +310,18 @@
       }
 
       function setBranding(config) {
+        presentationHeader.classList.remove('is-hidden');
+        shell.classList.remove('is-presentation-hidden');
+        companyAddress.classList.add('is-hidden');
+        companyAddressText.textContent = '';
+        businessPhone.classList.add('is-hidden');
+        businessPhone.textContent = '';
+        businessPhone.removeAttribute('href');
+        businessDescription.classList.add('is-hidden');
+        businessDescription.textContent = '';
+        logoHost.innerHTML = '';
+        logoHost.appendChild(fallback);
+
         if (config && config.websitePresentationEnabled === false) {
           presentationHeader.classList.add('is-hidden');
           shell.classList.add('is-presentation-hidden');
@@ -351,6 +363,28 @@
         }
       }
 
+      function hideBrandingUntilLocationSelected() {
+        presentationHeader.classList.add('is-hidden');
+        shell.classList.add('is-presentation-hidden');
+      }
+
+      function loadBranding(locationId) {
+        const normalized = String(locationId || '').trim();
+        if (!normalized) {
+          hideBrandingUntilLocationSelected();
+          return Promise.resolve();
+        }
+        return fetch(`/api/public/widget/${encodeURIComponent(tenantCode)}/config?locationId=${encodeURIComponent(normalized)}`, {
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        })
+          .then(function (response) {
+            if (!response.ok) throw new Error(copy[locale].failed);
+            return response.json();
+          })
+          .then(setBranding);
+      }
+
       function mountWidget() {
         if (!tenantCode) {
           showError(copy[locale].failed);
@@ -387,6 +421,14 @@
         widget.addEventListener('calendra-widget-ready', function () {
           loading.classList.add('is-hidden');
         });
+        widget.addEventListener('calendra-widget-location-change', function (event) {
+          const locationId = event && event.detail && event.detail.locationId;
+          if (!locationId) return;
+          const next = new URL(window.location.href);
+          next.searchParams.set('locationId', String(locationId));
+          window.history.replaceState({}, '', next);
+          void loadBranding(locationId).catch(function () {});
+        });
         widget.addEventListener('calendra-widget-error', function (event) {
           showError(event && event.detail && event.detail.message);
         });
@@ -411,19 +453,28 @@
       }
 
       const brandingLocationId = query.get('locationId');
-      const brandingQuery = brandingLocationId ? `?locationId=${encodeURIComponent(brandingLocationId)}` : '';
-      fetch(`/api/public/widget/${encodeURIComponent(tenantCode)}/config${brandingQuery}`, {
-        credentials: 'same-origin',
-        headers: { Accept: 'application/json' },
-      })
-        .then(function (response) {
-          if (!response.ok) throw new Error(copy[locale].failed);
-          return response.json();
-        })
-        .then(setBranding)
+      const initialBranding = brandingLocationId
+        ? loadBranding(brandingLocationId)
+        : fetch(`/api/public/widget/${encodeURIComponent(tenantCode)}/locations`, {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+          })
+            .then(function (response) {
+              if (!response.ok) throw new Error(copy[locale].failed);
+              return response.json();
+            })
+            .then(function (locations) {
+              if (Array.isArray(locations) && locations.length === 1) {
+                return loadBranding(locations[0].id);
+              }
+              hideBrandingUntilLocationSelected();
+              return null;
+            });
+
+      initialBranding
         .catch(function () {
-          // The widget performs its own load and error handling. A missing branding
-          // response should not prevent the booking flow from attempting to mount.
+          // The widget performs its own load and error handling. Branding failure
+          // should not prevent the booking flow from attempting to mount.
         })
         .finally(mountWidget);
     })();
