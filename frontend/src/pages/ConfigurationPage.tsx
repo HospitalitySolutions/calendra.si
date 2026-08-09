@@ -1161,23 +1161,12 @@ const configurationDraftSnapshot = (
     presets,
   });
 const DEFAULT_PERSONAL_TASK_COLOR = "#F97316";
-const GUEST_PUBLIC_NAME_MAX_LENGTH = 120;
-const GUEST_PUBLIC_ADDRESS_MAX_LENGTH = 200;
-const GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH = 500;
-const normalizePublicName = (value: string | undefined) =>
-  String(value || "").slice(0, GUEST_PUBLIC_NAME_MAX_LENGTH);
-const normalizePublicAddressInput = (value: string | undefined) =>
-  String(value || "")
-    .replace(/[\r\n]+/g, " ")
-    .slice(0, GUEST_PUBLIC_ADDRESS_MAX_LENGTH);
 const normalizeHexColor = (value: string | undefined) => {
   const v = String(value || "").trim();
   return /^#[0-9a-fA-F]{6}$/.test(v)
     ? v.toUpperCase()
     : DEFAULT_PERSONAL_TASK_COLOR;
 };
-const normalizePublicDescriptionInput = (value: string | undefined) =>
-  String(value || "").slice(0, GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH);
 const normalizeGuestQrColor = (value: string | undefined) => {
   const v = String(value || "").trim();
   return /^#[0-9a-fA-F]{6}$/.test(v) ? v.toUpperCase() : "#2563EB";
@@ -1360,7 +1349,6 @@ export function ConfigurationPage() {
   const [companySectionVisibility, setCompanySectionVisibility] = useState({
     overview: true,
     basic: true,
-    public: true,
     payments: false,
     fiscal: true,
   });
@@ -1495,7 +1483,6 @@ export function ConfigurationPage() {
     () => [
       { key: "overview", label: "Pregled podjetja" },
       { key: "basic", label: "Osnovni podatki" },
-      { key: "public", label: "Javna predstavitev" },
       { key: "payments", label: "Podatki za plačila" },
       { key: "fiscal", label: "Davčno potrjevanje" },
     ] as const,
@@ -8661,124 +8648,36 @@ export function ConfigurationPage() {
                                 </select>
                               </label>
                             </div>
-                          </section>
-                        ) : null}
-
-                        {companySectionVisibility.public ? (
-                          <section className="account-card account-form-card account-branding-card">
-                            <div className="account-form-card-header">
-                              <div>
-                                <h3>Javna predstavitev</h3>
-                                <p className="account-form-card-subtitle">
-                                  Ti podatki so vidni gostom na javni strani in v aplikaciji.
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="account-public-fields">
-                              <label className="account-field">
-                                <span className="account-field-label">Javno ime</span>
-                                <input
-                                  className="account-field-control"
-                                  maxLength={GUEST_PUBLIC_NAME_MAX_LENGTH}
-                                  value={guestAppSettings.publicName}
-                                  onChange={(e) =>
-                                    setGuestAppSettings((prev) => ({
-                                      ...prev,
-                                      publicName: normalizePublicName(e.target.value),
-                                    }))
-                                  }
-                                  placeholder={selectedCompanyProfile?.name || "Naziv podjetja"}
-                                />
-                              </label>
-
-                              <label className="account-field">
-                                <span className="account-field-label">Javni naslov</span>
-                                <input
-                                  className="account-field-control"
-                                  maxLength={GUEST_PUBLIC_ADDRESS_MAX_LENGTH}
-                                  value={guestAppSettings.publicAddress}
-                                  onChange={(e) =>
-                                    setGuestAppSettings((prev) => ({
-                                      ...prev,
-                                      publicAddress: normalizePublicAddressInput(
-                                        e.target.value,
-                                      ),
-                                    }))
-                                  }
-                                  placeholder="Če pustite prazno, se uporabi fizični naslov podjetja"
-                                />
-                              </label>
-
-                              <label className="account-field">
-                                <span className="account-field-label">Javni opis</span>
-                                <textarea
-                                  className="account-field-control account-field-textarea"
-                                  maxLength={GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH}
-                                  value={guestAppSettings.publicDescription}
-                                  onChange={(e) =>
-                                    setGuestAppSettings((prev) => ({
-                                      ...prev,
-                                      publicDescription:
-                                        normalizePublicDescriptionInput(
-                                          e.target.value,
-                                        ),
-                                    }))
-                                  }
-                                  placeholder="Na kratko predstavite svoje podjetje in storitve."
-                                />
-                                <span className="account-field-counter">
-                                  {guestAppSettings.publicDescription.length} / {GUEST_PUBLIC_DESCRIPTION_MAX_LENGTH}
-                                </span>
-                              </label>
-                            </div>
-
                             <div className="account-public-logo-section">
                               <div>
-                                <strong className="account-public-section-title">Logotip podjetja</strong>
+                                <strong className="account-public-section-title">
+                                  Logotip podjetja
+                                </strong>
                                 <p className="account-section-description">
-                                  Logotip se uporablja v mobilni aplikaciji za goste in na javni strani Calendra Stranke.
+                                  Uporablja se na dokumentih in kot privzeti logotip lokacij, ki nimajo svojega javnega logotipa.
                                 </p>
                               </div>
                               <GuestUploadDropzone
                                 title="Povlecite logotip sem ali kliknite za izbiro"
                                 subtitle="PNG, JPG ali WebP · Priporočeno 512×512"
-                                hint="Uporabljen bo kot glavni logotip podjetja v vseh javnih prikazih Calendre."
-                                currentUrl={settings.COMPANY_LOGO_URL || guestAppSettings.logoImageUrl}
+                                hint="Lokacije lahko v zavihku Poslovni prostori nastavijo svoj javni logotip ali uporabijo tega."
+                                currentUrl={
+                                  settings.COMPANY_LOGO_URL ||
+                                  guestAppSettings.logoImageUrl
+                                }
                                 previewAlt="Logotip podjetja"
                                 previewShape="round"
                                 iconKind="logo"
-                                onFile={(selected) => void uploadGuestAppAsset("logoImageUrl", selected)}
-                                uploading={uploadingGuestAsset === "logoImageUrl"}
+                                onFile={(selected) =>
+                                  void uploadGuestAppAsset(
+                                    "logoImageUrl",
+                                    selected,
+                                  )
+                                }
+                                uploading={
+                                  uploadingGuestAsset === "logoImageUrl"
+                                }
                               />
-                            </div>
-
-                            <div className="account-public-visibility-list">
-                              <div className="account-public-directory-row">
-                                <div>
-                                  <strong>Prikaži podjetje na strani Calendra Stranke</strong>
-                                  <p>Ko je vključeno, se javno ime, fizični naslov, opis, logotip in Google ocena prikažejo na calendra.si/stranke.</p>
-                                </div>
-                                <GuestSwitch
-                                  checked={String(settings.PUBLIC_DIRECTORY_ENABLED || "false") === "true"}
-                                  onChange={(checked) => setSettings((prev) => ({ ...prev, PUBLIC_DIRECTORY_ENABLED: String(checked) }))}
-                                />
-                              </div>
-                              <div className="account-public-directory-row">
-                                <div>
-                                  <strong>Prikaži podjetje v aplikaciji za goste</strong>
-                                  <p>Ko je vključeno, se podjetje lahko prikaže v javnih rezultatih iskanja aplikacije za goste.</p>
-                                </div>
-                                <GuestSwitch
-                                  checked={guestAppSettings.publicDiscoverable}
-                                  onChange={(checked) =>
-                                    setGuestAppSettings((prev) => ({
-                                      ...prev,
-                                      publicDiscoverable: checked,
-                                    }))
-                                  }
-                                />
-                              </div>
                             </div>
                           </section>
                         ) : null}
@@ -9173,6 +9072,9 @@ export function ConfigurationPage() {
                       locationsEnabled={locationsEnabledCommitted}
                       spacesEnabled={spacesEnabledCommitted}
                       issuerOptions={locationIssuerOptions}
+                      companyLogoUrl={
+                        settings.COMPANY_LOGO_URL || guestAppSettings.logoImageUrl
+                      }
                       onChanged={load}
                     />
                   ) : accountSubtab === "receivedInvoices" ? (
@@ -10605,6 +10507,9 @@ export function ConfigurationPage() {
                     locationsEnabled={locationsEnabledCommitted}
                     spacesEnabled={spacesEnabledCommitted}
                     issuerOptions={locationIssuerOptions}
+                    companyLogoUrl={
+                      settings.COMPANY_LOGO_URL || guestAppSettings.logoImageUrl
+                    }
                     onChanged={load}
                   />
                 </div>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '../../api'
 import { useToast } from '../../components/Toast'
 import type { InvoiceIssuerOption } from '../../lib/types'
+import { GuestSwitch, GuestUploadDropzone } from './ConfigurationVisualComponents'
 import './operating-units.css'
 
 type OperatingLocation = {
@@ -15,6 +16,15 @@ type OperatingLocation = {
   phone?: string | null
   email?: string | null
   openingHoursJson?: string | null
+  publicName?: string | null
+  publicAddress?: string | null
+  publicDescription?: string | null
+  publicLogoS3Key?: string | null
+  publicLogoUrl?: string | null
+  publicDirectoryEnabled: boolean
+  guestAppDiscoverable: boolean
+  websitePresentationEnabled: boolean
+  googlePlaceId?: string | null
   publicBookingEnabled: boolean
   defaultLocation: boolean
   active: boolean
@@ -45,6 +55,13 @@ type LocationDraft = {
   phone: string
   email: string
   openingHoursJson: string | null
+  publicName: string
+  publicAddress: string
+  publicDescription: string
+  publicDirectoryEnabled: boolean
+  guestAppDiscoverable: boolean
+  websitePresentationEnabled: boolean
+  googlePlaceId: string
   publicBookingEnabled: boolean
   defaultLocation: boolean
   active: boolean
@@ -61,8 +78,14 @@ type OperatingUnitsPanelProps = {
   locationsEnabled: boolean
   spacesEnabled: boolean
   issuerOptions?: InvoiceIssuerOption[]
+  companyLogoUrl?: string | null
   onChanged?: () => void | Promise<void>
 }
+
+const PUBLIC_NAME_MAX_LENGTH = 255
+const PUBLIC_ADDRESS_MAX_LENGTH = 512
+const PUBLIC_DESCRIPTION_MAX_LENGTH = 500
+const GOOGLE_PLACE_ID_MAX_LENGTH = 255
 
 const FALLBACK_TIMEZONES = [
   'Europe/Ljubljana',
@@ -101,6 +124,13 @@ const blankDraft = (issuerId: number | null): LocationDraft => ({
   phone: '',
   email: '',
   openingHoursJson: null,
+  publicName: '',
+  publicAddress: '',
+  publicDescription: '',
+  publicDirectoryEnabled: false,
+  guestAppDiscoverable: false,
+  websitePresentationEnabled: true,
+  googlePlaceId: '',
   publicBookingEnabled: true,
   defaultLocation: false,
   active: true,
@@ -122,6 +152,13 @@ const draftFromLocation = (location: OperatingLocation): LocationDraft => ({
   phone: location.phone || '',
   email: location.email || '',
   openingHoursJson: location.openingHoursJson ?? null,
+  publicName: location.publicName || '',
+  publicAddress: location.publicAddress || '',
+  publicDescription: location.publicDescription || '',
+  publicDirectoryEnabled: location.publicDirectoryEnabled === true,
+  guestAppDiscoverable: location.guestAppDiscoverable === true,
+  websitePresentationEnabled: location.websitePresentationEnabled !== false,
+  googlePlaceId: location.googlePlaceId || '',
   publicBookingEnabled: location.publicBookingEnabled !== false,
   defaultLocation: location.defaultLocation === true,
   active: location.active !== false,
@@ -149,6 +186,7 @@ export function OperatingUnitsPanel({
   locationsEnabled,
   spacesEnabled,
   issuerOptions = [],
+  companyLogoUrl,
   onChanged,
 }: OperatingUnitsPanelProps) {
   const sl = locale === 'sl'
@@ -161,6 +199,7 @@ export function OperatingUnitsPanel({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [premiseBusy, setPremiseBusy] = useState(false)
+  const [publicLogoBusy, setPublicLogoBusy] = useState(false)
   const [bannerVisible, setBannerVisible] = useState(true)
   const [newSpaceName, setNewSpaceName] = useState('')
   const [addingSpace, setAddingSpace] = useState(false)
@@ -239,6 +278,7 @@ export function OperatingUnitsPanel({
     : locations.find((item) => item.id === selectedLocationId) ?? null
   const locationSpaces = spaces.filter((space) => space.location?.id === selectedLocation?.id)
   const showCompanySelector = issuers.length > 1
+  const effectivePublicLogoUrl = selectedLocation?.publicLogoUrl || companyLogoUrl || undefined
 
   const selectLocation = (location: OperatingLocation) => {
     setSelectedLocationId(location.id)
@@ -316,6 +356,52 @@ export function OperatingUnitsPanel({
       showToast('success', sl ? 'Lokacija je izbrisana.' : 'Location deleted.')
     } catch (error: any) {
       showToast('error', error?.response?.data?.message || (sl ? 'Lokacije ni bilo mogoče izbrisati.' : 'Location could not be deleted.'))
+    }
+  }
+
+  const uploadPublicLogo = async (file: File | null) => {
+    if (!file) return
+    if (!selectedLocation) {
+      showToast('error', sl ? 'Pred nalaganjem logotipa najprej shranite novo lokacijo.' : 'Save the new location before uploading a logo.')
+      return
+    }
+    setPublicLogoBusy(true)
+    try {
+      const body = new FormData()
+      body.append('file', file)
+      const { data } = await api.post(`/locations/${selectedLocation.id}/public-logo`, body, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      setLocations((current) => current.map((location) => location.id === selectedLocation.id
+        ? {
+            ...location,
+            publicLogoS3Key: String(data?.objectKey || '') || null,
+            publicLogoUrl: String(data?.publicUrl || '') || null,
+          }
+        : location))
+      await onChanged?.()
+      showToast('success', sl ? 'Logotip lokacije je naložen.' : 'Location logo uploaded.')
+    } catch (error: any) {
+      showToast('error', error?.response?.data?.message || (sl ? 'Logotipa lokacije ni bilo mogoče naložiti.' : 'Location logo could not be uploaded.'))
+    } finally {
+      setPublicLogoBusy(false)
+    }
+  }
+
+  const useCompanyLogo = async () => {
+    if (!selectedLocation?.publicLogoS3Key) return
+    setPublicLogoBusy(true)
+    try {
+      await api.delete(`/locations/${selectedLocation.id}/public-logo`)
+      setLocations((current) => current.map((location) => location.id === selectedLocation.id
+        ? { ...location, publicLogoS3Key: null, publicLogoUrl: null }
+        : location))
+      await onChanged?.()
+      showToast('success', sl ? 'Lokacija zdaj uporablja logotip podjetja.' : 'The location now uses the company logo.')
+    } catch (error: any) {
+      showToast('error', error?.response?.data?.message || (sl ? 'Logotipa lokacije ni bilo mogoče odstraniti.' : 'Location logo could not be removed.'))
+    } finally {
+      setPublicLogoBusy(false)
     }
   }
 
@@ -495,6 +581,125 @@ export function OperatingUnitsPanel({
                 <label className="ou-field"><span>{sl ? 'Oznaka elektronske naprave' : 'Electronic device ID'}</span><input value={draft.invoiceElectronicDeviceId} onChange={(event) => setDraft((current) => ({ ...current, invoiceElectronicDeviceId: event.target.value }))} /><small>{sl ? 'Oznaka tiskalnika ali POS naprave za izdajanje računov.' : 'Printer or POS device identifier used for invoices.'}</small></label>
               </section>
             </div>
+
+            <section className="ou-public-section">
+              <div className="ou-public-heading">
+                <div>
+                  <h3>{sl ? 'Javna predstavitev' : 'Public presentation'}</h3>
+                  <p>{sl ? 'Podatki, ki predstavljajo to lokacijo na javnih kanalih Calendre.' : 'Information used to present this location across Calendra public channels.'}</p>
+                </div>
+              </div>
+
+              <div className="ou-public-fields">
+                <label className="ou-field">
+                  <span>{sl ? 'Javno ime' : 'Public name'}</span>
+                  <input
+                    maxLength={PUBLIC_NAME_MAX_LENGTH}
+                    value={draft.publicName}
+                    onChange={(event) => setDraft((current) => ({ ...current, publicName: event.target.value.slice(0, PUBLIC_NAME_MAX_LENGTH) }))}
+                    placeholder={draft.name || (sl ? 'Ime lokacije' : 'Location name')}
+                  />
+                  <small>{sl ? 'Če pustite prazno, se uporabi ime lokacije.' : 'If left blank, the location name is used.'}</small>
+                </label>
+                <label className="ou-field">
+                  <span>{sl ? 'Javni naslov' : 'Public address'}</span>
+                  <input
+                    maxLength={PUBLIC_ADDRESS_MAX_LENGTH}
+                    value={draft.publicAddress}
+                    onChange={(event) => setDraft((current) => ({ ...current, publicAddress: event.target.value.slice(0, PUBLIC_ADDRESS_MAX_LENGTH) }))}
+                    placeholder={sl ? 'Če pustite prazno, se uporabi naslov lokacije' : 'If left blank, the location address is used'}
+                  />
+                  <small>{sl ? 'Uporabite le, če želite javno prikazati drugačen naslov od osnovnega naslova lokacije.' : 'Use only when the public address should differ from the location address.'}</small>
+                </label>
+                <label className="ou-field ou-field-wide">
+                  <span>{sl ? 'Javni opis' : 'Public description'}</span>
+                  <textarea
+                    className="ou-public-description"
+                    maxLength={PUBLIC_DESCRIPTION_MAX_LENGTH}
+                    value={draft.publicDescription}
+                    onChange={(event) => setDraft((current) => ({ ...current, publicDescription: event.target.value.slice(0, PUBLIC_DESCRIPTION_MAX_LENGTH) }))}
+                    placeholder={sl ? 'Na kratko predstavite lokacijo in storitve.' : 'Briefly introduce this location and its services.'}
+                  />
+                  <small className="ou-character-count">{draft.publicDescription.length} / {PUBLIC_DESCRIPTION_MAX_LENGTH}</small>
+                </label>
+                <label className="ou-field ou-field-wide">
+                  <span>Google Place ID</span>
+                  <input
+                    maxLength={GOOGLE_PLACE_ID_MAX_LENGTH}
+                    value={draft.googlePlaceId}
+                    onChange={(event) => setDraft((current) => ({ ...current, googlePlaceId: event.target.value.slice(0, GOOGLE_PLACE_ID_MAX_LENGTH) }))}
+                    placeholder="ChIJ…"
+                  />
+                  <small>{sl ? 'Neobvezno. Omogoča pravilno Google oceno za to fizično lokacijo.' : 'Optional. Used to resolve the correct Google rating for this physical location.'}</small>
+                </label>
+              </div>
+
+              <div className="ou-public-logo-section">
+                <div className="ou-public-logo-copy">
+                  <strong>{sl ? 'Logotip lokacije' : 'Location logo'}</strong>
+                  <p>{sl ? 'Po želji nastavite logotip samo za to lokacijo. Če ga ne nastavite, se uporabi logotip podjetja.' : 'Optionally set a logo for this location. If none is set, the company logo is used.'}</p>
+                  {selectedLocation?.publicLogoS3Key ? (
+                    <span className="ou-logo-source-badge">{sl ? 'Uporabljen je logotip lokacije' : 'Using location logo'}</span>
+                  ) : companyLogoUrl ? (
+                    <span className="ou-logo-source-badge is-fallback">{sl ? 'Uporabljen je logotip podjetja' : 'Using company logo'}</span>
+                  ) : (
+                    <span className="ou-logo-source-badge is-fallback">{sl ? 'Logotip ni nastavljen' : 'No logo set'}</span>
+                  )}
+                </div>
+                <div className="ou-public-logo-control">
+                  {selectedLocation ? (
+                    <>
+                      <GuestUploadDropzone
+                        title={sl ? 'Povlecite logotip sem ali kliknite za izbiro' : 'Drag a logo here or click to choose'}
+                        subtitle={sl ? 'PNG, JPG ali WebP · Priporočeno 512×512' : 'PNG, JPG or WebP · Recommended 512×512'}
+                        hint={sl ? 'Uporabljen bo samo za javno predstavitev te lokacije.' : 'Used only for the public presentation of this location.'}
+                        currentUrl={effectivePublicLogoUrl}
+                        previewAlt={sl ? 'Logotip lokacije' : 'Location logo'}
+                        previewShape="round"
+                        iconKind="logo"
+                        uploading={publicLogoBusy}
+                        onFile={(file) => void uploadPublicLogo(file)}
+                      />
+                      {selectedLocation.publicLogoS3Key ? (
+                        <button type="button" className="ou-logo-fallback-button" disabled={publicLogoBusy} onClick={() => void useCompanyLogo()}>
+                          {companyLogoUrl
+                            ? (sl ? 'Uporabi logotip podjetja' : 'Use company logo')
+                            : (sl ? 'Odstrani logotip lokacije' : 'Remove location logo')}
+                        </button>
+                      ) : null}
+                    </>
+                  ) : (
+                    <div className="ou-logo-unsaved">
+                      {sl ? 'Novo lokacijo najprej shranite, nato lahko naložite njen logotip.' : 'Save the new location first, then you can upload its logo.'}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="ou-public-toggle-list">
+                <div className="ou-public-toggle-row">
+                  <div>
+                    <strong>{sl ? 'Prikaži lokacijo na strani Calendra Stranke' : 'Show location on Calendra Clients page'}</strong>
+                    <p>{sl ? 'Javna predstavitev te lokacije se lahko prikaže na calendra.si/stranke.' : 'This location can appear in the public Calendra directory.'}</p>
+                  </div>
+                  <GuestSwitch checked={draft.publicDirectoryEnabled} onChange={(checked) => setDraft((current) => ({ ...current, publicDirectoryEnabled: checked }))} />
+                </div>
+                <div className="ou-public-toggle-row">
+                  <div>
+                    <strong>{sl ? 'Prikaži lokacijo v aplikaciji za goste' : 'Show location in the guest app'}</strong>
+                    <p>{sl ? 'Lokacija se lahko prikaže v javnih rezultatih iskanja aplikacije za goste.' : 'The location can appear in public guest-app search results.'}</p>
+                  </div>
+                  <GuestSwitch checked={draft.guestAppDiscoverable} onChange={(checked) => setDraft((current) => ({ ...current, guestAppDiscoverable: checked }))} />
+                </div>
+                <div className="ou-public-toggle-row">
+                  <div>
+                    <strong>{sl ? 'Prikaži javno predstavitev v spletnem vtičniku' : 'Show public presentation in the website widget'}</strong>
+                    <p>{sl ? 'Prikaže ime, naslov, opis in logotip lokacije v vtičniku. Ta nastavitev ne izključi spletnega naročanja.' : 'Shows the location name, address, description and logo in the widget. This does not disable online booking.'}</p>
+                  </div>
+                  <GuestSwitch checked={draft.websitePresentationEnabled} onChange={(checked) => setDraft((current) => ({ ...current, websitePresentationEnabled: checked }))} />
+                </div>
+              </div>
+            </section>
 
             <div className="ou-check-row">
               <label><input type="checkbox" checked={draft.active} disabled={draft.defaultLocation} onChange={(event) => setDraft((current) => ({ ...current, active: event.target.checked }))} /><span><strong>{sl ? 'Aktivna lokacija' : 'Active location'}</strong><small>{sl ? 'Lokacija je vidna in uporabna v aplikaciji.' : 'The location is visible and usable in the app.'}</small></span></label>
