@@ -119,7 +119,6 @@ import { CalendarGroupGuestsPanel } from './components/CalendarGroupGuestsPanel'
 import { CalendarLocalTimeDateRow, CalendarLocalTimespanRow } from './components/CalendarLocalDateTimeRows'
 import { PersonalTaskCombo } from './components/PersonalTaskCombo'
 import { SessionNotesTextarea } from './components/SessionNotesTextarea'
-import { CalendarSessionModals } from './components/CalendarSessionModals'
 import { CalendarDashboard } from './components/CalendarDashboard'
 import {
   CALENDAR_FILTERS_BOTTOM_BAR_MAX_PX,
@@ -142,6 +141,9 @@ const NativeSpeechRecognition = {
   stop: async (): Promise<void> => {},
 }
 
+const CalendarSessionModals = lazy(() =>
+  import('./components/CalendarSessionModals').then((module) => ({ default: module.CalendarSessionModals })),
+)
 const EmbeddedBillingPage = lazy(() =>
   import('../BillingPage').then((module) => ({ default: module.BillingPage })),
 )
@@ -15246,7 +15248,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         </div>
       )}
 
-      <CalendarSessionModals ctx={calendarSessionModalProps} />
+      <Suspense fallback={null}>
+        <CalendarSessionModals ctx={calendarSessionModalProps} />
+      </Suspense>
 
       {groupGuestsOpen && selectedBookedSession && bookedSessionIsGroup && (
         <CalendarGroupGuestsPanel
