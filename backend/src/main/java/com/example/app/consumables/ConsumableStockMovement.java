@@ -4,6 +4,7 @@ import com.example.app.common.BaseEntity;
 import com.example.app.company.Company;
 import com.example.app.consumables.ConsumableEnums.StockMovementSourceType;
 import com.example.app.consumables.ConsumableEnums.StockMovementType;
+import com.example.app.location.Location;
 import com.example.app.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -29,6 +30,10 @@ public class ConsumableStockMovement extends BaseEntity {
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "consumable_id", nullable = false)
     private Consumable consumable;
+
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id", nullable = false)
+    private Location location;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)

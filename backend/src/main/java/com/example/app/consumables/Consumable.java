@@ -44,18 +44,6 @@ public class Consumable extends BaseEntity {
     @Column(nullable = false, length = 32)
     private String unit = "kos";
 
-    @Column(length = 120)
-    private String location;
-
-    @Column(nullable = false, precision = 19, scale = 4)
-    private BigDecimal currentStock = BigDecimal.ZERO;
-
-    @Column(nullable = false, precision = 19, scale = 4)
-    private BigDecimal minimumStock = BigDecimal.ZERO;
-
-    @Column(nullable = false, precision = 19, scale = 4)
-    private BigDecimal costPrice = BigDecimal.ZERO;
-
     @Column(precision = 19, scale = 4)
     private BigDecimal salePrice;
 

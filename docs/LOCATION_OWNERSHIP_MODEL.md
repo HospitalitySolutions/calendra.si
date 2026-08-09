@@ -57,10 +57,10 @@ A one-location tenant should not have extra UX complexity: signup/provisioning c
 | `Course` | COMPANY/WORKSPACE DIGITAL CONTENT | Correct | Course content itself is not physical. Sale/access eligibility is controlled through product Location scope when applicable. |
 | `PersonalCalendarBlock` | USER / CROSS-LOCATION AVAILABILITY | Correct conceptually | A personal absence blocks the consultant across locations. Optional location-specific blocks can be a separate feature if needed. |
 | `CalendarTodo` | USER/COMPANY | Acceptable | Not inherently location-owned; optional contextual Location can be added later only when needed. |
-| `Consumable` | SHARED SKU/CATALOG | **Current model mixes catalog and stock** | Do not simply add one Location to the item. Split catalog identity from per-location stock. |
-| consumable stock | LOCATION | **Gap / high priority for inventory** | Introduce per-location stock row (e.g. `ConsumableLocationStock`) and Location on movements. |
-| `ConsumablePurchaseOrder` | LOCATION | **Gap** | Receiving/order destination must be one Location. |
-| `ConsumableStockMovement` | LOCATION | **Gap** | Every movement must update one branch's stock ledger. |
+| `Consumable` | SHARED SKU/CATALOG | **Phase 5.5D normalized** | Shared catalog identity only; physical stock fields were moved to the location ledger. |
+| consumable stock | LOCATION | **Phase 5.5D implemented** | `ConsumableLocationStock` owns quantity, minimum and cost per branch. |
+| `ConsumablePurchaseOrder` | LOCATION | **Phase 5.5D hardened** | Receiving/order destination is a mandatory Location. |
+| `ConsumableStockMovement` | LOCATION | **Phase 5.5D hardened** | Every movement stores a mandatory Location and updates only that branch's ledger. |
 | booking/reservation rules | DEFAULT + LOCATION OVERRIDE | **Gap** | Company can hold defaults; Location should optionally override customer-facing/operational rules. |
 | pricing | SHARED DEFAULT + LOCATION OVERRIDE | Partial | Service definition can be shared; add Location price override only where branches need different prices. |
 | public directory / widget / Guest App provider | LOCATION | Phases 1–5 migrated | Keep Location as provider identity. |
@@ -171,15 +171,23 @@ Migration `V50__commerce_location_scope.sql` adds the scope tables/columns, comp
 
 ## Phase 5.5D – inventory
 
-Inventory needs a normalized ledger rather than a single Location column on `Consumable`:
+Inventory is now normalized into a shared catalog plus a per-location stock ledger:
 
-- `Consumable` = shared SKU/catalog definition.
-- `ConsumableLocationStock` = `(consumable_id, location_id, current_stock, minimum_stock, cost...)`.
-- `ConsumableStockMovement.location_id` = mandatory.
-- `ConsumablePurchaseOrder.location_id` = mandatory receiving branch.
-- Session consumption derives Location from `SessionBooking.location`.
+- `Consumable` remains the Company-wide SKU/catalog definition; physical stock fields no longer live on it.
+- `ConsumableLocationStock` owns `(consumable_id, location_id, current_stock, minimum_stock, cost_price)` and enforces one row per SKU/Location.
+- `ConsumableStockMovement.location_id` is mandatory and immutable history is recorded against the branch where the movement occurred.
+- `ConsumablePurchaseOrder.location_id` is mandatory and identifies the receiving branch.
+- Session checkout consumption derives Location from `SessionBooking.location`; reversal uses the original movement Location rather than recalculating it later.
+- New Locations automatically receive zero-stock rows for existing SKUs, and new SKUs receive zero-stock rows for every existing Location.
+- Multi-location reads may aggregate all branch rows, but every stock-changing operation requires one concrete Location. A single active Location may be auto-resolved; multiple branches are never resolved by implicit first/default selection.
 
-The current free-text `Consumable.location` and company-wide `currentStock` should then be removed.
+### Migration and compatibility
+
+Migration `V51__consumable_location_inventory.sql` preserves the old company-wide quantity exactly by assigning it to the historical default Location. Other existing Locations start at zero quantity. Existing minimum-stock and cost settings are copied to every branch as the initial per-location configuration. Legacy movements and purchase orders that had no branch are assigned to the historical default Location; session-linked movements are backfilled from the booking Location where that relationship exists. After the ledger is populated, the free-text `Consumable.location` plus `current_stock`, `minimum_stock` and `cost_price` columns are removed.
+
+### Runtime and database verification
+
+The consumables API accepts optional `locationId` on overview/item/movement/purchase-order reads and returns Location identity on stock rows, movements and purchase orders. The web UI follows the global **Poslovalnice** selection; all-location mode is an aggregate read view, while adjustments and purchase orders always carry an explicit branch. Database foreign keys and validation triggers reject cross-Company SKU/Location writes and session movements that do not match their booking Location. `ConsumableLocationInventoryMigrationTest` verifies legacy quantity preservation, non-null movement/order Location ownership, removal of denormalized columns, cross-Company rejection and automatic stock-matrix initialization for new Locations/SKUs.
 
 ## Phase 5.5E – rules, pricing and configuration
 

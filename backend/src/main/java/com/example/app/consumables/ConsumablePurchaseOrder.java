@@ -3,6 +3,7 @@ package com.example.app.consumables;
 import com.example.app.common.BaseEntity;
 import com.example.app.company.Company;
 import com.example.app.consumables.ConsumableEnums.PurchaseOrderStatus;
+import com.example.app.location.Location;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -31,6 +32,10 @@ public class ConsumablePurchaseOrder extends BaseEntity {
 
     @Column(name = "order_number", nullable = false, length = 64)
     private String orderNumber;
+
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id", nullable = false)
+    private Location location;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "supplier_id")

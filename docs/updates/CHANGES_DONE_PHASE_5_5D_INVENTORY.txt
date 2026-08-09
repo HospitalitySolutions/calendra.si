@@ -1,0 +1,20 @@
+Phase 5.5D — per-location inventory ledger
+
+Implemented:
+- Consumable is now a shared SKU/catalog object only.
+- Added ConsumableLocationStock with one stock/settings row per consumable + operational Location.
+- current stock, minimum stock and cost price moved from Consumable into the per-location ledger.
+- Removed the legacy free-text Consumable.location field.
+- ConsumableStockMovement now requires Location.
+- ConsumablePurchaseOrder now requires the receiving Location.
+- Session checkout consumes stock from SessionBooking.location.
+- Session usage reversal restores stock to the immutable Location recorded on the original movement.
+- Stock writes lock the per-location stock row and reject negative physical stock.
+- New SKU/Location combinations are initialized automatically at zero.
+- Existing company-wide quantity migrates exactly to the historical default Location; other branches begin at zero.
+- Existing minimum-stock/cost values are copied as initial settings for every existing branch.
+- Consumables overview/items/movements/purchase orders support optional locationId filtering.
+- Frontend follows the global Poslovalnice selector and requires an explicit branch for stock-changing operations when multiple branches exist.
+- Added migration coverage in ConsumableLocationInventoryMigrationTest.
+
+Database migration: V51__consumable_location_inventory.sql

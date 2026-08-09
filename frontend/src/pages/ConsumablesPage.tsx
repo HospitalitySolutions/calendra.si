@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { api } from '../api'
+import { useAuthenticatedUser } from '../authUserContext'
 import { useToast } from '../components/Toast'
+import { useSelectedLocationId } from '../lib/locationContext'
+import type { Location } from '../lib/types'
 
 type Category = { id: number; name: string; color?: string | null; active: boolean }
 type Item = {
@@ -11,6 +14,7 @@ type Item = {
   sku?: string | null
   barcode?: string | null
   unit: string
+  locationId: number
   location?: string | null
   currentStock: number
   minimumStock: number
@@ -26,6 +30,8 @@ type Movement = {
   consumableId: number
   itemName: string
   categoryName?: string | null
+  locationId?: number | null
+  locationName?: string | null
   movementType: string
   sourceType?: string | null
   quantityDelta: number
@@ -63,6 +69,8 @@ type PurchaseOrder = {
   orderNumber: string
   supplierId?: number | null
   supplierName?: string | null
+  locationId?: number | null
+  locationName?: string | null
   status: 'DRAFT' | 'ORDERED' | 'PARTIALLY_RECEIVED' | 'COMPLETED' | 'CANCELLED'
   orderDate?: string | null
   expectedDate?: string | null
@@ -77,7 +85,7 @@ type ItemFormState = {
   name: string
   sku: string
   categoryId: string
-  location: string
+  locationId: string
   unit: string
   currentStock: string
   minimumStock: string
@@ -132,6 +140,9 @@ function movementText(type: string) {
 }
 
 export function ConsumablesPage() {
+  const me = useAuthenticatedUser()
+  const activeUnitId = me.activeUnitId ?? me.companyId
+  const [selectedLocationId] = useSelectedLocationId(activeUnitId)
   const { showToast } = useToast()
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
   const [loading, setLoading] = useState(true)
@@ -141,6 +152,7 @@ export function ConsumablesPage() {
   const [movements, setMovements] = useState<Movement[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
+  const [operationalLocations, setOperationalLocations] = useState<Location[]>([])
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [locationFilter, setLocationFilter] = useState('')
@@ -149,33 +161,53 @@ export function ConsumablesPage() {
   const [itemModalOpen, setItemModalOpen] = useState(false)
   const [savingItem, setSavingItem] = useState(false)
   const [itemForm, setItemForm] = useState<ItemFormState>({
-    name: '', sku: '', categoryId: '', location: '', unit: 'kos', currentStock: '0', minimumStock: '0', costPrice: '0', billable: false, trackStock: true,
+    name: '', sku: '', categoryId: '', locationId: '', unit: 'kos', currentStock: '0', minimumStock: '0', costPrice: '0', billable: false, trackStock: true,
   })
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true)
+    const scopedConfig = selectedLocationId != null ? { params: { locationId: selectedLocationId } } : undefined
     Promise.all([
-      api.get('/consumables/overview').catch(() => ({ data: emptyOverview })),
-      api.get('/consumables/items').catch(() => ({ data: [] })),
+      api.get('/consumables/overview', scopedConfig).catch(() => ({ data: emptyOverview })),
+      api.get('/consumables/items', scopedConfig).catch(() => ({ data: [] })),
       api.get('/consumables/categories').catch(() => ({ data: [] })),
-      api.get('/consumables/movements').catch(() => ({ data: [] })),
+      api.get('/consumables/movements', scopedConfig).catch(() => ({ data: [] })),
       api.get('/consumables/suppliers').catch(() => ({ data: [] })),
-      api.get('/consumables/purchase-orders').catch(() => ({ data: [] })),
+      api.get('/consumables/purchase-orders', scopedConfig).catch(() => ({ data: [] })),
+      api.get('/locations').catch(() => ({ data: [] })),
     ])
-      .then(([overviewRes, itemRes, catRes, movRes, supplierRes, poRes]) => {
+      .then(([overviewRes, itemRes, catRes, movRes, supplierRes, poRes, locationRes]) => {
         setOverview(overviewRes.data || emptyOverview)
         setItems(Array.isArray(itemRes.data) ? itemRes.data : [])
         setCategories(Array.isArray(catRes.data) ? catRes.data : [])
         setMovements(Array.isArray(movRes.data) ? movRes.data : [])
         setSuppliers(Array.isArray(supplierRes.data) ? supplierRes.data : [])
         setPurchaseOrders(Array.isArray(poRes.data) ? poRes.data : [])
+        setOperationalLocations(Array.isArray(locationRes.data) ? locationRes.data : [])
       })
       .finally(() => setLoading(false))
+  }, [selectedLocationId])
+
+  useEffect(() => { load() }, [load])
+  useEffect(() => { setLocationFilter('') }, [selectedLocationId])
+
+  const activeInventoryLocations = useMemo(() => operationalLocations.filter((location) => location.active), [operationalLocations])
+  const writableInventoryLocations = useMemo(() => {
+    if (selectedLocationId == null) return activeInventoryLocations
+    return activeInventoryLocations.filter((location) => location.id === selectedLocationId)
+  }, [activeInventoryLocations, selectedLocationId])
+  const stockLocationNames = useMemo(() => Array.from(new Set(items.map((i) => i.location).filter(Boolean) as string[])).sort(), [items])
+  const defaultWriteLocationId = useMemo(() => {
+    if (selectedLocationId != null && activeInventoryLocations.some((location) => location.id === selectedLocationId)) return selectedLocationId
+    return activeInventoryLocations.length === 1 ? activeInventoryLocations[0].id : null
+  }, [activeInventoryLocations, selectedLocationId])
+  const resetItemForm = useCallback(() => {
+    setItemForm({ name: '', sku: '', categoryId: '', locationId: defaultWriteLocationId != null ? String(defaultWriteLocationId) : '', unit: 'kos', currentStock: '0', minimumStock: '0', costPrice: '0', billable: false, trackStock: true })
+  }, [defaultWriteLocationId])
+  const openItemModal = () => {
+    resetItemForm()
+    setItemModalOpen(true)
   }
-
-  useEffect(() => { load() }, [])
-
-  const locations = useMemo(() => Array.from(new Set(items.map((i) => i.location).filter(Boolean) as string[])).sort(), [items])
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase()
     return items.filter((item) => {
@@ -190,7 +222,7 @@ export function ConsumablesPage() {
   }, [items, query, categoryFilter, locationFilter, statusFilter, showOnlyLow])
 
   const lowStockItems = useMemo(() => items.filter((i) => i.lowStock), [items])
-  const billableCount = useMemo(() => items.filter((i) => i.billable).length, [items])
+  const billableCount = useMemo(() => new Set(items.filter((i) => i.billable).map((i) => i.id)).size, [items])
   const outOfStockCount = useMemo(() => items.filter((i) => i.trackStock && Number(i.currentStock) <= 0).length, [items])
 
   const saveItem = (event: FormEvent) => {
@@ -199,12 +231,16 @@ export function ConsumablesPage() {
       showToast('error', 'Vnesite naziv artikla.')
       return
     }
+    if (!itemForm.locationId) {
+      showToast('error', 'Izberite poslovalnico za začetno zalogo.')
+      return
+    }
     setSavingItem(true)
     api.post('/consumables/items', {
       name: itemForm.name.trim(),
       sku: itemForm.sku.trim() || null,
       categoryId: itemForm.categoryId ? Number(itemForm.categoryId) : null,
-      location: itemForm.location.trim() || null,
+      locationId: Number(itemForm.locationId),
       unit: itemForm.unit.trim() || 'kos',
       currentStock: Number(itemForm.currentStock || 0),
       minimumStock: Number(itemForm.minimumStock || 0),
@@ -216,7 +252,7 @@ export function ConsumablesPage() {
       .then(() => {
         showToast('success', 'Artikel je dodan.')
         setItemModalOpen(false)
-        setItemForm({ name: '', sku: '', categoryId: '', location: '', unit: 'kos', currentStock: '0', minimumStock: '0', costPrice: '0', billable: false, trackStock: true })
+        resetItemForm()
         load()
       })
       .catch((e) => showToast('error', e?.response?.data?.message || 'Shranjevanje artikla ni uspelo.'))
@@ -240,7 +276,11 @@ export function ConsumablesPage() {
   }
 
   const createPurchaseOrder = () => {
-    api.post('/consumables/purchase-orders', { status: 'DRAFT', orderDate: new Date().toISOString().slice(0, 10), totalAmount: 0, receivedAmount: 0 })
+    if (defaultWriteLocationId == null) {
+      showToast('error', 'Za naročilnico najprej izberite poslovalnico v zgornjem izbirniku.')
+      return
+    }
+    api.post('/consumables/purchase-orders', { locationId: defaultWriteLocationId, status: 'DRAFT', orderDate: new Date().toISOString().slice(0, 10), totalAmount: 0, receivedAmount: 0 })
       .then(() => { showToast('success', 'Naročilnica je ustvarjena.'); load(); setActiveTab('procurement') })
       .catch((e) => showToast('error', e?.response?.data?.message || 'Naročilnice ni bilo mogoče ustvariti.'))
   }
@@ -254,6 +294,7 @@ export function ConsumablesPage() {
       return
     }
     api.post(`/consumables/items/${item.id}/adjust`, {
+      locationId: item.locationId,
       quantityDelta: delta,
       movementType: delta > 0 ? 'PURCHASE' : 'MANUAL_ADJUSTMENT',
       note: 'Ročni vnos iz seznama artiklov',
@@ -271,7 +312,7 @@ export function ConsumablesPage() {
           </div>
           <div className="consumables-header-actions">
             <button type="button" className="btn secondary" onClick={() => window.print()}>Izvozi</button>
-            {activeTab === 'items' && <button type="button" className="btn primary" onClick={() => setItemModalOpen(true)}>+ Nov artikel</button>}
+            {activeTab === 'items' && <button type="button" className="btn primary" onClick={openItemModal}>+ Nov artikel</button>}
             {activeTab === 'procurement' && <button type="button" className="btn primary" onClick={createPurchaseOrder}>+ Nova naročilnica</button>}
             {activeTab === 'suppliers' && <button type="button" className="btn primary" onClick={createSupplier}>+ Nov dobavitelj</button>}
             {activeTab === 'movements' && <button type="button" className="btn primary" onClick={() => setActiveTab('items')}>Nov premik</button>}
@@ -285,8 +326,8 @@ export function ConsumablesPage() {
           ))}
         </div>
 
-        {activeTab === 'overview' && <OverviewTab overview={overview} items={items} lowStockItems={lowStockItems} movements={movements} query={query} setQuery={setQuery} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} locationFilter={locationFilter} setLocationFilter={setLocationFilter} showOnlyLow={showOnlyLow} setShowOnlyLow={setShowOnlyLow} categories={categories} locations={locations} createPurchaseOrder={createPurchaseOrder} loading={loading} />}
-        {activeTab === 'items' && <ItemsTab items={filteredItems} categories={categories} locations={locations} query={query} setQuery={setQuery} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} locationFilter={locationFilter} setLocationFilter={setLocationFilter} statusFilter={statusFilter} setStatusFilter={setStatusFilter} lowStockItems={lowStockItems} billableCount={billableCount} outOfStockCount={outOfStockCount} setItemModalOpen={setItemModalOpen} createCategory={createCategory} adjustStock={adjustStock} />}
+        {activeTab === 'overview' && <OverviewTab overview={overview} items={items} lowStockItems={lowStockItems} movements={movements} query={query} setQuery={setQuery} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} locationFilter={locationFilter} setLocationFilter={setLocationFilter} showOnlyLow={showOnlyLow} setShowOnlyLow={setShowOnlyLow} categories={categories} locations={stockLocationNames} createPurchaseOrder={createPurchaseOrder} loading={loading} />}
+        {activeTab === 'items' && <ItemsTab items={filteredItems} categories={categories} locations={stockLocationNames} query={query} setQuery={setQuery} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} locationFilter={locationFilter} setLocationFilter={setLocationFilter} statusFilter={statusFilter} setStatusFilter={setStatusFilter} lowStockItems={lowStockItems} billableCount={billableCount} outOfStockCount={outOfStockCount} createCategory={createCategory} adjustStock={adjustStock} />}
         {activeTab === 'procurement' && <ProcurementTab orders={purchaseOrders} items={items} createPurchaseOrder={createPurchaseOrder} />}
         {activeTab === 'suppliers' && <SuppliersTab suppliers={suppliers} createSupplier={createSupplier} />}
         {activeTab === 'movements' && <MovementsTab movements={movements} />}
@@ -304,7 +345,7 @@ export function ConsumablesPage() {
               <label>Naziv<input value={itemForm.name} onChange={(e) => setItemForm((f) => ({ ...f, name: e.target.value }))} /></label>
               <label>SKU<input value={itemForm.sku} onChange={(e) => setItemForm((f) => ({ ...f, sku: e.target.value }))} /></label>
               <label>Kategorija<select value={itemForm.categoryId} onChange={(e) => setItemForm((f) => ({ ...f, categoryId: e.target.value }))}><option value="">Brez kategorije</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-              <label>Lokacija<input value={itemForm.location} onChange={(e) => setItemForm((f) => ({ ...f, location: e.target.value }))} /></label>
+              <label>Poslovalnica<select value={itemForm.locationId} onChange={(e) => setItemForm((f) => ({ ...f, locationId: e.target.value }))}><option value="">Izberite poslovalnico</option>{writableInventoryLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
               <label>Enota<input value={itemForm.unit} onChange={(e) => setItemForm((f) => ({ ...f, unit: e.target.value }))} /></label>
               <label>Trenutna zaloga<input type="number" step="0.01" value={itemForm.currentStock} onChange={(e) => setItemForm((f) => ({ ...f, currentStock: e.target.value }))} /></label>
               <label>Min. zaloga<input type="number" step="0.01" value={itemForm.minimumStock} onChange={(e) => setItemForm((f) => ({ ...f, minimumStock: e.target.value }))} /></label>
@@ -354,10 +395,10 @@ function OverviewTab(props: { overview: Overview; items: Item[]; lowStockItems: 
     </div>
     <div className="consumables-two-col">
       <TableCard title="Nizka zaloga" action="Prikaži vse">
-        <table><thead><tr><th>Artikel</th><th>Kategorija</th><th>Lokacija</th><th>Na zalogi</th><th>Min.</th><th>Status</th></tr></thead><tbody>{(overview.lowStock.length ? overview.lowStock : lowStockItems).slice(0, 5).map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.category?.name || '—'}</td><td>{item.location || '—'}</td><td className="danger">{n(item.currentStock, 2)} {item.unit}</td><td>{n(item.minimumStock, 2)} {item.unit}</td><td><Badge tone={item.currentStock <= 0 ? 'danger' : 'warning'}>{item.currentStock <= 0 ? 'Kritično' : 'Nizko'}</Badge></td></tr>)}</tbody></table>
+        <table><thead><tr><th>Artikel</th><th>Kategorija</th><th>Lokacija</th><th>Na zalogi</th><th>Min.</th><th>Status</th></tr></thead><tbody>{(overview.lowStock.length ? overview.lowStock : lowStockItems).slice(0, 5).map((item) => <tr key={`${item.id}:${item.locationId}`}><td>{item.name}</td><td>{item.category?.name || '—'}</td><td>{item.location || '—'}</td><td className="danger">{n(item.currentStock, 2)} {item.unit}</td><td>{n(item.minimumStock, 2)} {item.unit}</td><td><Badge tone={item.currentStock <= 0 ? 'danger' : 'warning'}>{item.currentStock <= 0 ? 'Kritično' : 'Nizko'}</Badge></td></tr>)}</tbody></table>
       </TableCard>
       <TableCard title="Zadnji premiki zaloge" action="Prikaži vse">
-        <table><thead><tr><th>Datum</th><th>Artikel</th><th>Vrsta</th><th>Količina</th><th>Uporabnik</th></tr></thead><tbody>{(overview.recentMovements.length ? overview.recentMovements : movements).slice(0, 5).map((m) => <tr key={m.id}><td>{dateTime(m.createdAt)}</td><td>{m.itemName}</td><td><Badge tone={m.quantityDelta < 0 ? 'danger' : 'success'}>{movementText(m.movementType)}</Badge></td><td className={m.quantityDelta < 0 ? 'danger' : 'success'}>{m.quantityDelta > 0 ? '+' : ''}{n(m.quantityDelta, 2)} {m.unit}</td><td>{m.userName || '—'}</td></tr>)}</tbody></table>
+        <table><thead><tr><th>Datum</th><th>Artikel</th><th>Poslovalnica</th><th>Vrsta</th><th>Količina</th><th>Uporabnik</th></tr></thead><tbody>{(overview.recentMovements.length ? overview.recentMovements : movements).slice(0, 5).map((m) => <tr key={m.id}><td>{dateTime(m.createdAt)}</td><td>{m.itemName}</td><td>{m.locationName || '—'}</td><td><Badge tone={m.quantityDelta < 0 ? 'danger' : 'success'}>{movementText(m.movementType)}</Badge></td><td className={m.quantityDelta < 0 ? 'danger' : 'success'}>{m.quantityDelta > 0 ? '+' : ''}{n(m.quantityDelta, 2)} {m.unit}</td><td>{m.userName || '—'}</td></tr>)}</tbody></table>
       </TableCard>
     </div>
     <div className="consumables-three-col">
@@ -369,14 +410,18 @@ function OverviewTab(props: { overview: Overview; items: Item[]; lowStockItems: 
   </>
 }
 
-function ItemsTab(props: { items: Item[]; categories: Category[]; locations: string[]; query: string; setQuery: (v: string) => void; categoryFilter: string; setCategoryFilter: (v: string) => void; locationFilter: string; setLocationFilter: (v: string) => void; statusFilter: string; setStatusFilter: (v: string) => void; lowStockItems: Item[]; billableCount: number; outOfStockCount: number; setItemModalOpen: (v: boolean) => void; createCategory: () => void; adjustStock: (item: Item) => void }) {
+function ItemsTab(props: { items: Item[]; categories: Category[]; locations: string[]; query: string; setQuery: (v: string) => void; categoryFilter: string; setCategoryFilter: (v: string) => void; locationFilter: string; setLocationFilter: (v: string) => void; statusFilter: string; setStatusFilter: (v: string) => void; lowStockItems: Item[]; billableCount: number; outOfStockCount: number; createCategory: () => void; adjustStock: (item: Item) => void }) {
+  const catalogCount = distinctItemCount(props.items)
+  const tableTitle = catalogCount === props.items.length
+    ? `Prikazujem ${catalogCount} artiklov`
+    : `Prikazujem ${catalogCount} artiklov · ${props.items.length} lokacijskih zalog`
   return <div className="consumables-main-with-side">
     <div>
       <Filters {...props} extra={<label>Status<select value={props.statusFilter} onChange={(e) => props.setStatusFilter(e.target.value)}><option value="">Vsi statusi</option><option value="ok">OK</option><option value="low">Nizka zaloga</option></select></label>} />
-      <div className="consumables-chip-row"><button className="active">Vse kategorije <span>{props.items.length}</span></button>{props.categories.map((c) => <button key={c.id}>{c.name}</button>)}<button onClick={props.createCategory}>+</button></div>
-      <TableCard title={`Prikazujem ${props.items.length} artiklov`}><ItemRows items={props.items} onAdjustStock={props.adjustStock} /></TableCard>
+      <div className="consumables-chip-row"><button className="active">Vse kategorije <span>{catalogCount}</span></button>{props.categories.map((c) => <button key={c.id}>{c.name}</button>)}<button onClick={props.createCategory}>+</button></div>
+      <TableCard title={tableTitle}><ItemRows items={props.items} onAdjustStock={props.adjustStock} /></TableCard>
     </div>
-    <aside className="consumables-side-stack"><SideLowStock items={props.lowStockItems} /><CategoryDistribution items={props.items} /><QuickStats total={props.items.length} value={props.items.reduce((s, i) => s + Number(i.currentStock || 0) * Number(i.costPrice || 0), 0)} low={props.lowStockItems.length} out={props.outOfStockCount} billable={props.billableCount} /></aside>
+    <aside className="consumables-side-stack"><SideLowStock items={props.lowStockItems} /><CategoryDistribution items={props.items} /><QuickStats total={catalogCount} value={props.items.reduce((s, i) => s + Number(i.currentStock || 0) * Number(i.costPrice || 0), 0)} low={props.lowStockItems.length} out={props.outOfStockCount} billable={props.billableCount} /></aside>
   </div>
 }
 
@@ -387,7 +432,7 @@ function ProcurementTab({ orders, items, createPurchaseOrder }: { orders: Purcha
     <div>
       <div className="consumables-kpi-grid compact"><KpiCard tone="blue" title="Odprte naročilnice" value={open.length} note="V pripravi ali naročene" /><KpiCard tone="green" title="Pričakovane dobave" value={orders.filter((o) => o.expectedDate).length} note="Z vpisanim datumom" /><KpiCard tone="orange" title="Izdelki za naročilo" value={low.length} note="Pod minimalno zalogo" /><KpiCard tone="purple" title="Mesečni strošek nabave" value={eur(orders.reduce((s, o) => s + Number(o.totalAmount || 0), 0))} note="Skupaj" /></div>
       <div className="consumables-filter-row"><label>Dobavitelj<select><option>Vsi dobavitelji</option></select></label><label>Status<select><option>Vsi statusi</option></select></label><label>Obdobje<input value="01/05/2026 – 31/05/2026" readOnly /></label><button className="btn secondary">Ponastavi filtre</button></div>
-      <TableCard title="Naročilnice"><table><thead><tr><th>Št. naročilnice</th><th>Datum</th><th>Dobavitelj</th><th>Status</th><th>Prič. dobava</th><th>Vrednost</th><th>Prejeto</th><th>Akcije</th></tr></thead><tbody>{orders.map((o) => <tr key={o.id}><td className="linkish">{o.orderNumber}</td><td>{date(o.orderDate)}</td><td>{o.supplierName || '—'}</td><td><Badge tone={o.status === 'COMPLETED' ? 'success' : o.status === 'PARTIALLY_RECEIVED' ? 'warning' : 'info'}>{statusText(o.status)}</Badge></td><td>{date(o.expectedDate)}</td><td>{eur(o.totalAmount)}</td><td>{eur(o.receivedAmount)}</td><td><button className="icon-btn">…</button></td></tr>)}</tbody></table><Empty visible={orders.length === 0} text="Naročilnic še ni. Ustvarite prvo naročilnico iz predlogov za naročilo." /></TableCard>
+      <TableCard title="Naročilnice"><table><thead><tr><th>Št. naročilnice</th><th>Datum</th><th>Dobavitelj</th><th>Poslovalnica</th><th>Status</th><th>Prič. dobava</th><th>Vrednost</th><th>Prejeto</th><th>Akcije</th></tr></thead><tbody>{orders.map((o) => <tr key={o.id}><td className="linkish">{o.orderNumber}</td><td>{date(o.orderDate)}</td><td>{o.supplierName || '—'}</td><td>{o.locationName || '—'}</td><td><Badge tone={o.status === 'COMPLETED' ? 'success' : o.status === 'PARTIALLY_RECEIVED' ? 'warning' : 'info'}>{statusText(o.status)}</Badge></td><td>{date(o.expectedDate)}</td><td>{eur(o.totalAmount)}</td><td>{eur(o.receivedAmount)}</td><td><button className="icon-btn">…</button></td></tr>)}</tbody></table><Empty visible={orders.length === 0} text="Naročilnic še ni. Ustvarite prvo naročilnico iz predlogov za naročilo." /></TableCard>
     </div>
     <aside className="consumables-side-stack"><ReorderCard items={low.slice(0, 5)} createPurchaseOrder={createPurchaseOrder} /><TableCard title="Pričakovane dobave" action="Prikaži vse"><table><tbody>{orders.filter((o) => o.expectedDate).slice(0, 5).map((o) => <tr key={o.id}><td>{o.supplierName || o.orderNumber}</td><td>{date(o.expectedDate)}</td><td><Badge tone="info">{statusText(o.status)}</Badge></td></tr>)}</tbody></table></TableCard></aside>
   </div>
@@ -414,7 +459,7 @@ function MovementsTab({ movements }: { movements: Movement[] }) {
     <div>
       <div className="consumables-kpi-grid compact"><KpiCard tone="blue" title="Današnji premiki" value={today.length} note="vseh premikov" /><KpiCard tone="green" title="Sprememba količine" value={`${totalDelta > 0 ? '+' : ''}${n(totalDelta, 2)}`} note="neto sprememba" /><KpiCard tone="purple" title="Vrednost premikov" value={eur(value)} note="skupna vrednost" /><KpiCard tone="orange" title="Ročne korekcije" value={movements.filter((m) => ['CORRECTION', 'MANUAL_ADJUSTMENT'].includes(m.movementType)).length} note="premikov" /></div>
       <div className="consumables-filter-row"><label>Datum<input value="28.05.2026 – 28.05.2026" readOnly /></label><label>Vrsta premika<select><option>Vse</option></select></label><label>Kategorija<select><option>Vse kategorije</option></select></label><input placeholder="Išči po artiklu, kodi, seriji, lokaciji…" /><button className="btn secondary">Ponastavi filtre</button></div>
-      <TableCard title="Zgodovina premikov zaloge"><table><thead><tr><th>Datum in čas</th><th>Vrsta premika</th><th>Artikel</th><th>Kategorija</th><th>Količina</th><th>Enota</th><th>Vrednost</th><th>Status</th><th>Uporabnik</th></tr></thead><tbody>{movements.map((m) => <tr key={m.id}><td>{dateTime(m.createdAt)}</td><td><Badge tone={m.quantityDelta < 0 ? 'danger' : m.movementType.includes('CORRECTION') ? 'warning' : 'success'}>{movementText(m.movementType)}</Badge></td><td>{m.itemName}</td><td>{m.categoryName || '—'}</td><td className={m.quantityDelta < 0 ? 'danger' : 'success'}>{m.quantityDelta > 0 ? '+' : ''}{n(m.quantityDelta, 2)}</td><td>{m.unit || 'kos'}</td><td>{eur(Math.abs(Number(m.valueDelta || 0)))}</td><td><Badge tone="success">Zaključeno</Badge></td><td>{m.userName || '—'}</td></tr>)}</tbody></table><Empty visible={movements.length === 0} text="Premikov zaloge še ni. Prvi premiki nastanejo ob prilagoditvi zaloge ali zaključku termina." /></TableCard>
+      <TableCard title="Zgodovina premikov zaloge"><table><thead><tr><th>Datum in čas</th><th>Vrsta premika</th><th>Artikel</th><th>Kategorija</th><th>Poslovalnica</th><th>Količina</th><th>Enota</th><th>Vrednost</th><th>Status</th><th>Uporabnik</th></tr></thead><tbody>{movements.map((m) => <tr key={m.id}><td>{dateTime(m.createdAt)}</td><td><Badge tone={m.quantityDelta < 0 ? 'danger' : m.movementType.includes('CORRECTION') ? 'warning' : 'success'}>{movementText(m.movementType)}</Badge></td><td>{m.itemName}</td><td>{m.categoryName || '—'}</td><td>{m.locationName || '—'}</td><td className={m.quantityDelta < 0 ? 'danger' : 'success'}>{m.quantityDelta > 0 ? '+' : ''}{n(m.quantityDelta, 2)}</td><td>{m.unit || 'kos'}</td><td>{eur(Math.abs(Number(m.valueDelta || 0)))}</td><td><Badge tone="success">Zaključeno</Badge></td><td>{m.userName || '—'}</td></tr>)}</tbody></table><Empty visible={movements.length === 0} text="Premikov zaloge še ni. Prvi premiki nastanejo ob prilagoditvi zaloge ali zaključku termina." /></TableCard>
     </div>
     <aside className="consumables-side-stack"><BarsCard title="Najpogosteje uporabljeni artikli" data={groupMovements(movements)} /><FakeLineChart /></aside>
   </div>
@@ -428,7 +473,7 @@ function InventoryTab({ items }: { items: Item[] }) {
       <div className="consumables-kpi-grid"><KpiCard tone="blue" title="Aktivne inventure" value="1" note="V teku" /><KpiCard tone="green" title="Prešteti artikli" value={counted} note={`Od ${items.length}`} /><KpiCard tone="red" title="Odstopanja" value={discrepancies} note="Artikli z odstopanjem" /><KpiCard tone="purple" title="Napredek inventure" value={items.length ? `${Math.round((counted / items.length) * 100)}%` : '0%'} note="Skupni napredek" /></div>
       <div className="consumables-filter-row"><label>Lokacija<select><option>Vse lokacije</option></select></label><label>Kategorija<select><option>Vse kategorije</option></select></label><label>Status štetja<select><option>Vsi statusi</option></select></label><button className="btn secondary">Ponastavi filtre</button></div>
       <div className="inventory-progress"><span>Skupni napredek inventure</span><strong>{items.length ? Math.round((counted / items.length) * 100) : 0}%</strong><i><b style={{ width: `${items.length ? Math.round((counted / items.length) * 100) : 0}%` }} /></i><small>{counted} od {items.length} artiklov</small></div>
-      <TableCard title="Inventura – štetje artiklov"><table><thead><tr><th>Artikel</th><th>Kategorija</th><th>Lokacija</th><th>Sistemska zaloga</th><th>Prešteta zaloga</th><th>Razlika</th><th>Status</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.category?.name || '—'}</td><td>{item.location || '—'}</td><td>{n(item.currentStock, 2)} {item.unit}</td><td>{n(item.currentStock, 2)} {item.unit}</td><td>{item.lowStock ? <span className="danger">-{n(item.minimumStock - item.currentStock, 2)} {item.unit}</span> : '0'}</td><td><Badge tone={item.lowStock ? 'danger' : 'success'}>{item.lowStock ? 'Odstopanje' : 'Ujema se'}</Badge></td></tr>)}</tbody></table></TableCard>
+      <TableCard title="Inventura – štetje artiklov"><table><thead><tr><th>Artikel</th><th>Kategorija</th><th>Lokacija</th><th>Sistemska zaloga</th><th>Prešteta zaloga</th><th>Razlika</th><th>Status</th></tr></thead><tbody>{items.map((item) => <tr key={`${item.id}:${item.locationId}`}><td>{item.name}</td><td>{item.category?.name || '—'}</td><td>{item.location || '—'}</td><td>{n(item.currentStock, 2)} {item.unit}</td><td>{n(item.currentStock, 2)} {item.unit}</td><td>{item.lowStock ? <span className="danger">-{n(item.minimumStock - item.currentStock, 2)} {item.unit}</span> : '0'}</td><td><Badge tone={item.lowStock ? 'danger' : 'success'}>{item.lowStock ? 'Odstopanje' : 'Ujema se'}</Badge></td></tr>)}</tbody></table></TableCard>
     </div>
     <aside className="consumables-side-stack"><TableCard title="Napredek po lokacijah" action="Prikaži vse"><table><tbody>{Object.entries(groupByLocation(items)).map(([location, count]) => <tr key={location}><td>{location}</td><td>{count} / {count}</td><td><span className="mini-progress"><i style={{ width: '100%' }} /></span></td></tr>)}</tbody></table></TableCard><SideLowStock items={items.filter((i) => i.lowStock)} title="Največja odstopanja" /></aside>
   </div>
@@ -440,19 +485,21 @@ function TableCard({ title, action, children }: { title: string; action?: string
 function Empty({ visible, text }: { visible: boolean; text: string }) { return visible ? <div className="consumables-empty">{text}</div> : null }
 function Badge({ tone, children }: { tone: string; children: ReactNode }) { return <span className={`consumables-badge ${tone}`}>{children}</span> }
 function ItemRows({ items, compact, onAdjustStock }: { items: Item[]; compact?: boolean; onAdjustStock?: (item: Item) => void }) {
-  return <><table><thead><tr><th>Artikel</th>{!compact && <th>SKU</th>}<th>Kategorija</th><th>Lokacija</th><th>Na zalogi</th><th>Min. zaloga</th><th>Enota</th><th>Vrednost</th>{!compact && <th>Zaračunljivo</th>}<th>Status</th><th>Akcije</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><strong>{item.name}</strong></td>{!compact && <td>{item.sku || '—'}</td>}<td>{item.category?.name || '—'}</td><td>{item.location || '—'}</td><td className={item.lowStock ? 'danger' : ''}>{n(item.currentStock, 2)}</td><td>{n(item.minimumStock, 2)}</td><td>{item.unit}</td><td>{eur(Number(item.currentStock || 0) * Number(item.costPrice || 0))}</td>{!compact && <td><span className={`toggle-dot ${item.billable ? 'on' : ''}`} /></td>}<td><Badge tone={item.lowStock ? 'warning' : 'success'}>{item.lowStock ? 'Nizko' : 'OK'}</Badge></td><td><button className="icon-btn" onClick={() => onAdjustStock?.(item)}>…</button></td></tr>)}</tbody></table><Empty visible={items.length === 0} text="Ni artiklov za prikaz." /></>
+  return <><table><thead><tr><th>Artikel</th>{!compact && <th>SKU</th>}<th>Kategorija</th><th>Lokacija</th><th>Na zalogi</th><th>Min. zaloga</th><th>Enota</th><th>Vrednost</th>{!compact && <th>Zaračunljivo</th>}<th>Status</th><th>Akcije</th></tr></thead><tbody>{items.map((item) => <tr key={`${item.id}:${item.locationId}`}><td><strong>{item.name}</strong></td>{!compact && <td>{item.sku || '—'}</td>}<td>{item.category?.name || '—'}</td><td>{item.location || '—'}</td><td className={item.lowStock ? 'danger' : ''}>{n(item.currentStock, 2)}</td><td>{n(item.minimumStock, 2)}</td><td>{item.unit}</td><td>{eur(Number(item.currentStock || 0) * Number(item.costPrice || 0))}</td>{!compact && <td><span className={`toggle-dot ${item.billable ? 'on' : ''}`} /></td>}<td><Badge tone={item.lowStock ? 'warning' : 'success'}>{item.lowStock ? 'Nizko' : 'OK'}</Badge></td><td><button className="icon-btn" onClick={() => onAdjustStock?.(item)}>…</button></td></tr>)}</tbody></table><Empty visible={items.length === 0} text="Ni artiklov za prikaz." /></>
 }
-function SideLowStock({ items, title = 'Nizka zaloga' }: { items: Item[]; title?: string }) { return <TableCard title={title} action="Prikaži vse"><table><tbody>{items.slice(0, 5).map((item) => <tr key={item.id}><td>{item.name}<br /><small>{item.location || '—'}</small></td><td className="danger">{n(item.currentStock, 2)} {item.unit}</td></tr>)}</tbody></table><Empty visible={items.length === 0} text="Ni artiklov z nizko zalogo." /></TableCard> }
+function SideLowStock({ items, title = 'Nizka zaloga' }: { items: Item[]; title?: string }) { return <TableCard title={title} action="Prikaži vse"><table><tbody>{items.slice(0, 5).map((item) => <tr key={`${item.id}:${item.locationId}`}><td>{item.name}<br /><small>{item.location || '—'}</small></td><td className="danger">{n(item.currentStock, 2)} {item.unit}</td></tr>)}</tbody></table><Empty visible={items.length === 0} text="Ni artiklov z nizko zalogo." /></TableCard> }
 function CategoryDistribution({ items }: { items: Item[] }) {
-  const groups = groupBy(items, (i) => i.category?.name || 'Brez kategorije')
+  const uniqueItems = Array.from(new Map(items.map((item) => [item.id, item])).values())
+  const groups = groupBy(uniqueItems, (i) => i.category?.name || 'Brez kategorije')
   return <ChartCard title="Porazdelitev po kategorijah" data={Object.entries(groups).map(([label, value]) => ({ label, value: value.length }))} />
 }
 function QuickStats({ total, value, low, out, billable }: { total: number; value: number; low: number; out: number; billable: number }) { return <TableCard title="Hitra statistika"><div className="quick-stat-grid"><span>Skupaj artiklov<strong>{total}</strong></span><span>Vrednost zaloge<strong>{eur(value)}</strong></span><span>Nizka zaloga<strong>{low}</strong></span><span>Zunaj zaloge<strong>{out}</strong></span><span>Zaračunljivih<strong>{billable}</strong></span></div></TableCard> }
 function ChartCard({ title, data }: { title: string; data: { label: string; value: number }[] }) { const total = data.reduce((s, d) => s + Number(d.value || 0), 0); return <TableCard title={title}><div className="consumables-donut-row"><div className="consumables-donut" /><ul>{data.slice(0, 6).map((d) => <li key={d.label}><span>{d.label}</span><strong>{total ? Math.round((d.value / total) * 100) : 0}% ({n(d.value, 0)})</strong></li>)}</ul></div></TableCard> }
 function BarsCard({ title, data }: { title: string; data: { label: string; value: number }[] }) { const max = Math.max(1, ...data.map((d) => Number(d.value || 0))); return <TableCard title={title} action="Prikaži vse"><div className="consumables-bars">{data.slice(0, 6).map((d) => <div key={d.label}><span>{d.label}</span><i><b style={{ width: `${Math.max(6, (Number(d.value || 0) / max) * 100)}%` }} /></i><strong>{n(d.value, 2)}</strong></div>)}</div></TableCard> }
-function ReorderCard({ items, createPurchaseOrder }: { items: Item[]; createPurchaseOrder: () => void }) { return <TableCard title="Predlogi za naročilo" action="Prikaži vse"><table><tbody>{items.slice(0, 5).map((item) => <tr key={item.id}><td>{item.name}<br /><small>Trenutno: {n(item.currentStock, 2)} {item.unit} · Min: {n(item.minimumStock, 2)} {item.unit}</small></td><td>Predlagano: {n(Math.max(item.minimumStock * 2 - item.currentStock, item.minimumStock), 0)} {item.unit}</td><td><button className="btn tiny">Dodaj</button></td></tr>)}</tbody></table><button type="button" className="btn secondary wide" onClick={createPurchaseOrder}>Ustvari predloge naročil</button></TableCard> }
+function ReorderCard({ items, createPurchaseOrder }: { items: Item[]; createPurchaseOrder: () => void }) { return <TableCard title="Predlogi za naročilo" action="Prikaži vse"><table><tbody>{items.slice(0, 5).map((item) => <tr key={`${item.id}:${item.locationId}`}><td>{item.name}<br /><small>Trenutno: {n(item.currentStock, 2)} {item.unit} · Min: {n(item.minimumStock, 2)} {item.unit}</small></td><td>Predlagano: {n(Math.max(item.minimumStock * 2 - item.currentStock, item.minimumStock), 0)} {item.unit}</td><td><button className="btn tiny">Dodaj</button></td></tr>)}</tbody></table><button type="button" className="btn secondary wide" onClick={createPurchaseOrder}>Ustvari predloge naročil</button></TableCard> }
 function FakeLineChart() { return <TableCard title="Poraba v zadnjih 7 dneh"><div className="fake-line-chart"><svg viewBox="0 0 300 140" role="img" aria-label="Poraba"><polyline points="0,100 50,72 100,35 150,108 200,76 250,58 300,58" fill="none" stroke="currentColor" strokeWidth="4" /><path d="M0 100L50 72L100 35L150 108L200 76L250 58L300 58L300 140L0 140Z" fill="currentColor" opacity="0.08" /></svg></div><div className="quick-stat-grid two"><span>Skupna poraba<strong>1.842 kos</strong></span><span>Povprečno na dan<strong>263 kos</strong></span></div></TableCard> }
 function groupMovements(movements: Movement[]) { const m: Record<string, number> = {}; movements.forEach((x) => { if (x.quantityDelta < 0) m[x.itemName] = (m[x.itemName] || 0) + Math.abs(x.quantityDelta) }); return Object.entries(m).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value) }
+function distinctItemCount(items: Item[]) { return new Set(items.map((item) => item.id)).size }
 function groupByLocation(items: Item[]) { const result: Record<string, number> = {}; items.forEach((i) => { const k = i.location || 'Brez lokacije'; result[k] = (result[k] || 0) + 1 }); return result }
 function groupBy<T>(items: T[], key: (item: T) => string): Record<string, T[]> { return items.reduce((acc, item) => { const k = key(item); (acc[k] ||= []).push(item); return acc }, {} as Record<string, T[]>) }
 

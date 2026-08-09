@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -48,7 +49,7 @@ public class ConsumableController {
             String sku,
             String barcode,
             String unit,
-            String location,
+            Long locationId,
             BigDecimal currentStock,
             BigDecimal minimumStock,
             BigDecimal costPrice,
@@ -67,6 +68,7 @@ public class ConsumableController {
             String sku,
             String barcode,
             String unit,
+            Long locationId,
             String location,
             BigDecimal currentStock,
             BigDecimal minimumStock,
@@ -79,13 +81,15 @@ public class ConsumableController {
             boolean lowStock
     ) {}
 
-    public record StockAdjustmentRequest(BigDecimal quantityDelta, StockMovementType movementType, String note) {}
+    public record StockAdjustmentRequest(Long locationId, BigDecimal quantityDelta, StockMovementType movementType, String note) {}
 
     public record MovementResponse(
             Long id,
             Long consumableId,
             String itemName,
             String categoryName,
+            Long locationId,
+            String locationName,
             StockMovementType movementType,
             String sourceType,
             Long sourceId,
@@ -183,6 +187,7 @@ public class ConsumableController {
     public record PurchaseOrderRequest(
             String orderNumber,
             Long supplierId,
+            Long locationId,
             PurchaseOrderStatus status,
             LocalDate orderDate,
             LocalDate expectedDate,
@@ -196,6 +201,8 @@ public class ConsumableController {
             String orderNumber,
             Long supplierId,
             String supplierName,
+            Long locationId,
+            String locationName,
             PurchaseOrderStatus status,
             LocalDate orderDate,
             LocalDate expectedDate,
@@ -214,13 +221,19 @@ public class ConsumableController {
     }
 
     @GetMapping("/overview")
-    public OverviewResponse overview(@AuthenticationPrincipal User me) {
-        return service.overview(enabledCompanyId(me));
+    public OverviewResponse overview(
+            @RequestParam(required = false) Long locationId,
+            @AuthenticationPrincipal User me
+    ) {
+        return service.overview(enabledCompanyId(me), locationId);
     }
 
     @GetMapping("/items")
-    public List<ItemResponse> items(@AuthenticationPrincipal User me) {
-        return service.listItems(enabledCompanyId(me)).stream().map(ConsumableController::toItemResponse).toList();
+    public List<ItemResponse> items(
+            @RequestParam(required = false) Long locationId,
+            @AuthenticationPrincipal User me
+    ) {
+        return service.listItems(enabledCompanyId(me), locationId).stream().map(ConsumableController::toItemResponse).toList();
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -248,7 +261,7 @@ public class ConsumableController {
         MovementResponse result = toMovementResponse(service.adjustStock(me, id, req));
         if (activityLogs != null) {
             activityLogs.recordUser(me, ActivityModule.CONSUMABLES, ActivityAction.CONSUMABLE_STOCK_ADJUSTED,
-                    "CONSUMABLE", result.consumableId(), result.itemName(), "Adjusted consumable stock", null, null,
+                    "CONSUMABLE", result.consumableId(), result.itemName(), "Adjusted consumable stock", result.locationId(), null,
                     ActivityDetails.of("quantityDelta", result.quantityDelta(), "stockBefore", result.stockBefore(),
                             "stockAfter", result.stockAfter(), "movementType", result.movementType() == null ? null : result.movementType().name(),
                             "targetPath", "/consumables"));
@@ -280,8 +293,11 @@ public class ConsumableController {
     }
 
     @GetMapping("/movements")
-    public List<MovementResponse> movements(@AuthenticationPrincipal User me) {
-        return service.listMovements(enabledCompanyId(me)).stream().map(ConsumableController::toMovementResponse).toList();
+    public List<MovementResponse> movements(
+            @RequestParam(required = false) Long locationId,
+            @AuthenticationPrincipal User me
+    ) {
+        return service.listMovements(enabledCompanyId(me), locationId).stream().map(ConsumableController::toMovementResponse).toList();
     }
 
     @GetMapping("/service-types/{typeId}/defaults")
@@ -358,8 +374,11 @@ public class ConsumableController {
     }
 
     @GetMapping("/purchase-orders")
-    public List<PurchaseOrderResponse> purchaseOrders(@AuthenticationPrincipal User me) {
-        return service.listPurchaseOrders(enabledCompanyId(me)).stream().map(ConsumableController::toPurchaseOrderResponse).toList();
+    public List<PurchaseOrderResponse> purchaseOrders(
+            @RequestParam(required = false) Long locationId,
+            @AuthenticationPrincipal User me
+    ) {
+        return service.listPurchaseOrders(enabledCompanyId(me), locationId).stream().map(ConsumableController::toPurchaseOrderResponse).toList();
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -383,7 +402,7 @@ public class ConsumableController {
     private void recordItem(User me, ActivityAction action, ItemResponse row, String summary) {
         if (activityLogs == null || row == null) return;
         activityLogs.recordUser(me, ActivityModule.CONSUMABLES, action,
-                "CONSUMABLE", row.id(), row.name(), summary, null, null,
+                "CONSUMABLE", row.id(), row.name(), summary, row.locationId(), null,
                 ActivityDetails.of("sku", row.sku(), "currentStock", row.currentStock(), "minimumStock", row.minimumStock(),
                         "trackStock", row.trackStock(), "billable", row.billable(), "active", row.active(), "targetPath", "/consumables"));
     }
@@ -405,7 +424,7 @@ public class ConsumableController {
     private void recordPurchaseOrder(User me, ActivityAction action, PurchaseOrderResponse row, String summary) {
         if (activityLogs == null || row == null) return;
         activityLogs.recordUser(me, ActivityModule.CONSUMABLES, action,
-                "PURCHASE_ORDER", row.id(), row.orderNumber(), summary, null, null,
+                "PURCHASE_ORDER", row.id(), row.orderNumber(), summary, row.locationId(), null,
                 ActivityDetails.of("supplier", row.supplierName(), "status", row.status() == null ? null : row.status().name(),
                         "totalAmount", row.totalAmount(), "receivedAmount", row.receivedAmount(), "targetPath", "/consumables"));
     }
@@ -422,12 +441,15 @@ public class ConsumableController {
         return new CategoryResponse(c.getId(), c.getName(), c.getColor(), c.isActive());
     }
 
-    public static ItemResponse toItemResponse(Consumable c) {
-        if (c == null) return null;
-        boolean low = c.isTrackStock() && c.getCurrentStock() != null && c.getMinimumStock() != null && c.getCurrentStock().compareTo(c.getMinimumStock()) < 0;
+    public static ItemResponse toItemResponse(ConsumableService.ItemStockView view) {
+        if (view == null || view.item() == null || view.location() == null) return null;
+        Consumable c = view.item();
+        boolean low = c.isTrackStock() && view.currentStock() != null && view.minimumStock() != null
+                && view.currentStock().compareTo(view.minimumStock()) < 0;
         return new ItemResponse(
-                c.getId(), c.getName(), c.getDescription(), toCategoryResponse(c.getCategory()), c.getSku(), c.getBarcode(), c.getUnit(), c.getLocation(),
-                c.getCurrentStock(), c.getMinimumStock(), c.getCostPrice(), c.getSalePrice(), c.getVatRateId(), c.isTrackStock(), c.isBillable(), c.isActive(), low
+                c.getId(), c.getName(), c.getDescription(), toCategoryResponse(c.getCategory()), c.getSku(), c.getBarcode(), c.getUnit(),
+                view.location().getId(), view.location().getName(), view.currentStock(), view.minimumStock(), view.costPrice(),
+                c.getSalePrice(), c.getVatRateId(), c.isTrackStock(), c.isBillable(), c.isActive(), low
         );
     }
 
@@ -439,6 +461,8 @@ public class ConsumableController {
                 m.getConsumable().getId(),
                 m.getConsumable().getName(),
                 m.getConsumable().getCategory() != null ? m.getConsumable().getCategory().getName() : null,
+                m.getLocation() != null ? m.getLocation().getId() : null,
+                m.getLocation() != null ? m.getLocation().getName() : null,
                 m.getMovementType(),
                 m.getSourceType() != null ? m.getSourceType().name() : null,
                 m.getSourceId(),
@@ -484,6 +508,8 @@ public class ConsumableController {
         return new PurchaseOrderResponse(
                 po.getId(), po.getOrderNumber(), po.getSupplier() != null ? po.getSupplier().getId() : null,
                 po.getSupplier() != null ? po.getSupplier().getName() : null,
+                po.getLocation() != null ? po.getLocation().getId() : null,
+                po.getLocation() != null ? po.getLocation().getName() : null,
                 po.getStatus(), po.getOrderDate(), po.getExpectedDate(), po.getTotalAmount(), po.getReceivedAmount(), po.getNotes()
         );
     }
