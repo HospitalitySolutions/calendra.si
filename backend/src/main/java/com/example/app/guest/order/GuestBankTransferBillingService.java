@@ -4,6 +4,7 @@ import com.example.app.billing.*;
 import com.example.app.billingissuer.InvoiceIssuanceService;
 import com.example.app.client.Client;
 import com.example.app.fiscal.FiscalizationService;
+import com.example.app.commerce.CommerceLocationScopeService;
 import com.example.app.guest.model.GuestPaymentMethodType;
 import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.common.GuestInvoiceSettingsSupport;
@@ -52,6 +53,7 @@ public class GuestBankTransferBillingService {
     private final SessionTypeRepository sessionTypes;
 
     private InvoiceIssuanceService invoiceIssuanceService;
+    private CommerceLocationScopeService commerceLocations;
 
     public GuestBankTransferBillingService(
             BillRepository bills,
@@ -82,6 +84,11 @@ public class GuestBankTransferBillingService {
         this.invoiceIssuanceService = invoiceIssuanceService;
     }
 
+    @Autowired(required = false)
+    void configureCommerceLocations(CommerceLocationScopeService commerceLocations) {
+        this.commerceLocations = commerceLocations;
+    }
+
     @Transactional
     public Bill issueConfirmedBookingBill(GuestOrder order, SessionBooking booking) {
         return issueAdvanceBill(order, booking, GuestPaymentMethodType.BANK_TRANSFER.name(), BillPaymentStatus.PAYMENT_PENDING, null);
@@ -103,7 +110,8 @@ public class GuestBankTransferBillingService {
             return finalizeExistingAdvance(existing, targetPaymentStatus, paidAt, order);
         }
 
-        PaymentMethod paymentMethod = resolvePaymentMethod(companyId, paymentMethodType);
+        Long billingLocationId = booking.getLocation() == null ? (order.getLocation() == null ? null : order.getLocation().getId()) : booking.getLocation().getId();
+        PaymentMethod paymentMethod = resolvePaymentMethod(companyId, billingLocationId, paymentMethodType);
         Bill bill = new Bill();
         bill.setCompany(order.getCompany());
         bill.setBillType(BillType.ADVANCE);
@@ -470,8 +478,10 @@ public class GuestBankTransferBillingService {
         }
     }
 
-    private PaymentMethod resolvePaymentMethod(Long companyId, String paymentMethodType) {
-        List<PaymentMethod> all = paymentMethods.findAllByCompanyIdOrderByNameAsc(companyId);
+    private PaymentMethod resolvePaymentMethod(Long companyId, Long locationId, String paymentMethodType) {
+        List<PaymentMethod> all = paymentMethods.findAllByCompanyIdOrderByNameAsc(companyId).stream()
+                .filter(pm -> locationId == null || commerceLocations == null || commerceLocations.paymentMethodAvailableAt(pm, locationId))
+                .toList();
         String normalized = (paymentMethodType == null ? "" : paymentMethodType).trim().toUpperCase(Locale.ROOT);
         if ("BANK_TRANSFER".equals(normalized)) {
             return all.stream()

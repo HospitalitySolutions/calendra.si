@@ -18,6 +18,7 @@ import com.example.app.guest.model.GuestEntitlementUsage;
 import com.example.app.guest.model.GuestEntitlementUsageRepository;
 import com.example.app.guest.model.GuestProduct;
 import com.example.app.guest.model.ProductType;
+import com.example.app.location.Location;
 import com.example.app.session.SessionBooking;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -75,6 +76,7 @@ class GuestEntitlementServiceVoucherResolutionTest {
         Client client = client(1L);
         SessionBooking booking = new SessionBooking();
         booking.setId(55L);
+        booking.setLocation(testLocation());
 
         GuestEntitlement valueVoucher = voucher(
                 201L, client, "VALUE11", new BigDecimal("100.00"),
@@ -120,6 +122,7 @@ class GuestEntitlementServiceVoucherResolutionTest {
         Client client = client(1L);
         SessionBooking booking = new SessionBooking();
         booking.setId(56L);
+        booking.setLocation(testLocation());
 
         GuestEntitlement serviceVoucher = voucher(
                 301L, client, "SERVICE", null,
@@ -202,4 +205,13 @@ class GuestEntitlementServiceVoucherResolutionTest {
         entitlement.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
         return entitlement;
     }
+
+    private static Location testLocation() {
+        Location location = new Location();
+        location.setId(1L);
+        location.setName("Test location");
+        location.setActive(true);
+        return location;
+    }
+
 }

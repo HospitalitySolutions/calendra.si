@@ -44,14 +44,15 @@ A one-location tenant should not have extra UX complexity: signup/provisioning c
 | `WaitlistOffer` | LOCATION | Phase 5.5A normalized | Direct non-null Location added; must match request, room and session. |
 | `WaitlistBookingHold` | LOCATION | Phase 5.5A normalized | Direct non-null Location added; must match offer, room and session. |
 | `BookingSlotHold` | LOCATION | Phase 5.5A normalized | Direct non-null Location added and public flows carry selected location. |
-| `GuestOrder` | LOCATION for operational transaction | Phase 5.5A partially normalized | Direct `location_id` added and booking orders populate it. Keep nullable only until product/payment scope is migrated in 5.5C. |
+| `GuestOrder` | LOCATION for operational transaction | **Phase 5.5C hardened** | Direct non-null `location_id` is required for bookings and product-only purchases. |
 | `BookableSlot` | LOCATION | Phase 5.5B hardened | Non-null Location; recurring availability is queried and edited in explicit branch context. |
 | `User` / consultant | SHARED USER + LOCATION SCOPE | Phase 5.5B implemented | One shared user with explicit all/selected Location assignment through `available_all_locations` + `user_locations`. |
 | consultant working hours | LOCATION-aware configuration | Phase 5.5B implemented | `workingHoursJson` remains the default; `workingHoursByLocationJson` holds optional branch overrides. |
-| `PaymentMethod` | SHARED + LOCATION SCOPE | **Gap** | Add all/selected Locations so cash/register/payment options can differ by branch. |
-| `GuestProduct` | SHARED + LOCATION SCOPE | **Gap** | Add all/selected Locations for packages, memberships, vouchers, courses and standalone purchases. |
-| `GuestEntitlement` | SHARED CUSTOMER ASSET + LOCATION SCOPE SNAPSHOT | **Gap** | Snapshot valid Location scope when entitlement is issued so later product edits do not rewrite historical rights. |
-| gift/value voucher redemption | LOCATION SCOPE | **Gap** | Explicit all/selected Locations, in addition to existing service scope. |
+| `PaymentMethod` | SHARED + LOCATION SCOPE | **Phase 5.5C implemented** | `availableAllLocations` + `payment_method_locations`; checkout/invoice methods are filtered and validated by branch. |
+| `GuestProduct` | SHARED + LOCATION SCOPE | **Phase 5.5C implemented** | `availableAllLocations` + `guest_product_locations` for packages, memberships, vouchers, courses and standalone purchases. |
+| `GuestEntitlement` | SHARED CUSTOMER ASSET + LOCATION SCOPE SNAPSHOT | **Phase 5.5C implemented** | Issuance snapshots all/selected Location rights in `guest_entitlement_locations`, so later product edits do not rewrite historical rights. |
+| `GuestEntitlementUsage` | LOCATION | **Phase 5.5C hardened** | Every concrete redemption/scan now stores a mandatory Location. Booking-linked usage must match the booking Location; standalone scans require or safely auto-resolve one eligible branch. |
+| gift/value voucher redemption | LOCATION SCOPE | **Phase 5.5C implemented** | Entitlement Location scope is enforced in booking redemption, voucher preflight and staff scanner flows in addition to service scope. |
 | `GuestTenantLink` / guest relationship | COMPANY/WORKSPACE RELATIONSHIP | Correct to keep shared | Provider shown to guest can be a Location without duplicating the underlying customer relationship. |
 | `Course` | COMPANY/WORKSPACE DIGITAL CONTENT | Correct | Course content itself is not physical. Sale/access eligibility is controlled through product Location scope when applicable. |
 | `PersonalCalendarBlock` | USER / CROSS-LOCATION AVAILABILITY | Correct conceptually | A personal absence blocks the consultant across locations. Optional location-specific blocks can be a separate feature if needed. |
@@ -79,7 +80,7 @@ This phase establishes Location on records that represent a concrete transaction
 - `WaitlistOffer.location` is now stored directly and is non-null.
 - `WaitlistBookingHold.location` is now stored directly and is non-null.
 - `BookingSlotHold.location` is now stored directly and is non-null.
-- `GuestOrder.location` is normalized into a relation. Booking orders set it immediately; legacy Phase 5 metadata is backfilled. It intentionally remains nullable until non-booking product purchases gain Location scope in Phase 5.5C.
+- `GuestOrder.location` was normalized into a relation in 5.5A. Phase 5.5C completes the invariant by backfilling product-only orders and making the relation non-null for every order.
 
 ### Runtime rules
 
@@ -137,23 +138,36 @@ Phase 5.5B makes recurring availability and employee eligibility branch-aware wi
 
 Migration `V49__consultant_location_availability.sql` enforces the new schema and trigger invariants. `OperationalLocationOwnershipMigrationTest` verifies non-null `BookableSlot.location_id`, the consultant Location-scope table and rejection of cross-company/unassigned branch writes. `ConsultantLocationServiceTest` verifies all-location scope, selected-location scope and working-hours override fallback.
 
-## Phase 5.5C – commerce, wallet and payment scope
+## Phase 5.5C – commerce, wallet and payment scope (implemented)
 
-Use the same explicit scope pattern already used by `SessionType`:
+Phase 5.5C applies the same explicit all/selected-location pattern used by `SessionType` to commerce definitions and snapshots it into issued wallet rights.
 
-- `GuestProduct.availableAllLocations`
-- `guest_product_locations(product_id, location_id)`
-- `PaymentMethod.availableAllLocations`
-- `payment_method_locations(payment_method_id, location_id)`
+### Schema/domain changes
 
-Then:
+- `GuestProduct.availableAllLocations` + `guest_product_locations(product_id, location_id)`.
+- `PaymentMethod.availableAllLocations` + `payment_method_locations(payment_method_id, location_id)`.
+- `GuestEntitlement.availableAllLocations` + `guest_entitlement_locations(entitlement_id, location_id)`. Entitlements copy the product scope at issuance, including membership-created course access rights.
+- `GuestEntitlementUsage.location` is mandatory. Booking/service-linked usage must match the booked branch; standalone scans resolve an explicit or uniquely eligible active Location and persist it for audit/history.
+- `GuestOrder.location` is mandatory in JPA and the database. Historical product-only orders are backfilled from linked invoices/open bills or the company's historical default/first Location before the NOT NULL constraint is applied.
+- Database triggers reject product, payment-method or entitlement allowlist rows that point to another Company's Location.
 
-1. All GuestOrders receive a non-null Location, including wallet/product-only purchases.
-2. Product purchase UI resolves one eligible Location automatically or asks when several are valid.
-3. `GuestEntitlement` snapshots the Location scope at issuance (`all` or selected Location IDs / normalized entitlement-location rows).
-4. Redemption and booking validate both service scope and Location scope.
-5. Staff-created gift cards/packages also require or derive a valid Location context.
-6. Payment methods shown at checkout are filtered by selected Location.
+### Runtime rules
+
+- Product purchase flows validate the selected Location against the product scope. If exactly one active eligible Location exists it is auto-selected; with several eligible branches the caller must choose.
+- Guest App/public catalog product lists are filtered by the selected Location; service-linked products also retain the existing service-location validation.
+- Every new GuestOrder stores the resolved Location, including wallet/product-only staff purchases and public/mobile orders.
+- Issued entitlements keep their own Location snapshot, so changing a product's future availability never expands or removes already-purchased rights.
+- Pass/package/membership redemption, service/value-voucher redemption, voucher preflight and scanner flows reject entitlements outside the booking/scanner Location.
+- Payment methods exposed by the website widget and Guest App are filtered by Location. Staff invoice/open-bill creation, split payments, previews and close-to-invoice flows also validate payment-method Location scope.
+- The billing UI filters payment methods by the currently selected operational Location; payment-method configuration supports all branches or an explicit branch allowlist.
+- Configuration copy never broadens a restricted payment method. Selected branches are mapped by matching Location names; unmatched target branches remain unavailable until configured.
+- Client wallet APIs expose the entitlement Location snapshot, and the staff wallet UI shows selected branch names when a right is not valid everywhere.
+- Android and iOS Guest App booking flows also carry that snapshot and filter passes/packages/vouchers against the currently selected provider Location before presenting them as usable payment/redemption options; backend validation remains authoritative.
+- Gift-card administration responses and gift-card emails expose the entitlement's snapshotted valid Locations so staff and recipients can see branch restrictions without inferring them from the current product definition.
+
+### Database verification
+
+Migration `V50__commerce_location_scope.sql` adds the scope tables/columns, completes the non-null GuestOrder and GuestEntitlementUsage Location invariants and installs cross-company/location guardrail triggers. `OperationalLocationOwnershipMigrationTest` verifies the new non-null/schema invariants and rejects cross-company product/payment-method/entitlement-usage Location writes. `CommerceLocationScopeServiceTest` verifies all-location scope, selected-location scope, single-location auto-resolution and mandatory selection for multi-location purchases. `WalletEntitlementScannerLocationScopeTest` verifies standalone scanner branch selection, rejection outside entitlement scope and persistence of the resolved usage Location.
 
 ## Phase 5.5D – inventory
 

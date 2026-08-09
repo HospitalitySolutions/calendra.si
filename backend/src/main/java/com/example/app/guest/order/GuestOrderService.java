@@ -7,8 +7,10 @@ import com.example.app.billing.PaymentType;
 import com.example.app.client.Client;
 import com.example.app.client.ClientOnlineAccessGuard;
 import com.example.app.company.CompanyRepository;
+import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
 import com.example.app.guest.catalog.GuestCatalogService;
+import com.example.app.commerce.CommerceLocationScopeService;
 import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.guest.model.*;
@@ -82,6 +84,8 @@ public class GuestOrderService {
     private BookingSlotHoldService bookingSlotHolds;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private LocationRepository locations;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private CommerceLocationScopeService commerceLocations;
     private final PayPalClient payPalClient;
     private final StripeGuestCheckoutService stripeGuestCheckoutService;
     private final GlobalPaymentProviderService globalPaymentProviders;
@@ -236,6 +240,13 @@ public class GuestOrderService {
             );
             resolvedLocationId = selectedLocationId == null ? null : String.valueOf(selectedLocationId);
         }
+        Location resolvedOrderLocation = resolveOrderLocation(
+                companyId, parseNullableLocationId(resolvedLocationId), serviceLines);
+        if (resolvedOrderLocation != null) {
+            resolvedLocationId = String.valueOf(resolvedOrderLocation.getId());
+            validateSelectedEntitlementLines(
+                    link.getClient(), companyId, serviceLines, resolvedOrderLocation.getId());
+        }
         if (serviceLines.size() > 1) {
             GuestSettingsService.GuestPublicSettings publicSettings = guestSettings.publicSettings(companyId);
             if (publicSettings != null && !publicSettings.multipleServicesEnabled()) {
@@ -256,7 +267,8 @@ public class GuestOrderService {
             }
         }
         for (OrderServiceLine line : serviceLines) {
-            assertPaymentMethodAllowed(companyId, paymentMethodType, line.product().productType(), channel);
+            assertPaymentMethodAllowed(companyId, resolvedOrderLocation == null ? null : resolvedOrderLocation.getId(),
+                    paymentMethodType, line.product().productType(), channel);
         }
         assertExternalCheckoutReadyBeforeOrderCreated(link, paymentMethodType);
 
@@ -281,15 +293,7 @@ public class GuestOrderService {
 
         GuestOrder order = new GuestOrder();
         order.setCompany(link.getCompany());
-        Long normalizedOrderLocationId = parseNullableLocationId(resolvedLocationId);
-        if (normalizedOrderLocationId == null) {
-            normalizedOrderLocationId = parseNullableLocationId(request.locationId());
-        }
-        if (normalizedOrderLocationId != null && locations != null) {
-            order.setLocation(locations.findByIdAndCompanyId(normalizedOrderLocationId, companyId)
-                    .filter(location -> location.isActive())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location is not available.")));
-        }
+        order.setLocation(resolvedOrderLocation);
         order.setClient(link.getClient());
         order.setGuestUser(guestUser);
         order.setInvoiceLocale(resolveRequestedInvoiceLocale(request.locale(), request.language(), guestUser));
@@ -316,6 +320,39 @@ public class GuestOrderService {
 
         GuestDtos.BookingSummaryResponse bookingSummary = request.slotId() == null ? null : new GuestDtos.BookingSummaryResponse(String.valueOf(order.getId()), "PENDING_PAYMENT");
         return new GuestDtos.CreateOrderResponse(toOrder(order), bookingSummary, "CHECKOUT");
+    }
+
+    private Location resolveOrderLocation(Long companyId, Long requestedLocationId, List<OrderServiceLine> serviceLines) {
+        if (locations == null) return null; // Backwards-compatible unit-test wiring; runtime always injects LocationRepository.
+        List<Location> active = locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(companyId);
+        Location selected = null;
+        if (requestedLocationId != null) {
+            selected = locations.findByIdAndCompanyId(requestedLocationId, companyId)
+                    .filter(Location::isActive)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location is not available."));
+        } else {
+            List<Location> eligible = active.stream()
+                    .filter(location -> serviceLines == null || serviceLines.stream().allMatch(line -> {
+                        GuestProduct persisted = line == null || line.product() == null ? null : line.product().persistedProduct();
+                        return persisted == null || commerceLocations == null
+                                || commerceLocations.productAvailableAt(persisted, location.getId());
+                    }))
+                    .toList();
+            if (eligible.size() == 1) {
+                selected = eligible.getFirst();
+            } else if (eligible.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "The selected product is not available at any active location.");
+            } else {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location selection is required.");
+            }
+        }
+        if (serviceLines != null && commerceLocations != null) {
+            for (OrderServiceLine line : serviceLines) {
+                GuestProduct persisted = line == null || line.product() == null ? null : line.product().persistedProduct();
+                if (persisted != null) commerceLocations.requireProductAvailableAt(persisted, selected);
+            }
+        }
+        return selected;
     }
 
     private GuestOrder refreshBookingHoldToken(GuestOrder order, String holdToken) {
@@ -477,7 +514,7 @@ public class GuestOrderService {
                 product = catalogService.resolveProduct(companyId, productId, guestUser);
             }
             List<OrderServiceLine> legacy = List.of(new OrderServiceLine(0, product, normalizeId(request.entitlementId()), null));
-            validateSelectedEntitlementLines(client, companyId, legacy);
+            validateSelectedEntitlementLines(client, companyId, legacy, parseNullableLocationId(request.locationId()));
             return legacy;
         }
         record Indexed(int index, GuestDtos.SelectedServiceRequest value) {}
@@ -512,11 +549,11 @@ public class GuestOrderService {
             lines.add(new OrderServiceLine(position, resolved, normalizeId(item.entitlementId()), spaceId));
         }
         if (lines.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one service is required.");
-        validateSelectedEntitlementLines(client, companyId, lines);
+        validateSelectedEntitlementLines(client, companyId, lines, parseNullableLocationId(request.locationId()));
         return List.copyOf(lines);
     }
 
-    private void validateSelectedEntitlementLines(Client client, Long companyId, List<OrderServiceLine> lines) {
+    private void validateSelectedEntitlementLines(Client client, Long companyId, List<OrderServiceLine> lines, Long locationId) {
         Map<Long, Integer> usesByEntitlement = new LinkedHashMap<>();
         Map<Long, GuestEntitlement> validated = new LinkedHashMap<>();
         for (OrderServiceLine line : lines == null ? List.<OrderServiceLine>of() : lines) {
@@ -532,7 +569,7 @@ public class GuestOrderService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A voucher, pass or membership can only be assigned to a service line.");
             }
             GuestEntitlement entitlement = entitlementService.validateSelectedEntitlement(
-                    client, companyId, line.product().sessionType().getId(), entitlementId);
+                    client, companyId, line.product().sessionType().getId(), entitlementId, locationId);
             validated.put(entitlementId, entitlement);
             usesByEntitlement.merge(entitlementId, 1, Integer::sum);
         }
@@ -594,7 +631,9 @@ public class GuestOrderService {
         if (order.getPaymentMethodType() != paymentMethodType) {
             order.setPaymentMethodType(paymentMethodType);
         }
-        assertPaymentMethodAllowed(order.getCompany().getId(), paymentMethodType, inferProductType(order), channel);
+        assertPaymentMethodAllowed(order.getCompany().getId(),
+                order.getLocation() == null ? null : order.getLocation().getId(),
+                paymentMethodType, inferProductType(order), channel);
 
         if (checkoutAlreadyCompleted(order, paymentMethodType)) {
             return completedCheckoutResponse(order, paymentMethodType);
@@ -1312,7 +1351,9 @@ public class GuestOrderService {
         if (giftCardCodes.isEmpty()) {
             return new GiftCardPaymentAdjustment(order, false);
         }
-        assertPaymentMethodAllowed(order.getCompany().getId(), GuestPaymentMethodType.GIFT_CARD, inferProductType(order), channel);
+        assertPaymentMethodAllowed(order.getCompany().getId(),
+                order.getLocation() == null ? null : order.getLocation().getId(),
+                GuestPaymentMethodType.GIFT_CARD, inferProductType(order), channel);
 
         SessionBooking booking = maybeCreateConfirmedBooking(order);
         if (booking == null) {
@@ -1399,7 +1440,7 @@ public class GuestOrderService {
         }
     }
 
-    private void assertPaymentMethodAllowed(Long companyId, GuestPaymentMethodType paymentMethodType, String productType, PaymentChannel channel) {
+    private void assertPaymentMethodAllowed(Long companyId, Long locationId, GuestPaymentMethodType paymentMethodType, String productType, PaymentChannel channel) {
         GuestSettingsService.GuestBookingRules rules = bookingRulesForChannel(companyId, channel);
         boolean billingEnabled = billingEnabledForChannel(companyId, channel);
         boolean advanceBillingEnabled = advanceBillingEnabledForChannel(companyId, channel);
@@ -1468,7 +1509,10 @@ public class GuestOrderService {
             }
             return;
         }
-        List<PaymentMethod> methods = paymentMethods.findAllByCompanyIdOrderByNameAsc(companyId);
+        List<PaymentMethod> methods = paymentMethods.findAllByCompanyIdOrderByNameAsc(companyId).stream()
+                .filter(method -> locationId == null || commerceLocations == null
+                        || commerceLocations.paymentMethodAvailableAt(method, locationId))
+                .toList();
 
         if (paymentMethodType == GuestPaymentMethodType.PAYPAL) {
             String merchantId = companies.findById(companyId).map(c -> c.getPaypalMerchantId()).orElse(null);

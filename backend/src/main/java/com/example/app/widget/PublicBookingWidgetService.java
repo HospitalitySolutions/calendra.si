@@ -10,6 +10,7 @@ import com.example.app.common.SimulatedTimeContext;
 import com.example.app.common.TimeService;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
+import com.example.app.commerce.CommerceLocationScopeService;
 import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
@@ -116,6 +117,9 @@ public class PublicBookingWidgetService {
     private final TenantFeatureAccessService featureAccess;
     private final PaymentMethodRepository paymentMethods;
     private final StripeConnectService stripeConnectService;
+
+    @Autowired(required = false)
+    private CommerceLocationScopeService commerceLocations;
     private final TimeService timeService;
     private final LocationPublicPresentationService locationPresentation;
 
@@ -200,7 +204,7 @@ public class PublicBookingWidgetService {
         var bookingRules = websiteWidgetSettingsService.bookingRules(company.getId());
         var waitlistSettings = waitlistSettingsService.get(company.getId());
         var publicSettings = guestSettingsService.publicSettings(company.getId());
-        var allowedPaymentMethods = resolveAllowedPaymentMethods(company);
+        var allowedPaymentMethods = resolveAllowedPaymentMethods(company, location);
         return new PublicBookingWidgetController.WidgetConfigResponse(
                 company.getTenantCode(),
                 publicPresentation.locationId(),
@@ -275,9 +279,12 @@ public class PublicBookingWidgetService {
      * payment-method rows that are enabled for either guest app or website so
      * the website tab can reuse the existing guest app payment setup.
      */
-    private PublicBookingWidgetController.AllowedPaymentMethodsResponse resolveAllowedPaymentMethods(Company company) {
+    private PublicBookingWidgetController.AllowedPaymentMethodsResponse resolveAllowedPaymentMethods(Company company, Location location) {
         List<String> accepted = websiteWidgetSettingsService.acceptedPaymentMethods(company.getId());
-        List<PaymentMethod> methods = paymentMethods.findAllByCompanyIdOrderByNameAsc(company.getId());
+        List<PaymentMethod> methods = paymentMethods.findAllByCompanyIdOrderByNameAsc(company.getId()).stream()
+                .filter(method -> location == null || commerceLocations == null
+                        || commerceLocations.paymentMethodAvailableAt(method, location.getId()))
+                .toList();
         PaymentMethod cardMethod = methods.stream().filter(pm ->
                 isExternallyEnabled(pm) && pm.getPaymentType() == PaymentType.CARD && pm.isStripeEnabled()).findFirst().orElse(null);
         PaymentMethod bankMethod = methods.stream().filter(pm ->

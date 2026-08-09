@@ -2174,6 +2174,7 @@
               voucherCodes,
               serviceIds: selectedServiceIds.map((id) => String(id)),
               currency: null,
+              locationId: this.effectiveLocationId() || null,
             },
           });
         }

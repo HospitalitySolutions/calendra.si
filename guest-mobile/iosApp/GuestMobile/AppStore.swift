@@ -168,6 +168,9 @@ final class AppStore: ObservableObject {
                     voucherSessionTypeNames: $0.voucherSessionTypeNames ?? [],
                     currency: $0.currency,
                     accessUrl: $0.accessUrl,
+                    availableAllLocations: $0.availableAllLocations ?? true,
+                    locationIds: $0.locationIds ?? [],
+                    locationNames: $0.locationNames ?? [],
                     status: $0.status ?? "ACTIVE"
                 )
             }
@@ -218,6 +221,9 @@ final class AppStore: ObservableObject {
                 voucherSessionTypeNames: $0.voucherSessionTypeNames ?? [],
                 currency: $0.currency,
                 accessUrl: $0.accessUrl,
+                availableAllLocations: $0.availableAllLocations ?? true,
+                locationIds: $0.locationIds ?? [],
+                locationNames: $0.locationNames ?? [],
                 status: $0.status ?? "ACTIVE"
             )
         }

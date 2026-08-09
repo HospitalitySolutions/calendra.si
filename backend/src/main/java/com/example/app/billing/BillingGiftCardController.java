@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -96,7 +97,10 @@ public class BillingGiftCardController {
             String billNumber,
             String orderReference,
             Long locationId,
-            String locationName
+            String locationName,
+            boolean availableAllLocations,
+            List<Long> validLocationIds,
+            List<String> validLocationNames
     ) {}
 
     @GetMapping("/gift-cards")
@@ -283,7 +287,14 @@ public class BillingGiftCardController {
                 bill == null ? null : bill.getBillNumber(),
                 order == null ? null : order.getReferenceCode(),
                 bill == null || bill.getLocation() == null ? null : bill.getLocation().getId(),
-                bill == null || bill.getLocation() == null ? null : bill.getLocation().getName()
+                bill == null || bill.getLocation() == null ? null : bill.getLocation().getName(),
+                entitlement.isAvailableAllLocations(),
+                entitlement.getLocations() == null ? List.of() : entitlement.getLocations().stream()
+                        .map(com.example.app.location.Location::getId).filter(Objects::nonNull).sorted().toList(),
+                entitlement.getLocations() == null ? List.of() : entitlement.getLocations().stream()
+                        .filter(Objects::nonNull)
+                        .sorted(Comparator.comparing(location -> Objects.toString(location.getName(), ""), String.CASE_INSENSITIVE_ORDER))
+                        .map(com.example.app.location.Location::getName).filter(Objects::nonNull).toList()
         );
     }
 

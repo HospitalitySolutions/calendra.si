@@ -1,5 +1,7 @@
 package com.example.app.guest.catalog;
 
+import com.example.app.commerce.CommerceLocationScopeService;
+
 import com.example.app.client.Client;
 import com.example.app.common.SimulatedTimeContext;
 import com.example.app.common.TimeService;
@@ -76,6 +78,9 @@ public class GuestCatalogService {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ConsultantLocationService consultantLocations;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private CommerceLocationScopeService commerceLocations;
 
     public GuestCatalogService(
             SessionTypeRepository sessionTypes,
@@ -160,6 +165,8 @@ public class GuestCatalogService {
             if (product.getProductType() != ProductType.COURSE
                     && product.getSessionType() != null
                     && !isVisibleInGuestServiceStep(companyId, product.getSessionType(), guestUser)) continue;
+            if (selectedLocation != null && commerceLocations != null
+                    && !commerceLocations.productAvailableAt(product, selectedLocation.getId())) continue;
             if (selectedLocation != null && product.getSessionType() != null
                     && !guestLocations.isServiceAvailableAt(product.getSessionType(), selectedLocation.getId())) continue;
             out.add(new GuestDtos.ProductResponse(

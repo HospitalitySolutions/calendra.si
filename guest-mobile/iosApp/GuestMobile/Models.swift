@@ -518,8 +518,11 @@ struct EntitlementModel: Identifiable, Codable, Hashable {
     let voucherSessionTypeNames: [String]?
     let currency: String?
     let accessUrl: String?
+    let availableAllLocations: Bool?
+    let locationIds: [String]?
+    let locationNames: [String]?
 
-    init(id: String, name: String, type: String, entitlementCode: String?, remainingUses: Int?, visitCount: Int?, totalUses: Int?, validUntil: String?, validityDays: Int?, status: String?, sessionTypeId: String?, sessionTypeName: String?, autoRenews: Bool?, displayCode: String?, priceGross: Double?, remainingValueGross: Double?, voucherFaceValueGross: Double? = nil, voucherRedemptionMode: String? = nil, voucherServiceScope: String? = nil, voucherSessionTypeIds: [String] = [], voucherSessionTypeNames: [String] = [], currency: String?, accessUrl: String?) {
+    init(id: String, name: String, type: String, entitlementCode: String?, remainingUses: Int?, visitCount: Int?, totalUses: Int?, validUntil: String?, validityDays: Int?, status: String?, sessionTypeId: String?, sessionTypeName: String?, autoRenews: Bool?, displayCode: String?, priceGross: Double?, remainingValueGross: Double?, voucherFaceValueGross: Double? = nil, voucherRedemptionMode: String? = nil, voucherServiceScope: String? = nil, voucherSessionTypeIds: [String] = [], voucherSessionTypeNames: [String] = [], currency: String?, accessUrl: String?, availableAllLocations: Bool? = true, locationIds: [String] = [], locationNames: [String] = []) {
         self.id = id
         self.name = name
         self.type = type
@@ -543,6 +546,9 @@ struct EntitlementModel: Identifiable, Codable, Hashable {
         self.voucherSessionTypeNames = voucherSessionTypeNames
         self.currency = currency
         self.accessUrl = accessUrl
+        self.availableAllLocations = availableAllLocations
+        self.locationIds = locationIds
+        self.locationNames = locationNames
     }
 
     enum CodingKeys: String, CodingKey {
@@ -569,6 +575,9 @@ struct EntitlementModel: Identifiable, Codable, Hashable {
         case voucherSessionTypeNames
         case currency
         case accessUrl
+        case availableAllLocations
+        case locationIds
+        case locationNames
     }
 }
 
@@ -934,6 +943,9 @@ struct AccessCardModel: Identifiable, Hashable {
     let voucherSessionTypeNames: [String]
     let currency: String?
     let accessUrl: String?
+    let availableAllLocations: Bool
+    let locationIds: [String]
+    let locationNames: [String]
     /// Mirrors backend `EntitlementStatus` (e.g. ACTIVE, EXPIRED).
     let status: String
 }

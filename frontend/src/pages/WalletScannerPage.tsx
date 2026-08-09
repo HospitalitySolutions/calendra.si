@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser'
 import { api } from '../api'
+import { getStoredUser } from '../auth'
+import { useSelectedLocationId } from '../lib/locationContext'
 import { Card, Field } from '../components/ui'
 import { useLocale } from '../locale'
 
@@ -68,6 +70,9 @@ function resultMessage(result: string | undefined, fallback: string | null | und
       return fallback || t('scannerResultAlreadyPaidWithEntitlement')
     case 'GROUP_JOIN_FAILED':
       return fallback || t('scannerResultGroupJoinFailed')
+    case 'LOCATION_REQUIRED':
+    case 'LOCATION_MISMATCH':
+      return fallback || t('scannerResultGenericError')
     default:
       return fallback || t('scannerResultGenericError')
   }
@@ -149,6 +154,8 @@ export function WalletScannerPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const query = useMemo(() => new URLSearchParams(location.search), [location.search])
+  const me = getStoredUser()
+  const [selectedLocationId] = useSelectedLocationId(me?.activeUnitId ?? me?.companyId)
   const groupBookingId = Number(query.get('groupBookingId'))
   const scannerGroupBookingId = Number.isFinite(groupBookingId) && groupBookingId > 0 ? groupBookingId : null
   const paymentBookingId = Number(query.get('paymentBookingId'))
@@ -221,6 +228,7 @@ export function WalletScannerPage() {
         groupBookingId: scannerGroupBookingId,
         paymentBookingId: scannerPaymentBookingId,
         paymentClientId: scannerPaymentClientId,
+        locationId: selectedLocationId ?? undefined,
       })
       if (data.success) {
         if (scannerPaymentBookingId) {

@@ -3332,7 +3332,10 @@ private fun aggregatedRedeemableEntitlements(state: GuestUiState): List<Redeemab
                 voucherServiceScope = entitlement.voucherServiceScope,
                 voucherSessionTypeIds = entitlement.voucherSessionTypeIds,
                 voucherSessionTypeNames = entitlement.voucherSessionTypeNames,
-                currency = entitlement.currency
+                currency = entitlement.currency,
+                availableAllLocations = entitlement.availableAllLocations,
+                locationIds = entitlement.locationIds,
+                locationNames = entitlement.locationNames
             )
         }
     }

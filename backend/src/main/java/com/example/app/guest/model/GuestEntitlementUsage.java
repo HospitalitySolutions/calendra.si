@@ -1,6 +1,7 @@
 package com.example.app.guest.model;
 
 import com.example.app.common.BaseEntity;
+import com.example.app.location.Location;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionService;
 import com.example.app.user.User;
@@ -22,6 +23,11 @@ public class GuestEntitlementUsage extends BaseEntity {
     @ManyToOne(optional = true)
     @JoinColumn(name = "session_booking_id")
     private SessionBooking sessionBooking;
+
+    /** Physical branch where this entitlement was consumed/validated. */
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id", nullable = false)
+    private Location location;
 
     /** Exact service line covered by this usage; null for legacy and whole-booking usages. */
     @ManyToOne(optional = true)

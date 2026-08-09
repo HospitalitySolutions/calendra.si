@@ -31,6 +31,7 @@ import com.example.app.company.Company;
 import com.example.app.company.CompanyProvisioningService;
 import com.example.app.company.CompanyRepository;
 import com.example.app.fiscal.FiscalizationService;
+import com.example.app.commerce.CommerceLocationScopeService;
 import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
 import com.example.app.monitoring.ScheduledJobTrackerService;
@@ -107,6 +108,7 @@ public class PlatformSubscriptionBillingService {
 
     private InvoiceIssuanceService invoiceIssuanceService;
     private WorkspaceSubscriptionService workspaceSubscriptions;
+    private CommerceLocationScopeService commerceLocations;
 
     public PlatformSubscriptionBillingService(
             CompanyRepository companies,
@@ -174,6 +176,11 @@ public class PlatformSubscriptionBillingService {
     @Autowired(required = false)
     void configureWorkspaceSubscriptionService(WorkspaceSubscriptionService workspaceSubscriptions) {
         this.workspaceSubscriptions = workspaceSubscriptions;
+    }
+
+    @Autowired(required = false)
+    void configureCommerceLocations(CommerceLocationScopeService commerceLocations) {
+        this.commerceLocations = commerceLocations;
     }
 
     /** Upserts the platform payee + open bill using the best data currently available for the signup. */
@@ -268,7 +275,7 @@ public class PlatformSubscriptionBillingService {
         }
         open.setClient(client);
         open.setConsultant(consultant);
-        open.setPaymentMethod(resolvePaymentMethod(platformCompany.getId(), requestedPaymentMethod).orElse(null));
+        open.setPaymentMethod(resolvePaymentMethod(platformCompany.getId(), open.getLocation(), requestedPaymentMethod).orElse(null));
         open.setBatchScope(OpenBill.BATCH_SCOPE_COMPANY);
         open.setBatchTargetClientId(null);
         open.setBatchTargetCompanyId(payee.getId());
@@ -544,8 +551,9 @@ public class PlatformSubscriptionBillingService {
                 .orElseThrow(() -> new IllegalStateException("Subscription open bill was not found."));
         open.setPaymentMethod(resolvePaymentMethod(
                 platformCompany.getId(),
+                open.getLocation(),
                 settingValueOrDefault(tenantId, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD, null))
-                .orElse(open.getPaymentMethod()));
+                .orElse(paymentMethodAvailableAt(open.getPaymentMethod(), open.getLocation()) ? open.getPaymentMethod() : null));
         BigDecimal totalGross = applySubscriptionLines(
                 open,
                 billingCatalog,
@@ -690,7 +698,7 @@ public class PlatformSubscriptionBillingService {
         }
         open.setClient(client);
         open.setConsultant(consultant);
-        open.setPaymentMethod(resolvePaymentMethod(platformCompany.getId(), settingValueOrDefault(tenantId, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD, null)).orElse(null));
+        open.setPaymentMethod(resolvePaymentMethod(platformCompany.getId(), open.getLocation(), settingValueOrDefault(tenantId, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD, null)).orElse(null));
         open.setBatchScope(OpenBill.BATCH_SCOPE_COMPANY);
         open.setBatchTargetClientId(null);
         open.setBatchTargetCompanyId(payee.getId());
@@ -969,7 +977,9 @@ public class PlatformSubscriptionBillingService {
             setBillRecipientPersonSnapshot(bill);
         }
         bill.setConsultant(open.getConsultant());
-        bill.setPaymentMethod(open.getPaymentMethod() != null ? open.getPaymentMethod() : resolvePaymentMethod(platformCompany.getId(), null).orElse(null));
+        bill.setPaymentMethod(open.getPaymentMethod() != null && paymentMethodAvailableAt(open.getPaymentMethod(), open.getLocation())
+                ? open.getPaymentMethod()
+                : resolvePaymentMethod(platformCompany.getId(), open.getLocation(), null).orElse(null));
         bill.setBankTransferReference(open.getReference());
         bill.setIssueDate(timeService.localDate());
         assignInvoiceIdentity(bill, platformCompany.getId(), open.getLocation() == null ? null : open.getLocation().getId());
@@ -1585,8 +1595,10 @@ public class PlatformSubscriptionBillingService {
                         .min(Comparator.comparing(User::getId)));
     }
 
-    private Optional<PaymentMethod> resolvePaymentMethod(Long platformCompanyId, String requestedPaymentMethod) {
-        List<PaymentMethod> all = paymentMethods.findAllByCompanyIdOrderByNameAsc(platformCompanyId);
+    private Optional<PaymentMethod> resolvePaymentMethod(Long platformCompanyId, Location location, String requestedPaymentMethod) {
+        List<PaymentMethod> all = paymentMethods.findAllByCompanyIdOrderByNameAsc(platformCompanyId).stream()
+                .filter(pm -> paymentMethodAvailableAt(pm, location))
+                .toList();
         String normalized = requestedPaymentMethod == null ? "" : requestedPaymentMethod.trim().toUpperCase(Locale.ROOT);
         if ("CARD".equals(normalized) || "STRIPE".equals(normalized)) {
             return all.stream().filter(pm -> pm.getPaymentType() == PaymentType.CARD).findFirst()
@@ -1601,6 +1613,11 @@ public class PlatformSubscriptionBillingService {
         }
         return all.stream().filter(pm -> pm.getPaymentType() == PaymentType.BANK_TRANSFER).findFirst()
                 .or(() -> all.stream().findFirst());
+    }
+
+    private boolean paymentMethodAvailableAt(PaymentMethod method, Location location) {
+        return method != null && (location == null || commerceLocations == null
+                || commerceLocations.paymentMethodAvailableAt(method, location.getId()));
     }
 
     private void upsertSetting(Company company, SettingKey key, String value) {

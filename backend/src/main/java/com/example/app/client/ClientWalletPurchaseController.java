@@ -12,6 +12,7 @@ import com.example.app.billing.PriceMath;
 import com.example.app.billing.TaxRate;
 import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
+import com.example.app.commerce.CommerceLocationScopeService;
 import com.example.app.guest.model.GuestJoinMethod;
 import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.model.GuestOrderRepository;
@@ -53,6 +54,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -80,6 +82,9 @@ public class ClientWalletPurchaseController {
     private final CourseModuleAccessService courseModuleAccessService;
     private final BillingModuleAccessService billingModuleAccessService;
     private final LocationRepository locations;
+
+    @Autowired(required = false)
+    private CommerceLocationScopeService commerceLocations;
 
     @Autowired
     public ClientWalletPurchaseController(
@@ -142,7 +147,10 @@ public class ClientWalletPurchaseController {
             String voucherRedemptionMode,
             String voucherServiceScope,
             BigDecimal voucherFaceValueGross,
-            List<String> voucherSessionTypeNames
+            List<String> voucherSessionTypeNames,
+            boolean availableAllLocations,
+            List<Long> locationIds,
+            List<String> locationNames
     ) {}
 
     public record CreateWalletPurchaseOpenBillRequest(Long locationId, String giftCardTo, String giftCardText) {}
@@ -153,10 +161,14 @@ public class ClientWalletPurchaseController {
     @Transactional(readOnly = true)
     public List<WalletProductResponse> listBuyableProducts(
             @PathVariable Long clientId,
+            @RequestParam(required = false) Long locationId,
             @AuthenticationPrincipal User me
     ) {
         loadClientForWalletWrite(clientId, me);
         Long companyId = me.getCompany().getId();
+        Location selectedLocation = locationId == null || commerceLocations == null
+                ? null
+                : commerceLocations.requireActiveLocation(companyId, locationId);
         boolean coursesEnabled = courseModuleAccessService == null || courseModuleAccessService.isEnabled(companyId);
         boolean giftCardsEnabled = billingModuleAccessService == null || billingModuleAccessService.isGiftCardsEnabled(companyId);
         return products.findAllByCompanyIdOrderBySortOrderAscIdAsc(companyId).stream()
@@ -165,6 +177,7 @@ public class ClientWalletPurchaseController {
                 .filter(product -> BUYABLE_WALLET_TYPES.contains(product.getProductType()))
                 .filter(product -> product.getProductType() != ProductType.GIFT_CARD || giftCardsEnabled)
                 .filter(product -> product.getProductType() != ProductType.COURSE || coursesEnabled)
+                .filter(product -> selectedLocation == null || commerceLocations.productAvailableAt(product, selectedLocation.getId()))
                 .map(this::toWalletProductResponse)
                 .toList();
     }
@@ -191,9 +204,11 @@ public class ClientWalletPurchaseController {
             billingModuleAccessService.assertGiftCardsEnabled(companyId);
         }
 
-        Location location = resolveOperationalLocation(companyId, request == null ? null : request.locationId());
+        Location location = commerceLocations == null
+                ? resolveOperationalLocation(companyId, request == null ? null : request.locationId())
+                : commerceLocations.resolveProductPurchaseLocation(companyId, product, request == null ? null : request.locationId());
         GuestTenantLink link = resolveOrCreateGuestLink(client);
-        var paymentMethod = resolveDefaultPaymentMethod(companyId);
+        var paymentMethod = resolveDefaultPaymentMethod(companyId, location);
         var order = createPendingWalletOrder(client, link.getGuestUser(), product, request, me, location);
 
         var open = new OpenBill();
@@ -426,10 +441,12 @@ public class ClientWalletPurchaseController {
         return current <= 0 ? 1L : current + 1L;
     }
 
-    private PaymentMethod resolveDefaultPaymentMethod(Long companyId) {
-        var all = paymentMethods.findAllByCompanyIdOrderByNameAsc(companyId);
+    private PaymentMethod resolveDefaultPaymentMethod(Long companyId, Location location) {
+        var all = paymentMethods.findAllByCompanyIdOrderByNameAsc(companyId).stream()
+                .filter(method -> location == null || commerceLocations == null || commerceLocations.paymentMethodAvailableAt(method, location.getId()))
+                .toList();
         if (all.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No payment methods configured. Add one in Configuration > Billing.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No payment methods are configured for the selected location.");
         }
         return all.stream()
                 .filter(method -> method.getPaymentType() != PaymentType.ADVANCE)
@@ -502,7 +519,10 @@ public class ClientWalletPurchaseController {
                             .map(type -> type.getName() == null ? "" : type.getName().trim())
                             .filter(name -> !name.isBlank())
                             .toList()
-                        : List.of()
+                        : List.of(),
+                product.isAvailableAllLocations(),
+                commerceLocations == null ? List.of() : commerceLocations.locationIds(product),
+                commerceLocations == null ? List.of() : commerceLocations.locationNames(product)
         );
     }
 

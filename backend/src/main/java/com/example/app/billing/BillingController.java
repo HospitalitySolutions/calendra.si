@@ -37,6 +37,7 @@ import com.example.app.guest.model.EntitlementType;
 import com.example.app.guest.model.ProductType;
 import com.example.app.guest.model.VoucherRules;
 import com.example.app.guest.order.GuestEntitlementService;
+import com.example.app.commerce.CommerceLocationScopeService;
 import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
 import com.example.app.stripe.StripeBillingService;
@@ -130,6 +131,7 @@ public class BillingController {
     private GuestEntitlementService guestEntitlementService;
     private LocationRepository locations;
     private ActivityLogService activityLogs;
+    private CommerceLocationScopeService commerceLocations;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private GuestEntitlementRepository giftEntitlements;
@@ -191,6 +193,11 @@ public class BillingController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     void configureActivityLogService(ActivityLogService activityLogs) {
         this.activityLogs = activityLogs;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void configureCommerceLocationService(CommerceLocationScopeService commerceLocations) {
+        this.commerceLocations = commerceLocations;
     }
 
     @ModelAttribute
@@ -297,8 +304,17 @@ public class BillingController {
             Boolean guestEnabled,
             Boolean widgetEnabled,
             Integer guestDisplayOrder,
-            List<String> allowedGuestProductTypes
-    ) {}
+            List<String> allowedGuestProductTypes,
+            Boolean availableAllLocations,
+            List<Long> locationIds
+    ) {
+        public PaymentMethodRequest(String name, PaymentType paymentType, Boolean fiscalized, Boolean stripeEnabled,
+                                    Boolean guestEnabled, Boolean widgetEnabled, Integer guestDisplayOrder,
+                                    List<String> allowedGuestProductTypes) {
+            this(name, paymentType, fiscalized, stripeEnabled, guestEnabled, widgetEnabled, guestDisplayOrder,
+                    allowedGuestProductTypes, null, null);
+        }
+    }
     public record PaymentMethodResponse(
             Long id,
             String name,
@@ -308,7 +324,10 @@ public class BillingController {
             boolean guestEnabled,
             boolean widgetEnabled,
             int guestDisplayOrder,
-            List<String> allowedGuestProductTypes
+            List<String> allowedGuestProductTypes,
+            boolean availableAllLocations,
+            List<Long> locationIds,
+            List<String> locationNames
     ) {}
     public record ClientSummary(Long id, String firstName, String lastName, String email, String phone) {}
     public record UserSummary(Long id, String firstName, String lastName, String email, Role role) {}
@@ -747,7 +766,10 @@ public class BillingController {
                         pm.isGuestEnabled(),
                         pm.isWidgetEnabled(),
                         pm.getGuestDisplayOrder(),
-                        readAllowedGuestProductTypes(pm)))
+                        readAllowedGuestProductTypes(pm),
+                        pm.isAvailableAllLocations(),
+                        commerceLocations == null ? List.of() : commerceLocations.locationIds(pm),
+                        commerceLocations == null ? List.of() : commerceLocations.locationNames(pm)))
                 .toList();
     }
 
@@ -808,6 +830,7 @@ public class BillingController {
         pm.setName(normalizePaymentMethodName(req));
         pm.setPaymentType(req.paymentType());
         applyPaymentMethodFlags(pm, req, isFiscalCashRegisterEnabled(me.getCompany().getId()));
+        applyPaymentMethodLocationScope(pm, req, me.getCompany().getId());
         var saved = paymentMethodRepo.save(pm);
         PaymentMethodResponse result = new PaymentMethodResponse(
                 saved.getId(),
@@ -818,7 +841,10 @@ public class BillingController {
                 saved.isGuestEnabled(),
                 saved.isWidgetEnabled(),
                 saved.getGuestDisplayOrder(),
-                readAllowedGuestProductTypes(saved));
+                readAllowedGuestProductTypes(saved),
+                saved.isAvailableAllLocations(),
+                commerceLocations == null ? List.of() : commerceLocations.locationIds(saved),
+                commerceLocations == null ? List.of() : commerceLocations.locationNames(saved));
         recordPaymentMethod(me, ActivityAction.PAYMENT_METHOD_CREATED, result, "Created payment method");
         return result;
     }
@@ -839,6 +865,7 @@ public class BillingController {
         pm.setName(normalizePaymentMethodName(req));
         pm.setPaymentType(req.paymentType());
         applyPaymentMethodFlags(pm, req, isFiscalCashRegisterEnabled(me.getCompany().getId()));
+        applyPaymentMethodLocationScope(pm, req, me.getCompany().getId());
         var saved = paymentMethodRepo.save(pm);
         PaymentMethodResponse result = new PaymentMethodResponse(
                 saved.getId(),
@@ -849,7 +876,10 @@ public class BillingController {
                 saved.isGuestEnabled(),
                 saved.isWidgetEnabled(),
                 saved.getGuestDisplayOrder(),
-                readAllowedGuestProductTypes(saved));
+                readAllowedGuestProductTypes(saved),
+                saved.isAvailableAllLocations(),
+                commerceLocations == null ? List.of() : commerceLocations.locationIds(saved),
+                commerceLocations == null ? List.of() : commerceLocations.locationNames(saved));
         recordPaymentMethod(me, ActivityAction.PAYMENT_METHOD_UPDATED, result, "Updated payment method");
         return result;
     }
@@ -877,6 +907,7 @@ public class BillingController {
                 "PAYMENT_METHOD", row.id(), row.name(), summary, null, null,
                 ActivityDetails.of("paymentType", row.paymentType() == null ? null : row.paymentType().name(),
                         "fiscalized", row.fiscalized(), "guestEnabled", row.guestEnabled(), "widgetEnabled", row.widgetEnabled(),
+                        "availableAllLocations", row.availableAllLocations(), "locationIds", row.locationIds(),
                         "targetPath", "/configuration?tab=billing&subtab=paymentMethods"));
     }
 
@@ -1459,7 +1490,7 @@ public class BillingController {
         additional.setLocation(sourceSession.getLocation());
         additional.setClient(resolvedClient);
         additional.setConsultant(consultant);
-        additional.setPaymentMethod(resolveDefaultPaymentMethod(companyId));
+        additional.setPaymentMethod(resolveDefaultPaymentMethod(companyId, sourceSession.getLocation()));
         additional.setBatchScope(recipientCompany != null ? OpenBill.BATCH_SCOPE_COMPANY : OpenBill.BATCH_SCOPE_NONE);
         additional.setBatchTargetCompanyId(recipientCompany != null ? recipientCompany.getId() : null);
         additional.setBatchTargetClientId(null);
@@ -1550,7 +1581,7 @@ public class BillingController {
                 created.setConsultant(selectedSessionForOpenBill.getConsultant() != null
                         ? selectedSessionForOpenBill.getConsultant()
                         : (resolvedClient.getAssignedTo() != null ? resolvedClient.getAssignedTo() : actor));
-                created.setPaymentMethod(resolveDefaultPaymentMethod(companyId));
+                created.setPaymentMethod(resolveDefaultPaymentMethod(companyId, resolvedLocation));
                 created.setBatchScope(OpenBill.BATCH_SCOPE_NONE);
                 created.setBatchTargetClientId(null);
                 created.setBatchTargetCompanyId(null);
@@ -1566,7 +1597,7 @@ public class BillingController {
                 created.setLocation(resolvedLocation);
                 created.setClient(resolvedClient);
                 created.setConsultant(resolvedClient.getAssignedTo() != null ? resolvedClient.getAssignedTo() : actor);
-                created.setPaymentMethod(resolveDefaultPaymentMethod(companyId));
+                created.setPaymentMethod(resolveDefaultPaymentMethod(companyId, resolvedLocation));
                 created.setBatchScope(OpenBill.BATCH_SCOPE_COMPANY);
                 created.setBatchTargetCompanyId(resolvedLinkedCompany.getId());
                 created.setBatchTargetClientId(null);
@@ -1581,7 +1612,7 @@ public class BillingController {
                 created.setLocation(resolvedLocation);
                 created.setClient(resolvedClient);
                 created.setConsultant(resolvedClient.getAssignedTo() != null ? resolvedClient.getAssignedTo() : actor);
-                created.setPaymentMethod(resolveDefaultPaymentMethod(companyId));
+                created.setPaymentMethod(resolveDefaultPaymentMethod(companyId, resolvedLocation));
                 created.setBatchScope(OpenBill.BATCH_SCOPE_CLIENT);
                 created.setBatchTargetClientId(resolvedClient.getId());
                 created.setBatchTargetCompanyId(null);
@@ -1595,7 +1626,7 @@ public class BillingController {
             open.setLocation(resolvedLocation);
             open.setClient(resolvedClient);
             open.setConsultant(resolvedClient.getAssignedTo() != null ? resolvedClient.getAssignedTo() : actor);
-            open.setPaymentMethod(resolveDefaultPaymentMethod(companyId));
+            open.setPaymentMethod(resolveDefaultPaymentMethod(companyId, resolvedLocation));
             if (selectedSessionForOpenBill == null && recipientCompany != null && resolvedLinkedCompany != null) {
                 open.setBatchScope(OpenBill.BATCH_SCOPE_COMPANY);
                 open.setBatchTargetCompanyId(resolvedLinkedCompany.getId());
@@ -1625,6 +1656,7 @@ public class BillingController {
             var paymentMethod = paymentMethodRepo.findByIdAndCompanyId(req.paymentMethodId(), companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid payment method."));
             assertStripePaymentMethodEnabled(companyId, paymentMethod);
+            requirePaymentMethodAvailableAtLocation(paymentMethod, open.getLocation());
             open.setPaymentMethod(paymentMethod);
         }
         if (req.consultantId() != null) {
@@ -1752,6 +1784,7 @@ public class BillingController {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Advance payment method is disabled for this tenant.");
             }
             assertStripePaymentMethodEnabled(companyId, method);
+            requirePaymentMethodAvailableAtLocation(method, open.getLocation());
             Bill sourceAdvance = resolvePaymentSplitSourceAdvance(split, companyId);
             if (sourceAdvance != null && !isAdvanceLikePaymentMethod(method)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceAdvanceBillId is only allowed for advance/deposit payment methods.");
@@ -1787,6 +1820,7 @@ public class BillingController {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Advance payment method is disabled for this tenant.");
             }
             assertStripePaymentMethodEnabled(companyId, method);
+            requirePaymentMethodAvailableAtLocation(method, bill.getLocation());
             Bill sourceAdvance = resolvePaymentSplitSourceAdvance(split, companyId);
             if (sourceAdvance != null && !isAdvanceLikePaymentMethod(method)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceAdvanceBillId is only allowed for advance/deposit payment methods.");
@@ -1913,20 +1947,29 @@ public class BillingController {
 
     private PaymentMethod resolveAdvancePaymentMethodForOpenBill(OpenBill openBill, Long companyId) {
         assertAdvanceBillingEnabled(companyId);
-        if (openBill != null && isAdvanceLikePaymentMethod(openBill.getPaymentMethod())) {
+        Location location = openBill == null ? null : openBill.getLocation();
+        if (openBill != null && isAdvanceLikePaymentMethod(openBill.getPaymentMethod())
+                && paymentMethodAvailableAtLocation(openBill.getPaymentMethod(), location)) {
             return openBill.getPaymentMethod();
         }
         if (openBill != null && openBill.getPaymentSplits() != null) {
             for (OpenBillPayment split : openBill.getPaymentSplits()) {
-                if (split != null && isAdvanceLikePaymentMethod(split.getPaymentMethod())) {
+                if (split != null && isAdvanceLikePaymentMethod(split.getPaymentMethod())
+                        && paymentMethodAvailableAtLocation(split.getPaymentMethod(), location)) {
                     return split.getPaymentMethod();
                 }
             }
         }
+        return resolveAdvancePaymentMethodForLocation(companyId, location);
+    }
+
+    private PaymentMethod resolveAdvancePaymentMethodForLocation(Long companyId, Location location) {
+        assertAdvanceBillingEnabled(companyId);
         return paymentMethodRepo.findAllByCompanyIdOrderByNameAsc(companyId).stream()
                 .filter(this::isAdvanceLikePaymentMethod)
+                .filter(method -> paymentMethodAvailableAtLocation(method, location))
                 .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No advance/deposit payment method is configured."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No advance/deposit payment method is configured for this location."));
     }
 
     private static BigDecimal advanceNetToGross(Bill advance, BigDecimal amountNet) {
@@ -1956,6 +1999,7 @@ public class BillingController {
             int order = 0;
             for (OpenBillPayment split : open.getPaymentSplits()) {
                 if (split == null || split.getPaymentMethod() == null) continue;
+                requirePaymentMethodAvailableAtLocation(split.getPaymentMethod(), bill.getLocation());
                 var row = new BillPayment();
                 row.setBill(bill);
                 row.setPaymentMethod(split.getPaymentMethod());
@@ -1970,6 +2014,7 @@ public class BillingController {
             }
         }
         if (open.getPaymentMethod() != null) {
+            requirePaymentMethodAvailableAtLocation(open.getPaymentMethod(), bill.getLocation());
             var row = new BillPayment();
             row.setBill(bill);
             row.setPaymentMethod(open.getPaymentMethod());
@@ -2092,6 +2137,7 @@ public class BillingController {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Advance payment method is disabled for this tenant.");
             }
             assertStripePaymentMethodEnabled(companyId, paymentMethod);
+            requirePaymentMethodAvailableAtLocation(paymentMethod, open.getLocation());
             open.setPaymentMethod(paymentMethod);
         }
         if (req.paymentSplits() != null) {
@@ -2608,7 +2654,7 @@ public class BillingController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No transaction services are configured for ADVANCE bills.");
         }
         bill.setBillType(resolvedBillType);
-        PaymentMethod openPaymentMethod = open.getPaymentMethod() != null ? open.getPaymentMethod() : resolveDefaultPaymentMethod(companyId);
+        PaymentMethod openPaymentMethod = open.getPaymentMethod() != null ? open.getPaymentMethod() : resolveDefaultPaymentMethod(companyId, open.getLocation());
         requireStripeCheckoutReadyIfNeeded(me, openPaymentMethod);
         bill.setClient(open.getClient());
         setBillClientSnapshot(bill, open.getClient());
@@ -2637,6 +2683,7 @@ public class BillingController {
                             ? open.getLocation().getId()
                             : resolveInvoiceLocationId(companyId, linkedSessionIds))
         );
+        requirePaymentMethodAvailableAtLocation(openPaymentMethod, bill.getLocation());
         bill.setInvoiceLocale(resolveInvoiceLocaleForOpenBill(open, companyId));
         if (open.getItems() == null || open.getItems().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Open bill has no items.");
@@ -2744,6 +2791,7 @@ public class BillingController {
 
         User consultant = resolvePreviewConsultant(open, req, companyId, me);
         bill.setConsultant(consultant);
+        bill.setLocation(open.getLocation());
         PaymentMethod paymentMethod = resolvePreviewPaymentMethod(open, req, companyId);
         bill.setPaymentMethod(paymentMethod);
         bill.setBankTransferReference(req != null && req.reference() != null ? req.reference().trim() : open.getReference());
@@ -2929,10 +2977,12 @@ public class BillingController {
             PaymentMethod method = paymentMethodRepo.findByIdAndCompanyId(req.paymentMethodId(), companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid payment method"));
             assertStripePaymentMethodEnabled(companyId, method);
+            requirePaymentMethodAvailableAtLocation(method, open.getLocation());
             return method;
         }
-        PaymentMethod fallback = open.getPaymentMethod() != null ? open.getPaymentMethod() : resolveDefaultPaymentMethod(companyId);
+        PaymentMethod fallback = open.getPaymentMethod() != null ? open.getPaymentMethod() : resolveDefaultPaymentMethod(companyId, open.getLocation());
         assertStripePaymentMethodEnabled(companyId, fallback);
+        requirePaymentMethodAvailableAtLocation(fallback, open.getLocation());
         return fallback;
     }
 
@@ -3940,8 +3990,9 @@ public class BillingController {
         var companyId = me.getCompany().getId();
         var bill = new Bill();
         bill.setCompany(me.getCompany());
-        PaymentMethod requestedPaymentMethod = resolvePaymentMethod(request.paymentMethodId(), companyId);
-        requireStripeCheckoutReadyIfNeeded(me, requestedPaymentMethod);
+        PaymentMethod requestedPaymentMethod = request.paymentMethodId() == null
+                ? null
+                : resolvePaymentMethod(request.paymentMethodId(), companyId);
         BillType requestedBillType = resolveRequestedBillType(request.billType());
         requireCanIssueBillType(me, requestedBillType);
         if (requestedBillType == BillType.ADVANCE) {
@@ -4005,6 +4056,12 @@ public class BillingController {
                 ? request.locationId()
                 : selectedSession != null && selectedSession.getLocation() != null ? selectedSession.getLocation().getId() : null;
         assignInvoiceIdentity(bill, companyId, request.legalEntityId(), request.invoiceSeriesId(), requestedLocationId);
+        if (requestedPaymentMethod == null) {
+            requestedPaymentMethod = resolveDefaultPaymentMethod(companyId, bill.getLocation());
+        }
+        requireStripeCheckoutReadyIfNeeded(me, requestedPaymentMethod);
+        requirePaymentMethodAvailableAtLocation(requestedPaymentMethod, bill.getLocation());
+        bill.setPaymentMethod(requestedPaymentMethod);
         bill.setPaymentStatus(resolveInitialPaymentStatus(bill));
         if (BillPaymentStatus.PAID.equals(bill.getPaymentStatus())) {
             bill.setPaidAt(timeService.offsetDateTime());
@@ -4075,7 +4132,7 @@ public class BillingController {
             if (applyAmountNet.compareTo(remainingNet) > 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Requested unused deposit amount exceeds remaining advance.");
             }
-            PaymentMethod advancePaymentMethod = resolveAdvancePaymentMethodForOpenBill(null, companyId);
+            PaymentMethod advancePaymentMethod = resolveAdvancePaymentMethodForLocation(companyId, bill.getLocation());
             legacyUnusedAdvanceSplits.add(new PaymentSplitRequest(advancePaymentMethod.getId(), applyAmountGross, advance.getId()));
             BigDecimal remainderGross = totalGross.subtract(applyAmountGross).setScale(2, RoundingMode.HALF_UP);
             if (remainderGross.compareTo(BigDecimal.ZERO) > 0 && bill.getPaymentMethod() != null && !isAdvanceLikePaymentMethod(bill.getPaymentMethod())) {
@@ -5313,6 +5370,10 @@ public class BillingController {
     }
 
     private PaymentMethod resolveDefaultPaymentMethod(Long companyId) {
+        return resolveDefaultPaymentMethod(companyId, null);
+    }
+
+    private PaymentMethod resolveDefaultPaymentMethod(Long companyId, Location location) {
         var all = paymentMethodRepo.findAllByCompanyIdOrderByNameAsc(companyId);
         if (!isAdvanceBillingEnabled(companyId)) {
             all = all.stream()
@@ -5324,10 +5385,24 @@ public class BillingController {
                     .filter(method -> !isStripeLikePaymentMethod(method))
                     .toList();
         }
+        if (location != null) {
+            all = all.stream().filter(method -> paymentMethodAvailableAtLocation(method, location)).toList();
+        }
         if (all.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No payment methods configured. Add one in Configuration > Billing.");
+            String suffix = location == null ? "" : " for the selected location";
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No payment methods configured" + suffix + ". Add one in Configuration > Billing.");
         }
         return all.getFirst();
+    }
+
+    private boolean paymentMethodAvailableAtLocation(PaymentMethod method, Location location) {
+        return commerceLocations == null || location == null || commerceLocations.paymentMethodAvailableAt(method, location.getId());
+    }
+
+    private void requirePaymentMethodAvailableAtLocation(PaymentMethod method, Location location) {
+        if (commerceLocations != null && location != null) {
+            commerceLocations.requirePaymentMethodAvailableAt(method, location);
+        }
     }
 
     private static List<BigDecimal> openBillDiscountLineGrosses(OpenBill open) {
@@ -6228,6 +6303,17 @@ public class BillingController {
         boolean stripeEnabled = req.paymentType() == PaymentType.CARD
                 && (req.stripeEnabled() != null ? req.stripeEnabled() : defaultStripeEnabled(req.paymentType()));
         return stripeEnabled ? "Spletno plačilo s kartico" : req.name().trim();
+    }
+
+    private void applyPaymentMethodLocationScope(PaymentMethod pm, PaymentMethodRequest req, Long companyId) {
+        boolean all = req.availableAllLocations() == null || Boolean.TRUE.equals(req.availableAllLocations());
+        pm.setAvailableAllLocations(all);
+        pm.getLocations().clear();
+        if (!all && commerceLocations != null) {
+            pm.getLocations().addAll(commerceLocations.resolveSelectedLocations(companyId, false, req.locationIds(), "Payment method"));
+        } else if (!all) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Location configuration is unavailable.");
+        }
     }
 
     private static void applyPaymentMethodFlags(PaymentMethod pm, PaymentMethodRequest req, boolean fiscalCashRegisterEnabled) {

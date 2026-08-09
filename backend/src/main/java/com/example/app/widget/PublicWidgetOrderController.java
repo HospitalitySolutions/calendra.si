@@ -52,8 +52,13 @@ public class PublicWidgetOrderController {
     public record VoucherResolutionRequest(
             List<String> voucherCodes,
             List<String> serviceIds,
-            String currency
-    ) {}
+            String currency,
+            String locationId
+    ) {
+        public VoucherResolutionRequest(List<String> voucherCodes, List<String> serviceIds, String currency) {
+            this(voucherCodes, serviceIds, currency, null);
+        }
+    }
 
     public record VoucherCodeResponse(
             String code,

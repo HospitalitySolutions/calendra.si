@@ -11,7 +11,7 @@ import {
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { getStoredUser } from "../auth";
-import type { BillingService, SessionType as SessionTypeT } from "../lib/types";
+import type { BillingService, Location as LocationT, SessionType as SessionTypeT } from "../lib/types";
 import { GuestConfigSaveIcon } from "../components/GuestConfigSaveIcon";
 import { ServiceConfigDeleteButton, ServiceConfigEditButton, ServiceConfigTableFooter } from "../components/ServiceConfigTableUi";
 import { EmptyState, Field } from "../components/ui";
@@ -57,6 +57,9 @@ type GuestAdminProduct = {
   voucherFaceValueGross?: number | null;
   voucherSessionTypeIds?: number[] | null;
   voucherSessionTypeNames?: string[] | null;
+  availableAllLocations?: boolean;
+  locationIds?: number[] | null;
+  locationNames?: string[] | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -133,6 +136,8 @@ type GuestProductFormState = {
   voucherServiceScope: VoucherServiceScope;
   voucherFaceValueGross: string;
   voucherSessionTypeIds: string[];
+  availableAllLocations: boolean;
+  locationIds: string[];
 };
 
 const ADMIN_GUEST_PRODUCT_TYPES: GuestAdminProductType[] = [
@@ -171,6 +176,8 @@ const defaultGuestProductForm = (): GuestProductFormState => ({
   voucherServiceScope: "SELECTED_SERVICES",
   voucherFaceValueGross: "0.00",
   voucherSessionTypeIds: [],
+  availableAllLocations: true,
+  locationIds: [],
 });
 
 const defaultCourseForm = (): CourseFormState => ({
@@ -639,6 +646,7 @@ export const CardsMembershipsSection = forwardRef<
   const [transactionServices, setTransactionServices] = useState<
     BillingService[]
   >([]);
+  const [locations, setLocations] = useState<LocationT[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [showCoursePickerModal, setShowCoursePickerModal] = useState(false);
   const [coursePickerQuery, setCoursePickerQuery] = useState("");
@@ -675,11 +683,12 @@ export const CardsMembershipsSection = forwardRef<
   const loadGuestProducts = useCallback(async () => {
     if (!isAdmin) return;
     try {
-      const [productsRes, servicesRes, coursesRes] = await Promise.all([
+      const [productsRes, servicesRes, locationsRes, coursesRes] = await Promise.all([
         api.get("/guest/admin/products").catch(() => ({ data: [] })),
         api
           .get<BillingService[]>("/billing/services")
           .catch(() => ({ data: [] as BillingService[] })),
+        api.get<LocationT[]>("/locations").catch(() => ({ data: [] as LocationT[] })),
         coursesEnabled
           ? api
               .get<Course[]>("/courses")
@@ -695,10 +704,12 @@ export const CardsMembershipsSection = forwardRef<
       setTransactionServices(
         Array.isArray(servicesRes.data) ? servicesRes.data : [],
       );
+      setLocations(Array.isArray(locationsRes.data) ? locationsRes.data.filter((location) => location.active !== false) : []);
       setCourses(Array.isArray(coursesRes.data) ? coursesRes.data : []);
     } catch {
       setGuestProducts([]);
       setTransactionServices([]);
+      setLocations([]);
       setCourses([]);
     }
   }, [isAdmin, coursesEnabled, giftCardsEnabled]);
@@ -847,6 +858,8 @@ export const CardsMembershipsSection = forwardRef<
             product.productType === "GIFT_CARD" && Array.isArray(product.voucherSessionTypeIds)
               ? product.voucherSessionTypeIds.map(String)
               : [],
+          availableAllLocations: product.availableAllLocations !== false,
+          locationIds: Array.isArray(product.locationIds) ? product.locationIds.map(String) : [],
         },
         product.productType === "CLASS_TICKET" ? "PACK" : product.productType,
       ),
@@ -1149,6 +1162,14 @@ export const CardsMembershipsSection = forwardRef<
       );
       return;
     }
+    if (!guestProductForm.availableAllLocations && guestProductForm.locationIds.length === 0) {
+      window.alert(
+        locale === "sl"
+          ? "Izberite vsaj eno lokacijo, kjer ugodnost velja."
+          : "Select at least one location where this entitlement is available.",
+      );
+      return;
+    }
     const payload = {
       name: guestProductForm.name.trim(),
       description: guestProductForm.description.trim(),
@@ -1159,6 +1180,10 @@ export const CardsMembershipsSection = forwardRef<
       active: guestProductForm.active,
       guestVisible: guestProductForm.guestVisible,
       bookable: false,
+      availableAllLocations: guestProductForm.availableAllLocations,
+      locationIds: guestProductForm.availableAllLocations
+        ? []
+        : guestProductForm.locationIds.map((id) => Number.parseInt(id, 10)).filter(Number.isFinite),
       usageLimit:
         isClassTicket || isMembership || isGiftCard || isCourseAccess
           ? 1
@@ -1782,6 +1807,63 @@ export const CardsMembershipsSection = forwardRef<
                   ))}
                 </select>
               </Field>
+              <Field
+                label={locale === "sl" ? "Lokacije *" : "Locations *"}
+                hint={
+                  locale === "sl"
+                    ? "Določite, v katerih poslovnih prostorih je ugodnost mogoče kupiti in unovčiti."
+                    : "Choose the locations where this entitlement can be purchased and redeemed."
+                }
+              >
+                <select
+                  value={guestProductForm.availableAllLocations ? "ALL" : "SELECTED"}
+                  onChange={(event) =>
+                    setGuestProductForm((current) => ({
+                      ...current,
+                      availableAllLocations: event.target.value === "ALL",
+                      locationIds: event.target.value === "ALL" ? [] : current.locationIds,
+                    }))
+                  }
+                >
+                  <option value="ALL">{locale === "sl" ? "Vse lokacije" : "All locations"}</option>
+                  <option value="SELECTED">{locale === "sl" ? "Izbrane lokacije" : "Selected locations"}</option>
+                </select>
+              </Field>
+              {!guestProductForm.availableAllLocations && (
+                <Field label={locale === "sl" ? "Izbrane lokacije *" : "Selected locations *"}>
+                  <div className="cards-product-voucher-services">
+                    {locations.map((location) => {
+                      const id = String(location.id);
+                      const checked = guestProductForm.locationIds.includes(id);
+                      return (
+                        <label
+                          key={location.id}
+                          className={`cards-product-voucher-service-option${checked ? " is-selected" : ""}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) =>
+                              setGuestProductForm((current) => ({
+                                ...current,
+                                locationIds: event.target.checked
+                                  ? Array.from(new Set([...current.locationIds, id]))
+                                  : current.locationIds.filter((value) => value !== id),
+                              }))
+                            }
+                          />
+                          <span>{location.name}</span>
+                        </label>
+                      );
+                    })}
+                    {locations.length === 0 && (
+                      <span className="muted">
+                        {locale === "sl" ? "Ni aktivnih lokacij." : "No active locations."}
+                      </span>
+                    )}
+                  </div>
+                </Field>
+              )}
               {guestProductForm.productType === "GIFT_CARD" && (
                 <>
                   <Field

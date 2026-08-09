@@ -57,7 +57,12 @@ data class EntitlementSummary(
     val voucherSessionTypeIds: List<String> = emptyList(),
     val voucherSessionTypeNames: List<String> = emptyList(),
     val currency: String? = null,
-    val accessUrl: String? = null
+    val accessUrl: String? = null,
+    /** True when this entitlement can be redeemed at every provider location. */
+    val availableAllLocations: Boolean = true,
+    /** Explicit provider-location allowlist when availableAllLocations is false. */
+    val locationIds: List<String> = emptyList(),
+    val locationNames: List<String> = emptyList()
 )
 
 @Serializable

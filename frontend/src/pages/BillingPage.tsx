@@ -716,6 +716,9 @@ type BillingGiftCard = {
   orderReference?: string | null
   locationId?: number | null
   locationName?: string | null
+  availableAllLocations?: boolean
+  validLocationIds?: number[] | null
+  validLocationNames?: string[] | null
 }
 type UnusedAdvance = {
   advanceBillId: number
@@ -1720,10 +1723,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const stripeBillingEnabled = settings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== 'false'
   const visiblePaymentMethods = useMemo(
     () => {
-      const stripeFiltered = stripeBillingEnabled ? paymentMethods : paymentMethods.filter((method) => !isStripePaymentMethod(method))
+      const locationFiltered = selectedLocationId == null
+        ? paymentMethods
+        : paymentMethods.filter((method) => method.availableAllLocations !== false
+          || (Array.isArray(method.locationIds) && method.locationIds.some((id) => Number(id) === Number(selectedLocationId))))
+      const stripeFiltered = stripeBillingEnabled ? locationFiltered : locationFiltered.filter((method) => !isStripePaymentMethod(method))
       return advanceBillingEnabled ? stripeFiltered : stripeFiltered.filter((method) => !isDepositPaymentMethod(method))
     },
-    [advanceBillingEnabled, paymentMethods, stripeBillingEnabled],
+    [advanceBillingEnabled, paymentMethods, selectedLocationId, stripeBillingEnabled],
   )
 
   const defaultInvoiceIssuerId = invoiceIssuers.find((issuer) => issuer.defaultForCurrentUnit)?.id ?? invoiceIssuers[0]?.id
@@ -4776,6 +4783,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     if (card?.voucherScope !== 'SELECTED_SERVICES') return locale === 'sl' ? 'Vse storitve' : 'All services'
     const names = (card.eligibleServiceNames || []).filter(Boolean)
     if (names.length === 0) return locale === 'sl' ? 'Izbrane storitve' : 'Selected services'
+    return names.join(', ')
+  }
+
+  const voucherLocationScopeLabel = (card: BillingGiftCard | null | undefined): string => {
+    if (card?.availableAllLocations !== false) return locale === 'sl' ? 'Vse lokacije' : 'All locations'
+    const names = (card?.validLocationNames || []).filter(Boolean)
+    if (names.length === 0) return locale === 'sl' ? 'Izbrane lokacije' : 'Selected locations'
     return names.join(', ')
   }
 
@@ -9856,6 +9870,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <div><span className="muted">{locale === 'sl' ? 'Stranka / kupec' : 'Client / buyer'}</span><strong>{detailGiftCard.clientName || '—'}</strong></div>
                 <div><span className="muted">{locale === 'sl' ? 'E-pošta' : 'Email'}</span><strong>{detailGiftCard.clientEmail || '—'}</strong></div>
                 <div><span className="muted">{locale === 'sl' ? 'Velja za' : 'Valid for'}</span><strong>{voucherScopeLabel(detailGiftCard)}</strong></div>
+                <div><span className="muted">{locale === 'sl' ? 'Velja na lokacijah' : 'Valid at locations'}</span><strong>{voucherLocationScopeLabel(detailGiftCard)}</strong></div>
                 {!isServiceVoucher(detailGiftCard) ? <div><span className="muted">{locale === 'sl' ? 'Porabljeno' : 'Used'}</span><strong>{currency(Number(detailGiftCard.usedGross || 0))}</strong></div> : null}
                 <div><span className="muted">{locale === 'sl' ? 'Poteče' : 'Expires'}</span><strong>{detailGiftCard.expiresAt ? formatDate(detailGiftCard.expiresAt) : '—'}</strong></div>
                 <div><span className="muted">{locale === 'sl' ? 'Račun' : 'Invoice'}</span><strong>{detailGiftCard.billNumber || detailGiftCard.orderReference || '—'}</strong></div>

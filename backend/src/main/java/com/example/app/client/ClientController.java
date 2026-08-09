@@ -272,7 +272,10 @@ public class ClientController {
             Long sourceOrderId,
             String sessionTypeName,
             boolean autoRenews,
-            Instant createdAt
+            Instant createdAt,
+            boolean availableAllLocations,
+            List<Long> locationIds,
+            List<String> locationNames
     ) {}
 
     public record ClientWalletUsageResponse(
@@ -283,6 +286,8 @@ public class ClientController {
             Integer unitsUsed,
             String reason,
             Long bookingId,
+            Long locationId,
+            String locationName,
             String source,
             String scannedByName,
             Integer unitsBefore,
@@ -808,7 +813,18 @@ public class ClientController {
                 entitlement.getSourceOrder() == null ? null : entitlement.getSourceOrder().getId(),
                 sessionType == null ? null : sessionType.getName(),
                 guestEntitlementService.autoRenews(entitlement),
-                entitlement.getCreatedAt()
+                entitlement.getCreatedAt(),
+                entitlement.isAvailableAllLocations(),
+                entitlement.getLocations() == null ? List.of() : entitlement.getLocations().stream()
+                        .filter(location -> location != null && location.getId() != null)
+                        .map(com.example.app.location.Location::getId)
+                        .sorted()
+                        .toList(),
+                entitlement.getLocations() == null ? List.of() : entitlement.getLocations().stream()
+                        .filter(location -> location != null && location.getName() != null)
+                        .sorted((left, right) -> String.CASE_INSENSITIVE_ORDER.compare(left.getName(), right.getName()))
+                        .map(com.example.app.location.Location::getName)
+                        .toList()
         );
     }
 
@@ -826,6 +842,8 @@ public class ClientController {
                 usage.getUnitsUsed(),
                 usage.getReason() == null ? null : usage.getReason().name(),
                 booking == null ? null : booking.getId(),
+                usage.getLocation() == null ? null : usage.getLocation().getId(),
+                usage.getLocation() == null ? null : usage.getLocation().getName(),
                 usage.getScanSource(),
                 scannedByName == null || scannedByName.isBlank() ? null : scannedByName,
                 usage.getUnitsBefore(),

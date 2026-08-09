@@ -218,7 +218,10 @@ data class RedeemableEntitlementOption(
     val voucherServiceScope: String? = null,
     val voucherSessionTypeIds: List<String> = emptyList(),
     val voucherSessionTypeNames: List<String> = emptyList(),
-    val currency: String? = null
+    val currency: String? = null,
+    val availableAllLocations: Boolean = true,
+    val locationIds: List<String> = emptyList(),
+    val locationNames: List<String> = emptyList()
 )
 
 enum class BookingFlowStep(
@@ -523,6 +526,13 @@ fun BookScreen(
             }
         }
     }
+    fun entitlementAvailableAtSelectedLocation(entitlement: RedeemableEntitlementOption): Boolean {
+        val locationId = selectedProvider?.locationId
+        return locationId.isNullOrBlank()
+                || entitlement.availableAllLocations
+                || entitlement.locationIds.contains(locationId)
+    }
+
     fun voucherAllowsSelectedServices(entitlement: RedeemableEntitlementOption, requireAll: Boolean): Boolean {
         if (!entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true)) return true
         if (!entitlement.voucherServiceScope.equals("SELECTED_SERVICES", ignoreCase = true)) return true
@@ -538,6 +548,7 @@ fun BookScreen(
     val matchingEntitlements = redeemableEntitlements.filter { entitlement ->
         val giftCard = entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true)
         selectedServices.isNotEmpty() && entitlement.companyId == selectedServices.first().companyId
+                && entitlementAvailableAtSelectedLocation(entitlement)
                 && (!giftCard || entitlement.voucherRedemptionMode.equals("SERVICE", ignoreCase = true))
                 && (!giftCard || selectedServices.size == 1)
                 && (!giftCard || (entitlement.remainingUses ?: 0) > 0)
@@ -553,6 +564,7 @@ fun BookScreen(
     val showPaymentMethodSummary = !skipsOnlinePayment || usesEntitlementPayment
     val matchingGiftCards = redeemableEntitlements.filter { entitlement ->
         selectedServices.isNotEmpty() && entitlement.companyId == selectedServices.first().companyId
+                && entitlementAvailableAtSelectedLocation(entitlement)
                 && entitlement.entitlementType.equals("GIFT_CARD", ignoreCase = true)
                 && !entitlement.voucherRedemptionMode.equals("SERVICE", ignoreCase = true)
                 && voucherAllowsSelectedServices(entitlement, requireAll = true)

@@ -36,8 +36,14 @@ class OperationalLocationOwnershipMigrationTest {
         assertNotNullable(jdbc, "waitlist_offers", "location_id");
         assertNotNullable(jdbc, "waitlist_booking_holds", "location_id");
         assertNotNullable(jdbc, "booking_slot_holds", "location_id");
-        // Product-only wallet purchases are scoped in Phase 5.5C; booking orders are populated now.
-        assertThat(columnNullable(jdbc, "guest_orders", "location_id")).isEqualTo("YES");
+        assertNotNullable(jdbc, "guest_orders", "location_id");
+        assertNotNullable(jdbc, "guest_products", "available_all_locations");
+        assertNotNullable(jdbc, "payment_methods", "available_all_locations");
+        assertNotNullable(jdbc, "guest_entitlements", "available_all_locations");
+        assertNotNullable(jdbc, "guest_entitlement_usages", "location_id");
+        assertTableExists(jdbc, "guest_product_locations");
+        assertTableExists(jdbc, "payment_method_locations");
+        assertTableExists(jdbc, "guest_entitlement_locations");
         assertNotNullable(jdbc, "bookable_slot", "location_id");
         assertNotNullable(jdbc, "users", "available_all_locations");
         assertThat(columnNullable(jdbc, "users", "working_hours_by_location_json")).isEqualTo("YES");
@@ -61,6 +67,44 @@ class OperationalLocationOwnershipMigrationTest {
                 returning id
                 """, Long.class, firstCompanyId);
         assertThat(firstCompanySecondLocationId).isPositive();
+
+        Long scopedProductId = jdbc.queryForObject("""
+                insert into guest_products(
+                    created_at, updated_at, company_id, name, product_type, price_gross, currency,
+                    active, guest_visible, bookable, auto_renews, sort_order, available_all_locations
+                ) values (
+                    current_timestamp, current_timestamp, ?, 'Scoped pack', 'PACK', 10.00, 'EUR',
+                    true, true, false, false, 0, false
+                ) returning id
+                """, Long.class, firstCompanyId);
+        jdbc.update("insert into guest_product_locations(product_id, location_id) values (?, ?)", scopedProductId, firstLocationId);
+        assertThatThrownBy(() -> jdbc.update(
+                "insert into guest_product_locations(product_id, location_id) values (?, ?)", scopedProductId, secondLocationId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        Long scopedPaymentMethodId = jdbc.queryForObject("""
+                insert into payment_methods(
+                    created_at, updated_at, company_id, name, payment_type, fiscalized, stripe_enabled,
+                    guest_enabled, widget_enabled, guest_display_order, available_all_locations
+                ) values (
+                    current_timestamp, current_timestamp, ?, 'Scoped cash', 'CASH', false, false,
+                    false, false, 0, false
+                ) returning id
+                """, Long.class, firstCompanyId);
+        jdbc.update("insert into payment_method_locations(payment_method_id, location_id) values (?, ?)", scopedPaymentMethodId, firstLocationId);
+        assertThatThrownBy(() -> jdbc.update(
+                "insert into payment_method_locations(payment_method_id, location_id) values (?, ?)", scopedPaymentMethodId, secondLocationId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        Long walletClientId = insertClient(jdbc, firstCompanyId);
+        Long guestUserId = insertGuestUser(jdbc);
+        Long sourceOrderId = insertGuestOrder(jdbc, firstCompanyId, firstLocationId, walletClientId, guestUserId);
+        Long entitlementId = insertEntitlement(jdbc, firstCompanyId, walletClientId, scopedProductId, sourceOrderId);
+        Long usageId = insertEntitlementUsage(jdbc, entitlementId, firstLocationId);
+        assertThat(usageId).isPositive();
+        assertThatThrownBy(() -> insertEntitlementUsage(jdbc, entitlementId, secondLocationId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
         assertThatThrownBy(() -> jdbc.update("""
                 insert into space(created_at, updated_at, company_id, name)
                 values (current_timestamp, current_timestamp, ?, 'Ambiguous raw room')
@@ -119,6 +163,10 @@ class OperationalLocationOwnershipMigrationTest {
         assertThat(columnNullable(jdbc, table, column)).isEqualTo("NO");
     }
 
+    private void assertTableExists(JdbcTemplate jdbc, String table) {
+        assertThat(jdbc.queryForObject("select to_regclass('public.' || ?) is not null", Boolean.class, table)).isTrue();
+    }
+
     private String columnNullable(JdbcTemplate jdbc, String table, String column) {
         return jdbc.queryForObject("""
                 select is_nullable
@@ -141,6 +189,77 @@ class OperationalLocationOwnershipMigrationTest {
                 Long.class,
                 companyId
         );
+    }
+
+    private Long insertClient(JdbcTemplate jdbc, Long companyId) {
+        return jdbc.queryForObject("""
+                insert into clients(
+                    created_at, updated_at, company_id, first_name, last_name,
+                    whatsapp_opt_in, viber_connected, anonymized, active, batch_payment_enabled,
+                    inbox_starred, inbox_closed, invoice_recipient_type
+                ) values (
+                    current_timestamp, current_timestamp, ?, 'Wallet', 'Client',
+                    false, false, false, true, false, false, false, 'PERSON'
+                ) returning id
+                """, Long.class, companyId);
+    }
+
+    private Long insertGuestUser(JdbcTemplate jdbc) {
+        return jdbc.queryForObject("""
+                insert into guest_users(
+                    created_at, updated_at, email, first_name, last_name, language, active, email_verified,
+                    notify_messages_enabled, notify_reminders_enabled, notify_reminder_minutes
+                ) values (
+                    current_timestamp, current_timestamp, 'location-wallet@example.test', 'Wallet', 'Guest',
+                    'sl', true, true, true, true, 60
+                ) returning id
+                """, Long.class);
+    }
+
+    private Long insertGuestOrder(
+            JdbcTemplate jdbc,
+            Long companyId,
+            Long locationId,
+            Long clientId,
+            Long guestUserId
+    ) {
+        return jdbc.queryForObject("""
+                insert into guest_orders(
+                    created_at, updated_at, company_id, location_id, client_id, guest_user_id, status,
+                    payment_method_type, currency, subtotal_gross, tax_amount, total_gross, reference_code
+                ) values (
+                    current_timestamp, current_timestamp, ?, ?, ?, ?, 'PAID',
+                    'PAY_AT_VENUE', 'EUR', 10.00, 0.00, 10.00, 'LOCATION-USAGE-ORDER'
+                ) returning id
+                """, Long.class, companyId, locationId, clientId, guestUserId);
+    }
+
+    private Long insertEntitlement(
+            JdbcTemplate jdbc,
+            Long companyId,
+            Long clientId,
+            Long productId,
+            Long sourceOrderId
+    ) {
+        return jdbc.queryForObject("""
+                insert into guest_entitlements(
+                    created_at, updated_at, company_id, client_id, product_id, source_order_id,
+                    entitlement_type, status, remaining_uses, valid_from, visit_count, available_all_locations
+                ) values (
+                    current_timestamp, current_timestamp, ?, ?, ?, ?,
+                    'PACK', 'ACTIVE', 5, current_timestamp, 0, true
+                ) returning id
+                """, Long.class, companyId, clientId, productId, sourceOrderId);
+    }
+
+    private Long insertEntitlementUsage(JdbcTemplate jdbc, Long entitlementId, Long locationId) {
+        return jdbc.queryForObject("""
+                insert into guest_entitlement_usages(
+                    created_at, updated_at, entitlement_id, location_id, units_used, reason, used_at
+                ) values (
+                    current_timestamp, current_timestamp, ?, ?, 1, 'QR_SCAN', current_timestamp
+                ) returning id
+                """, Long.class, entitlementId, locationId);
     }
 
     private Long insertService(JdbcTemplate jdbc, Long companyId) {

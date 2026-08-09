@@ -187,9 +187,17 @@ public class PublicWidgetOrderService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid service identifier.");
             }
         }
+        String effectiveLocationId = resolvePublicLocationId(company, request == null ? null : request.locationId());
+        Long locationId;
+        try {
+            locationId = Long.valueOf(effectiveLocationId);
+        } catch (NumberFormatException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid location.");
+        }
         GuestEntitlementService.VoucherResolution resolution = guestEntitlementService.resolveVoucherCodesForServices(
                 client,
                 company.getId(),
+                locationId,
                 services,
                 request == null ? null : request.currency(),
                 request == null ? List.of() : request.voucherCodes()

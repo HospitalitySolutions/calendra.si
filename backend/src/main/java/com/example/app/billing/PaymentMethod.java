@@ -2,7 +2,10 @@ package com.example.app.billing;
 
 import com.example.app.common.BaseEntity;
 import com.example.app.company.Company;
+import com.example.app.location.Location;
 import jakarta.persistence.*;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -14,6 +17,19 @@ public class PaymentMethod extends BaseEntity {
     @ManyToOne(optional = false)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
+
+    /** Shared method is available at every branch unless an explicit allowlist is configured. */
+    @Column(name = "available_all_locations", nullable = false)
+    private boolean availableAllLocations = true;
+
+    @ManyToMany
+    @JoinTable(
+            name = "payment_method_locations",
+            joinColumns = @JoinColumn(name = "payment_method_id"),
+            inverseJoinColumns = @JoinColumn(name = "location_id")
+    )
+    @OrderBy("name ASC, id ASC")
+    private Set<Location> locations = new LinkedHashSet<>();
 
     @Column(nullable = false)
     private String name;

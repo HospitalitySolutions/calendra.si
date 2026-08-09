@@ -19,12 +19,9 @@ public class GuestOrder extends BaseEntity {
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
 
-    /**
-     * Physical branch that originated this order. Booking orders always set it.
-     * Non-booking product purchases become mandatory/location-scoped in Phase 5.5C.
-     */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "location_id")
+    /** Physical branch that originated this operational transaction. */
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id", nullable = false)
     private Location location;
 
     @ManyToOne(optional = false)

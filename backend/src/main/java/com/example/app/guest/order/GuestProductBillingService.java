@@ -3,6 +3,7 @@ package com.example.app.guest.order;
 import com.example.app.billing.*;
 import com.example.app.billingissuer.InvoiceIssuanceService;
 import com.example.app.client.Client;
+import com.example.app.commerce.CommerceLocationScopeService;
 import com.example.app.guest.common.GuestInvoiceSettingsSupport;
 import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.model.GuestProduct;
@@ -48,6 +49,7 @@ public class GuestProductBillingService {
     private final InvoiceOrderIdService invoiceOrderIdService;
 
     private InvoiceIssuanceService invoiceIssuanceService;
+    private CommerceLocationScopeService commerceLocations;
 
     public GuestProductBillingService(
             BillRepository bills,
@@ -76,6 +78,11 @@ public class GuestProductBillingService {
         this.invoiceIssuanceService = invoiceIssuanceService;
     }
 
+    @Autowired(required = false)
+    void configureCommerceLocations(CommerceLocationScopeService commerceLocations) {
+        this.commerceLocations = commerceLocations;
+    }
+
     /**
      * Creates (or returns the existing) bill for the given wallet order with
      * {@code PAYMENT_PENDING} status. For bank transfers, the bill gets a bank
@@ -95,7 +102,8 @@ public class GuestProductBillingService {
         }
 
         Long companyId = order.getCompany().getId();
-        PaymentMethod paymentMethod = resolvePaymentMethod(companyId, paymentMethodType);
+        Long orderLocationId = order.getLocation() == null ? null : order.getLocation().getId();
+        PaymentMethod paymentMethod = resolvePaymentMethod(companyId, orderLocationId, paymentMethodType);
         User consultant = resolveConsultant(companyId);
         TransactionService serviceLine = resolveWalletTransactionService(product, companyId);
 
@@ -107,7 +115,6 @@ public class GuestProductBillingService {
         bill.setConsultant(consultant);
         bill.setPaymentMethod(paymentMethod);
         bill.setIssueDate(LocalDate.now());
-        Long orderLocationId = order.getLocation() == null ? null : order.getLocation().getId();
         assignInvoiceIdentity(bill, companyId, orderLocationId);
         bill.setPaymentStatus(BillPaymentStatus.PAYMENT_PENDING);
         bill.setInvoiceLocale(resolveInvoiceLocale(order));
@@ -304,8 +311,10 @@ public class GuestProductBillingService {
         bills.save(bill);
     }
 
-    private PaymentMethod resolvePaymentMethod(Long companyId, String paymentMethodType) {
-        List<PaymentMethod> all = paymentMethods.findAllByCompanyIdOrderByNameAsc(companyId);
+    private PaymentMethod resolvePaymentMethod(Long companyId, Long locationId, String paymentMethodType) {
+        List<PaymentMethod> all = paymentMethods.findAllByCompanyIdOrderByNameAsc(companyId).stream()
+                .filter(pm -> locationId == null || commerceLocations == null || commerceLocations.paymentMethodAvailableAt(pm, locationId))
+                .toList();
         String normalized = paymentMethodType == null ? "" : paymentMethodType.trim().toUpperCase(Locale.ROOT);
         if ("BANK_TRANSFER".equals(normalized)) {
             return all.stream()

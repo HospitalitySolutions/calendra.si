@@ -249,7 +249,10 @@ public class ConfigurationCopyService {
                     incompatible ? "INCOMPATIBLE" : exists ? c.overwrite() ? "UPDATE" : "SKIP" : "CREATE",
                     source.getName(), source.getName(), incompatible
                             ? "The target payment method has a different accounting type."
-                            : exists ? "A target payment method with the same name exists." : "Create payment method."));
+                            : exists ? "A target payment method with the same name exists."
+                            : source.isAvailableAllLocations()
+                                ? "Create payment method for all target locations."
+                                : "Create payment method and map its selected-location scope by matching location names; unmatched branches stay unavailable."));
         }
     }
 
@@ -393,10 +396,30 @@ public class ConfigurationCopyService {
             target.setWidgetEnabled(source.isWidgetEnabled());
             target.setGuestDisplayOrder(source.getGuestDisplayOrder());
             target.setAllowedGuestProductTypesJson(source.getAllowedGuestProductTypesJson());
+            copyPaymentMethodLocationScope(source, target, c.target().getId());
             paymentMethods.save(target);
             changed++;
         }
         return changed;
+    }
+
+    private void copyPaymentMethodLocationScope(PaymentMethod source, PaymentMethod target, Long targetCompanyId) {
+        target.setAvailableAllLocations(source.isAvailableAllLocations());
+        target.getLocations().clear();
+        if (source.isAvailableAllLocations() || source.getLocations() == null || source.getLocations().isEmpty()) {
+            return;
+        }
+        List<Location> targetLocations = locations.findAllByCompanyIdOrderByDefaultLocationDescNameAscIdAsc(targetCompanyId);
+        for (Location sourceLocation : source.getLocations()) {
+            if (sourceLocation == null || sourceLocation.getName() == null) continue;
+            targetLocations.stream()
+                    .filter(candidate -> candidate.getName() != null && candidate.getName().equalsIgnoreCase(sourceLocation.getName()))
+                    .findFirst()
+                    .ifPresent(target.getLocations()::add);
+        }
+        // Never broaden a restricted source method when no matching branch exists in the target.
+        // An empty selected-location allowlist intentionally keeps the copied method unavailable
+        // until an administrator maps it to target locations.
     }
 
     private int copyLocationsAndSpaces(Context c) {

@@ -16,6 +16,7 @@ import com.example.app.guest.model.GuestEntitlementUsage;
 import com.example.app.guest.model.GuestEntitlementUsageRepository;
 import com.example.app.guest.model.GuestProduct;
 import com.example.app.guest.model.ProductType;
+import com.example.app.location.Location;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionType;
 import java.math.BigDecimal;
@@ -38,6 +39,7 @@ class GuestEntitlementServiceGiftCardSplitTest {
         client.setId(1L);
         SessionBooking booking = new SessionBooking();
         booking.setId(55L);
+        booking.setLocation(testLocation());
 
         GuestEntitlement cardLow = giftCardEntitlement(101L, client, "EUR", new BigDecimal("3.00"), Instant.parse("2026-01-01T10:00:00Z"));
         GuestEntitlement cardMid = giftCardEntitlement(102L, client, "EUR", new BigDecimal("7.00"), Instant.parse("2026-01-01T11:00:00Z"));
@@ -65,6 +67,7 @@ class GuestEntitlementServiceGiftCardSplitTest {
         assertThat(usageRows.get(0).getEntitlement().getId()).isEqualTo(101L);
         assertThat(usageRows.get(0).getUnitsBefore()).isEqualTo(300);
         assertThat(usageRows.get(0).getUnitsAfter()).isEqualTo(0);
+        assertThat(usageRows.get(0).getLocation()).isSameAs(booking.getLocation());
         assertThat(usageRows.get(1).getEntitlement().getId()).isEqualTo(102L);
         assertThat(usageRows.get(1).getUnitsBefore()).isEqualTo(700);
         assertThat(usageRows.get(1).getUnitsAfter()).isEqualTo(0);
@@ -81,6 +84,7 @@ class GuestEntitlementServiceGiftCardSplitTest {
         client.setId(1L);
         SessionBooking booking = new SessionBooking();
         booking.setId(56L);
+        booking.setLocation(testLocation());
 
         GuestEntitlement cardA = giftCardEntitlement(201L, client, "EUR", new BigDecimal("2.00"), Instant.parse("2026-01-01T10:00:00Z"));
         GuestEntitlement cardB = giftCardEntitlement(202L, client, "EUR", new BigDecimal("3.00"), Instant.parse("2026-01-01T11:00:00Z"));
@@ -111,6 +115,7 @@ class GuestEntitlementServiceGiftCardSplitTest {
         bookingType.setId(9L);
         SessionBooking booking = new SessionBooking();
         booking.setId(57L);
+        booking.setLocation(testLocation());
         booking.setType(bookingType);
 
         GuestEntitlement wrongService = giftCardEntitlement(211L, client, "EUR", new BigDecimal("100.00"), Instant.parse("2026-01-01T10:00:00Z"));
@@ -140,6 +145,7 @@ class GuestEntitlementServiceGiftCardSplitTest {
 
         SessionBooking booking = new SessionBooking();
         booking.setId(77L);
+        booking.setLocation(testLocation());
         Client client = new Client();
         client.setId(1L);
         GuestEntitlement cardA = giftCardEntitlement(301L, client, "EUR", new BigDecimal("0.00"), Instant.parse("2026-01-01T10:00:00Z"));
@@ -184,6 +190,7 @@ class GuestEntitlementServiceGiftCardSplitTest {
 
         SessionBooking booking = new SessionBooking();
         booking.setId(78L);
+        booking.setLocation(testLocation());
         Client client = new Client();
         client.setId(1L);
         GuestEntitlement card = giftCardEntitlement(303L, client, "EUR", new BigDecimal("50.00"), Instant.parse("2026-01-01T10:00:00Z"));
@@ -219,6 +226,7 @@ class GuestEntitlementServiceGiftCardSplitTest {
 
         SessionBooking booking = new SessionBooking();
         booking.setId(79L);
+        booking.setLocation(testLocation());
         Client client = new Client();
         client.setId(1L);
         GuestEntitlement card = giftCardEntitlement(304L, client, "EUR", BigDecimal.ZERO, Instant.parse("2025-01-01T10:00:00Z"));
@@ -249,6 +257,7 @@ class GuestEntitlementServiceGiftCardSplitTest {
 
         SessionBooking booking = new SessionBooking();
         booking.setId(81L);
+        booking.setLocation(testLocation());
         Client client = new Client();
         client.setId(1L);
         GuestEntitlement voucher = giftCardEntitlement(307L, client, "EUR", new BigDecimal("10.00"), Instant.parse("2026-01-01T10:00:00Z"));
@@ -278,6 +287,7 @@ class GuestEntitlementServiceGiftCardSplitTest {
 
         SessionBooking booking = new SessionBooking();
         booking.setId(80L);
+        booking.setLocation(testLocation());
         Client client = new Client();
         client.setId(1L);
         GuestEntitlement voucher = giftCardEntitlement(305L, client, "EUR", BigDecimal.ZERO, Instant.parse("2026-01-01T10:00:00Z"));
@@ -344,5 +354,14 @@ class GuestEntitlementServiceGiftCardSplitTest {
         entitlement.setCreatedAt(createdAt);
         return entitlement;
     }
+
+    private static Location testLocation() {
+        Location location = new Location();
+        location.setId(1L);
+        location.setName("Test location");
+        location.setActive(true);
+        return location;
+    }
+
 }
 

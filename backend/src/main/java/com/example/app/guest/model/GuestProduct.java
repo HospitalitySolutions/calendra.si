@@ -4,6 +4,7 @@ import com.example.app.common.BaseEntity;
 import com.example.app.course.Course;
 import com.example.app.billing.TransactionService;
 import com.example.app.company.Company;
+import com.example.app.location.Location;
 import com.example.app.session.SessionType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
@@ -20,6 +21,19 @@ public class GuestProduct extends BaseEntity {
     @ManyToOne(optional = false)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
+
+    /** Shared definition is usable at every branch unless an explicit allowlist is configured. */
+    @Column(name = "available_all_locations", nullable = false)
+    private boolean availableAllLocations = true;
+
+    @ManyToMany
+    @JoinTable(
+            name = "guest_product_locations",
+            joinColumns = @JoinColumn(name = "product_id"),
+            inverseJoinColumns = @JoinColumn(name = "location_id")
+    )
+    @OrderBy("name ASC, id ASC")
+    private Set<Location> locations = new LinkedHashSet<>();
 
     @ManyToOne
     @JoinColumn(name = "session_type_id")

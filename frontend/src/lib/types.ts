@@ -398,11 +398,15 @@ export type PaymentMethod = {
   guestDisplayOrder: number
   /** Product types this guest payment method can be used for. */
   allowedGuestProductTypes: string[]
+  /** Shared definition is valid at every location unless an explicit allowlist is configured. */
+  availableAllLocations: boolean
+  locationIds: number[]
+  locationNames: string[]
 }
 
 /** Backward-compatible defaults when API omits flags (legacy responses). */
 export function normalizePaymentMethod(
-  pm: { id: number; name: string; paymentType: PaymentType; fiscalized?: boolean; stripeEnabled?: boolean; guestEnabled?: boolean; widgetEnabled?: boolean; guestDisplayOrder?: number; allowedGuestProductTypes?: string[] } | null | undefined,
+  pm: { id: number; name: string; paymentType: PaymentType; fiscalized?: boolean; stripeEnabled?: boolean; guestEnabled?: boolean; widgetEnabled?: boolean; guestDisplayOrder?: number; allowedGuestProductTypes?: string[]; availableAllLocations?: boolean; locationIds?: number[]; locationNames?: string[] } | null | undefined,
 ): PaymentMethod | null {
   if (!pm) return null
   const defaultAllowed = pm.paymentType === 'BANK_TRANSFER'
@@ -420,6 +424,9 @@ export function normalizePaymentMethod(
     allowedGuestProductTypes: Array.isArray(pm.allowedGuestProductTypes) && pm.allowedGuestProductTypes.length > 0
       ? pm.allowedGuestProductTypes
       : defaultAllowed,
+    availableAllLocations: pm.availableAllLocations !== false,
+    locationIds: Array.isArray(pm.locationIds) ? pm.locationIds.map(Number).filter(Number.isFinite) : [],
+    locationNames: Array.isArray(pm.locationNames) ? pm.locationNames.filter((value): value is string => typeof value === 'string') : [],
   }
 }
 

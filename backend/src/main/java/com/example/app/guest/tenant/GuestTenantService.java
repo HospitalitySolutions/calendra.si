@@ -1,11 +1,15 @@
 package com.example.app.guest.tenant;
 
+import com.example.app.billing.PaymentMethod;
+import com.example.app.billing.PaymentMethodRepository;
+import com.example.app.billing.PaymentType;
 import com.example.app.client.Client;
 import com.example.app.client.ClientAnonymizationService;
 import com.example.app.client.ClientRemovalGuard;
 import com.example.app.client.ClientRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
+import com.example.app.commerce.CommerceLocationScopeService;
 import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestMapper;
 import com.example.app.guest.common.GuestSettingsService;
@@ -40,6 +44,12 @@ public class GuestTenantService {
     private final ClientAnonymizationService clientAnonymizationService;
     private final GuestLocationAccessService guestLocations;
     private final LocationPublicPresentationService locationPresentations;
+
+    @Autowired(required = false)
+    private PaymentMethodRepository paymentMethods;
+
+    @Autowired(required = false)
+    private CommerceLocationScopeService commerceLocations;
 
     @Autowired
     public GuestTenantService(
@@ -343,7 +353,7 @@ public class GuestTenantService {
                 rules.requireOnlinePayment(),
                 rules.paymentRequirement(),
                 rules.depositPercent(),
-                selectablePaymentMethods(location.getCompany()),
+                selectablePaymentMethods(location.getCompany(), location),
                 status
         );
     }
@@ -378,16 +388,35 @@ public class GuestTenantService {
     }
 
     private List<String> selectablePaymentMethods(Company company) {
+        return selectablePaymentMethods(company, null);
+    }
+
+    private List<String> selectablePaymentMethods(Company company, Location location) {
         List<String> accepted = guestSettings.acceptedPaymentMethods(company.getId());
-        if (accepted == null || accepted.stream().noneMatch(method -> "CARD".equalsIgnoreCase(method))) {
-            return accepted == null ? List.of() : accepted;
-        }
+        if (accepted == null || accepted.isEmpty()) return List.of();
         boolean stripeReady = stripeConnectService != null && stripeConnectService.isReadyForCompany(company);
-        if (stripeReady) {
-            return accepted;
-        }
+        List<PaymentMethod> methods = paymentMethods == null
+                ? List.of()
+                : paymentMethods.findAllByCompanyIdOrderByNameAsc(company.getId()).stream()
+                    .filter(method -> location == null || commerceLocations == null
+                            || commerceLocations.paymentMethodAvailableAt(method, location.getId()))
+                    .toList();
         return accepted.stream()
-                .filter(method -> !"CARD".equalsIgnoreCase(method))
+                .filter(method -> {
+                    String normalized = method == null ? "" : method.trim().toUpperCase(Locale.ROOT);
+                    if ("GIFT_CARD".equals(normalized)) return true;
+                    if ("CARD".equals(normalized)) {
+                        if (!stripeReady) return false;
+                        return paymentMethods == null || methods.stream().anyMatch(row -> row.getPaymentType() == PaymentType.CARD && row.isStripeEnabled());
+                    }
+                    if ("BANK_TRANSFER".equals(normalized)) {
+                        return paymentMethods == null || methods.stream().anyMatch(row -> row.getPaymentType() == PaymentType.BANK_TRANSFER);
+                    }
+                    if ("PAYPAL".equals(normalized)) {
+                        return paymentMethods == null || methods.stream().anyMatch(row -> row.getPaymentType() == PaymentType.OTHER);
+                    }
+                    return true;
+                })
                 .toList();
     }
 

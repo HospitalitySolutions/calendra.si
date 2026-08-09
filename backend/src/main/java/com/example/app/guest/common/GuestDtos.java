@@ -237,7 +237,12 @@ public final class GuestDtos {
             List<String> voucherSessionTypeNames,
             String currency,
             /** Protected Calendra course URL used by email links and course QR cards. */
-            String accessUrl
+            String accessUrl,
+            /** True when this right may be redeemed at every location of the tenant. */
+            boolean availableAllLocations,
+            /** Explicit branch allowlist captured at issuance when availableAllLocations is false. */
+            List<String> locationIds,
+            List<String> locationNames
     ) {}
     public record PendingOrderResponse(String orderId, String status, String paymentMethodType, double totalGross, String referenceCode) {}
     public record HomeResponse(TenantSummaryResponse tenant, List<UpcomingBookingResponse> upcomingBookings, List<EntitlementResponse> activeEntitlements, List<PendingOrderResponse> pendingOrders) {}

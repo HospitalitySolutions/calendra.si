@@ -1,5 +1,7 @@
 package com.example.app.guest.catalog;
 
+import com.example.app.commerce.CommerceLocationScopeService;
+
 import com.example.app.activitylog.ActivityAction;
 import com.example.app.activitylog.ActivityDetails;
 import com.example.app.activitylog.ActivityLogService;
@@ -62,6 +64,9 @@ public class GuestProductAdminController {
 
     @Autowired(required = false)
     private ActivityLogService activityLogs;
+
+    @Autowired(required = false)
+    private CommerceLocationScopeService commerceLocations;
 
     @Autowired
     public GuestProductAdminController(
@@ -163,6 +168,7 @@ public class GuestProductAdminController {
                 "GUEST_PRODUCT", row.id(), row.name(), summary, null, null,
                 ActivityDetails.of("productType", row.productType(), "priceGross", row.priceGross(), "currency", row.currency(),
                         "voucherRedemptionMode", row.voucherRedemptionMode(), "voucherServiceScope", row.voucherServiceScope(),
+                        "availableAllLocations", row.availableAllLocations(), "locationIds", row.locationIds(),
                         "active", row.active(), "guestVisible", row.guestVisible(), "targetPath", "/session-types?subtab=cards-memberships"));
     }
 
@@ -256,6 +262,14 @@ public class GuestProductAdminController {
                     "This card or membership already has guest entitlements and cannot be archived."
             );
         }
+
+        boolean availableAllLocations = request.availableAllLocations() == null || Boolean.TRUE.equals(request.availableAllLocations());
+        Set<com.example.app.location.Location> selectedLocations = commerceLocations == null
+                ? Set.of()
+                : commerceLocations.resolveSelectedLocations(companyId, availableAllLocations, request.locationIds(), "Product");
+        product.setAvailableAllLocations(availableAllLocations);
+        product.getLocations().clear();
+        product.getLocations().addAll(selectedLocations);
 
         product.setName(name);
         product.setDescription(trimToNull(request.description()));
@@ -482,6 +496,9 @@ public class GuestProductAdminController {
                 product.getVoucherFaceValueGross(),
                 product.getVoucherSessionTypes().stream().map(SessionType::getId).toList(),
                 product.getVoucherSessionTypes().stream().map(SessionType::getName).toList(),
+                product.isAvailableAllLocations(),
+                commerceLocations == null ? List.of() : commerceLocations.locationIds(product),
+                commerceLocations == null ? List.of() : commerceLocations.locationNames(product),
                 product.getCreatedAt(),
                 product.getUpdatedAt()
         );
@@ -508,7 +525,9 @@ public class GuestProductAdminController {
             String voucherRedemptionMode,
             String voucherServiceScope,
             BigDecimal voucherFaceValueGross,
-            List<Long> voucherSessionTypeIds
+            List<Long> voucherSessionTypeIds,
+            Boolean availableAllLocations,
+            List<Long> locationIds
     ) {
         /** Backwards-compatible constructor retained for existing tests and callers. */
         public ProductAdminRequest(
@@ -531,7 +550,7 @@ public class GuestProductAdminController {
         ) {
             this(name, description, promoText, productType, priceGross, currency, active, guestVisible,
                     bookable, usageLimit, validityDays, autoRenews, sortOrder, sessionTypeId,
-                    transactionServiceId, includedCourseIds, null, null, null, null);
+                    transactionServiceId, includedCourseIds, null, null, null, null, null, null);
         }
     }
 
@@ -561,6 +580,9 @@ public class GuestProductAdminController {
             BigDecimal voucherFaceValueGross,
             List<Long> voucherSessionTypeIds,
             List<String> voucherSessionTypeNames,
+            boolean availableAllLocations,
+            List<Long> locationIds,
+            List<String> locationNames,
             Instant createdAt,
             Instant updatedAt
     ) {}

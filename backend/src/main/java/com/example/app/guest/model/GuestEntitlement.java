@@ -3,9 +3,12 @@ package com.example.app.guest.model;
 import com.example.app.client.Client;
 import com.example.app.common.BaseEntity;
 import com.example.app.company.Company;
+import com.example.app.location.Location;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -17,6 +20,19 @@ public class GuestEntitlement extends BaseEntity {
     @ManyToOne(optional = false)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
+
+    /** Snapshot of the branch scope at issuance; later product edits never rewrite historical rights. */
+    @Column(name = "available_all_locations", nullable = false)
+    private boolean availableAllLocations = true;
+
+    @ManyToMany
+    @JoinTable(
+            name = "guest_entitlement_locations",
+            joinColumns = @JoinColumn(name = "entitlement_id"),
+            inverseJoinColumns = @JoinColumn(name = "location_id")
+    )
+    @OrderBy("name ASC, id ASC")
+    private Set<Location> locations = new LinkedHashSet<>();
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "client_id", nullable = false)

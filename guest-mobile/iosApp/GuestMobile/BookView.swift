@@ -187,6 +187,11 @@ struct BookView: View {
         return [.dateTime]
     }
 
+    private func entitlementAvailableAtSelectedLocation(_ card: AccessCardModel) -> Bool {
+        guard let locationId = selectedProvider?.locationId, !locationId.isEmpty else { return true }
+        return card.availableAllLocations || card.locationIds.contains(locationId)
+    }
+
     private func voucherAllowsSelectedServices(_ card: AccessCardModel, requireAll: Bool) -> Bool {
         guard card.type.uppercased() == "GIFT_CARD" else { return true }
         if card.voucherServiceScope?.uppercased() != "SELECTED_SERVICES" { return true }
@@ -202,6 +207,7 @@ struct BookView: View {
         guard let primary = selectedServices.first else { return [] }
         return store.accessCards.filter { card in
             guard card.companyId == primary.companyId else { return false }
+            guard entitlementAvailableAtSelectedLocation(card) else { return false }
             let isGiftCard = card.type.uppercased() == "GIFT_CARD"
             if isGiftCard && card.voucherRedemptionMode?.uppercased() != "SERVICE" { return false }
             guard card.status.uppercased() == "ACTIVE" || card.status.uppercased() == "PENDING" else { return false }
@@ -224,6 +230,7 @@ struct BookView: View {
         guard let selectedService else { return [] }
         return store.accessCards.filter { card in
             guard card.companyId == selectedService.companyId else { return false }
+            guard entitlementAvailableAtSelectedLocation(card) else { return false }
             guard card.type.uppercased() == "GIFT_CARD" else { return false }
             guard card.voucherRedemptionMode?.uppercased() != "SERVICE" else { return false }
             let s = card.status.uppercased()

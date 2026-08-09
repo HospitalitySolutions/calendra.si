@@ -163,6 +163,7 @@ public class GiftCardEmailService {
         } else {
             body.append("Vrednost: ").append(value(entitlement)).append("\n");
         }
+        body.append("Velja na lokacijah: ").append(locationDescription(entitlement)).append("\n");
         if (!code.isBlank()) {
             body.append("Koda bona: ").append(code).append("\n");
         }
@@ -443,7 +444,9 @@ public class GiftCardEmailService {
 
     private String plainPreview(GuestEntitlement entitlement, GiftCardSettings settings) {
         String content = VoucherRules.isServiceVoucher(entitlement) ? serviceDescription(entitlement) : value(entitlement);
-        return voucherTitle(entitlement) + " " + productName(entitlement) + " · " + content + " · " + firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode(), "");
+        return voucherTitle(entitlement) + " " + productName(entitlement) + " · " + content
+                + " · " + locationDescription(entitlement)
+                + " · " + firstNonBlank(entitlement.getDisplayCode(), entitlement.getEntitlementCode(), "");
     }
 
     private String companyName(GuestEntitlement entitlement) {
@@ -471,6 +474,18 @@ public class GiftCardEmailService {
         GuestProduct product = entitlement == null ? null : entitlement.getProduct();
         if (product != null && product.getName() != null && !product.getName().isBlank()) return product.getName().trim();
         return "Izbrane storitve";
+    }
+
+    private String locationDescription(GuestEntitlement entitlement) {
+        if (entitlement == null || entitlement.isAvailableAllLocations()) return "Vse lokacije";
+        if (entitlement.getLocations() == null || entitlement.getLocations().isEmpty()) return "Izbrane lokacije";
+        List<String> names = entitlement.getLocations().stream()
+                .filter(java.util.Objects::nonNull)
+                .map(location -> location.getName() == null ? "" : location.getName().trim())
+                .filter(name -> !name.isBlank())
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+        return names.isEmpty() ? "Izbrane lokacije" : String.join(", ", names);
     }
 
     private String fromName(GuestEntitlement entitlement) {

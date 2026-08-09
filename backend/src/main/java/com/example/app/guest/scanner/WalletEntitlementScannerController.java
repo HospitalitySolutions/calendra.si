@@ -4,6 +4,7 @@ import com.example.app.activitylog.ActivityAction;
 import com.example.app.activitylog.ActivityLogService;
 import com.example.app.activitylog.ActivityModule;
 import com.example.app.client.Client;
+import com.example.app.commerce.CommerceLocationScopeService;
 import com.example.app.guest.model.EntitlementStatus;
 import com.example.app.guest.model.EntitlementType;
 import com.example.app.guest.model.EntitlementUsageReason;
@@ -12,6 +13,8 @@ import com.example.app.guest.model.GuestEntitlementRepository;
 import com.example.app.guest.model.GuestEntitlementUsage;
 import com.example.app.guest.model.GuestEntitlementUsageRepository;
 import com.example.app.guest.model.VoucherRules;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.security.SecurityUtils;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingCreationService;
@@ -50,6 +53,12 @@ public class WalletEntitlementScannerController {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ActivityLogService activityLogs;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private CommerceLocationScopeService commerceLocations;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private LocationRepository locations;
 
     public WalletEntitlementScannerController(
             GuestEntitlementRepository entitlements,
@@ -104,6 +113,8 @@ public class WalletEntitlementScannerController {
                         || (entitlement.getRemainingUses() != null && entitlement.getRemainingUses() > 0))
                 .filter(entitlement -> entitlement.getValidFrom() == null || !entitlement.getValidFrom().isAfter(now))
                 .filter(entitlement -> entitlement.getValidUntil() == null || entitlement.getValidUntil().isAfter(now))
+                .filter(entitlement -> booking.getLocation() == null || commerceLocations == null
+                        || commerceLocations.entitlementAvailableAt(entitlement, booking.getLocation().getId()))
                 .filter(entitlement -> entitlement.getProduct() != null
                         && (VoucherRules.isServiceVoucher(entitlement)
                             ? bookingHasSingleService(booking) && VoucherRules.entitlementAllowsService(entitlement, bookingTypeId)
@@ -158,6 +169,11 @@ public class WalletEntitlementScannerController {
             return scanIntoGroupSession(request, entitlement, me, now);
         }
 
+        StandaloneLocationResolution locationResolution = resolveStandaloneScanLocation(request, entitlement, companyId);
+        if (locationResolution.error() != null) {
+            return locationResolution.error();
+        }
+
         if (VoucherRules.isValueVoucher(entitlement)) {
             return failure("UNSUPPORTED_ENTITLEMENT", "Value vouchers must be used as a payment method, not as a visit entitlement.", entitlement);
         }
@@ -191,7 +207,15 @@ public class WalletEntitlementScannerController {
             message = "Visit deducted.";
         }
 
-        GuestEntitlementUsage usage = buildScanUsage(entitlement, null, me, normalizeSource(request == null ? null : request.source()), before, after, now);
+        GuestEntitlementUsage usage = buildScanUsage(
+                entitlement,
+                null,
+                locationResolution.location(),
+                me,
+                normalizeSource(request == null ? null : request.source()),
+                before,
+                after,
+                now);
         usages.save(usage);
         entitlements.save(entitlement);
         if (VoucherRules.isServiceVoucher(entitlement)) {
@@ -205,6 +229,9 @@ public class WalletEntitlementScannerController {
         SessionBooking booking = sessionBookings.findByIdAndCompanyId(request.paymentBookingId(), me.getCompany().getId()).orElse(null);
         if (booking == null || booking.getClient() == null || booking.getClient().getId() == null) {
             return failure("PAYMENT_BOOKING_NOT_FOUND", "Selected session participant was not found.", entitlement);
+        }
+        if (!entitlementAvailableAt(entitlement, booking.getLocation())) {
+            return failure("LOCATION_MISMATCH", "This entitlement is not valid at the booking location.", entitlement);
         }
         Long expectedWalletClientId = request.paymentClientId() != null && request.paymentClientId() > 0
                 ? request.paymentClientId()
@@ -257,6 +284,9 @@ public class WalletEntitlementScannerController {
 
     private ScanResponse scanIntoGroupSession(ScanRequest request, GuestEntitlement entitlement, User me, Instant now) {
         SessionBooking groupSession = sessionBookings.findByIdAndCompanyId(request.groupBookingId(), me.getCompany().getId()).orElse(null);
+        if (groupSession != null && !entitlementAvailableAt(entitlement, groupSession.getLocation())) {
+            return failure("LOCATION_MISMATCH", "This entitlement is not valid at the group session location.", entitlement);
+        }
         ScanResponse groupValidation = validateGroupScanServiceType(groupSession, entitlement);
         if (groupValidation != null) {
             return groupValidation;
@@ -293,7 +323,7 @@ public class WalletEntitlementScannerController {
         if (after <= 0) {
             entitlement.setStatus(EntitlementStatus.USED_UP);
         }
-        GuestEntitlementUsage usage = buildScanUsage(entitlement, joined, me, normalizeSource(request.source()), before, after, now);
+        GuestEntitlementUsage usage = buildScanUsage(entitlement, joined, joined.getLocation(), me, normalizeSource(request.source()), before, after, now);
         usages.save(usage);
         entitlements.save(entitlement);
 
@@ -307,6 +337,46 @@ public class WalletEntitlementScannerController {
         );
     }
 
+
+    private StandaloneLocationResolution resolveStandaloneScanLocation(ScanRequest request, GuestEntitlement entitlement, Long companyId) {
+        if (commerceLocations == null || locations == null) {
+            return new StandaloneLocationResolution(null,
+                    failure("LOCATION_UNAVAILABLE", "Location configuration is unavailable.", entitlement));
+        }
+        Long requestedLocationId = request == null ? null : request.locationId();
+        Location selected;
+        if (requestedLocationId != null) {
+            selected = locations.findByIdAndCompanyId(requestedLocationId, companyId)
+                    .filter(Location::isActive)
+                    .orElse(null);
+            if (selected == null) {
+                return new StandaloneLocationResolution(null,
+                        failure("LOCATION_MISMATCH", "Selected location is invalid or inactive.", entitlement));
+            }
+        } else {
+            List<Location> eligible = locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(companyId).stream()
+                    .filter(location -> commerceLocations.entitlementAvailableAt(entitlement, location.getId()))
+                    .toList();
+            if (eligible.size() == 1) {
+                selected = eligible.getFirst();
+            } else if (eligible.isEmpty()) {
+                return new StandaloneLocationResolution(null,
+                        failure("LOCATION_MISMATCH", "This entitlement is not valid at any active location.", entitlement));
+            } else {
+                return new StandaloneLocationResolution(null,
+                        failure("LOCATION_REQUIRED", "Select the location where the entitlement is being used.", entitlement));
+            }
+        }
+        if (!entitlementAvailableAt(entitlement, selected)) {
+            return new StandaloneLocationResolution(null,
+                    failure("LOCATION_MISMATCH", "This entitlement is not valid at the selected location.", entitlement));
+        }
+        return new StandaloneLocationResolution(selected, null);
+    }
+
+    private boolean entitlementAvailableAt(GuestEntitlement entitlement, Location location) {
+        return location == null || commerceLocations == null || commerceLocations.entitlementAvailableAt(entitlement, location.getId());
+    }
 
     private ScanResponse validateBookingPaymentServiceType(SessionBooking booking, GuestEntitlement entitlement) {
         if (booking == null) {
@@ -377,6 +447,7 @@ public class WalletEntitlementScannerController {
     private GuestEntitlementUsage buildScanUsage(
             GuestEntitlement entitlement,
             SessionBooking booking,
+            Location location,
             User me,
             String source,
             Integer before,
@@ -386,6 +457,11 @@ public class WalletEntitlementScannerController {
         GuestEntitlementUsage usage = new GuestEntitlementUsage();
         usage.setEntitlement(entitlement);
         usage.setSessionBooking(booking);
+        Location resolvedLocation = location != null ? location : booking == null ? null : booking.getLocation();
+        if (resolvedLocation == null || resolvedLocation.getId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location is required for wallet entitlement usage.");
+        }
+        usage.setLocation(resolvedLocation);
         usage.setReason(EntitlementUsageReason.QR_SCAN);
         usage.setUsedAt(now);
         usage.setUnitsUsed(1);
@@ -395,6 +471,8 @@ public class WalletEntitlementScannerController {
         usage.setUnitsAfter(after);
         return usage;
     }
+
+    private record StandaloneLocationResolution(Location location, ScanResponse error) {}
 
     private ScanResponse validateEntitlement(GuestEntitlement entitlement, Instant now) {
         if (entitlement.getStatus() == EntitlementStatus.EXPIRED
@@ -587,7 +665,10 @@ public class WalletEntitlementScannerController {
     ) {
     }
 
-    public record ScanRequest(String code, String source, Long groupBookingId, Long paymentBookingId, Long paymentClientId) {
+    public record ScanRequest(String code, String source, Long groupBookingId, Long paymentBookingId, Long paymentClientId, Long locationId) {
+        public ScanRequest(String code, String source, Long groupBookingId, Long paymentBookingId, Long paymentClientId) {
+            this(code, source, groupBookingId, paymentBookingId, paymentClientId, null);
+        }
     }
 
     public record ScanResponse(

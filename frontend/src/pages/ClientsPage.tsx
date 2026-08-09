@@ -212,6 +212,9 @@ type ClientWalletEntitlement = {
   sessionTypeName: string | null
   autoRenews: boolean
   createdAt: string | null
+  availableAllLocations?: boolean
+  locationIds?: number[]
+  locationNames?: string[]
 }
 
 type ClientWalletUsage = {
@@ -222,6 +225,8 @@ type ClientWalletUsage = {
   unitsUsed: number
   reason: string | null
   bookingId: number | null
+  locationId?: number | null
+  locationName?: string | null
   source?: string | null
   scannedByName?: string | null
   unitsBefore?: number | null
@@ -256,6 +261,9 @@ type WalletProduct = {
   voucherServiceScope?: 'ALL_SERVICES' | 'SELECTED_SERVICES' | string | null
   voucherFaceValueGross?: number | string | null
   voucherSessionTypeNames?: string[] | null
+  availableAllLocations?: boolean
+  locationIds?: number[]
+  locationNames?: string[]
 }
 
 type WalletPurchaseOpenBillResponse = {
@@ -2152,7 +2160,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setWalletProductsLoading(true)
     setWalletPurchaseError('')
     try {
-      const res = await api.get<WalletProduct[]>(`/clients/${clientId}/wallet/products`)
+      const res = await api.get<WalletProduct[]>(`/clients/${clientId}/wallet/products`, {
+        params: selectedLocationId == null ? undefined : { locationId: selectedLocationId },
+      })
       const rows = (res.data ?? []).filter((product) => giftCardsFeatureEnabled || !isGiftCardWalletProduct(product))
       setWalletProducts(rows)
       setSelectedWalletProductId((prev) => rows.some((row) => row.id === prev) ? prev : (rows[0]?.id ?? null))
@@ -2163,7 +2173,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     } finally {
       setWalletProductsLoading(false)
     }
-  }, [locale, giftCardsFeatureEnabled])
+  }, [locale, giftCardsFeatureEnabled, selectedLocationId])
 
   const openWalletPurchaseDrawer = useCallback(() => {
     if (!detailClient) return
@@ -4673,6 +4683,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                                           <span>{walletVoucherScopeLabel(entitlement.voucherServiceScope, entitlement.voucherSessionTypeNames, locale)}</span>
                                         ) : entitlement.sessionTypeName ? <span>{entitlement.sessionTypeName}</span> : null}
                                         {kind === 'gift_card' && entitlement.entitlementCode ? <span>{locale === 'sl' ? 'Koda' : 'Code'}: {entitlement.entitlementCode}</span> : null}
+                                        {entitlement.availableAllLocations === false && (entitlement.locationNames?.length ?? 0) > 0 ? (
+                                          <span>{locale === 'sl' ? 'Lokacije' : 'Locations'}: {entitlement.locationNames?.join(', ')}</span>
+                                        ) : null}
                                       </div>
                                     </div>
                                     <div className="clients-wallet-entitlement-side">

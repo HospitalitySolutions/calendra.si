@@ -1420,6 +1420,8 @@ export function ConfigurationPage() {
     guestEnabled: boolean;
     widgetEnabled: boolean;
     guestDisplayOrder: number;
+    availableAllLocations: boolean;
+    locationIds: number[];
   } | null>(null);
   const [registeringPremise, setRegisteringPremise] = useState(false);
   const [premiseRegisterResult, setPremiseRegisterResult] =
@@ -4771,6 +4773,8 @@ export function ConfigurationPage() {
       guestEnabled: method.guestEnabled,
       widgetEnabled: method.widgetEnabled,
       guestDisplayOrder: method.guestDisplayOrder,
+      availableAllLocations: method.availableAllLocations !== false,
+      locationIds: Array.isArray(method.locationIds) ? method.locationIds : [],
     });
   };
 
@@ -4795,6 +4799,13 @@ export function ConfigurationPage() {
     const isOnlineCard =
       inlinePaymentMethodForm.paymentType === "CARD" &&
       inlinePaymentMethodForm.stripeEnabled;
+    if (!inlinePaymentMethodForm.availableAllLocations && inlinePaymentMethodForm.locationIds.length === 0) {
+      showToast(
+        "error",
+        locale === "sl" ? "Izberite vsaj eno lokacijo za način plačila." : "Select at least one location for this payment method.",
+      );
+      return;
+    }
     const payload = {
       name: isOnlineCard
         ? ONLINE_CARD_PAYMENT_NAME
@@ -4805,6 +4816,8 @@ export function ConfigurationPage() {
       guestEnabled: isInternalMethod ? false : availabilityFlags.guestEnabled,
       widgetEnabled: isInternalMethod ? false : availabilityFlags.widgetEnabled,
       guestDisplayOrder: inlinePaymentMethodForm.guestDisplayOrder,
+      availableAllLocations: inlinePaymentMethodForm.availableAllLocations,
+      locationIds: inlinePaymentMethodForm.availableAllLocations ? [] : inlinePaymentMethodForm.locationIds,
       allowedGuestProductTypes:
         currentMethod?.allowedGuestProductTypes?.length
           ? currentMethod.allowedGuestProductTypes
@@ -5178,6 +5191,8 @@ export function ConfigurationPage() {
             guestEnabled: flags.guestEnabled,
             widgetEnabled: flags.widgetEnabled,
             guestDisplayOrder: target.guestDisplayOrder ?? 0,
+            availableAllLocations: target.availableAllLocations !== false,
+            locationIds: target.availableAllLocations !== false ? [] : (target.locationIds ?? []),
             allowedGuestProductTypes:
               target.allowedGuestProductTypes?.length > 0
                 ? target.allowedGuestProductTypes
@@ -5397,6 +5412,8 @@ export function ConfigurationPage() {
       guestEnabled: false,
       widgetEnabled: false,
       guestDisplayOrder: 0,
+      availableAllLocations: true,
+      locationIds: [],
     });
   };
 
@@ -5415,6 +5432,8 @@ export function ConfigurationPage() {
         return paymentAvailabilityFlags(paymentMethodAvailability(method));
       })(),
       guestDisplayOrder: method.guestDisplayOrder ?? 0,
+      availableAllLocations: method.availableAllLocations !== false,
+      locationIds: method.availableAllLocations !== false ? [] : (method.locationIds ?? []),
       allowedGuestProductTypes:
         method.allowedGuestProductTypes?.length > 0
           ? method.allowedGuestProductTypes
@@ -10892,6 +10911,30 @@ export function ConfigurationPage() {
               font-weight: 800;
               color: #16213e;
             }
+            .billing-location-scope-inline {
+              display: flex;
+              flex-direction: column;
+              gap: 5px;
+              min-width: 130px;
+              font-weight: 600;
+            }
+            .billing-location-scope-inline select {
+              min-height: 30px;
+              max-width: 180px;
+              border: 1px solid #d8e3f1;
+              border-radius: 8px;
+              background: #fff;
+              color: #475569;
+              font-size: 11px;
+              padding: 4px 7px;
+            }
+            .billing-location-scope-inline select[multiple] { min-height: 54px; }
+            .billing-location-scope-label {
+              color: #64748b;
+              font-size: 11px;
+              font-weight: 650;
+              line-height: 1.25;
+            }
             .billing-method-icon {
               width: 44px;
               height: 44px;
@@ -11946,6 +11989,40 @@ export function ConfigurationPage() {
                                           })
                                         }
                                       />
+                                      <div className="billing-location-scope-inline">
+                                        <select
+                                          value={inlinePaymentMethodForm.availableAllLocations ? "ALL" : "SELECTED"}
+                                          onChange={(event) =>
+                                            setInlinePaymentMethodForm({
+                                              ...inlinePaymentMethodForm,
+                                              availableAllLocations: event.target.value === "ALL",
+                                              locationIds: event.target.value === "ALL" ? [] : inlinePaymentMethodForm.locationIds,
+                                            })
+                                          }
+                                        >
+                                          <option value="ALL">{locale === "sl" ? "Vse lokacije" : "All locations"}</option>
+                                          <option value="SELECTED">{locale === "sl" ? "Izbrane lokacije" : "Selected locations"}</option>
+                                        </select>
+                                        {!inlinePaymentMethodForm.availableAllLocations ? (
+                                          <select
+                                            multiple
+                                            value={inlinePaymentMethodForm.locationIds.map(String)}
+                                            onChange={(event) =>
+                                              setInlinePaymentMethodForm({
+                                                ...inlinePaymentMethodForm,
+                                                locationIds: Array.from(
+                                                  event.currentTarget.selectedOptions as HTMLCollectionOf<HTMLOptionElement>,
+                                                  (option) => Number(option.value),
+                                                ).filter(Number.isFinite),
+                                              })
+                                            }
+                                          >
+                                            {locations.filter((location) => location.active !== false).map((location) => (
+                                              <option key={location.id} value={location.id}>{location.name}</option>
+                                            ))}
+                                          </select>
+                                        ) : null}
+                                      </div>
                                     </div>
                                     <select
                                       className="billing-select"
@@ -12148,6 +12225,48 @@ export function ConfigurationPage() {
                                               locale,
                                             )}
                                           </span>
+                                        )}
+                                        {isInlineEditing ? (
+                                          <div className="billing-location-scope-inline">
+                                            <select
+                                              value={inlinePaymentMethodForm.availableAllLocations ? "ALL" : "SELECTED"}
+                                              onChange={(event) =>
+                                                setInlinePaymentMethodForm({
+                                                  ...inlinePaymentMethodForm,
+                                                  availableAllLocations: event.target.value === "ALL",
+                                                  locationIds: event.target.value === "ALL" ? [] : inlinePaymentMethodForm.locationIds,
+                                                })
+                                              }
+                                            >
+                                              <option value="ALL">{locale === "sl" ? "Vse lokacije" : "All locations"}</option>
+                                              <option value="SELECTED">{locale === "sl" ? "Izbrane lokacije" : "Selected locations"}</option>
+                                            </select>
+                                            {!inlinePaymentMethodForm.availableAllLocations ? (
+                                              <select
+                                                multiple
+                                                value={inlinePaymentMethodForm.locationIds.map(String)}
+                                                onChange={(event) =>
+                                                  setInlinePaymentMethodForm({
+                                                    ...inlinePaymentMethodForm,
+                                                    locationIds: Array.from(
+                                                      event.currentTarget.selectedOptions as HTMLCollectionOf<HTMLOptionElement>,
+                                                      (option) => Number(option.value),
+                                                    ).filter(Number.isFinite),
+                                                  })
+                                                }
+                                              >
+                                                {locations.filter((location) => location.active !== false).map((location) => (
+                                                  <option key={location.id} value={location.id}>{location.name}</option>
+                                                ))}
+                                              </select>
+                                            ) : null}
+                                          </div>
+                                        ) : (
+                                          <small className="billing-location-scope-label">
+                                            {method.availableAllLocations !== false
+                                              ? (locale === "sl" ? "Vse lokacije" : "All locations")
+                                              : (method.locationNames?.join(", ") || (locale === "sl" ? "Izbrane lokacije" : "Selected locations"))}
+                                          </small>
                                         )}
                                       </div>
                                       <span className="billing-pill billing-pill--neutral">

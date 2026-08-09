@@ -214,7 +214,18 @@ public final class GuestMapper {
                 VoucherRules.entitlementEligibleServiceIds(entitlement).stream().map(String::valueOf).toList(),
                 VoucherRules.entitlementEligibleServiceNames(entitlement).stream().toList(),
                 currency,
-                accessUrl
+                accessUrl,
+                entitlement.isAvailableAllLocations(),
+                entitlement.getLocations() == null ? List.of() : entitlement.getLocations().stream()
+                        .filter(location -> location != null && location.getId() != null)
+                        .map(location -> String.valueOf(location.getId()))
+                        .sorted()
+                        .toList(),
+                entitlement.getLocations() == null ? List.of() : entitlement.getLocations().stream()
+                        .filter(location -> location != null && location.getName() != null)
+                        .sorted((left, right) -> String.CASE_INSENSITIVE_ORDER.compare(left.getName(), right.getName()))
+                        .map(Location::getName)
+                        .toList()
         );
     }
 

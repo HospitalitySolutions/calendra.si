@@ -4,6 +4,7 @@ import com.example.app.client.Client;
 import com.example.app.common.TimeService;
 import com.example.app.company.ClientCompany;
 import com.example.app.company.ClientCompanyRepository;
+import com.example.app.commerce.CommerceLocationScopeService;
 import com.example.app.location.Location;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBillingSupport;
@@ -57,6 +58,9 @@ public class OpenBillSyncService {
     private final int maxQueuedItemsPerRun;
     private final int maxCompanyBackfillSessionsPerRun;
     private final int maxBatchMergeCandidatesPerRun;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private CommerceLocationScopeService commerceLocations;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -623,7 +627,9 @@ public class OpenBillSyncService {
         target.setLocation(source.getLocation());
         target.setClient(source.getClient());
         target.setConsultant(source.getConsultant());
-        target.setPaymentMethod(source.getPaymentMethod() != null ? source.getPaymentMethod() : resolveDefaultPaymentMethod(source.getCompany().getId()));
+        target.setPaymentMethod(source.getPaymentMethod() != null && paymentMethodAvailableAt(source.getPaymentMethod(), source.getLocation())
+                ? source.getPaymentMethod()
+                : resolveDefaultPaymentMethod(source.getCompany().getId(), source.getLocation()));
         target.setReference(source.getReference());
         target.setSessionBooking(null);
         target.setBatchScope(batchScope);
@@ -831,7 +837,7 @@ public class OpenBillSyncService {
         open.setLocation(session.getLocation());
         open.setClient(client);
         open.setConsultant(consultant);
-        open.setPaymentMethod(resolveDefaultPaymentMethod(session.getCompany().getId()));
+        open.setPaymentMethod(resolveDefaultPaymentMethod(session.getCompany().getId(), session.getLocation()));
         open.setSessionBooking(singleSession);
         open.setBatchScope(batchScope);
         open.setBatchTargetClientId(batchTargetClientId);
@@ -1306,11 +1312,19 @@ public class OpenBillSyncService {
         advanceAllocationRepo.deleteByCompanyIdAndOpenBillId(companyId, openBillId);
     }
 
-    private PaymentMethod resolveDefaultPaymentMethod(Long companyId) {
-        var all = paymentMethodRepo.findAllByCompanyIdOrderByNameAsc(companyId);
+    private PaymentMethod resolveDefaultPaymentMethod(Long companyId, Location location) {
+        var all = paymentMethodRepo.findAllByCompanyIdOrderByNameAsc(companyId).stream()
+                .filter(pm -> paymentMethodAvailableAt(pm, location))
+                .toList();
         if (all.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No payment methods configured. Add one in Configuration > Billing.");
         }
         return all.getFirst();
     }
+
+    private boolean paymentMethodAvailableAt(PaymentMethod method, Location location) {
+        return method != null && (location == null || commerceLocations == null
+                || commerceLocations.paymentMethodAvailableAt(method, location.getId()));
+    }
 }
+

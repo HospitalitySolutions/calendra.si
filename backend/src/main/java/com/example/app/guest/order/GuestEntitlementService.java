@@ -11,6 +11,7 @@ import com.example.app.course.MembershipCourse;
 import com.example.app.course.MembershipCourseRepository;
 import com.example.app.common.TimeService;
 import com.example.app.guest.model.*;
+import com.example.app.commerce.CommerceLocationScopeService;
 import com.example.app.session.BookingSource;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionService;
@@ -56,6 +57,9 @@ public class GuestEntitlementService {
 
     @Autowired(required = false)
     private ActivityLogService activityLogs;
+
+    @Autowired(required = false)
+    private CommerceLocationScopeService commerceLocations;
 
     private final String publicBaseUrl;
 
@@ -122,8 +126,15 @@ public class GuestEntitlementService {
      */
     @Transactional(readOnly = true)
     public VoucherResolution resolveVoucherCodesForServices(
+            Client client, Long companyId, List<VoucherSelectionLine> selectedServices, String currency, List<String> rawCodes) {
+        return resolveVoucherCodesForServices(client, companyId, null, selectedServices, currency, rawCodes);
+    }
+
+    @Transactional(readOnly = true)
+    public VoucherResolution resolveVoucherCodesForServices(
             Client client,
             Long companyId,
+            Long locationId,
             List<VoucherSelectionLine> selectedServices,
             String currency,
             List<String> rawCodes
@@ -149,7 +160,7 @@ public class GuestEntitlementService {
         for (String code : codes) {
             GuestEntitlement entitlement = findGiftCardByVisibleCode(code, companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Voucher code is not valid: " + code));
-            validateVoucherForResolution(entitlement, client, companyId, currency);
+            validateVoucherForResolution(entitlement, client, companyId, locationId, currency);
             resolved.add(entitlement);
             summaries.add(new VoucherCodeResolution(
                     code,
@@ -245,6 +256,7 @@ public class GuestEntitlementService {
             GuestEntitlement entitlement,
             Client client,
             Long companyId,
+            Long locationId,
             String currency
     ) {
         Instant now = timeService.instant(companyId);
@@ -263,7 +275,8 @@ public class GuestEntitlementService {
                 || entitlement.getProduct() == null
                 || entitlement.getProduct().getCurrency() == null
                 || expectedCurrency.equals(entitlement.getProduct().getCurrency().trim().toUpperCase(java.util.Locale.ROOT));
-        if (!matchesClient || !matchesCompany || !active || !validFrom || !validUntil || !voucher || !usable || !currencyMatches) {
+        boolean locationMatches = locationId == null || commerceLocations == null || commerceLocations.entitlementAvailableAt(entitlement, locationId);
+        if (!matchesClient || !matchesCompany || !active || !validFrom || !validUntil || !voucher || !usable || !currencyMatches || !locationMatches) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Voucher code is not valid.");
         }
     }
@@ -275,7 +288,8 @@ public class GuestEntitlementService {
 
     @Transactional
     public GuestEntitlementSelection consumeBestMatchingEntitlement(Client client, Long companyId, Long sessionTypeId, SessionBooking booking) {
-        GuestEntitlement entitlement = findBestMatchingEntitlement(client, companyId, sessionTypeId)
+        Long locationId = booking == null || booking.getLocation() == null ? null : booking.getLocation().getId();
+        GuestEntitlement entitlement = findBestMatchingEntitlement(client, companyId, sessionTypeId, locationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No active membership or visit pack is available for this booking."));
         return consumeEntitlement(entitlement, booking);
     }
@@ -287,6 +301,11 @@ public class GuestEntitlementService {
 
     @Transactional(readOnly = true)
     public GuestEntitlement validateSelectedEntitlement(Client client, Long companyId, Long sessionTypeId, Long entitlementId) {
+        return validateSelectedEntitlement(client, companyId, sessionTypeId, entitlementId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public GuestEntitlement validateSelectedEntitlement(Client client, Long companyId, Long sessionTypeId, Long entitlementId, Long locationId) {
         GuestEntitlement entitlement = entitlements.findById(entitlementId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected pass or visit is not available."));
         Instant now = timeService.instant(companyId);
@@ -304,7 +323,8 @@ public class GuestEntitlementService {
                     ? VoucherRules.entitlementAllowsService(entitlement, sessionTypeId)
                     : entitlement.getProduct().getSessionType() == null
                         || Objects.equals(entitlement.getProduct().getSessionType().getId(), sessionTypeId));
-        if (!matchesClient || !matchesCompany || !active || !validFrom || !validUntil || !hasUses || !serviceEntitlement || !matchesService) {
+        boolean locationMatches = locationId == null || commerceLocations == null || commerceLocations.entitlementAvailableAt(entitlement, locationId);
+        if (!matchesClient || !matchesCompany || !active || !validFrom || !validUntil || !hasUses || !serviceEntitlement || !matchesService || !locationMatches) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected pass or visit is not available for this service.");
         }
         return entitlement;
@@ -312,7 +332,8 @@ public class GuestEntitlementService {
 
     @Transactional
     public GuestEntitlementSelection consumeSelectedEntitlement(Client client, Long companyId, Long sessionTypeId, Long entitlementId, SessionBooking booking, SessionService sessionService) {
-        GuestEntitlement entitlement = validateSelectedEntitlement(client, companyId, sessionTypeId, entitlementId);
+        Long locationId = booking == null || booking.getLocation() == null ? null : booking.getLocation().getId();
+        GuestEntitlement entitlement = validateSelectedEntitlement(client, companyId, sessionTypeId, entitlementId, locationId);
         return consumeEntitlement(entitlement, booking, sessionService);
     }
 
@@ -332,6 +353,7 @@ public class GuestEntitlementService {
         GuestEntitlementUsage usage = new GuestEntitlementUsage();
         usage.setEntitlement(entitlement);
         usage.setSessionBooking(booking);
+        usage.setLocation(requireBookingLocation(booking));
         usage.setSessionService(sessionService);
         usage.setReason(EntitlementUsageReason.BOOKING);
         usage.setUsedAt(Instant.now());
@@ -425,7 +447,7 @@ public class GuestEntitlementService {
 
             GuestEntitlement entitlement = findGiftCardByVisibleCode(code, companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value voucher code is not valid: " + code));
-            validateGiftCardForBooking(entitlement, client, companyId, currency);
+            validateGiftCardForBooking(entitlement, client, companyId, currency, booking);
             validateVoucherServiceScope(entitlement, booking);
 
             BigDecimal beforeBalance = entitlement.getRemainingValueGross() == null
@@ -442,6 +464,7 @@ public class GuestEntitlementService {
             GuestEntitlementUsage usage = new GuestEntitlementUsage();
             usage.setEntitlement(entitlement);
             usage.setSessionBooking(booking);
+            usage.setLocation(requireBookingLocation(booking));
             usage.setReason(EntitlementUsageReason.BOOKING);
             usage.setUsedAt(Instant.now());
             usage.setUnitsUsed(toCents(amountFromCard));
@@ -525,7 +548,7 @@ public class GuestEntitlementService {
         for (String code : codes) {
             GuestEntitlement entitlement = findGiftCardByVisibleCode(code, companyId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value voucher code is not valid: " + code));
-            validateGiftCardForBooking(entitlement, client, companyId, currency);
+            validateGiftCardForBooking(entitlement, client, companyId, currency, booking);
 
             BigDecimal eligibleOutstanding = outstanding.stream()
                     .filter(line -> line.remaining().compareTo(BigDecimal.ZERO) > 0)
@@ -562,6 +585,7 @@ public class GuestEntitlementService {
             GuestEntitlementUsage usage = new GuestEntitlementUsage();
             usage.setEntitlement(entitlement);
             usage.setSessionBooking(booking);
+            usage.setLocation(requireBookingLocation(booking));
             usage.setReason(EntitlementUsageReason.BOOKING);
             usage.setUsedAt(Instant.now());
             usage.setUnitsUsed(toCents(amountFromCard));
@@ -664,7 +688,7 @@ public class GuestEntitlementService {
         void setRemaining(BigDecimal remaining) { this.remaining = remaining; }
     }
 
-    private void validateGiftCardForBooking(GuestEntitlement entitlement, Client client, Long companyId, String currency) {
+    private void validateGiftCardForBooking(GuestEntitlement entitlement, Client client, Long companyId, String currency, SessionBooking booking) {
         Instant now = timeService.instant(companyId);
         boolean matchesClient = entitlement.getClient() != null && Objects.equals(entitlement.getClient().getId(), client.getId());
         boolean matchesCompany = entitlement.getCompany() != null && Objects.equals(entitlement.getCompany().getId(), companyId);
@@ -677,7 +701,9 @@ public class GuestEntitlementService {
                 || entitlement.getProduct() == null
                 || entitlement.getProduct().getCurrency() == null
                 || expectedCurrency.equals(entitlement.getProduct().getCurrency().trim().toUpperCase(java.util.Locale.ROOT));
-        if (!matchesClient || !matchesCompany || !active || !validFrom || !validUntil || !giftCard || !currencyMatches) {
+        Long locationId = booking == null || booking.getLocation() == null ? null : booking.getLocation().getId();
+        boolean locationMatches = locationId == null || commerceLocations == null || commerceLocations.entitlementAvailableAt(entitlement, locationId);
+        if (!matchesClient || !matchesCompany || !active || !validFrom || !validUntil || !giftCard || !currencyMatches || !locationMatches) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Value voucher code is not valid.");
         }
     }
@@ -729,7 +755,10 @@ public class GuestEntitlementService {
             }
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This booking already used a wallet entitlement.");
         }
+        Long bookingLocationId = booking == null || booking.getLocation() == null ? null : booking.getLocation().getId();
         List<GuestEntitlement> matchingGiftCards = findMatchingGiftCards(client, companyId, currency).stream()
+                .filter(entitlement -> bookingLocationId == null || commerceLocations == null
+                        || commerceLocations.entitlementAvailableAt(entitlement, bookingLocationId))
                 .filter(entitlement -> voucherAllowsBooking(entitlement, booking))
                 .toList();
         BigDecimal totalAvailable = matchingGiftCards.stream()
@@ -754,6 +783,7 @@ public class GuestEntitlementService {
             GuestEntitlementUsage usage = new GuestEntitlementUsage();
             usage.setEntitlement(entitlement);
             usage.setSessionBooking(booking);
+            usage.setLocation(requireBookingLocation(booking));
             usage.setReason(EntitlementUsageReason.BOOKING);
             usage.setUsedAt(Instant.now());
             usage.setUnitsUsed(toCents(amountFromCard));
@@ -979,6 +1009,11 @@ public class GuestEntitlementService {
     private GuestEntitlement createEntitlement(GuestOrder order, GuestProduct product) {
         GuestEntitlement entitlement = new GuestEntitlement();
         entitlement.setCompany(order.getCompany());
+        entitlement.setAvailableAllLocations(product.isAvailableAllLocations());
+        entitlement.getLocations().clear();
+        if (!product.isAvailableAllLocations() && product.getLocations() != null) {
+            entitlement.getLocations().addAll(product.getLocations());
+        }
         entitlement.setClient(order.getClient());
         entitlement.setProduct(product);
         entitlement.setSourceOrder(order);
@@ -1015,6 +1050,9 @@ public class GuestEntitlementService {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("autoRenews", product.isAutoRenews());
         metadata.put("listPriceGross", order.getSubtotalGross() == null ? BigDecimal.ZERO.doubleValue() : order.getSubtotalGross().doubleValue());
+        metadata.put("availableAllLocations", entitlement.isAvailableAllLocations());
+        metadata.put("eligibleLocationIds", commerceLocations == null ? List.of() : commerceLocations.locationIds(entitlement));
+        metadata.put("eligibleLocationNames", commerceLocations == null ? List.of() : commerceLocations.locationNames(entitlement));
         if (product.getProductType() == ProductType.GIFT_CARD) {
             Map<String, Object> orderMetadata = metadata(order.getMetadataJson());
             copyTextMetadata(orderMetadata, metadata, "giftCardRecipientName");
@@ -1071,6 +1109,11 @@ public class GuestEntitlementService {
             if (row.getCourse() == null) continue;
             GuestEntitlement courseEntitlement = new GuestEntitlement();
             courseEntitlement.setCompany(order.getCompany());
+            courseEntitlement.setAvailableAllLocations(membershipEntitlement.isAvailableAllLocations());
+            courseEntitlement.getLocations().clear();
+            if (!membershipEntitlement.isAvailableAllLocations() && membershipEntitlement.getLocations() != null) {
+                courseEntitlement.getLocations().addAll(membershipEntitlement.getLocations());
+            }
             courseEntitlement.setClient(order.getClient());
             courseEntitlement.setProduct(membershipProduct);
             courseEntitlement.setSourceOrder(order);
@@ -1093,6 +1136,9 @@ public class GuestEntitlementService {
             metadata.put("courseId", row.getCourse().getId());
             metadata.put("courseTitle", row.getCourse().getTitle());
             metadata.put("lifetimeAccess", false);
+            metadata.put("availableAllLocations", courseEntitlement.isAvailableAllLocations());
+            metadata.put("eligibleLocationIds", commerceLocations == null ? List.of() : commerceLocations.locationIds(courseEntitlement));
+            metadata.put("eligibleLocationNames", commerceLocations == null ? List.of() : commerceLocations.locationNames(courseEntitlement));
             courseEntitlement.setMetadataJson(writeMetadata(metadata));
             courseEntitlement = entitlements.save(courseEntitlement);
             if (courseAccessEmailService != null) {
@@ -1384,7 +1430,7 @@ public class GuestEntitlementService {
         return sb.toString();
     }
 
-    private java.util.Optional<GuestEntitlement> findBestMatchingEntitlement(Client client, Long companyId, Long sessionTypeId) {
+    private java.util.Optional<GuestEntitlement> findBestMatchingEntitlement(Client client, Long companyId, Long sessionTypeId, Long locationId) {
         Instant now = timeService.instant(companyId);
         return entitlements.findAllByClientIdAndCompanyIdAndStatusInOrderByCreatedAtDesc(client.getId(), companyId, ACTIVE_STATUSES).stream()
                 .filter(entitlement -> entitlement.getValidFrom() == null || !entitlement.getValidFrom().isAfter(now))
@@ -1392,12 +1438,20 @@ public class GuestEntitlementService {
                 .filter(entitlement -> entitlement.getEntitlementType() != EntitlementType.GIFT_CARD || VoucherRules.isServiceVoucher(entitlement))
                 .filter(entitlement -> entitlement.getRemainingUses() == null || entitlement.getRemainingUses() > 0)
                 .filter(entitlement -> entitlement.getProduct() != null)
+                .filter(entitlement -> locationId == null || commerceLocations == null || commerceLocations.entitlementAvailableAt(entitlement, locationId))
                 .filter(entitlement -> VoucherRules.isServiceVoucher(entitlement)
                         ? VoucherRules.entitlementAllowsService(entitlement, sessionTypeId)
                         : entitlement.getProduct().getSessionType() == null
                             || Objects.equals(entitlement.getProduct().getSessionType().getId(), sessionTypeId))
                 .sorted(entitlementPriority())
                 .findFirst();
+    }
+
+    private static com.example.app.location.Location requireBookingLocation(SessionBooking booking) {
+        if (booking == null || booking.getLocation() == null || booking.getLocation().getId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking location is required for wallet entitlement usage.");
+        }
+        return booking.getLocation();
     }
 
     private java.util.Optional<GuestEntitlement> findGiftCardByVisibleCode(String code, Long companyId) {
