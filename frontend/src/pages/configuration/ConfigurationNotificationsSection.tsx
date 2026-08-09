@@ -1035,7 +1035,7 @@ export function mergeNotificationSettingsJsonIntoFlat(
 }
 
 const notificationTemplateTags = [
-  { label: "Ime podjetja", token: "{{ime_podjetja}}" },
+  { label: "Podjetje / lokacija dogodka", token: "{{ime_podjetja}}" },
   { label: "Ime stranke (čakalna vrsta)", token: "{{clientFirstName}}" },
   { label: "Storitev (čakalna vrsta)", token: "{{serviceName}}" },
   { label: "Zaposleni (čakalna vrsta)", token: "{{employeeName}}" },
@@ -1064,6 +1064,7 @@ const notificationTemplateTags = [
   { label: "Fizična država", token: "{{fizicna_drzava}}" },
   { label: "Ime lokacije", token: "{{ime_lokacije}}" },
   { label: "Telefonska številka lokacije", token: "{{telefon_lokacije}}" },
+  { label: "E-pošta lokacije", token: "{{email_lokacije}}" },
   { label: "Povezava za prenaročanje", token: "{{povezava_za_prenarocanje}}" },
   { label: "Kategorija storitve", token: "{{kategorija_storitve}}" },
   { label: "Ime izvajalca", token: "{{ime_izvajalca}}" },
@@ -1103,7 +1104,11 @@ const invoiceDeliveryTemplateTags: Array<{
   { token: "{{invoiceDate}}", label: "Datum računa", localizedLabel: { en: "Invoice date", sl: "Datum računa", sr: "Datum računa" } },
   { token: "{{dueDate}}", label: "Datum zapadlosti", localizedLabel: { en: "Due date", sl: "Datum zapadlosti", sr: "Datum dospeća" } },
   { token: "{{amount}}", label: "Znesek", localizedLabel: { en: "Amount", sl: "Znesek", sr: "Iznos" } },
-  { token: "{{companyName}}", label: "Ime podjetja", localizedLabel: { en: "Company name", sl: "Ime podjetja", sr: "Naziv kompanije" } },
+  { token: "{{companyName}}", label: "Podjetje / lokacija dogodka", localizedLabel: { en: "Provider / event location", sl: "Podjetje / lokacija dogodka", sr: "Kompanija / lokacija događaja" } },
+  { token: "{{locationName}}", label: "Ime lokacije", localizedLabel: { en: "Location name", sl: "Ime lokacije", sr: "Naziv lokacije" } },
+  { token: "{{locationAddress}}", label: "Naslov lokacije", localizedLabel: { en: "Location address", sl: "Naslov lokacije", sr: "Adresa lokacije" } },
+  { token: "{{locationPhone}}", label: "Telefon lokacije", localizedLabel: { en: "Location phone", sl: "Telefon lokacije", sr: "Telefon lokacije" } },
+  { token: "{{locationEmail}}", label: "E-pošta lokacije", localizedLabel: { en: "Location email", sl: "E-pošta lokacije", sr: "E-pošta lokacije" } },
   { token: "{{guestEmail}}", label: "E-pošta gosta", localizedLabel: { en: "Guest email", sl: "E-pošta gosta", sr: "E-pošta gosta" } },
   { token: "{{reservationNumber}}", label: "Številka rezervacije", localizedLabel: { en: "Reservation number", sl: "Številka rezervacije", sr: "Broj rezervacije" } },
   { token: "{{propertyName}}", label: "Ime lokacije", localizedLabel: { en: "Property name", sl: "Ime lokacije", sr: "Naziv lokacije" } },

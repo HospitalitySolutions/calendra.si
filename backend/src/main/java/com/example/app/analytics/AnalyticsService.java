@@ -6,6 +6,8 @@ import com.example.app.billing.BillRepository;
 import com.example.app.client.Client;
 import com.example.app.client.ClientRepository;
 import com.example.app.common.TimeService;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.security.SecurityUtils;
 import com.example.app.session.ServiceGroup;
 import com.example.app.session.ServiceGroupRepository;
@@ -61,6 +63,7 @@ public class AnalyticsService {
     private final WaitlistOfferRepository waitlistOfferRepository;
     private final TimeService timeService;
     private final TenantFeatureAccessService featureAccess;
+    private final LocationRepository locationRepository;
 
     @Value("${app.reminders.timezone:Europe/Ljubljana}")
     private String remindersTimezone;
@@ -74,7 +77,8 @@ public class AnalyticsService {
             WaitlistRequestServiceRepository waitlistRequestServiceRepository,
             WaitlistOfferRepository waitlistOfferRepository,
             TimeService timeService,
-            TenantFeatureAccessService featureAccess) {
+            TenantFeatureAccessService featureAccess,
+            LocationRepository locationRepository) {
         this.bookingRepository = bookingRepository;
         this.clientRepository = clientRepository;
         this.billRepository = billRepository;
@@ -84,6 +88,7 @@ public class AnalyticsService {
         this.waitlistOfferRepository = waitlistOfferRepository;
         this.timeService = timeService;
         this.featureAccess = featureAccess;
+        this.locationRepository = locationRepository;
     }
 
     public record PeriodPoint(
@@ -173,10 +178,20 @@ public class AnalyticsService {
             List<ServiceMetric> services
     ) {}
 
+    public record LocationMetric(
+            Long locationId,
+            String locationName,
+            long sessionsTotal,
+            long clientsTotal,
+            BigDecimal revenueGross
+    ) {}
+
     public record AnalyticsOverviewResponse(
             String period,
             String rangeStart,
             String rangeEnd,
+            Long locationId,
+            String locationName,
             Summary summary,
             List<PeriodPoint> months,
             List<PeriodPoint> years,
@@ -186,7 +201,8 @@ public class AnalyticsService {
             List<RankedAmount> topConsultants,
             List<RankedAmount> topClients,
             List<UsageRanking> topSpaces,
-            List<ServiceGroupMetric> serviceGroups
+            List<ServiceGroupMetric> serviceGroups,
+            List<LocationMetric> locations
     ) {}
 
     public record MultiServiceSourceMetric(String source, long bookings) {}
@@ -201,6 +217,8 @@ public class AnalyticsService {
     public record MultiServiceAnalyticsResponse(
             String rangeStart,
             String rangeEnd,
+            Long locationId,
+            String locationName,
             long bookings,
             long selectedServices,
             long multiServiceBookings,
@@ -222,6 +240,19 @@ public class AnalyticsService {
         long spaceMinutes = 0;
         long onlineSessions = 0;
         long onsiteSessions = 0;
+    }
+
+    private static final class LocationAnalyticsBucket {
+        final Long locationId;
+        final String locationName;
+        long sessionsTotal;
+        final Set<Long> clientIds = new HashSet<>();
+        BigDecimal revenueGross = BigDecimal.ZERO;
+
+        LocationAnalyticsBucket(Long locationId, String locationName) {
+            this.locationId = locationId;
+            this.locationName = locationName;
+        }
     }
 
     private static final class RankedBucket {
@@ -299,6 +330,7 @@ public class AnalyticsService {
             LocalDate fromParam,
             LocalDate toParam,
             Long consultantIdParam,
+            Long locationId,
             Long spaceId,
             Long typeId,
             Long serviceGroupId
@@ -309,6 +341,7 @@ public class AnalyticsService {
                 fromParam,
                 toParam,
                 resolveConsultantFilter(me, consultantIdParam),
+                locationId,
                 spaceId,
                 typeId,
                 serviceGroupId
@@ -322,6 +355,7 @@ public class AnalyticsService {
             LocalDate fromParam,
             LocalDate toParam,
             Long consultantFilter,
+            Long locationId,
             Long spaceId,
             Long typeId,
             Long serviceGroupId
@@ -330,7 +364,8 @@ public class AnalyticsService {
         boolean waitlistEnabled = featureAccess.isWaitlistEnabled(companyId);
         if (!serviceGroupsEnabled) serviceGroupId = null;
 
-        ZoneId zone = ZoneId.of(remindersTimezone);
+        Location selectedLocation = resolveAnalyticsLocation(companyId, locationId);
+        ZoneId zone = selectedLocation == null ? ZoneId.of(remindersTimezone) : safeZone(selectedLocation.getTimezone());
         String period = normalizePeriod(periodRaw);
         DateRange range = resolveRange(period, fromParam, toParam, zone);
 
@@ -344,21 +379,26 @@ public class AnalyticsService {
                 bookingRangeStart,
                 bookingRangeEndExclusive,
                 consultantFilter,
+                locationId,
                 spaceId,
                 typeId,
                 serviceGroupId
         );
-        List<Client> clients = clientRepository.findAnalyticsByCompanyIdAndCreatedAtRange(
-                companyId,
-                clientCreatedFrom,
-                clientCreatedToExclusive,
-                consultantFilter
-        );
+        List<Client> clients = locationId == null
+                ? clientRepository.findAnalyticsByCompanyIdAndCreatedAtRange(
+                        companyId, clientCreatedFrom, clientCreatedToExclusive, consultantFilter)
+                : new ArrayList<>(bookings.stream()
+                        .map(SessionBooking::getClient)
+                        .filter(client -> client != null && client.getId() != null && client.getCreatedAt() != null)
+                        .filter(client -> !client.getCreatedAt().isBefore(clientCreatedFrom) && client.getCreatedAt().isBefore(clientCreatedToExclusive))
+                        .collect(java.util.stream.Collectors.toMap(Client::getId, client -> client, (a, b) -> a, LinkedHashMap::new))
+                        .values());
         List<Bill> bills = billRepository.findAnalyticsByCompanyIdAndIssueDateRange(
                 companyId,
                 range.from(),
                 range.to(),
-                consultantFilter
+                consultantFilter,
+                locationId
         );
 
         Map<YearMonth, Bucket> monthBuckets = new HashMap<>();
@@ -372,6 +412,17 @@ public class AnalyticsService {
         Map<GroupKey, GroupAnalyticsBucket> groupAnalytics = new LinkedHashMap<>();
         Map<Long, Boolean> currentGroupActive = new HashMap<>();
         Bucket summaryBucket = new Bucket();
+        Map<Long, LocationAnalyticsBucket> locationAnalytics = new LinkedHashMap<>();
+        if (selectedLocation != null) {
+            locationAnalytics.put(
+                    selectedLocation.getId(),
+                    new LocationAnalyticsBucket(selectedLocation.getId(), safeAnalyticsName(selectedLocation.getName(), "Location"))
+            );
+        } else {
+            for (Location location : locationRepository.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(companyId)) {
+                locationAnalytics.put(location.getId(), new LocationAnalyticsBucket(location.getId(), safeAnalyticsName(location.getName(), "Location")));
+            }
+        }
 
         if (serviceGroupsEnabled) {
             for (ServiceGroup group : serviceGroupRepository.findAllByCompanyIdOrderBySortOrderAscNameAsc(companyId)) {
@@ -410,6 +461,14 @@ public class AnalyticsService {
             applyBookingToBucket(ww, clientId, online, durationMinutes, b.getConsultant() != null, b.getSpace() != null);
             applyBookingToBucket(dd, clientId, online, durationMinutes, b.getConsultant() != null, b.getSpace() != null);
             applyBookingToBucket(summaryBucket, clientId, online, durationMinutes, b.getConsultant() != null, b.getSpace() != null);
+            if (b.getLocation() != null && b.getLocation().getId() != null) {
+                LocationAnalyticsBucket locationBucket = locationAnalytics.computeIfAbsent(
+                        b.getLocation().getId(),
+                        ignored -> new LocationAnalyticsBucket(b.getLocation().getId(), safeAnalyticsName(b.getLocation().getName(), "Location"))
+                );
+                locationBucket.sessionsTotal++;
+                if (clientId != null) locationBucket.clientIds.add(clientId);
+            }
 
             if (b.getSpace() != null && b.getSpace().getName() != null && !b.getSpace().getName().isBlank()) {
                 RankedBucket spaceBucket = spaceUsageRanking.computeIfAbsent(b.getSpace().getName().trim(), key -> new RankedBucket());
@@ -539,6 +598,13 @@ public class AnalyticsService {
                 ww.revenueGross = ww.revenueGross.add(gross);
                 summaryBucket.revenueNet = summaryBucket.revenueNet.add(net);
                 summaryBucket.revenueGross = summaryBucket.revenueGross.add(gross);
+                if (b.getLocation() != null && b.getLocation().getId() != null) {
+                    LocationAnalyticsBucket locationBucket = locationAnalytics.computeIfAbsent(
+                            b.getLocation().getId(),
+                            ignored -> new LocationAnalyticsBucket(b.getLocation().getId(), safeAnalyticsName(b.getLocation().getName(), "Location"))
+                    );
+                    locationBucket.revenueGross = locationBucket.revenueGross.add(gross);
+                }
                 accumulateAmount(consultantRevenueRanking, safeConsultantLabel(b.getConsultant()), gross, 1);
                 accumulateAmount(clientRevenueRanking, safeBillClientLabel(b), gross, 1);
             }
@@ -548,7 +614,8 @@ public class AnalyticsService {
             List<WaitlistRequest> waitlistRequests = waitlistRequestRepository.findAnalyticsByCompanyIdAndJoinedAtRange(
                     companyId,
                     clientCreatedFrom,
-                    clientCreatedToExclusive
+                    clientCreatedToExclusive,
+                    locationId
             );
             Map<Long, List<WaitlistRequestService>> eligibleByRequest = new HashMap<>();
             if (!waitlistRequests.isEmpty()) {
@@ -588,7 +655,8 @@ public class AnalyticsService {
             for (WaitlistOffer offer : waitlistOfferRepository.findAnalyticsByCompanyIdAndOfferedAtRange(
                     companyId,
                     clientCreatedFrom,
-                    clientCreatedToExclusive
+                    clientCreatedToExclusive,
+                    locationId
             )) {
                 if (typeId != null && (offer.getService() == null || !typeId.equals(offer.getService().getId()))) continue;
                 Long offerGroupId = offer.getServiceGroupIdSnapshot();
@@ -626,6 +694,8 @@ public class AnalyticsService {
                 period,
                 range.from().toString(),
                 range.to().toString(),
+                selectedLocation == null ? null : selectedLocation.getId(),
+                selectedLocation == null ? null : selectedLocation.getName(),
                 summary,
                 months,
                 years,
@@ -635,7 +705,8 @@ public class AnalyticsService {
                 toRankedAmounts(consultantRevenueRanking, 5),
                 toRankedAmounts(clientRevenueRanking, 5),
                 toUsageRankings(spaceUsageRanking, 5),
-                serviceGroupsEnabled ? toServiceGroupMetrics(groupAnalytics) : List.of()
+                serviceGroupsEnabled ? toServiceGroupMetrics(groupAnalytics) : List.of(),
+                toLocationMetrics(locationAnalytics)
         );
     }
 
@@ -645,17 +716,19 @@ public class AnalyticsService {
             String periodRaw,
             LocalDate fromParam,
             LocalDate toParam,
-            Long consultantIdParam
+            Long consultantIdParam,
+            Long locationId
     ) {
         Long companyId = me.getCompany().getId();
         Long consultantFilter = resolveConsultantFilter(me, consultantIdParam);
-        ZoneId zone = ZoneId.of(remindersTimezone);
+        Location selectedLocation = resolveAnalyticsLocation(companyId, locationId);
+        ZoneId zone = selectedLocation == null ? ZoneId.of(remindersTimezone) : safeZone(selectedLocation.getTimezone());
         DateRange range = resolveRange(normalizePeriod(periodRaw), fromParam, toParam, zone);
         LocalDateTime rangeStart = range.from().atStartOfDay();
         LocalDateTime rangeEndExclusive = range.to().plusDays(1).atStartOfDay();
 
         List<SessionBooking> rows = bookingRepository.findAnalyticsByCompanyIdAndRange(
-                companyId, rangeStart, rangeEndExclusive, consultantFilter, null, null, null);
+                companyId, rangeStart, rangeEndExclusive, consultantFilter, locationId, null, null, null);
         Map<String, SessionBooking> logicalBookings = new LinkedHashMap<>();
         for (SessionBooking booking : rows) {
             String key = booking.getBookingGroupKey() == null || booking.getBookingGroupKey().isBlank()
@@ -694,7 +767,7 @@ public class AnalyticsService {
         }
 
         List<Bill> bills = billRepository.findAnalyticsByCompanyIdAndIssueDateRange(
-                companyId, range.from(), range.to(), consultantFilter);
+                companyId, range.from(), range.to(), consultantFilter, locationId);
         for (Bill bill : bills) {
             for (BillItem item : bill.getItems()) {
                 if (item == null || item.getSourceSessionBookingId() == null) continue;
@@ -724,8 +797,18 @@ public class AnalyticsService {
                         .thenComparing(MultiServiceUsageMetric::serviceName))
                 .toList();
         return new MultiServiceAnalyticsResponse(
-                range.from().toString(), range.to().toString(), bookingCount, selectedServiceCount,
-                multiServiceBookings, average, conversion, sourceRows, serviceRows);
+                range.from().toString(),
+                range.to().toString(),
+                selectedLocation == null ? null : selectedLocation.getId(),
+                selectedLocation == null ? null : selectedLocation.getName(),
+                bookingCount,
+                selectedServiceCount,
+                multiServiceBookings,
+                average,
+                conversion,
+                sourceRows,
+                serviceRows
+        );
     }
 
     private String multiServiceSourceLabel(BookingSource source) {
@@ -914,6 +997,36 @@ public class AnalyticsService {
     private double conversionRate(long accepted, long offered) {
         if (offered <= 0) return 0.0;
         return Math.round((accepted * 10000.0) / offered) / 100.0;
+    }
+
+    private Location resolveAnalyticsLocation(Long companyId, Long locationId) {
+        if (locationId == null) return null;
+        return locationRepository.findByIdAndCompanyId(locationId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid analytics location."));
+    }
+
+    private ZoneId safeZone(String raw) {
+        if (raw != null && !raw.isBlank()) {
+            try {
+                return ZoneId.of(raw.trim());
+            } catch (Exception ignored) {
+                // Fall through to the application default for malformed historical values.
+            }
+        }
+        return ZoneId.of(remindersTimezone);
+    }
+
+    private static List<LocationMetric> toLocationMetrics(Map<Long, LocationAnalyticsBucket> source) {
+        if (source == null || source.isEmpty()) return List.of();
+        return source.values().stream()
+                .map(bucket -> new LocationMetric(
+                        bucket.locationId,
+                        bucket.locationName,
+                        bucket.sessionsTotal,
+                        bucket.clientIds.size(),
+                        bucket.revenueGross
+                ))
+                .toList();
     }
 
     private static String safeAnalyticsName(String value, String fallback) {

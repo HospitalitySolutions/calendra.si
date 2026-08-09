@@ -83,17 +83,20 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
     @Query("""
             select distinct b from Bill b
             left join b.consultant consultant
+            left join b.location analyticsLocation
             where b.company.id = :companyId
               and b.issueDate >= :issueFrom
               and b.issueDate <= :issueTo
               and (:consultantId is null or consultant.id = :consultantId)
+              and (:locationId is null or analyticsLocation.id = :locationId)
             order by b.issueDate asc, b.id asc
             """)
     List<Bill> findAnalyticsByCompanyIdAndIssueDateRange(
             @Param("companyId") Long companyId,
             @Param("issueFrom") LocalDate issueFrom,
             @Param("issueTo") LocalDate issueTo,
-            @Param("consultantId") Long consultantId
+            @Param("consultantId") Long consultantId,
+            @Param("locationId") Long locationId
     );
 
     @EntityGraph(attributePaths = {"legalEntity", "invoiceSeries", "location", "client", "consultant", "paymentMethod", "items", "items.transactionService"})

@@ -102,6 +102,7 @@ public interface WaitlistRequestRepository extends JpaRepository<WaitlistRequest
             left join fetch r.service service
             left join fetch service.serviceGroup
             left join fetch r.serviceGroup
+            left join fetch r.location analyticsLocation
             where r.company.id = :companyId
               and r.status = com.example.app.waitlist.WaitlistRequestStatus.ACTIVE
               and r.dateFrom <= :date
@@ -119,13 +120,16 @@ public interface WaitlistRequestRepository extends JpaRepository<WaitlistRequest
             left join fetch r.service service
             left join fetch service.serviceGroup
             left join fetch r.serviceGroup
+            left join fetch r.location analyticsLocation
             where r.company.id = :companyId
               and r.joinedAt >= :from
               and r.joinedAt < :to
+              and (:locationId is null or analyticsLocation.id = :locationId)
             order by r.joinedAt asc, r.id asc
             """)
     List<WaitlistRequest> findAnalyticsByCompanyIdAndJoinedAtRange(
             @Param("companyId") Long companyId,
             @Param("from") Instant from,
-            @Param("to") Instant to);
+            @Param("to") Instant to,
+            @Param("locationId") Long locationId);
 }

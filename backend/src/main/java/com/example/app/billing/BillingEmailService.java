@@ -9,6 +9,7 @@ import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
 import com.example.app.email.TenantEmailLayoutRenderer;
 import com.example.app.email.TenantEmailSenderResolver;
+import com.example.app.location.LocationPublicPresentationService;
 import com.example.app.logging.LogSanitizer;
 import com.example.app.workspacesubscription.WorkspaceEmailQuotaService;
 import jakarta.mail.MessagingException;
@@ -82,6 +83,9 @@ public class BillingEmailService {
 
     @Autowired(required = false)
     private WorkspaceEmailQuotaService workspaceEmailQuota;
+
+    @Autowired(required = false)
+    private LocationPublicPresentationService locationPresentationService;
 
     public BillingEmailService(
             @Autowired(required = false) JavaMailSender mailSender,
@@ -1067,9 +1071,12 @@ public class BillingEmailService {
         if (guestName.isBlank()) {
             guestName = "Guest";
         }
-        String companyName = bill.getCompany() != null && bill.getCompany().getName() != null
-                ? bill.getCompany().getName().trim()
-                : "";
+        LocationPublicPresentationService.PublicPresentation locationPresentation = billLocationPresentation(bill);
+        String companyName = locationPresentation != null && locationPresentation.publicName() != null
+                ? locationPresentation.publicName().trim()
+                : (bill.getCompany() != null && bill.getCompany().getName() != null
+                        ? bill.getCompany().getName().trim()
+                        : "");
         if (companyName.isBlank()) {
             companyName = "Company";
         }
@@ -1090,6 +1097,10 @@ public class BillingEmailService {
         tokens.put("{{companyName}}", companyName);
         tokens.put("{{companyEmail}}", defaultString(settingValue(companyId, SettingKey.COMPANY_EMAIL)));
         tokens.put("{{companyPhone}}", defaultString(settingValue(companyId, SettingKey.COMPANY_TELEPHONE)));
+        tokens.put("{{locationName}}", locationPresentation == null ? "" : defaultString(locationPresentation.publicName()));
+        tokens.put("{{locationAddress}}", locationPresentation == null ? "" : defaultString(locationPresentation.publicAddress()));
+        tokens.put("{{locationPhone}}", locationPresentation == null ? "" : defaultString(locationPresentation.publicPhone()));
+        tokens.put("{{locationEmail}}", locationPresentation == null ? "" : defaultString(locationPresentation.publicEmail()));
         tokens.put("{{physicalAddress}}", physicalAddress.address());
         tokens.put("{{physicalPostalCode}}", physicalAddress.postalCode());
         tokens.put("{{physicalCity}}", physicalAddress.city());
@@ -1176,13 +1187,28 @@ public class BillingEmailService {
         return value.contains("<") && value.contains(">");
     }
 
+    private LocationPublicPresentationService.PublicPresentation billLocationPresentation(Bill bill) {
+        if (bill == null || bill.getLocation() == null || locationPresentationService == null) return null;
+        try {
+            return locationPresentationService.resolve(bill.getLocation());
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
     /**
      * Tenant invoice delivery emails use the shared branded layout; the template body only
      * provides the text content. Falls back to the raw body when the renderer is unavailable.
      */
     private void setInvoiceDeliveryBody(MimeMessageHelper helper, Bill bill, String body) throws MessagingException {
         if (emailLayoutRenderer != null) {
-            helper.setText(emailLayoutRenderer.render(bill == null ? null : bill.getCompany(), body), true);
+            LocationPublicPresentationService.PublicPresentation presentation = billLocationPresentation(bill);
+            helper.setText(emailLayoutRenderer.render(
+                    bill == null ? null : bill.getCompany(),
+                    body,
+                    presentation == null ? null : presentation.publicName(),
+                    presentation == null ? null : presentation.publicLogoUrl()
+            ), true);
             return;
         }
         helper.setText(body, looksLikeHtml(body));

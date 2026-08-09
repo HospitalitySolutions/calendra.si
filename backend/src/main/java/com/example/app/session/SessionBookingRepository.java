@@ -356,6 +356,7 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
             SELECT DISTINCT sb FROM SessionBooking sb
             LEFT JOIN FETCH sb.client
             LEFT JOIN FETCH sb.consultant consultant
+            LEFT JOIN FETCH sb.location analyticsLocation
             LEFT JOIN FETCH sb.space space
             LEFT JOIN FETCH sb.type sessionType
             LEFT JOIN FETCH sb.services analyticsServiceLine
@@ -364,6 +365,7 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
               AND sb.startTime >= :rangeStart
               AND sb.startTime < :rangeEnd
               AND (:consultantId IS NULL OR consultant.id = :consultantId)
+              AND (:locationId IS NULL OR analyticsLocation.id = :locationId)
               AND (:spaceId IS NULL OR space.id = :spaceId)
               AND (:typeId IS NULL OR sessionType.id = :typeId)
               AND (
@@ -390,6 +392,7 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
             @Param("rangeStart") LocalDateTime rangeStart,
             @Param("rangeEnd") LocalDateTime rangeEnd,
             @Param("consultantId") Long consultantId,
+            @Param("locationId") Long locationId,
             @Param("spaceId") Long spaceId,
             @Param("typeId") Long typeId,
             @Param("serviceGroupId") Long serviceGroupId

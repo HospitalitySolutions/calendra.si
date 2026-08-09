@@ -24,11 +24,12 @@ public class AnalyticsController {
             @RequestParam(required = false) LocalDate from,
             @RequestParam(required = false) LocalDate to,
             @RequestParam(required = false) Long consultantId,
+            @RequestParam(required = false) Long locationId,
             @RequestParam(required = false) Long spaceId,
             @RequestParam(required = false) Long typeId,
             @RequestParam(required = false) Long serviceGroupId
     ) {
-        return analyticsService.overview(me, period, from, to, consultantId, spaceId, typeId, serviceGroupId);
+        return analyticsService.overview(me, period, from, to, consultantId, locationId, spaceId, typeId, serviceGroupId);
     }
 
     @GetMapping("/multi-service")
@@ -37,8 +38,9 @@ public class AnalyticsController {
             @RequestParam(required = false) String period,
             @RequestParam(required = false) LocalDate from,
             @RequestParam(required = false) LocalDate to,
-            @RequestParam(required = false) Long consultantId
+            @RequestParam(required = false) Long consultantId,
+            @RequestParam(required = false) Long locationId
     ) {
-        return analyticsService.multiService(me, period, from, to, consultantId);
+        return analyticsService.multiService(me, period, from, to, consultantId, locationId);
     }
 }

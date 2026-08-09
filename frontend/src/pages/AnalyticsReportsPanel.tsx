@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api'
 import { Card } from '../components/ui'
@@ -82,7 +82,7 @@ function downloadBlob(blob: Blob, fallbackName: string, contentDisposition?: str
   URL.revokeObjectURL(href)
 }
 
-export function AnalyticsReportsPanel({ billingEnabled }: { billingEnabled: boolean }) {
+export function AnalyticsReportsPanel({ billingEnabled, selectedLocationId }: { billingEnabled: boolean; selectedLocationId?: number | null }) {
   const { locale } = useLocale()
   const me = useAuthenticatedUser()
   const { showToast } = useToast()
@@ -96,7 +96,7 @@ export function AnalyticsReportsPanel({ billingEnabled }: { billingEnabled: bool
   const [paymentStatus, setPaymentStatus] = useState('ALL')
   const [billType, setBillType] = useState('ALL')
   const [invoiceNumber, setInvoiceNumber] = useState('')
-  const [locationId, setLocationId] = useState('')
+  const [locationId, setLocationId] = useState(() => selectedLocationId == null ? '' : String(selectedLocationId))
   const [exporting, setExporting] = useState<ExportFormat | null>(null)
 
   const sl = locale === 'sl'
@@ -142,6 +142,10 @@ export function AnalyticsReportsPanel({ billingEnabled }: { billingEnabled: bool
     enabled: billingEnabled,
   })
 
+  useEffect(() => {
+    setLocationId(selectedLocationId == null ? '' : String(selectedLocationId))
+  }, [selectedLocationId])
+
   const reset = () => {
     const next = initialRange()
     setFrom(next.from)
@@ -152,7 +156,7 @@ export function AnalyticsReportsPanel({ billingEnabled }: { billingEnabled: bool
     setPaymentStatus('ALL')
     setBillType('ALL')
     setInvoiceNumber('')
-    setLocationId('')
+    setLocationId(selectedLocationId == null ? '' : String(selectedLocationId))
   }
 
   const exportReport = async (format: ExportFormat) => {

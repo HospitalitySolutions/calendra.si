@@ -117,7 +117,7 @@ public class InvoiceReportService {
                 .orElse("#" + locationId);
 
         List<Bill> bills = billRepository.findAnalyticsByCompanyIdAndIssueDateRange(
-                me.getCompany().getId(), from, to, null);
+                me.getCompany().getId(), from, to, null, locationId);
 
         List<Row> rows = new ArrayList<>();
         String issuerName = me.getCompany().getName();

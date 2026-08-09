@@ -13,15 +13,16 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { api } from '../api'
 import { settingsQueryOptions, usersQueryOptions } from '../queries/sharedQueryOptions'
 import { calendarSpacesQueryOptions, calendarTypesQueryOptions, serviceGroupsQueryOptions } from '../queries/calendarQueryOptions'
 import { queryKeys } from '../queries/queryKeys'
-import { analyticsOverviewQueryOptions } from '../queries/remainingQueryOptions'
 import { useAuthenticatedUser } from '../authUserContext'
 import { Card, EmptyState } from '../components/ui'
 import { fullName } from '../lib/format'
 import { hasEmployeePermission } from '../lib/employeePermissions'
 import { isWorkspaceRolloutEnabled } from '../lib/workspaceRollout'
+import { useSelectedLocationId } from '../lib/locationContext'
 import { useLocale } from '../locale'
 import { AnalyticsReportsPanel } from './AnalyticsReportsPanel'
 
@@ -119,10 +120,20 @@ type ServiceGroupMetric = {
   services: ServiceMetric[]
 }
 
+type LocationMetric = {
+  locationId: number
+  locationName: string
+  sessionsTotal: number
+  clientsTotal: number
+  revenueGross: number
+}
+
 type AnalyticsOverview = {
   period: 'day' | '7d' | 'month' | 'year' | 'custom'
   rangeStart: string
   rangeEnd: string
+  locationId?: number | null
+  locationName?: string | null
   summary: AnalyticsSummary
   months: PeriodPoint[]
   years: PeriodPoint[]
@@ -133,11 +144,12 @@ type AnalyticsOverview = {
   topClients: RankedAmount[]
   topSpaces: UsageRanking[]
   serviceGroups: ServiceGroupMetric[]
+  locations?: LocationMetric[]
 }
 
-type ConsultantOption = { id: number; firstName: string; lastName: string; consultant?: boolean }
-type SpaceOption = { id: number; name: string }
-type TypeOption = { id: number; name: string; description?: string | null; internalDescription?: string | null; serviceGroupId?: number | null; serviceGroupName?: string | null }
+type ConsultantOption = { id: number; firstName: string; lastName: string; consultant?: boolean; availableAllLocations?: boolean; locationIds?: number[] }
+type SpaceOption = { id: number; name: string; locationId?: number | null; location?: { id?: number | null } | null }
+type TypeOption = { id: number; name: string; description?: string | null; internalDescription?: string | null; serviceGroupId?: number | null; serviceGroupName?: string | null; availableAllLocations?: boolean; locationIds?: number[] }
 type ServiceGroupOption = { id: number; name: string; active: boolean; sortOrder: number; serviceCount: number }
 type Preset = 'day' | '7d' | 'month' | 'quarter' | 'year' | 'custom'
 type ActivityChartRow = {
@@ -605,6 +617,7 @@ function serviceGroupMetricKey(group: ServiceGroupMetric) {
 export function AnalyticsPage() {
   const me = useAuthenticatedUser()
   const activeUnitId = me.activeUnitId ?? me.companyId
+  const [selectedLocationId] = useSelectedLocationId(activeUnitId)
   const queryClient = useQueryClient()
   const { locale } = useLocale()
   const [periodPreset, setPeriodPreset] = useState<Preset>('month')
@@ -630,7 +643,7 @@ export function AnalyticsPage() {
   const settingsQuery = useQuery(settingsQueryOptions(activeUnitId))
 
   const groupsEnabledForFilters = (settingsQuery.data?.SERVICE_GROUPS_ENABLED ?? 'true') !== 'false'
-  const filterSignature = `${me.role}:${groupsEnabledForFilters ? 'groups' : 'no-groups'}`
+  const filterSignature = `${me.role}:${groupsEnabledForFilters ? 'groups' : 'no-groups'}:${selectedLocationId ?? 'all'}`
   const { data: filterData } = useQuery<{
     consultants: ConsultantOption[]
     spaces: SpaceOption[]
@@ -660,14 +673,29 @@ export function AnalyticsPage() {
     },
   })
 
+  const filteredConsultantOptions = useMemo(() => {
+    const consultants = filterData?.consultants ?? []
+    if (selectedLocationId == null) return consultants
+    return consultants.filter((item) => item.availableAllLocations !== false
+      || (Array.isArray(item.locationIds) && item.locationIds.some((id) => Number(id) === Number(selectedLocationId))))
+  }, [filterData?.consultants, selectedLocationId])
+
+  const filteredSpaceOptions = useMemo(() => {
+    const spaces = filterData?.spaces ?? []
+    if (selectedLocationId == null) return spaces
+    return spaces.filter((item) => Number(item.location?.id ?? item.locationId) === Number(selectedLocationId))
+  }, [filterData?.spaces, selectedLocationId])
+
   const filteredTypeOptions = useMemo(() => {
-    const types = filterData?.types ?? []
+    const types = (filterData?.types ?? []).filter((item) => selectedLocationId == null
+      || item.availableAllLocations !== false
+      || (Array.isArray(item.locationIds) && item.locationIds.some((id) => Number(id) === Number(selectedLocationId))))
     if (!serviceGroupId) return types
     const selectedGroupId = Number(serviceGroupId)
     return types.filter((item) => selectedGroupId === -1
       ? item.serviceGroupId == null
       : item.serviceGroupId === selectedGroupId)
-  }, [filterData?.types, serviceGroupId])
+  }, [filterData?.types, serviceGroupId, selectedLocationId])
 
   useEffect(() => {
     if (!filterData || !typeId) return
@@ -676,7 +704,10 @@ export function AnalyticsPage() {
     }
   }, [filterData, filteredTypeOptions, typeId])
 
-
+  useEffect(() => {
+    if (consultantId && !filteredConsultantOptions.some((item) => String(item.id) === consultantId)) setConsultantId('')
+    if (spaceId && !filteredSpaceOptions.some((item) => String(item.id) === spaceId)) setSpaceId('')
+  }, [consultantId, filteredConsultantOptions, filteredSpaceOptions, spaceId])
 
   const billingEnabled = (settingsQuery.data?.BILLING_ENABLED ?? 'true') !== 'false'
   const waitlistReportsEnabled = settingsQuery.data?.WAITLIST_ENABLED === 'true'
@@ -688,30 +719,35 @@ export function AnalyticsPage() {
 
 
 
-  const analyticsParams = useMemo(() => {
-    const params: Record<string, string | number> = { period: periodPreset }
-    if (periodPreset === 'custom') {
-      params.from = customFrom
-      params.to = customTo
-    }
-    if (periodPreset === 'quarter') {
-      const today = new Date()
-      const quarterStart = new Date(today)
-      quarterStart.setMonth(quarterStart.getMonth() - 3)
-      params.period = 'custom'
-      params.from = toIsoDate(quarterStart)
-      params.to = toIsoDate(today)
-    }
-    if (consultantId) params.consultantId = Number(consultantId)
-    if (spaceId) params.spaceId = Number(spaceId)
-    if (serviceGroupsReportsEnabled && serviceGroupId) params.serviceGroupId = Number(serviceGroupId)
-    if (typeId) params.typeId = Number(typeId)
-    return params
-  }, [consultantId, customFrom, customTo, periodPreset, serviceGroupId, serviceGroupsReportsEnabled, spaceId, typeId])
-
   const { data, isLoading, isError } = useQuery<AnalyticsOverview>({
-    ...analyticsOverviewQueryOptions<AnalyticsOverview>(activeUnitId, analyticsParams),
+    queryKey: queryKeys.analytics.overview(activeUnitId, JSON.stringify([periodPreset, customFrom, customTo, consultantId, selectedLocationId, spaceId, serviceGroupId, typeId])),
     enabled: canFetch,
+    staleTime: 20_000,
+    queryFn: async () => {
+      const params: Record<string, string | number> = { period: periodPreset }
+      if (periodPreset === 'custom') {
+        params.from = customFrom
+        params.to = customTo
+      }
+      if (periodPreset === 'quarter') {
+        const today = new Date()
+        const quarterStart = new Date(today)
+        quarterStart.setMonth(quarterStart.getMonth() - 3)
+        params.period = 'custom'
+        params.from = toIsoDate(quarterStart)
+        params.to = toIsoDate(today)
+      }
+      if (consultantId) params.consultantId = Number(consultantId)
+      if (selectedLocationId != null) params.locationId = selectedLocationId
+      if (spaceId) params.spaceId = Number(spaceId)
+      if (serviceGroupsReportsEnabled && serviceGroupId) params.serviceGroupId = Number(serviceGroupId)
+      if (typeId) params.typeId = Number(typeId)
+      const res = await api.get<AnalyticsOverview>('/analytics/overview', {
+        headers: activeUnitId == null ? undefined : { 'X-Calendra-Unit-Id': String(activeUnitId) },
+        params,
+      })
+      return res.data
+    },
   })
 
   const comparisonSeries = useMemo(() => (periodPreset === 'month' ? data?.months ?? [] : data?.years ?? []), [periodPreset, data?.months, data?.years])
@@ -1012,12 +1048,12 @@ export function AnalyticsPage() {
               {isAdmin && (
                 <select value={consultantId} onChange={(e) => setConsultantId(e.target.value)}>
                   <option value="">{text.allConsultants}</option>
-                  {(filterData?.consultants ?? []).map((u) => <option key={u.id} value={u.id}>{fullName(u)}</option>)}
+                  {filteredConsultantOptions.map((u) => <option key={u.id} value={u.id}>{fullName(u)}</option>)}
                 </select>
               )}
               <select value={spaceId} onChange={(e) => setSpaceId(e.target.value)}>
                 <option value="">{text.allSpaces}</option>
-                {(filterData?.spaces ?? []).map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
+                {filteredSpaceOptions.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
               </select>
               {serviceGroupsReportsEnabled && (
                 <select value={serviceGroupId} onChange={(e) => setServiceGroupId(e.target.value)}>
@@ -1064,12 +1100,12 @@ export function AnalyticsPage() {
             {isAdmin && (
               <select value={consultantId} onChange={(e) => setConsultantId(e.target.value)}>
                 <option value="">{text.allConsultants}</option>
-                {(filterData?.consultants ?? []).map((u) => <option key={u.id} value={u.id}>{fullName(u)}</option>)}
+                {filteredConsultantOptions.map((u) => <option key={u.id} value={u.id}>{fullName(u)}</option>)}
               </select>
             )}
             <select value={spaceId} onChange={(e) => setSpaceId(e.target.value)}>
               <option value="">{text.allSpaces}</option>
-              {(filterData?.spaces ?? []).map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
+              {filteredSpaceOptions.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
             </select>
             {serviceGroupsReportsEnabled && (
               <select value={serviceGroupId} onChange={(e) => setServiceGroupId(e.target.value)}>
@@ -1102,7 +1138,7 @@ export function AnalyticsPage() {
       </>)}
 
       {activeTab === 'reports' ? (
-        <AnalyticsReportsPanel billingEnabled={billingEnabled} />
+        <AnalyticsReportsPanel billingEnabled={billingEnabled} selectedLocationId={selectedLocationId} />
       ) : !canFetch ? (
         <Card><div className="muted">{text.customRangeHint}</div></Card>
       ) : isLoading ? (

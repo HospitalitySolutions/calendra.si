@@ -1,6 +1,6 @@
 # Calendra location ownership model
 
-Status: Phase 6B implemented / location ownership baseline
+Status: Phase 6C implemented / secondary consumers location-consistent
 
 ## Architectural rule
 
@@ -67,8 +67,8 @@ A one-location tenant should not have extra UX complexity: signup/provisioning c
 | public booking management | BOOKING LOCATION | **Phase 6A implemented** | Manage/cancel/reschedule resolves rules, presentation, timezone and availability from the immutable booking Location; group moves cannot cross branches. |
 | Google Place / public identity | LOCATION | Phases 1–3 migrated | Correct. |
 | inbox/messages | WORKSPACE/COMPANY CUSTOMER RELATIONSHIP | Keep shared | Attach booking/location context when a message originates from a booking; do not fragment conversation identity by branch by default. |
-| notifications | EVENT LOCATION when event-based | **Phase 6B waitlist path implemented** | Public waitlist pages and waitlist e-mail/SMS/Guest App notifications render the request Location identity. Booking/order notification paths remain for the final consistency pass. |
-| analytics | LOCATION dimension + workspace/company aggregation | Needs consistency pass | Concrete events already carrying Location should be aggregatable by branch without guessing from Company. |
+| notifications | EVENT LOCATION when event-based | **Phase 6C implemented** | Waitlist, booking, payment/order and invoice Guest App events carry the concrete event Location. Booking e-mail/SMS templates resolve branch identity/rules/timezone from the booking Location while sender/quota ownership remains Company scoped. |
+| analytics | LOCATION dimension + workspace/company aggregation | **Phase 6C implemented** | Overview and multi-service analytics accept a concrete Location scope, validate tenant ownership, query operational sources at repository level and expose a branch metrics dimension for all-location reporting. |
 
 ## Phase 5.5A – concrete operational ownership (implemented in this patch)
 
@@ -243,13 +243,30 @@ Phase 6B completes Location presentation for the public waitlist path:
 
 No schema change is required: Phase 5.5A already made `WaitlistRequest.location`, `WaitlistOffer.location` and waitlist holds mandatory and tenant-safe.
 
-## Phase 6C and later
+## Phase 6C – remaining secondary-consumer consistency
 
-Continue the remaining secondary-consumer consistency pass:
+Phase 6C removes the remaining operational Company-as-Location assumptions in booking/order notifications and the primary analytics surfaces.
 
-- booking/order event notifications use the concrete event Location identity where applicable,
-- analytics expose reliable Location dimensions,
-- remove remaining code paths that use `companyId` as a proxy for operational location.
+### Booking and commerce notifications
+
+- Booking notification template tokens resolve public branch name, address, phone and e-mail from `SessionBooking.location` through `LocationPublicPresentationService`. `{{companyName}}` / `{{ime_podjetja}}` intentionally represent the event Location for booking messages; explicit Location tokens remain available as well.
+- Booking manage/cancel token cutoffs resolve the reservation rules for `(company_id, booking.location_id)`, and cutoff/time calculations use the booking Location timezone.
+- Widget/reschedule links generated inside booking notifications preserve `locationId`.
+- Booking Guest App notification and push payloads carry `locationId`.
+- Payment/order notification payloads carry the immutable `GuestOrder.location`; bank-transfer notifications snapshot the Location context before commit so after-commit delivery does not rely on lazy entity loading.
+- Staff-created invoice Guest App notifications carry `Bill.location`. Invoice-delivery e-mail templates/layout branding may use the bill Location's public name/logo/contact tokens; the invoice PDF/legal issuer itself remains Company/legal-entity based.
+- E-mail sender/reply-to, delivery logs and quota/account ownership remain Company scoped even when public branding is Location-specific.
+
+### Analytics
+
+- `/api/analytics/overview` and `/api/analytics/multi-service` accept `locationId`; a supplied Location must belong to the active Company.
+- Booking, bill, waitlist request and waitlist offer analytics apply the Location predicate in repository queries rather than filtering a Company-wide aggregate afterward.
+- A selected branch uses its timezone for report date boundaries. All-location reports continue to use the tenant/report fallback timezone while exposing per-Location metrics.
+- Overview responses expose a `locations` dimension with branch ID/name, session count, distinct active clients and gross revenue.
+- The web Analytics page follows the global **Poslovalnice** selection and filters consultant/space/service options to the selected branch. Reports inherit the global Location selection while still allowing an explicit report-level branch choice.
+- For a selected Location, `newClients` is derived from clients created in the requested period who also appear in the branch-scoped booking result. `Client.assignedLocations` is deliberately not treated as historical operational ownership.
+
+The remaining architectural work is Phase 7 cleanup: delete obsolete company-level public identity/directory settings and duplicate fallbacks now that all operational consumers have an authoritative Location.
 
 ## Implementation rule for new code
 

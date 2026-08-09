@@ -47,15 +47,18 @@ public interface WaitlistOfferRepository extends JpaRepository<WaitlistOffer, Lo
             left join fetch o.request request
             left join fetch request.service
             left join fetch request.serviceGroup
+            left join fetch o.location analyticsLocation
             where o.company.id = :companyId
               and o.offeredAt >= :from
               and o.offeredAt < :to
+              and (:locationId is null or analyticsLocation.id = :locationId)
             order by o.offeredAt asc, o.id asc
             """)
     List<WaitlistOffer> findAnalyticsByCompanyIdAndOfferedAtRange(
             @Param("companyId") Long companyId,
             @Param("from") Instant from,
-            @Param("to") Instant to);
+            @Param("to") Instant to,
+            @Param("locationId") Long locationId);
 
 
     @Modifying(flushAutomatically = true)

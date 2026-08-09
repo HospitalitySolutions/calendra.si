@@ -1,0 +1,16 @@
+Phase 6C — Secondary consumer location consistency
+
+Implemented:
+- Analytics overview and multi-service APIs accept/validate locationId and scope bookings, bills, waitlist requests/offers at repository level.
+- Selected-location analytics use the branch timezone and expose locationId/locationName.
+- Overview returns per-location sessions, distinct clients and gross revenue metrics.
+- Analytics UI follows the global Poslovalnice selector and scopes consultant/space/service filters; reports inherit the selected branch.
+- Booking notification tokens, public links, manage rules, timezone and e-mail branding resolve from SessionBooking.location.
+- Booking Guest App notification/push payloads carry locationId.
+- Payment/order Guest App notifications carry GuestOrder.location; bank-transfer notification context is snapshotted before after-commit delivery.
+- Staff-created invoice Guest App notifications carry Bill.location; invoice-delivery e-mail branding/tokens use the bill Location while legal invoice identity remains Company/legal-entity based.
+- Added focused analytics, booking-notification and order-notification tests.
+
+No schema migration is required for Phase 6C because the referenced operational entities already have Location ownership from earlier phases.
+
+Next: Phase 7 legacy company-public-identity/directory cleanup.

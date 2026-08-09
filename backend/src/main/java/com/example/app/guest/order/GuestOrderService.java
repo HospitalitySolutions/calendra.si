@@ -817,13 +817,9 @@ public class GuestOrderService {
                     order = orders.save(order);
                 }
             }
-            var notificationGuestUser = order.getGuestUser();
-            var notificationCompany = order.getCompany();
-            var notificationClient = order.getClient();
+            var notificationContext = notifications.paymentContext(order);
             runAfterCommit(() -> notifications.paymentPending(
-                    notificationGuestUser,
-                    notificationCompany,
-                    notificationClient,
+                    notificationContext,
                     "Invoice sent",
                     "Your order is ready. We emailed you the invoice PDF and bank transfer instructions."
             ));
@@ -1640,7 +1636,7 @@ public class GuestOrderService {
                 }
             }
         }
-        notifications.paymentConfirmed(order.getGuestUser(), order.getCompany(), order.getClient(), "Payment confirmed", "Your payment was received successfully.");
+        notifications.paymentConfirmed(order, "Payment confirmed", "Your payment was received successfully.");
         return order;
     }
 

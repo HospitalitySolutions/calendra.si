@@ -12,6 +12,8 @@ import com.example.app.guest.model.GuestNotificationType;
 import com.example.app.guest.notifications.GuestNotificationService;
 import com.example.app.guest.notifications.GuestPushService;
 import com.example.app.logging.LogSanitizer;
+import com.example.app.location.Location;
+import com.example.app.location.LocationPublicPresentationService;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -108,6 +110,8 @@ public class ReminderService {
     private final PublicBookingManageTokenService publicBookingManageTokenService;
     private final TenantEmailSenderResolver emailSenderResolver;
     private final TenantEmailLayoutRenderer emailLayoutRenderer;
+    private final TenantReservationRulesService reservationRulesService;
+    private final LocationPublicPresentationService locationPresentationService;
 
     @Autowired(required = false)
     private MessageDeliveryLogService deliveryLogs;
@@ -130,7 +134,9 @@ public class ReminderService {
             TenantSmsQuotaService smsQuotaService,
             @Autowired(required = false) PublicBookingManageTokenService publicBookingManageTokenService,
             @Autowired(required = false) TenantEmailSenderResolver emailSenderResolver,
-            @Autowired(required = false) TenantEmailLayoutRenderer emailLayoutRenderer
+            @Autowired(required = false) TenantEmailLayoutRenderer emailLayoutRenderer,
+            @Autowired(required = false) TenantReservationRulesService reservationRulesService,
+            @Autowired(required = false) LocationPublicPresentationService locationPresentationService
     ) {
         this.mailSender = mailSender;
         this.mailFrom = mailFrom == null ? "" : mailFrom.trim();
@@ -149,6 +155,8 @@ public class ReminderService {
         this.publicBookingManageTokenService = publicBookingManageTokenService;
         this.emailSenderResolver = emailSenderResolver;
         this.emailLayoutRenderer = emailLayoutRenderer;
+        this.reservationRulesService = reservationRulesService;
+        this.locationPresentationService = locationPresentationService;
     }
 
     /**
@@ -260,7 +268,7 @@ public class ReminderService {
         try {
             String renderedSubject = replaceTokens(subject, tokens);
             String renderedBody = renderEmailTemplateBody(bodyHtml, tokens);
-            sendHtmlMail(booking.getCompany(), client.getEmail().trim(), renderedSubject, renderedBody);
+            sendHtmlMail(booking.getCompany(), booking.getLocation(), client.getEmail().trim(), renderedSubject, renderedBody);
             logBookingDeliverySent(booking, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), renderedSubject, renderedBody);
             log.info("Sent {} scheduled booking email companyId={} bookingId={} clientId={} recipient={}", kind, companyId, booking.getId(), client.getId(), LogSanitizer.emailHash(client.getEmail()));
         } catch (Exception e) {
@@ -407,6 +415,9 @@ public class ReminderService {
             if (booking != null && booking.getId() != null) {
                 extra.put("bookingId", String.valueOf(booking.getId()));
             }
+            if (booking != null && booking.getLocation() != null && booking.getLocation().getId() != null) {
+                extra.put("locationId", String.valueOf(booking.getLocation().getId()));
+            }
             guestPushService.notifyGuestReminder(
                     notification.getGuestUser(),
                     notification.getCompany(),
@@ -516,6 +527,9 @@ public class ReminderService {
         if (booking == null || booking.getId() == null) return null;
         ObjectNode n = JSON.createObjectNode();
         n.put("bookingId", String.valueOf(booking.getId()));
+        if (booking.getLocation() != null && booking.getLocation().getId() != null) {
+            n.put("locationId", String.valueOf(booking.getLocation().getId()));
+        }
         return n.toString();
     }
 
@@ -733,7 +747,7 @@ public class ReminderService {
         String bodyHtml = renderEmailTemplateBody(template.bodyHtml(), emailTokens);
 
         try {
-            sendHtmlMail(booking == null ? null : booking.getCompany(), client.getEmail().trim(), subject, bodyHtml);
+            sendHtmlMail(booking == null ? null : booking.getCompany(), booking == null ? null : booking.getLocation(), client.getEmail().trim(), subject, bodyHtml);
             logBookingDeliverySent(booking, client, MessageDeliveryChannel.EMAIL, kind, client.getEmail(), subject, bodyHtml);
             log.info("Sent {} booking email companyId={} bookingId={} clientId={} recipient={}", kind, companyId, booking == null ? null : booking.getId(), client == null ? null : client.getId(), LogSanitizer.emailHash(client == null ? null : client.getEmail()));
         } catch (Exception e) {
@@ -931,7 +945,11 @@ public class ReminderService {
         Long companyId = company.getId();
 
         Client client = booking.getClient();
-        String companyName = settingOr(companyId, SettingKey.COMPANY_NAME, company.getName());
+        Location location = booking.getLocation();
+        LocationPublicPresentationService.PublicPresentation presentation = locationPresentation(location);
+        String companyName = presentation != null && presentation.publicName() != null
+                ? presentation.publicName()
+                : settingOr(companyId, SettingKey.COMPANY_NAME, company.getName());
         String clientFirstName = nz(client.getFirstName());
         String clientLastName = nz(client.getLastName());
         String serviceName = SessionServiceSupport.serviceSummary(booking);
@@ -944,10 +962,17 @@ public class ReminderService {
         String year = String.valueOf(start.getYear());
         String time = start.format(TAG_TIME) + "–" + end.format(TAG_TIME);
 
-        String locationName = booking.getSpace() != null ? nz(booking.getSpace().getName()) : "";
-        PhysicalAddress physicalAddress = resolvePhysicalAddress(companyId);
-        String locationAddress = physicalAddress.fullAddress();
-        String locationPhone = settingOr(companyId, SettingKey.COMPANY_TELEPHONE, "");
+        String locationName = presentation != null && presentation.publicName() != null ? presentation.publicName() : "";
+        PhysicalAddress physicalAddress = resolvePhysicalAddress(companyId, location);
+        String locationAddress = presentation != null && presentation.publicAddress() != null
+                ? presentation.publicAddress()
+                : physicalAddress.fullAddress();
+        String locationPhone = presentation != null && presentation.publicPhone() != null
+                ? presentation.publicPhone()
+                : settingOr(companyId, SettingKey.COMPANY_TELEPHONE, "");
+        String locationEmail = presentation != null && presentation.publicEmail() != null
+                ? presentation.publicEmail()
+                : "";
 
         User consultant = booking.getConsultant();
         String consultantName = consultant == null
@@ -956,7 +981,7 @@ public class ReminderService {
         String consultantPhone = consultant != null && consultant.getPhone() != null ? consultant.getPhone().trim() : "";
         String onlineMeetingLink = booking.getMeetingLink() != null ? booking.getMeetingLink().trim() : "";
         String deliveryType = booking.isOnlineSession() ? "Online" : "V živo";
-        String rescheduleLink = buildRescheduleLink(company);
+        String rescheduleLink = buildRescheduleLink(company, location);
         String originalAppointmentDateTime;
         if (originalStart != null) {
             LocalDateTime oEnd = originalEnd != null ? originalEnd : originalStart;
@@ -977,6 +1002,7 @@ public class ReminderService {
         m.put("{{locationName}}", locationName);
         m.put("{{locationAddress}}", locationAddress);
         m.put("{{locationPhone}}", locationPhone);
+        m.put("{{locationEmail}}", locationEmail);
         m.put("{{physicalAddress}}", physicalAddress.address());
         m.put("{{physicalPostalCode}}", physicalAddress.postalCode());
         m.put("{{physicalCity}}", physicalAddress.city());
@@ -1004,6 +1030,7 @@ public class ReminderService {
         m.put("{{naslov_lokacije}}", locationAddress);
         m.put("{{ime_lokacije}}", locationName);
         m.put("{{telefon_lokacije}}", locationPhone);
+        m.put("{{email_lokacije}}", locationEmail);
         m.put("{{fizicni_naslov}}", physicalAddress.fullAddress());
         m.put("{{fizicni_naslov_ulica}}", physicalAddress.address());
         m.put("{{fizicna_postna_stevilka}}", physicalAddress.postalCode());
@@ -1025,7 +1052,15 @@ public class ReminderService {
         return m;
     }
 
-    private PhysicalAddress resolvePhysicalAddress(Long companyId) {
+    private PhysicalAddress resolvePhysicalAddress(Long companyId, Location location) {
+        if (location != null) {
+            return new PhysicalAddress(
+                    nz(location.getAddress()),
+                    nz(location.getPostalCode()),
+                    nz(location.getCity()),
+                    nz(location.getCountry())
+            );
+        }
         boolean sameAsCompany = "true".equalsIgnoreCase(settingOr(companyId, SettingKey.COMPANY_PHYSICAL_ADDRESS_SAME_AS_COMPANY, ""));
         String address = sameAsCompany
                 ? settingOr(companyId, SettingKey.COMPANY_ADDRESS, "")
@@ -1097,10 +1132,13 @@ public class ReminderService {
         }
 
         try {
-            var rules = TenantReservationRulesService.resolve(
-                    appSettings.findAllByCompanyId(booking.getCompany().getId()).stream()
-                            .collect(java.util.stream.Collectors.toMap(AppSetting::getKey, AppSetting::getValue, (a, b) -> b))
-            );
+            Long locationId = booking.getLocation() == null ? null : booking.getLocation().getId();
+            var rules = reservationRulesService != null
+                    ? reservationRulesService.resolve(booking.getCompany().getId(), locationId)
+                    : TenantReservationRulesService.resolve(
+                            appSettings.findAllByCompanyId(booking.getCompany().getId()).stream()
+                                    .collect(java.util.stream.Collectors.toMap(AppSetting::getKey, AppSetting::getValue, (a, b) -> b))
+                    );
             // Group bookings are reschedulable through the public manage flow
             // (PublicBookingManageService.moveGroupParticipant), so they get the same
             // reschedule button as individual bookings.
@@ -1113,7 +1151,8 @@ public class ReminderService {
                 return;
             }
 
-            String rawToken = publicBookingManageTokenService.createToken(booking, PUBLIC_BOOKING_ZONE);
+            ZoneId bookingZone = bookingZone(booking);
+            String rawToken = publicBookingManageTokenService.createToken(booking, bookingZone);
             if (rawToken == null || rawToken.isBlank()) {
                 clearPublicBookingManageTokens(tokens);
                 return;
@@ -1193,7 +1232,7 @@ public class ReminderService {
         if (booking.getClient() == null || booking.getClient().isAnonymized()) return false;
         if (booking.getClient().getEmail() == null || booking.getClient().getEmail().isBlank()) return false;
         if (!SessionBookingStatus.RESERVED.equals(SessionBookingStatus.normalizeStored(booking.getBookingStatus()))) return false;
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(bookingZone(booking));
         if (booking.getStartTime() == null || !booking.getStartTime().isAfter(now)) return false;
         LocalDateTime deadline = booking.getStartTime().minusHours(Math.max(0, cutoffHours));
         return !now.isAfter(deadline);
@@ -1212,12 +1251,39 @@ public class ReminderService {
                 .replace(">", "&gt;");
     }
 
-    private String buildRescheduleLink(Company company) {
+    private String buildRescheduleLink(Company company, Location location) {
         String code = company.getTenantCode();
         if (code == null || code.isBlank() || frontendBaseUrl.isBlank()) {
             return "";
         }
-        return frontendBaseUrl + "/widget/" + code.strip();
+        String url = frontendBaseUrl + "/widget/" + code.strip();
+        if (location != null && location.getId() != null) {
+            return url + "?locationId=" + location.getId();
+        }
+        return url;
+    }
+
+    private ZoneId bookingZone(SessionBooking booking) {
+        String raw = booking != null && booking.getLocation() != null ? booking.getLocation().getTimezone() : null;
+        if (raw != null && !raw.isBlank()) {
+            try {
+                return ZoneId.of(raw.trim());
+            } catch (Exception ignored) {
+                // Fall through to the legacy platform default for malformed historical values.
+            }
+        }
+        return PUBLIC_BOOKING_ZONE;
+    }
+
+    private LocationPublicPresentationService.PublicPresentation locationPresentation(Location location) {
+        if (location == null || locationPresentationService == null) return null;
+        try {
+            return locationPresentationService.resolve(location);
+        } catch (Exception ex) {
+            log.debug("Could not resolve location presentation for booking notification locationId={}: {}",
+                    location.getId(), ex.getMessage());
+            return null;
+        }
     }
 
     private String settingOr(Long companyId, SettingKey key, String fallback) {
@@ -1376,11 +1442,17 @@ public class ReminderService {
         return out;
     }
 
-    private void sendHtmlMail(Company company, String to, String subject, String html) throws MessagingException {
+    private void sendHtmlMail(Company company, Location location, String to, String subject, String html) throws MessagingException {
         if (workspaceEmailQuota != null && company != null) workspaceEmailQuota.assertCanSend(company.getId(), 1);
         String safeSubject = subject == null || subject.isBlank() ? " " : subject;
+        LocationPublicPresentationService.PublicPresentation presentation = locationPresentation(location);
         String safeBody = emailLayoutRenderer != null
-                ? emailLayoutRenderer.render(company, html)
+                ? emailLayoutRenderer.render(
+                        company,
+                        html,
+                        presentation == null ? null : presentation.publicName(),
+                        presentation == null ? null : presentation.publicLogoUrl()
+                )
                 : normalizeEmailTemplateHtml(html);
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());

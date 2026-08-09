@@ -7,6 +7,7 @@ import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
 import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestMapper;
+import com.example.app.location.LocationPublicPresentationService;
 import com.example.app.guest.model.*;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionServiceSupport;
@@ -36,6 +37,9 @@ public class GuestNotificationService {
 
     @Autowired(required = false)
     private MessageDeliveryLogService deliveryLogs;
+
+    @Autowired(required = false)
+    private LocationPublicPresentationService locationPresentationService;
 
     @Autowired
     public GuestNotificationService(
@@ -127,18 +131,74 @@ public class GuestNotificationService {
     }
 
     public void bookingConfirmed(GuestUser guestUser, Company company, Client client, SessionBooking booking) {
+        Map<String, Object> eventPayload = new LinkedHashMap<>();
+        eventPayload.put("event", "booking_confirmed");
+        if (booking != null && booking.getId() != null) eventPayload.put("bookingId", booking.getId());
+        addLocationPayload(eventPayload, booking == null ? null : booking.getLocation());
         create(guestUser, company, client, GuestNotificationType.BOOKING_CONFIRMED,
                 "Booking confirmed",
                 "Your booking for " + SessionServiceSupport.serviceSummary(booking) + " is confirmed.",
-                null);
+                payload(eventPayload));
     }
 
     public void paymentPending(GuestUser guestUser, Company company, Client client, String title, String body) {
         create(guestUser, company, client, GuestNotificationType.PAYMENT_PENDING, title, body, null);
     }
 
+    public PaymentNotificationContext paymentContext(GuestOrder order) {
+        if (order == null) return null;
+        Long locationId = order.getLocation() == null ? null : order.getLocation().getId();
+        String locationName = null;
+        if (order.getLocation() != null) {
+            locationName = order.getLocation().getName();
+            if (locationPresentationService != null) {
+                try {
+                    var presentation = locationPresentationService.resolve(order.getLocation());
+                    if (presentation != null && presentation.publicName() != null && !presentation.publicName().isBlank()) {
+                        locationName = presentation.publicName();
+                    }
+                } catch (RuntimeException ignored) {
+                    // Notification context must not make checkout fail; fall back to the operational location name.
+                }
+            }
+        }
+        return new PaymentNotificationContext(
+                order.getGuestUser(),
+                order.getCompany(),
+                order.getClient(),
+                order.getId(),
+                locationId,
+                locationName
+        );
+    }
+
+    public void paymentPending(PaymentNotificationContext context, String title, String body) {
+        if (context == null) return;
+        Map<String, Object> eventPayload = new LinkedHashMap<>();
+        eventPayload.put("event", "payment_pending");
+        if (context.orderId() != null) eventPayload.put("orderId", context.orderId());
+        if (context.locationId() != null) eventPayload.put("locationId", context.locationId());
+        if (context.locationName() != null && !context.locationName().isBlank()) {
+            eventPayload.put("locationName", context.locationName());
+        }
+        create(context.guestUser(), context.company(), context.client(), GuestNotificationType.PAYMENT_PENDING, title, body, payload(eventPayload));
+    }
+
+    public void paymentPending(GuestOrder order, String title, String body) {
+        paymentPending(paymentContext(order), title, body);
+    }
+
     public void paymentConfirmed(GuestUser guestUser, Company company, Client client, String title, String body) {
         create(guestUser, company, client, GuestNotificationType.PAYMENT_CONFIRMED, title, body, null);
+    }
+
+    public void paymentConfirmed(GuestOrder order, String title, String body) {
+        if (order == null) return;
+        Map<String, Object> eventPayload = new LinkedHashMap<>();
+        eventPayload.put("event", "payment_confirmed");
+        if (order.getId() != null) eventPayload.put("orderId", order.getId());
+        addLocationPayload(eventPayload, order.getLocation());
+        create(order.getGuestUser(), order.getCompany(), order.getClient(), GuestNotificationType.PAYMENT_CONFIRMED, title, body, payload(eventPayload));
     }
 
     public void guestMessage(GuestUser guestUser, Company company, Client client, String title, String body, String payloadJson) {
@@ -158,10 +218,7 @@ public class GuestNotificationService {
                 GuestNotificationType.BOOKING_UPDATED,
                 title,
                 body,
-                payload(Map.of(
-                        "event", "booking_updated",
-                        "bookingId", booking.getId() == null ? "" : String.valueOf(booking.getId())
-                ))
+                bookingPayload("booking_updated", booking)
         );
         sendBellPush(created, title, body, "booking_updated");
         return created;
@@ -226,12 +283,7 @@ public class GuestNotificationService {
                 GuestNotificationType.INVOICE_CREATED,
                 title,
                 body,
-                payload(Map.of(
-                        "event", "invoice_created",
-                        "billId", bill.getId() == null ? "" : String.valueOf(bill.getId()),
-                        "billNumber", bill.getBillNumber() == null ? "" : bill.getBillNumber(),
-                        "orderId", bill.getOrderId() == null ? "" : bill.getOrderId()
-                ))
+                invoicePayload(bill)
         );
         sendBellPush(created, title, body, "invoice_created");
         return created;
@@ -290,6 +342,15 @@ public class GuestNotificationService {
                 if (notification.getNotificationType() != null) {
                     extra.put("notificationType", notification.getNotificationType().name());
                 }
+                if (notification.getPayloadJson() != null && !notification.getPayloadJson().isBlank()) {
+                    try {
+                        var payloadNode = JSON.readTree(notification.getPayloadJson());
+                        String locationId = payloadNode.path("locationId").asText("").trim();
+                        if (!locationId.isBlank()) extra.put("locationId", locationId);
+                    } catch (Exception ignored) {
+                        // Push metadata is best-effort; the persisted notification remains authoritative.
+                    }
+                }
                 guestPushService.notifyGuestReminder(
                         notification.getGuestUser(),
                         notification.getCompany(),
@@ -312,6 +373,50 @@ public class GuestNotificationService {
             return;
         }
         send.run();
+    }
+
+    public record PaymentNotificationContext(
+            GuestUser guestUser,
+            Company company,
+            Client client,
+            Long orderId,
+            Long locationId,
+            String locationName
+    ) {}
+
+    private String bookingPayload(String event, SessionBooking booking) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("event", event);
+        if (booking != null && booking.getId() != null) values.put("bookingId", booking.getId());
+        addLocationPayload(values, booking == null ? null : booking.getLocation());
+        return payload(values);
+    }
+
+    private String invoicePayload(Bill bill) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("event", "invoice_created");
+        if (bill != null && bill.getId() != null) values.put("billId", bill.getId());
+        values.put("billNumber", bill == null || bill.getBillNumber() == null ? "" : bill.getBillNumber());
+        values.put("orderId", bill == null || bill.getOrderId() == null ? "" : bill.getOrderId());
+        addLocationPayload(values, bill == null ? null : bill.getLocation());
+        return payload(values);
+    }
+
+    private void addLocationPayload(Map<String, Object> values, com.example.app.location.Location location) {
+        if (values == null || location == null || location.getId() == null) return;
+        values.put("locationId", location.getId());
+        String name = location.getName();
+        if (locationPresentationService != null) {
+            try {
+                var presentation = locationPresentationService.resolve(location);
+                if (presentation != null && presentation.publicName() != null && !presentation.publicName().isBlank()) {
+                    name = presentation.publicName();
+                }
+            } catch (Exception ignored) {
+                // Payload still contains the immutable location ID and internal name fallback.
+            }
+        }
+        if (name != null && !name.isBlank()) values.put("locationName", name.trim());
     }
 
     private static String payload(Map<String, ?> values) {
