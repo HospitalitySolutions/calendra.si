@@ -66,6 +66,22 @@ import { dayOptions, type BookingPaymentAllocation, type BookingPaymentStatus, t
 import { CALENDAR_TIME_SCALE_MINUTES_KEY, normalizeCalendarTimeScaleMinutes } from '../../lib/calendarTimeScale'
 import { isWorkspaceRolloutEnabled } from '../../lib/workspaceRollout'
 import { useSelectedLocationId } from '../../lib/locationContext'
+import { queryClient } from '../../queries/queryClient'
+import { queryKeys } from '../../queries/queryKeys'
+import {
+  clientOptionsQueryOptions,
+  locationsQueryOptions,
+  settingsQueryOptions,
+  usersQueryOptions,
+} from '../../queries/sharedQueryOptions'
+import {
+  calendarGroupsQueryOptions,
+  calendarIntegrationStatusQueryOptions,
+  calendarRangeQueryOptions,
+  calendarSpacesQueryOptions,
+  calendarTypesQueryOptions,
+  holidaysQueryOptions,
+} from '../../queries/calendarQueryOptions'
 
 import {
   ANDROID_PINCH_ZOOM_MAX,
@@ -419,6 +435,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const voiceRecognitionLang = locale === 'sl' ? 'sl-SI' : 'en-US'
   const { setSlots: setShellCalendarSlots } = useCalendarShellHeader()
   const isTenantAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN'
+  const activeUnitId = user.activeUnitId ?? user.companyId ?? null
   const calendarNavigationKey = useMemo(() => calendarNavigationStorageKey(user), [user.companyId, user.id, user.tenantCode])
   const calendarDashboardViewStorageKey = useMemo(
     () => `calendra.calendar.dashboard.view.v1:${String(user.companyId ?? user.tenantCode ?? 'company')}:${String(user.id ?? 'user')}`,
@@ -446,6 +463,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const waitlistModuleEnabled = settings.WAITLIST_ENABLED === 'true'
   const [meta, setMeta] = useState({ clients: [], users: [], locations: [], spaces: [], types: [] } as any)
   const [calendarMetaLoaded, setCalendarMetaLoaded] = useState(false)
+  const [calendarEditorMetaLoaded, setCalendarEditorMetaLoaded] = useState(false)
   const EMPTY_ARR: any[] = useMemo(() => [], [])
   const metaUsers: any[] = Array.isArray(meta.users) ? meta.users : EMPTY_ARR
   const metaLocations: any[] = Array.isArray(meta.locations) ? meta.locations : EMPTY_ARR
@@ -1789,12 +1807,12 @@ export default function CalendarPage({ user }: CalendarPageProps) {
 
   const applySettingsAndMeta = (
     s: { data?: Record<string, string> },
-    clients: { data: any },
+    clients: { data?: any; preserve?: boolean },
     users: { data: any },
     locations: { data: any },
     spaces: { data: any },
     types: { data: any },
-    groups?: { data: any },
+    groups?: { data?: any; preserve?: boolean },
   ) => {
     let settingsData = s.data || {}
     if (!settingsData.WORKING_HOURS_START && !settingsData.WORKING_HOURS_END) {
@@ -1809,40 +1827,86 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       }
     }
     setSettings(settingsData)
-    setMeta({ clients: clients.data, users: users.data, locations: locations.data, spaces: spaces.data, types: types.data, groups: groups?.data ?? [] })
+    setMeta((previous: any) => ({
+      clients: clients.preserve ? (previous.clients ?? []) : (clients.data ?? []),
+      users: users.data,
+      locations: locations.data,
+      spaces: spaces.data,
+      types: types.data,
+      groups: groups?.preserve ? (previous.groups ?? []) : (groups?.data ?? []),
+    }))
     setCalendarMetaLoaded(true)
   }
 
-  const loadMetaOnly = async () => {
-    const [s, clients, users, locations, spaces, types, groups] = await Promise.all([
-      api.get('/settings'),
-      api.get('/clients/options', { params: { size: 500, locationId: locationFilterId ?? undefined } }),
-      isTenantAdmin
-        ? api.get('/users').catch(() => ({ data: [] }))
-        : Promise.resolve({ data: [user] }),
-      api.get('/locations').catch(() => ({ data: [] })),
-      api.get('/spaces'),
-      api.get('/types'),
-      api.get('/groups', { params: { locationId: locationFilterId ?? undefined } }).catch(() => ({ data: [] })),
+  const invalidateCalendarMetaQueries = async (includeEditorLookups = false) => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.settings.byUnit(activeUnitId), exact: true }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.locations.byUnit(activeUnitId), exact: true }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.spaces(activeUnitId), exact: true }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.types(activeUnitId), exact: true }),
+      ...(isTenantAdmin
+        ? [queryClient.invalidateQueries({ queryKey: queryKeys.users.byUnit(activeUnitId), exact: true })]
+        : []),
+      ...(includeEditorLookups
+        ? [
+            queryClient.invalidateQueries({ queryKey: queryKeys.clients.options(activeUnitId, locationFilterId, 500), exact: true }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.groups.calendar(activeUnitId, locationFilterId), exact: true }),
+          ]
+        : []),
     ])
+  }
+
+  const fetchCalendarMeta = async (force = false, includeEditorLookups = false) => {
+    if (force) await invalidateCalendarMetaQueries(includeEditorLookups)
+    const [settingsData, usersData, locationsData, spacesData, typesData, clientsData, groupsData] = await Promise.all([
+      queryClient.fetchQuery(settingsQueryOptions(activeUnitId)),
+      isTenantAdmin
+        ? queryClient.fetchQuery(usersQueryOptions<any>(activeUnitId)).catch(() => [])
+        : Promise.resolve([user]),
+      queryClient.fetchQuery(locationsQueryOptions(activeUnitId)).catch(() => []),
+      queryClient.fetchQuery(calendarSpacesQueryOptions<any>(activeUnitId)),
+      queryClient.fetchQuery(calendarTypesQueryOptions<any>(activeUnitId)),
+      includeEditorLookups
+        ? queryClient.fetchQuery(clientOptionsQueryOptions<any>(activeUnitId, locationFilterId, 500))
+        : Promise.resolve(undefined),
+      includeEditorLookups
+        ? queryClient.fetchQuery(calendarGroupsQueryOptions<any>(activeUnitId, locationFilterId)).catch(() => [])
+        : Promise.resolve(undefined),
+    ])
+    if (includeEditorLookups) setCalendarEditorMetaLoaded(true)
+    return [
+      { data: settingsData },
+      includeEditorLookups ? { data: clientsData } : { preserve: true },
+      { data: usersData },
+      { data: locationsData },
+      { data: spacesData },
+      { data: typesData },
+      includeEditorLookups ? { data: groupsData } : { preserve: true },
+    ] as const
+  }
+
+  const loadMetaOnly = async (force = false, includeEditorLookups = false) => {
+    const [s, clients, users, locations, spaces, types, groups] = await fetchCalendarMeta(force, includeEditorLookups)
     applySettingsAndMeta(s, clients, users, locations, spaces, types, groups)
   }
 
-  const load = async () => {
+  const fetchCalendarRange = async (fromStr: string, toStr: string, force = false) => {
+    const options = calendarRangeQueryOptions<any>(activeUnitId, calendarScope, fromStr, toStr)
+    if (force) {
+      // Any booking mutation/realtime event may affect an overlapping cached
+      // week/month. Mark every calendar range stale, but refetch only the active one.
+      await queryClient.invalidateQueries({ queryKey: queryKeys.calendar.ranges })
+    }
+    return queryClient.fetchQuery(options)
+  }
+
+  // Direct mutation paths historically called load() to force a fresh calendar.
+  // Keep that behavior by default, while the initial/retry path opts into cache reuse.
+  const load = async (forceCalendar = true, forceMeta = false, includeEditorMeta = false) => {
     const { fromStr, toStr, key } = computeCalendarFetchRange()
     const scopedKey = `${calendarScope}:${key}`
-    const calendarRequest = api.get(workspaceCalendarReadOnly ? '/bookings/calendar/workspace' : '/bookings/calendar', { params: { from: fromStr, to: toStr } })
-    const metaRequest = Promise.all([
-      api.get('/settings'),
-      api.get('/clients/options', { params: { size: 500, locationId: locationFilterId ?? undefined } }),
-      isTenantAdmin
-        ? api.get('/users').catch(() => ({ data: [] }))
-        : Promise.resolve({ data: [user] }),
-      api.get('/locations').catch(() => ({ data: [] })),
-      api.get('/spaces'),
-      api.get('/types'),
-      api.get('/groups', { params: { locationId: locationFilterId ?? undefined } }).catch(() => ({ data: [] })),
-    ])
+    const calendarRequest = fetchCalendarRange(fromStr, toStr, forceCalendar)
+    const metaRequest = fetchCalendarMeta(forceMeta, includeEditorMeta)
     const [calendarResult, metaResult] = await Promise.allSettled([calendarRequest, metaRequest])
 
     if (metaResult.status === 'fulfilled') {
@@ -1852,7 +1916,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
 
     if (calendarResult.status === 'rejected') throw calendarResult.reason
 
-    setCalendarData(filterHiddenStatusesFromCalendarPayload(calendarResult.value.data))
+    setCalendarData(filterHiddenStatusesFromCalendarPayload(calendarResult.value))
     lastSuccessfulCalendarRangeKeyRef.current = scopedKey
     hasLoadedCalendarRef.current = true
     setCalendarLoadState('ready')
@@ -1868,8 +1932,8 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     const { fromStr, toStr, key } = computeCalendarFetchRange()
     const scopedKey = `${calendarScope}:${key}`
     if (!force && scopedKey === lastSuccessfulCalendarRangeKeyRef.current) return calendarData
-    const c = await api.get(workspaceCalendarReadOnly ? '/bookings/calendar/workspace' : '/bookings/calendar', { params: { from: fromStr, to: toStr } })
-    const nextCalendarData = filterHiddenStatusesFromCalendarPayload(c.data)
+    const rawCalendarData = await fetchCalendarRange(fromStr, toStr, force)
+    const nextCalendarData = filterHiddenStatusesFromCalendarPayload(rawCalendarData)
     setCalendarData(nextCalendarData)
     lastSuccessfulCalendarRangeKeyRef.current = scopedKey
     hasLoadedCalendarRef.current = true
@@ -1884,7 +1948,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const loadCalendarWithRetry = async (maxAttempts = 3) => {
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        await load()
+        await load(false)
         return true
       } catch (error: any) {
         const status = Number(error?.response?.status ?? 0)
@@ -1975,6 +2039,34 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       }
     }
   }
+
+  useEffect(() => {
+    setCalendarEditorMetaLoaded(false)
+  }, [activeUnitId, locationFilterId])
+
+  useEffect(() => {
+    if (calendarEditorMetaLoaded) return
+    const editorOpen = Boolean(
+      selection
+      || selectedBookedSession
+      || showAddClientModal
+      || showAddGroupModal
+      || voiceReviewOpen
+      || voicePendingCancellation
+      || isCalendarFormPath(location.pathname)
+    )
+    if (!editorOpen) return
+    void loadMetaOnly(false, true).catch(() => undefined)
+  }, [
+    calendarEditorMetaLoaded,
+    location.pathname,
+    selectedBookedSession,
+    selection,
+    showAddClientModal,
+    showAddGroupModal,
+    voicePendingCancellation,
+    voiceReviewOpen,
+  ])
 
   // Remove a temporary waitlist block as soon as its offer expires instead of
   // waiting for the next regular calendar polling cycle.
@@ -2155,7 +2247,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   }, [location.pathname, location.search, navigate])
 
   const refreshCalendarAfterClientEdit = useCallback(async () => {
-    await loadMetaOnly()
+    await loadMetaOnly(true, true)
     await loadCalendarRangeOnly(true)
   }, [loadCalendarRangeOnly])
 
@@ -2233,11 +2325,10 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     if (key === lastHolidayRangeKeyRef.current) return
     lastHolidayRangeKeyRef.current = key
     let cancelled = false
-    api
-      .get('/holidays', { params: { from, to } })
-      .then((res) => {
+    queryClient
+      .fetchQuery(holidaysQueryOptions<{ date?: string; localName?: string; name?: string }>(from, to))
+      .then((rows) => {
         if (cancelled) return
-        const rows: Array<{ date?: string; localName?: string; name?: string }> = Array.isArray(res.data) ? res.data : []
         const next: Record<string, string> = {}
         rows.forEach((row) => {
           if (!row?.date) return
@@ -2255,29 +2346,54 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   }, [visibleRange])
 
   useEffect(() => {
+    if (!meetingProviderPickerOpen) return
+    void Promise.all([
+      queryClient.fetchQuery(calendarIntegrationStatusQueryOptions<{ connected?: boolean }>(activeUnitId, 'zoom')).catch(() => ({ connected: false })),
+      queryClient.fetchQuery(calendarIntegrationStatusQueryOptions<{ connected?: boolean }>(activeUnitId, 'google')).catch(() => ({ connected: false })),
+    ]).then(([zoom, google]) => {
+      setZoomConnected(zoom.connected === true)
+      setGoogleConnected(google.connected === true)
+    })
+  }, [activeUnitId, meetingProviderPickerOpen])
+
+  useEffect(() => {
+    if (settings.AI_BOOKING_ENABLED !== 'true') {
+      setVoiceBookingConfigured(null)
+      return
+    }
+    void queryClient
+      .fetchQuery(calendarIntegrationStatusQueryOptions<{ configured?: boolean }>(activeUnitId, 'voice-booking'))
+      .then((status) => setVoiceBookingConfigured(status.configured === true))
+      .catch(() => setVoiceBookingConfigured(false))
+  }, [activeUnitId, settings.AI_BOOKING_ENABLED])
+
+  useEffect(() => {
     calendarPollingActiveRef.current = true
     void loadCalendarWithRetry()
-    void api.get('/zoom/status').then((r) => setZoomConnected(r.data.connected)).catch(() => setZoomConnected(false))
-    void api.get('/google/status').then((r) => setGoogleConnected(r.data.connected)).catch(() => setGoogleConnected(false))
-    void api.get('/ai/voice-booking/status').then((r) => setVoiceBookingConfigured(!!r.data?.configured)).catch(() => setVoiceBookingConfigured(false))
     const calendarInterval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void refreshCalendarSafely()
     }, CALENDAR_POLL_MS)
     const metaInterval = window.setInterval(() => {
       if (document.visibilityState === 'visible') void refreshMetaSafely()
     }, CALENDAR_META_POLL_MS)
-    const refreshClients = () => api.get('/clients/options', { params: { size: 500, locationId: locationFilterId ?? undefined } }).then((r) => {
-      const updated: any[] = r.data ?? []
-      setMeta((prev: any) => ({ ...prev, clients: updated }))
-      setForm((f: any) => {
-        if (!f.clientId) return f
-        const still = updated.find((c: any) => c.id === f.clientId)
-        if (still && still.active !== false) return f
-        return { ...f, clientId: undefined }
-      })
-    }).catch(() => {})
+    const refreshClients = () => {
+      const options = clientOptionsQueryOptions<any>(activeUnitId, locationFilterId, 500)
+      void queryClient.invalidateQueries({ queryKey: options.queryKey, exact: true }).then(() =>
+        queryClient.fetchQuery(options).then((updated) => {
+          setMeta((prev: any) => ({ ...prev, clients: updated }))
+          setForm((f: any) => {
+            if (!f.clientId) return f
+            const still = updated.find((c: any) => c.id === f.clientId)
+            if (still && still.active !== false) return f
+            return { ...f, clientId: undefined }
+          })
+        }),
+      ).catch(() => {})
+    }
     const onTodosUpdated = () => void refreshCalendarSafely(true)
-    const onSettingsUpdated = () => void refreshMetaSafely(true)
+    const onSettingsUpdated = () => {
+      void invalidateCalendarMetaQueries().then(() => refreshMetaSafely(true))
+    }
     const onBookingUpdated = () => {
       if (realtimeCalendarReloadTimerRef.current != null) {
         window.clearTimeout(realtimeCalendarReloadTimerRef.current)
@@ -2328,7 +2444,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
         datesSetCalendarLoadTimerRef.current = null
       }
     }
-  }, [locationFilterId])
+  }, [activeUnitId, locationFilterId])
 
   useEffect(() => {
     const PENDING_EXTERNAL_TODO_KEY = 'openCalendarTodo'
@@ -2448,6 +2564,17 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       ]).then(([zoom, google]) => {
         setZoomConnected(zoom)
         setGoogleConnected(google)
+        // OAuth continuation deliberately rechecks the provider directly. Keep the
+        // shared status cache in sync so reopening the provider picker cannot
+        // restore a stale pre-OAuth `connected: false` value.
+        queryClient.setQueryData(
+          queryKeys.calendar.integrationStatus(activeUnitId, 'zoom'),
+          (previous: any) => ({ ...(previous || {}), connected: zoom }),
+        )
+        queryClient.setQueryData(
+          queryKeys.calendar.integrationStatus(activeUnitId, 'google'),
+          (previous: any) => ({ ...(previous || {}), connected: google }),
+        )
         const provider = pending.meetingProvider || 'zoom'
         const connected = provider === 'google' ? google : zoom
         if (!connected) {
@@ -2576,6 +2703,17 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       ]).then(([zoom, google]) => {
         setZoomConnected(zoom)
         setGoogleConnected(google)
+        // OAuth continuation deliberately rechecks the provider directly. Keep the
+        // shared status cache in sync so reopening the provider picker cannot
+        // restore a stale pre-OAuth `connected: false` value.
+        queryClient.setQueryData(
+          queryKeys.calendar.integrationStatus(activeUnitId, 'zoom'),
+          (previous: any) => ({ ...(previous || {}), connected: zoom }),
+        )
+        queryClient.setQueryData(
+          queryKeys.calendar.integrationStatus(activeUnitId, 'google'),
+          (previous: any) => ({ ...(previous || {}), connected: google }),
+        )
         const provider = pending.meetingProvider || 'zoom'
         const connected = provider === 'google' ? google : zoom
         if (!connected) {

@@ -3,6 +3,18 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useLocale } from '../locale'
 import { ModernTimePicker } from '../components/ModernTimePicker'
+import { useAuthenticatedUser } from '../authUserContext'
+import { queryClient } from '../queries/queryClient'
+import { queryKeys } from '../queries/queryKeys'
+import { clientOptionsQueryOptions, locationsQueryOptions, settingsQueryOptions } from '../queries/sharedQueryOptions'
+import {
+  calendarSpacesQueryOptions,
+  calendarTypesQueryOptions,
+  consultantsQueryOptions,
+  serviceGroupsQueryOptions,
+  waitlistDetailQueryOptions,
+  waitlistOverviewQueryOptions,
+} from '../queries/calendarQueryOptions'
 
 type Employee = { id: number; name: string }
 type WindowView = { id: number; dayOfWeek?: string | null; date?: string | null; timeFrom?: string | null; timeTo?: string | null; allDay: boolean }
@@ -254,6 +266,8 @@ function eventLabel(type: string, locale: string) {
 
 export function AppointmentsPage() {
   const { locale } = useLocale()
+  const me = useAuthenticatedUser()
+  const activeUnitId = me.activeUnitId ?? me.companyId ?? null
   const location = useLocation()
   const navigate = useNavigate()
   const query = useMemo(() => new URLSearchParams(location.search), [location.search])
@@ -264,6 +278,7 @@ export function AppointmentsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [serviceFilter, setServiceFilter] = useState('')
   const [employeeFilter, setEmployeeFilter] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
@@ -296,6 +311,22 @@ export function AppointmentsPage() {
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 780px)').matches : false,
   )
   const [mobilePage, setMobilePage] = useState(1)
+
+  useEffect(() => {
+    createLookupsLoadedRef.current = false
+    createLookupsPromiseRef.current = null
+    offerLookupsLoadedRef.current = false
+    offerLookupsPromiseRef.current = null
+    setClients([])
+    setServiceGroups([])
+    setLocations([])
+    setSpaces([])
+  }, [activeUnitId])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 250)
+    return () => window.clearTimeout(timer)
+  }, [search])
 
   const copy = locale === 'sl' ? {
     title: 'Čakalna vrsta', appointments: 'Termini', waitlist: 'Čakalna vrsta', coming: 'Pregled terminov bo dodan v naslednji fazi.',
@@ -331,20 +362,32 @@ export function AppointmentsPage() {
 
   const loadRows = useCallback(async (
     preferredId?: number | null,
-    options: { silent?: boolean; preserveSelection?: boolean } = {},
+    options: { silent?: boolean; preserveSelection?: boolean; force?: boolean } = {},
   ) => {
     const selectionEpoch = modalSelectionEpoch.current
     const silent = options.silent === true
     const preserveSelection = options.preserveSelection === true
+    const force = options.force === true
     if (!silent) {
       setLoading(true)
       setError('')
     }
+    const params = {
+      view,
+      search: debouncedSearch || undefined,
+      serviceId: serviceFilter || undefined,
+      employeeId: employeeFilter || undefined,
+      source: sourceFilter || undefined,
+      dateFrom: dateFromFilter || undefined,
+      dateTo: dateToFilter || undefined,
+    }
+    const signature = JSON.stringify(params)
+    const overviewOptions = waitlistOverviewQueryOptions<any>(activeUnitId, signature, params)
     try {
-      const { data } = await api.get('/waitlists/overview', { params: {
-        view, search: search || undefined, serviceId: serviceFilter || undefined, employeeId: employeeFilter || undefined,
-        source: sourceFilter || undefined, dateFrom: dateFromFilter || undefined, dateTo: dateToFilter || undefined,
-      } })
+      if (force) {
+        await queryClient.invalidateQueries({ queryKey: overviewOptions.queryKey, exact: true })
+      }
+      const data = await queryClient.fetchQuery(overviewOptions)
       const list = Array.isArray(data?.rows) ? data.rows as WaitlistRequest[] : []
       setRows(list)
       setViewCounts({
@@ -356,9 +399,13 @@ export function AppointmentsPage() {
       const targetId = preferredId ?? queryRequestId
       if (targetId) {
         if (selectionEpoch !== modalSelectionEpoch.current) return
-        const response = await api.get(`/waitlists/${targetId}`).catch(() => null)
+        const detailOptions = waitlistDetailQueryOptions<WaitlistRequest>(activeUnitId, targetId)
+        if (force) {
+          await queryClient.invalidateQueries({ queryKey: detailOptions.queryKey, exact: true })
+        }
+        const detail = await queryClient.fetchQuery(detailOptions).catch(() => null)
         if (selectionEpoch === modalSelectionEpoch.current) {
-          setSelected(response?.data ?? list.find(item => item.id === targetId) ?? null)
+          setSelected(detail ?? list.find(item => item.id === targetId) ?? null)
         }
       } else if (selectionEpoch === modalSelectionEpoch.current) {
         setSelected(current => current && !list.some(item => item.id === current.id) ? null : current)
@@ -368,19 +415,20 @@ export function AppointmentsPage() {
     } finally {
       if (!silent) setLoading(false)
     }
-  }, [view, search, serviceFilter, employeeFilter, sourceFilter, dateFromFilter, dateToFilter, queryRequestId, copy.loadError])
+  }, [activeUnitId, view, debouncedSearch, serviceFilter, employeeFilter, sourceFilter, dateFromFilter, dateToFilter, queryRequestId, copy.loadError])
 
   const loadLookups = useCallback(async () => {
-    // Only load data needed by the visible waitlist and its filters.
+    // Reuse the same scheduling metadata cache as Calendar instead of issuing
+    // another settings/types/users request burst when switching tabs.
     const [settingsResult, servicesResult, employeesResult] = await Promise.allSettled([
-      api.get<Record<string, string>>('/settings'),
-      api.get('/types'),
-      api.get('/users/consultants'),
+      queryClient.fetchQuery(settingsQueryOptions(activeUnitId)),
+      queryClient.fetchQuery(calendarTypesQueryOptions<any>(activeUnitId)),
+      queryClient.fetchQuery(consultantsQueryOptions<any>(activeUnitId)),
     ])
-    const groupsEnabled = settingsResult.status !== 'fulfilled' || settingsResult.value.data?.SERVICE_GROUPS_ENABLED !== 'false'
+    const groupsEnabled = settingsResult.status !== 'fulfilled' || settingsResult.value?.SERVICE_GROUPS_ENABLED !== 'false'
     setServiceGroupsModuleEnabled(groupsEnabled)
     if (servicesResult.status === 'fulfilled') {
-      const value = Array.isArray(servicesResult.value.data) ? servicesResult.value.data : []
+      const value = Array.isArray(servicesResult.value) ? servicesResult.value : []
       setServices(
         value
           .filter((item: any) => item.active !== false)
@@ -392,10 +440,10 @@ export function AppointmentsPage() {
       )
     }
     if (employeesResult.status === 'fulfilled') {
-      const value = Array.isArray(employeesResult.value.data) ? employeesResult.value.data : []
+      const value = Array.isArray(employeesResult.value) ? employeesResult.value : []
       setEmployees(value.map((item: any) => ({ id: item.id, name: `${item.firstName || ''} ${item.lastName || ''}`.trim() || item.email || `#${item.id}` })))
     }
-  }, [])
+  }, [activeUnitId])
 
   const loadCreateLookups = useCallback(async () => {
     if (createLookupsLoadedRef.current) return
@@ -404,19 +452,19 @@ export function AppointmentsPage() {
       return
     }
     const request = Promise.allSettled([
-      api.get('/clients/options', { params: { size: 500 } }),
-      api.get('/service-groups'),
-      api.get('/locations'),
+      queryClient.fetchQuery(clientOptionsQueryOptions<ClientItem>(activeUnitId, null, 500)),
+      queryClient.fetchQuery(serviceGroupsQueryOptions<any>(activeUnitId)),
+      queryClient.fetchQuery(locationsQueryOptions(activeUnitId)),
     ]).then(([clientsResult, groupsResult, locationsResult]) => {
       if (clientsResult.status === 'fulfilled') {
-        setClients(Array.isArray(clientsResult.value.data) ? clientsResult.value.data.filter((client: any) => client?.active !== false) : [])
+        setClients(Array.isArray(clientsResult.value) ? clientsResult.value.filter((client: any) => client?.active !== false) : [])
       }
       if (groupsResult.status === 'fulfilled') {
-        const value = Array.isArray(groupsResult.value.data) ? groupsResult.value.data : []
+        const value = Array.isArray(groupsResult.value) ? groupsResult.value : []
         setServiceGroups(value.filter((item: any) => item.active !== false).map((item: any) => ({ id: item.id, name: item.name, active: item.active !== false, serviceCount: Number(item.serviceCount || 0) })))
       }
       if (locationsResult.status === 'fulfilled') {
-        const value = Array.isArray(locationsResult.value.data) ? locationsResult.value.data : []
+        const value = Array.isArray(locationsResult.value) ? locationsResult.value : []
         setLocations(value.filter((item: any) => item.active !== false).map((item: any) => ({ id: item.id, name: item.name || `#${item.id}` })))
       }
       createLookupsLoadedRef.current = true
@@ -425,7 +473,7 @@ export function AppointmentsPage() {
     })
     createLookupsPromiseRef.current = request
     await request
-  }, [])
+  }, [activeUnitId])
 
   const loadOfferLookups = useCallback(async () => {
     if (offerLookupsLoadedRef.current) return
@@ -434,15 +482,15 @@ export function AppointmentsPage() {
       return
     }
     const request = Promise.allSettled([
-      api.get('/locations'),
-      api.get('/spaces'),
+      queryClient.fetchQuery(locationsQueryOptions(activeUnitId)),
+      queryClient.fetchQuery(calendarSpacesQueryOptions<any>(activeUnitId)),
     ]).then(([locationsResult, spacesResult]) => {
       if (locationsResult.status === 'fulfilled') {
-        const value = Array.isArray(locationsResult.value.data) ? locationsResult.value.data : []
+        const value = Array.isArray(locationsResult.value) ? locationsResult.value : []
         setLocations(value.filter((item: any) => item.active !== false).map((item: any) => ({ id: item.id, name: item.name || `#${item.id}` })))
       }
       if (spacesResult.status === 'fulfilled') {
-        const value = Array.isArray(spacesResult.value.data) ? spacesResult.value.data : []
+        const value = Array.isArray(spacesResult.value) ? spacesResult.value : []
         setSpaces(value.map((item: any) => ({ id: item.id, name: item.name || `#${item.id}`, locationId: item.location?.id ?? null })))
       }
       offerLookupsLoadedRef.current = true
@@ -451,7 +499,7 @@ export function AppointmentsPage() {
     })
     offerLookupsPromiseRef.current = request
     await request
-  }, [])
+  }, [activeUnitId])
 
 
   useEffect(() => {
@@ -497,8 +545,10 @@ export function AppointmentsPage() {
     params.delete('tab')
     params.set('requestId', String(row.id))
     navigate({ pathname: '/appointments', search: params.toString() }, { replace: true })
-    const response = await api.get(`/waitlists/${row.id}`).catch(() => null)
-    if (response?.data && epoch === modalSelectionEpoch.current) setSelected(response.data)
+    const detail = await queryClient
+      .fetchQuery(waitlistDetailQueryOptions<WaitlistRequest>(activeUnitId, row.id))
+      .catch(() => null)
+    if (detail && epoch === modalSelectionEpoch.current) setSelected(detail)
   }
 
   const createRequest = async (event: FormEvent) => {
@@ -543,10 +593,11 @@ export function AppointmentsPage() {
         windows: anyAvailableSlot ? [] : [{ dayOfWeek: null, date: null, timeFrom: requestForm.timeFrom, timeTo: requestForm.timeTo, allDay: false }],
       }
       const { data } = await api.post('/waitlists', payload)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.waitlist.all })
       setShowCreate(false)
       setRequestForm(emptyRequestForm())
       setView('ACTIVE')
-      await loadRows(data?.id)
+      await loadRows(data?.id, { force: true })
     } catch (e: any) {
       window.alert(e?.response?.data?.message || e?.response?.data?.detail || 'Napaka pri shranjevanju.')
     } finally {
@@ -554,8 +605,19 @@ export function AppointmentsPage() {
     }
   }
 
-  const openOffer = (request: WaitlistRequest | null = selected) => {
+  const openOffer = async (request: WaitlistRequest | null = selected) => {
     if (!request) return
+    // The offer dialog used to have locations/spaces available before it opened.
+    // Keep the same auto-selection behavior while loading those lookups lazily.
+    await loadOfferLookups()
+    const cachedSpaces = queryClient.getQueryData<any[]>(queryKeys.scheduling.spaces(activeUnitId))
+    const availableSpaces: LookupItem[] = Array.isArray(cachedSpaces)
+      ? cachedSpaces.map((item: any) => ({
+          id: item.id,
+          name: item.name || `#${item.id}`,
+          locationId: item.location?.id ?? null,
+        }))
+      : spaces
     const defaultDate = request.dateFrom
     const concrete = request.serviceScope === 'SERVICE_GROUP'
       ? request.eligibleServices?.find(item => item.id)
@@ -572,8 +634,8 @@ export function AppointmentsPage() {
         ? String(employeeOptions[0].id)
         : ''
     const matchingRooms = request.locationId
-      ? spaces.filter(item => Number(item.locationId) === Number(request.locationId))
-      : spaces
+      ? availableSpaces.filter(item => Number(item.locationId) === Number(request.locationId))
+      : availableSpaces
     const roomId = matchingRooms.length === 1 ? String(matchingRooms[0].id) : ''
     setOfferForm({ serviceId, slotStart: start, slotEnd: end, employeeId, roomId, validityMinutes: '15' })
     setShowOffer(true)
@@ -601,10 +663,11 @@ export function AppointmentsPage() {
         slotStart: offerForm.slotStart, slotEnd: offerForm.slotEnd, employeeId: offerForm.employeeId ? Number(offerForm.employeeId) : null,
         roomId: offerForm.roomId ? Number(offerForm.roomId) : null, sessionId: selected.targetSessionId || null, validityMinutes: Number(offerForm.validityMinutes || 15),
       })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.waitlist.all })
       setSelected(data)
       setShowOffer(false)
       setView('OFFERED')
-      await loadRows(data?.id)
+      await loadRows(data?.id, { force: true })
     } catch (e: any) {
       window.alert(e?.response?.data?.message || e?.response?.data?.detail || 'Ponudbe ni bilo mogoče poslati.')
     } finally { setSaving(false) }
@@ -613,6 +676,7 @@ export function AppointmentsPage() {
   const removeSelected = async () => {
     if (!selected || !window.confirm(locale === 'sl' ? 'Ali želite zahtevo odstraniti s čakalne vrste?' : 'Remove this request from the waitlist?')) return
     await api.delete(`/waitlists/${selected.id}`)
+    await queryClient.invalidateQueries({ queryKey: queryKeys.waitlist.all })
     await closeSelected()
   }
 
@@ -629,7 +693,7 @@ export function AppointmentsPage() {
     modalSelectionEpoch.current += 1
     try {
       if (refreshRows && selected) {
-        await loadRows(null, { silent: true, preserveSelection: true })
+        await loadRows(null, { silent: true, preserveSelection: true, force: true })
       }
     } finally {
       setSelected(null)
@@ -651,6 +715,7 @@ export function AppointmentsPage() {
     if (!confirmed) return
     try {
       await api.delete(`/waitlists/offers/${selected.currentOffer.id}`)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.waitlist.all })
       setView('ACTIVE')
       await closeSelected({ refreshRows: false, suppressNextReload: false })
     } catch (e: any) {
@@ -670,8 +735,10 @@ export function AppointmentsPage() {
     if (!confirmed) return
     try {
       await api.delete(`/waitlists/offers/${selected.currentOffer.id}`)
-      const response = await api.get(`/waitlists/${selected.id}`)
-      const refreshed = response.data as WaitlistRequest
+      await queryClient.invalidateQueries({ queryKey: queryKeys.waitlist.all })
+      const detailOptions = waitlistDetailQueryOptions<WaitlistRequest>(activeUnitId, selected.id)
+      await queryClient.invalidateQueries({ queryKey: detailOptions.queryKey, exact: true })
+      const refreshed = await queryClient.fetchQuery(detailOptions)
       setSelected(refreshed)
       openOffer(refreshed)
     } catch (e: any) {

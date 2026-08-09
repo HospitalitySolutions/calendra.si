@@ -10,10 +10,16 @@ export function QueryInvalidationBridge() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.settings.all })
     }
     const invalidateLocations = () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.locations.all })
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.locations.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.spacesAll }),
+      ])
     }
     const invalidateUsers = () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.users.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.consultantsAll }),
+      ])
     }
     const invalidateClients = () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.clients.all })

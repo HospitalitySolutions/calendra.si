@@ -66,5 +66,34 @@ export const queryKeys = {
     all: ['shared', 'groups'] as const,
     page: (unitId: ScopeId, locationId: ScopeId, signature: string) =>
       ['shared', 'groups', 'page', scopeId(unitId), scopeId(locationId), signature] as const,
+    calendar: (unitId: ScopeId, locationId: ScopeId) =>
+      ['shared', 'groups', 'calendar', scopeId(unitId), scopeId(locationId)] as const,
+  },
+  scheduling: {
+    all: ['shared', 'scheduling'] as const,
+    spacesAll: ['shared', 'scheduling', 'spaces'] as const,
+    spaces: (unitId: ScopeId) => ['shared', 'scheduling', 'spaces', scopeId(unitId)] as const,
+    typesAll: ['shared', 'scheduling', 'types'] as const,
+    types: (unitId: ScopeId) => ['shared', 'scheduling', 'types', scopeId(unitId)] as const,
+    consultantsAll: ['shared', 'scheduling', 'consultants'] as const,
+    consultants: (unitId: ScopeId) => ['shared', 'scheduling', 'consultants', scopeId(unitId)] as const,
+    serviceGroupsAll: ['shared', 'scheduling', 'service-groups'] as const,
+    serviceGroups: (unitId: ScopeId) => ['shared', 'scheduling', 'service-groups', scopeId(unitId)] as const,
+  },
+  calendar: {
+    all: ['calendar'] as const,
+    ranges: ['calendar', 'range'] as const,
+    range: (unitId: ScopeId, scope: 'unit' | 'workspace', from: string, to: string) =>
+      ['calendar', 'range', scopeId(unitId), scope, from, to] as const,
+    holidays: (from: string, to: string) => ['calendar', 'holidays', from, to] as const,
+    integrationStatus: (unitId: ScopeId, provider: string) =>
+      ['calendar', 'integration-status', scopeId(unitId), provider] as const,
+  },
+  waitlist: {
+    all: ['waitlist'] as const,
+    overviews: ['waitlist', 'overview'] as const,
+    overview: (unitId: ScopeId, signature: string) => ['waitlist', 'overview', scopeId(unitId), signature] as const,
+    details: ['waitlist', 'detail'] as const,
+    detail: (unitId: ScopeId, requestId: number) => ['waitlist', 'detail', scopeId(unitId), requestId] as const,
   },
 }
