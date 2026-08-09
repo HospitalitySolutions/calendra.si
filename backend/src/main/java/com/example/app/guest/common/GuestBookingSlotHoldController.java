@@ -59,9 +59,9 @@ public class GuestBookingSlotHoldController {
         }
         tenants.requireLink(guest, companyId);
         Long locationId = parseOptionalLocationId(request.locationId());
-        catalog.requireGuestBookableLocation(companyId, locationId, request.serviceTypeIds(), guest);
+        Long resolvedLocationId = catalog.requireGuestBookableLocation(companyId, locationId, request.serviceTypeIds(), guest);
         return holds.create(companyId, new BookingSlotHoldService.HoldRequest(
-                request.slotId(), request.serviceTypeIds(), request.previousHoldToken()
+                resolvedLocationId, request.slotId(), request.serviceTypeIds(), request.previousHoldToken()
         ));
     }
 

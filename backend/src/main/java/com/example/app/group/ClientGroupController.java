@@ -1,6 +1,7 @@
 package com.example.app.group;
 
 import com.example.app.client.ClientRepository;
+import com.example.app.client.ClientDirectoryPageQueryService;
 import com.example.app.company.ClientCompanyRepository;
 import com.example.app.customfield.CustomFieldAppliesTo;
 import com.example.app.customfield.CustomFieldService;
@@ -38,6 +39,9 @@ public class ClientGroupController {
 
     @Autowired(required = false)
     private LocationRepository locations;
+
+    @Autowired
+    private ClientDirectoryPageQueryService directoryPages;
 
     public ClientGroupController(
             ClientGroupRepository groups,
@@ -83,6 +87,14 @@ public class ClientGroupController {
             Map<Long, String> customFieldValues
     ) {}
 
+    public record GroupPageResponse(
+            List<GroupResponse> content,
+            long totalElements,
+            int page,
+            int size,
+            int totalPages
+    ) {}
+
     public record GroupSessionResponse(
             Long id,
             LocalDateTime startTime,
@@ -112,6 +124,44 @@ public class ClientGroupController {
                 CustomFieldAppliesTo.GROUP,
                 rows.stream().map(ClientGroup::getId).toList());
         return rows.stream().map(group -> toResponse(group, customValues.get(group.getId()))).toList();
+    }
+
+    @GetMapping("/page")
+    @Transactional(readOnly = true)
+    public GroupPageResponse page(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Long locationId,
+            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) String sortField,
+            @RequestParam(name = "sortDir", defaultValue = "asc") String sortDir,
+            @AuthenticationPrincipal User me
+    ) {
+        Long companyId = me.getCompany().getId();
+        var idPage = directoryPages.groupIds(
+                companyId,
+                locationId,
+                active,
+                search,
+                sortField,
+                sortDir,
+                Math.max(0, page),
+                Math.max(1, Math.min(size <= 0 ? 10 : size, 100)));
+        if (idPage.ids().isEmpty()) {
+            return new GroupPageResponse(List.of(), idPage.totalElements(), idPage.page(), idPage.size(), idPage.totalPages());
+        }
+        Map<Long, ClientGroup> byId = groups.findListRowsByCompanyIdAndIdIn(companyId, idPage.ids()).stream()
+                .collect(java.util.stream.Collectors.toMap(ClientGroup::getId, row -> row));
+        List<ClientGroup> rows = idPage.ids().stream().map(byId::get).filter(Objects::nonNull).toList();
+        Map<Long, Map<Long, String>> customValues = customFieldService.valuesForEntities(
+                companyId,
+                CustomFieldAppliesTo.GROUP,
+                rows.stream().map(ClientGroup::getId).toList());
+        List<GroupResponse> content = rows.stream()
+                .map(group -> toResponse(group, customValues.get(group.getId())))
+                .toList();
+        return new GroupPageResponse(content, idPage.totalElements(), idPage.page(), idPage.size(), idPage.totalPages());
     }
 
     @GetMapping("/{id}")

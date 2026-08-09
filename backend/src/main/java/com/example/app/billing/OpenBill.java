@@ -30,8 +30,8 @@ public class OpenBill extends BaseEntity {
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
 
-    @ManyToOne
-    @JoinColumn(name = "location_id")
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "location_id", nullable = false)
     private Location location;
 
     @ManyToOne(optional = false)

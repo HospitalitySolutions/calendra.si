@@ -90,6 +90,10 @@ public class ClientController {
     @Autowired(required = false)
     private ActivityLogService activityLogs;
 
+    @Autowired
+    private ClientDirectoryPageQueryService directoryPages;
+
+
     public ClientController(
             ClientRepository repository,
             UserRepository users,
@@ -215,6 +219,14 @@ public class ClientController {
             Long workspaceClientId
     ) {}
 
+    public record ClientPageResponse(
+            List<ClientResponse> content,
+            long totalElements,
+            int page,
+            int size,
+            int totalPages
+    ) {}
+
     /** Lightweight client payload used by selectors on Calendar, Billing, Inbox and service configuration. */
     public record ClientOptionResponse(
             Long id,
@@ -323,6 +335,67 @@ public class ClientController {
                         customValues.get(c.getId()),
                         guestAppLinkedIds.contains(c.getId())))
                 .toList();
+    }
+
+    @GetMapping("/page")
+    @Transactional(readOnly = true)
+    public ClientPageResponse page(
+            @AuthenticationPrincipal User me,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "search", required = false) String search,
+            @RequestParam(name = "locationId", required = false) Long locationId,
+            @RequestParam(name = "active", required = false) Boolean active,
+            @RequestParam(name = "assignedOwner", required = false) String assignedOwner,
+            @RequestParam(name = "sortField", required = false) String sortField,
+            @RequestParam(name = "sortDir", defaultValue = "asc") String sortDir
+    ) {
+        Long companyId = me.getCompany().getId();
+        var idPage = directoryPages.clientIds(
+                companyId,
+                me.getId(),
+                SecurityUtils.isAdmin(me),
+                locationId,
+                active,
+                blankToNull(search),
+                blankToNull(assignedOwner),
+                blankToNull(sortField),
+                sortDir,
+                safePage(page),
+                safeSize(size, 10, 100));
+        if (idPage.ids().isEmpty()) {
+            return new ClientPageResponse(List.of(), idPage.totalElements(), idPage.page(), idPage.size(), idPage.totalPages());
+        }
+
+        Map<Long, Client> byId = repository.findListRowsByCompanyIdAndIdIn(companyId, idPage.ids()).stream()
+                .collect(java.util.stream.Collectors.toMap(Client::getId, row -> row));
+        List<Client> rows = idPage.ids().stream().map(byId::get).filter(Objects::nonNull).toList();
+        Set<Long> blockedIds = clientRemovalGuard.clientIdsWithRemovalBlock(
+                companyId,
+                rows.stream().map(Client::getId).toList());
+        Map<Long, Map<Long, String>> customValues = customFieldService == null
+                ? Map.of()
+                : customFieldService.valuesForEntities(
+                        companyId,
+                        CustomFieldAppliesTo.CLIENT,
+                        rows.stream().map(Client::getId).toList());
+        Set<Long> guestAppLinkedIds = rows.isEmpty()
+                ? Set.of()
+                : guestTenantLinks.findAllByCompanyIdAndStatusAndClientIdIn(
+                                companyId,
+                                GuestTenantLinkStatus.ACTIVE,
+                                rows.stream().map(Client::getId).toList())
+                        .stream()
+                        .map(link -> link.getClient().getId())
+                        .collect(java.util.stream.Collectors.toSet());
+        List<ClientResponse> content = rows.stream()
+                .map(c -> toResponse(
+                        c,
+                        blockedIds.contains(c.getId()),
+                        customValues.get(c.getId()),
+                        guestAppLinkedIds.contains(c.getId())))
+                .toList();
+        return new ClientPageResponse(content, idPage.totalElements(), idPage.page(), idPage.size(), idPage.totalPages());
     }
 
     @GetMapping("/options")

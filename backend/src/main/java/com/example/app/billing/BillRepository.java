@@ -22,7 +22,7 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
     @Query("""
             select count(b) from Bill b
             where b.company.id = :companyId
-              and (b.location.id = :locationId or b.location is null)
+              and b.location.id = :locationId
             """)
     long countVisibleByCompanyIdAndLocationId(
             @Param("companyId") Long companyId,
@@ -43,7 +43,7 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
     @Query("""
             select count(b) from Bill b
             where b.company.id = :companyId
-              and (b.location.id = :locationId or b.location is null)
+              and b.location.id = :locationId
               and b.paymentStatus <> :paidStatus
               and b.paymentStatus <> :cancelledStatus
             """)

@@ -18,6 +18,8 @@ import com.example.app.company.ClientCompanyRepository;
 import com.example.app.company.Company;
 import com.example.app.fiscal.FiscalizationService;
 import com.example.app.guest.model.GuestOrderRepository;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.settings.AppSetting;
@@ -69,6 +71,7 @@ class BillingControllerCompanyProxyClientFallbackTest {
     @Mock private EntityManager entityManager;
     @Mock private GlobalPaymentProviderService globalPaymentProviders;
     @Mock private BillingModuleAccessService billingModuleAccess;
+    @Mock private LocationRepository locations;
 
     private BillingController controller;
     private Company ownerCompany;
@@ -108,6 +111,15 @@ class BillingControllerCompanyProxyClientFallbackTest {
 
         ownerCompany = new Company();
         ownerCompany.setId(1L);
+
+        Location defaultLocation = new Location();
+        defaultLocation.setId(31L);
+        defaultLocation.setCompany(ownerCompany);
+        defaultLocation.setActive(true);
+        defaultLocation.setDefaultLocation(true);
+        org.mockito.Mockito.lenient().when(locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(1L))
+                .thenReturn(List.of(defaultLocation));
+        controller.configureLocationRepository(locations);
 
         me = new User();
         me.setId(5L);
@@ -196,6 +208,7 @@ class BillingControllerCompanyProxyClientFallbackTest {
         assertEquals(OpenBill.BATCH_SCOPE_COMPANY, saved.getBatchScope());
         assertEquals(77L, saved.getBatchTargetCompanyId());
         assertEquals(901L, saved.getClient().getId());
+        assertEquals(31L, saved.getLocation().getId());
         verify(openBillRepo, never()).findBatchByCompanyTarget(1L, OpenBill.BATCH_SCOPE_COMPANY, 77L);
     }
 

@@ -7,6 +7,7 @@ import com.example.app.billing.PaymentType;
 import com.example.app.client.Client;
 import com.example.app.client.ClientOnlineAccessGuard;
 import com.example.app.company.CompanyRepository;
+import com.example.app.location.LocationRepository;
 import com.example.app.guest.catalog.GuestCatalogService;
 import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestSettingsService;
@@ -79,6 +80,8 @@ public class GuestOrderService {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private BookingSlotHoldService bookingSlotHolds;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private LocationRepository locations;
     private final PayPalClient payPalClient;
     private final StripeGuestCheckoutService stripeGuestCheckoutService;
     private final GlobalPaymentProviderService globalPaymentProviders;
@@ -244,7 +247,12 @@ public class GuestOrderService {
         if (request.slotId() != null && !request.slotId().isBlank() && isSessionLikeProductType(product.productType())) {
             catalogService.assertSlotWithinReservationWindow(companyId, request.slotId(), rules);
             if (bookingSlotHolds != null) {
-                bookingSlotHolds.requireValid(companyId, request.holdToken(), request.slotId());
+                bookingSlotHolds.requireValid(
+                        companyId,
+                        request.holdToken(),
+                        request.slotId(),
+                        parseNullableLocationId(resolvedLocationId)
+                );
             }
         }
         for (OrderServiceLine line : serviceLines) {
@@ -273,6 +281,15 @@ public class GuestOrderService {
 
         GuestOrder order = new GuestOrder();
         order.setCompany(link.getCompany());
+        Long normalizedOrderLocationId = parseNullableLocationId(resolvedLocationId);
+        if (normalizedOrderLocationId == null) {
+            normalizedOrderLocationId = parseNullableLocationId(request.locationId());
+        }
+        if (normalizedOrderLocationId != null && locations != null) {
+            order.setLocation(locations.findByIdAndCompanyId(normalizedOrderLocationId, companyId)
+                    .filter(location -> location.isActive())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location is not available.")));
+        }
         order.setClient(link.getClient());
         order.setGuestUser(guestUser);
         order.setInvoiceLocale(resolveRequestedInvoiceLocale(request.locale(), request.language(), guestUser));
@@ -1869,7 +1886,11 @@ public class GuestOrderService {
     }
 
     private Long extractLocationId(GuestOrder order) {
-        if (order == null || order.getMetadataJson() == null || order.getMetadataJson().isBlank()) return null;
+        if (order == null) return null;
+        if (order.getLocation() != null && order.getLocation().getId() != null) {
+            return order.getLocation().getId();
+        }
+        if (order.getMetadataJson() == null || order.getMetadataJson().isBlank()) return null;
         try {
             Map<?, ?> map = JSON.readValue(order.getMetadataJson(), Map.class);
             Object raw = map.get("locationId");

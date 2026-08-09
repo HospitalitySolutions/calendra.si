@@ -58,7 +58,7 @@ public interface AdvanceAllocationRepository extends JpaRepository<AdvanceAlloca
                     WHERE advance.company_id = :companyId
                       AND advance.bill_type = 'ADVANCE'
                       AND advance.payment_status = 'paid'
-                      AND (:locationId IS NULL OR advance.location_id IS NULL OR advance.location_id = :locationId)
+                      AND (:locationId IS NULL OR advance.location_id = :locationId)
                       AND advance.total_gross - (
                           CASE
                               WHEN advance.total_net IS NOT NULL AND advance.total_net <> 0

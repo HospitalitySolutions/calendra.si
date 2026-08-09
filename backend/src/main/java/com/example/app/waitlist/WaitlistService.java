@@ -51,7 +51,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -98,8 +97,7 @@ public class WaitlistService {
     private final int offerExpiringMinutes;
     private final int expiryBatchSize;
 
-    @Autowired(required = false)
-    private LocationRepository locations;
+    private final LocationRepository locations;
 
     public WaitlistService(
             WaitlistRequestRepository requests,
@@ -118,6 +116,7 @@ public class WaitlistService {
             SessionBookingRepository bookings,
             CompanyRepository companies,
             AppSettingRepository settings,
+            LocationRepository locations,
             BookableSlotRepository bookableSlots,
             SessionBookingCreationService bookingValidation,
             TenantReservationRulesService reservationRules,
@@ -145,6 +144,7 @@ public class WaitlistService {
         this.bookings = bookings;
         this.companies = companies;
         this.settings = settings;
+        this.locations = locations;
         this.bookableSlots = bookableSlots;
         this.bookingValidation = bookingValidation;
         this.reservationRules = reservationRules;
@@ -369,9 +369,10 @@ public class WaitlistService {
         Client client = clients.findByIdAndCompanyId(input.clientId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found."));
         ServiceSelection selection = resolveServiceSelection(input, companyId);
-        Location location = resolveLocation(input.locationId(), companyId);
         SessionBooking targetSession = input.targetSessionId() == null ? null : bookings.findByIdAndCompanyId(input.targetSessionId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target session not found."));
+        Location location = resolveLocation(input.locationId(), companyId, targetSession);
+        requireServicesAvailableAtLocation(selection.eligibleServices(), location);
         User specificEmployee = input.specificEmployeeId() == null ? null : users.findByIdAndCompanyIdAndActiveTrue(input.specificEmployeeId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found."));
         List<User> selectedEmployees = resolveEmployees(input.employeeIds(), companyId);
@@ -457,9 +458,10 @@ public class WaitlistService {
         validateInput(input, cfg);
 
         ServiceSelection selection = resolveServiceSelection(input, companyId);
-        Location location = resolveLocation(input.locationId(), companyId);
         SessionBooking targetSession = input.targetSessionId() == null ? null : bookings.findByIdAndCompanyId(input.targetSessionId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target session not found."));
+        Location location = resolveLocation(input.locationId(), companyId, targetSession);
+        requireServicesAvailableAtLocation(selection.eligibleServices(), location);
         User specificEmployee = input.specificEmployeeId() == null ? null : users.findByIdAndCompanyIdAndActiveTrue(input.specificEmployeeId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found."));
         List<User> selectedEmployees = resolveEmployees(input.employeeIds(), companyId);
@@ -521,9 +523,12 @@ public class WaitlistService {
         row.setClient(clients.findByIdAndCompanyId(input.clientId(), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Client not found.")));
         applyServiceSelection(row, selection);
-        row.setLocation(resolveLocation(input.locationId(), companyId));
-        row.setTargetSession(input.targetSessionId() == null ? null : bookings.findByIdAndCompanyId(input.targetSessionId(), companyId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target session not found.")));
+        SessionBooking targetSession = input.targetSessionId() == null ? null : bookings.findByIdAndCompanyId(input.targetSessionId(), companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target session not found."));
+        Location location = resolveLocation(input.locationId(), companyId, targetSession);
+        requireServicesAvailableAtLocation(selection.eligibleServices(), location);
+        row.setLocation(location);
+        row.setTargetSession(targetSession);
         row.setTargetType(input.targetType());
         row.setDateFrom(input.dateFrom());
         row.setDateTo(input.dateTo());
@@ -1186,9 +1191,21 @@ public class WaitlistService {
         validateSlotAvailable(request, concreteService, start, end, employee, room, session, null, releasedSlot);
         int validity = Math.max(5, Math.min(Optional.ofNullable(input.validityMinutes()).orElse(waitlistSettings.get(companyId).offerValidityMinutes()), 1440));
         Instant now = Instant.now();
+        Location requestLocation = request.getLocation();
+        if (requestLocation == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Waitlist request has no location.");
+        }
+        if (room != null && (room.getLocation() == null || !Objects.equals(room.getLocation().getId(), requestLocation.getId()))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The selected room belongs to another location.");
+        }
+        if (session != null && (session.getLocation() == null || !Objects.equals(session.getLocation().getId(), requestLocation.getId()))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The selected session belongs to another location.");
+        }
+
         WaitlistOffer offer = new WaitlistOffer();
         offer.setCompany(request.getCompany());
         offer.setRequest(request);
+        offer.setLocation(requestLocation);
         offer.setService(concreteService);
         offer.setServiceNameSnapshot(serviceSelectionName(request));
         ServiceGroup group = concreteService.getServiceGroup();
@@ -1209,6 +1226,7 @@ public class WaitlistService {
         WaitlistBookingHold hold = new WaitlistBookingHold();
         hold.setCompany(request.getCompany());
         hold.setOffer(offer);
+        hold.setLocation(requestLocation);
         hold.setSlotStart(start);
         int serviceBreakMinutes = finalBreakMinutesForRequest(request, concreteService);
         hold.setSlotEnd(end.plusMinutes(serviceBreakMinutes));
@@ -1879,13 +1897,41 @@ public class WaitlistService {
     }
 
     private Location resolveLocation(Long locationId, Long companyId) {
-        if (locationId == null) return null;
-        if (locations == null) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Location support is unavailable.");
+        return resolveLocation(locationId, companyId, null);
+    }
+
+    private Location resolveLocation(Long locationId, Long companyId, SessionBooking targetSession) {
+        if (locationId != null) {
+            Location selected = locations.findByIdAndCompanyId(locationId, companyId)
+                    .filter(Location::isActive)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found."));
+            if (targetSession != null && (targetSession.getLocation() == null
+                    || !Objects.equals(targetSession.getLocation().getId(), selected.getId()))) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Target session belongs to another location.");
+            }
+            return selected;
         }
-        return locations.findByIdAndCompanyId(locationId, companyId)
-                .filter(Location::isActive)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found."));
+        if (targetSession != null && targetSession.getLocation() != null && targetSession.getLocation().isActive()) {
+            return targetSession.getLocation();
+        }
+        List<Location> active = locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(companyId);
+        if (active.size() == 1) return active.get(0);
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location selection is required.");
+    }
+
+    private void requireServicesAvailableAtLocation(List<SessionType> services, Location location) {
+        if (location == null || services == null) return;
+        for (SessionType service : services) {
+            if (service == null) continue;
+            if (service.isAvailableAllLocations()) continue;
+            boolean available = service.getLocations() != null && service.getLocations().stream()
+                    .filter(Objects::nonNull)
+                    .anyMatch(candidate -> Objects.equals(candidate.getId(), location.getId()));
+            if (!available) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Service " + service.getName() + " is not available at the selected location.");
+            }
+        }
     }
 
     private static Long companyId(User me) {

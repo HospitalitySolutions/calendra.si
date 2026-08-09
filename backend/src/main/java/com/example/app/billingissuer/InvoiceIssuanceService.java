@@ -316,10 +316,14 @@ public class InvoiceIssuanceService {
                     .filter(Location::isActive)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invoice location is invalid or inactive."));
         }
-        return locations.findFirstByCompanyIdAndDefaultLocationTrue(companyId)
-                .orElseGet(() -> locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(companyId).stream()
-                        .findFirst()
-                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "No active location is configured.")));
+        List<Location> active = locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(companyId);
+        if (active.size() == 1) {
+            return active.getFirst();
+        }
+        if (active.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No active location is configured.");
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invoice location selection is required.");
     }
 
     public static void applySnapshots(Bill bill, LegalEntity issuer, InvoiceSeries series, Location location) {

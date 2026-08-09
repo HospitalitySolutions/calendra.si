@@ -18,17 +18,27 @@ export function QueryInvalidationBridge() {
     const invalidateClients = () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.clients.all })
     }
+    const invalidateCompanies = () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.companies.all })
+    }
+    const invalidateGroups = () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.groups.all })
+    }
 
     window.addEventListener('settings-updated', invalidateSettings)
     window.addEventListener('locations-updated', invalidateLocations)
     window.addEventListener('users-updated', invalidateUsers)
     window.addEventListener('clients-updated', invalidateClients)
+    window.addEventListener('companies-updated', invalidateCompanies)
+    window.addEventListener('groups-updated', invalidateGroups)
 
     return () => {
       window.removeEventListener('settings-updated', invalidateSettings)
       window.removeEventListener('locations-updated', invalidateLocations)
       window.removeEventListener('users-updated', invalidateUsers)
       window.removeEventListener('clients-updated', invalidateClients)
+      window.removeEventListener('companies-updated', invalidateCompanies)
+      window.removeEventListener('groups-updated', invalidateGroups)
     }
   }, [queryClient])
 

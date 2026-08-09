@@ -1060,6 +1060,7 @@
         const response = await this.fetchJson(`/api/public/widget/${tenant}/booking-holds`, {
           method: 'POST',
           body: {
+            locationId: this.effectiveLocationId() ? Number(this.effectiveLocationId()) : null,
             slotId,
             serviceTypeIds,
             previousHoldToken: previousHoldToken || null,

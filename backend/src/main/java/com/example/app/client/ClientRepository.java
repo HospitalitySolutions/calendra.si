@@ -138,6 +138,12 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
             @Param("search") String search,
             Pageable pageable);
 
+    @EntityGraph(attributePaths = {"assignedTo", "assignedUsers", "assignedLocations", "billingCompany", "workspaceClient"})
+    @Query("select distinct c from Client c where c.company.id = :companyId and c.id in :ids")
+    List<Client> findListRowsByCompanyIdAndIdIn(
+            @Param("companyId") Long companyId,
+            @Param("ids") Collection<Long> ids);
+
     Optional<Client> findByIdAndCompanyId(Long id, Long companyId);
 
     Optional<Client> findFirstByCompanyIdAndPhoneOrderByIdAsc(Long companyId, String phone);

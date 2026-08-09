@@ -56,8 +56,8 @@ public class WaitlistRequest extends BaseEntity {
     @Column(name = "service_group_name_snapshot", length = 120)
     private String serviceGroupNameSnapshot;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "location_id")
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id", nullable = false)
     private Location location;
 
     @Enumerated(EnumType.STRING)

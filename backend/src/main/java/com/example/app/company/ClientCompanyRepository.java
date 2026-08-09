@@ -1,13 +1,24 @@
 package com.example.app.company;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ClientCompanyRepository extends JpaRepository<ClientCompany, Long> {
     List<ClientCompany> findAllByOwnerCompanyIdOrderByNameAsc(Long ownerCompanyId);
+
+    @EntityGraph(attributePaths = {"assignedLocations"})
+    List<ClientCompany> findAllByOwnerCompanyIdAndActiveTrueOrderByNameAsc(Long ownerCompanyId);
+
+    @EntityGraph(attributePaths = {"assignedLocations"})
+    @Query("select distinct c from ClientCompany c where c.ownerCompany.id = :ownerCompanyId and c.id in :ids")
+    List<ClientCompany> findListRowsByOwnerCompanyIdAndIdIn(
+            @Param("ownerCompanyId") Long ownerCompanyId,
+            @Param("ids") Collection<Long> ids);
 
     Optional<ClientCompany> findByIdAndOwnerCompanyId(Long id, Long ownerCompanyId);
 

@@ -978,7 +978,7 @@ public class BillingController {
         params.put("companyId", companyId);
 
         if (locationId != null) {
-            where.append(" AND (b.location_id = :locationId OR b.location_id IS NULL) ");
+            where.append(" AND b.location_id = :locationId ");
             params.put("locationId", locationId);
         }
         if (openPaymentsView) {
@@ -1126,7 +1126,7 @@ public class BillingController {
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("companyId", companyId);
         if (locationId != null) {
-            where.append(" AND (b.location_id = :locationId OR b.location_id IS NULL) ");
+            where.append(" AND b.location_id = :locationId ");
             params.put("locationId", locationId);
         }
         if (dateFrom != null) { where.append(" AND b.issue_date >= :dateFrom "); params.put("dateFrom", dateFrom); }
@@ -3173,14 +3173,16 @@ public class BillingController {
             return requested;
         }
         if (locations == null) {
-            return null;
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Location configuration is unavailable.");
         }
-        return locations.findFirstByCompanyIdAndDefaultLocationTrue(companyId)
-                .filter(Location::isActive)
-                .orElseGet(() -> locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(companyId)
-                        .stream()
-                        .findFirst()
-                        .orElse(null));
+        List<Location> active = locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(companyId);
+        if (active.size() == 1) {
+            return active.getFirst();
+        }
+        if (active.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No active location is configured.");
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location selection is required.");
     }
 
     private static boolean sameLocation(OpenBill open, Location location) {
@@ -4276,7 +4278,7 @@ public class BillingController {
                     WHERE advance.company_id = :companyId
                       AND advance.bill_type = 'ADVANCE'
                       AND advance.payment_status = 'paid'
-                      AND (:locationId IS NULL OR advance.location_id IS NULL OR advance.location_id = :locationId)
+                      AND (:locationId IS NULL OR advance.location_id = :locationId)
                 ),
                 eligible AS (
                     SELECT calculated.*,
@@ -4357,7 +4359,7 @@ public class BillingController {
         return billRepo.findAllByCompanyIdAndIdIn(companyId, advanceIds).stream()
                 // Keep a defensive application-level check in addition to the repository filter.
                 .filter(advance -> BillPaymentStatus.PAID.equals(advance.getPaymentStatus()))
-                .filter(advance -> locationId == null || advance.getLocation() == null || Objects.equals(advance.getLocation().getId(), locationId))
+                .filter(advance -> locationId == null || Objects.equals(advance.getLocation().getId(), locationId))
                 .sorted(Comparator
                         .comparing(Bill::getIssueDate, Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(Bill::getId, Comparator.reverseOrder()))
@@ -5042,6 +5044,7 @@ public class BillingController {
 
         GuestOrder refundOrder = new GuestOrder();
         refundOrder.setCompany(originalOrder.getCompany());
+        refundOrder.setLocation(originalOrder.getLocation());
         refundOrder.setClient(originalOrder.getClient());
         refundOrder.setGuestUser(originalOrder.getGuestUser());
         refundOrder.setStatus(OrderStatus.REFUNDED);

@@ -47,8 +47,24 @@ export const queryKeys = {
   },
   clients: {
     all: ['shared', 'clients'] as const,
+    page: (unitId: ScopeId, locationId: ScopeId, signature: string) =>
+      ['shared', 'clients', 'page', scopeId(unitId), scopeId(locationId), signature] as const,
     options: (unitId: ScopeId, locationId: ScopeId, size = 500) => (
       ['shared', 'clients', 'options', scopeId(unitId), scopeId(locationId), size] as const
     ),
+    optionSearch: (unitId: ScopeId, locationId: ScopeId, signature: string) =>
+      ['shared', 'clients', 'options', 'search', scopeId(unitId), scopeId(locationId), signature] as const,
+  },
+  companies: {
+    all: ['shared', 'companies'] as const,
+    page: (unitId: ScopeId, locationId: ScopeId, signature: string) =>
+      ['shared', 'companies', 'page', scopeId(unitId), scopeId(locationId), signature] as const,
+    options: (unitId: ScopeId, locationId: ScopeId) =>
+      ['shared', 'companies', 'options', scopeId(unitId), scopeId(locationId)] as const,
+  },
+  groups: {
+    all: ['shared', 'groups'] as const,
+    page: (unitId: ScopeId, locationId: ScopeId, signature: string) =>
+      ['shared', 'groups', 'page', scopeId(unitId), scopeId(locationId), signature] as const,
   },
 }

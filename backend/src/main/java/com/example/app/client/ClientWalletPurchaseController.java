@@ -26,6 +26,8 @@ import com.example.app.guest.model.GuestUserRepository;
 import com.example.app.guest.model.OrderStatus;
 import com.example.app.guest.model.ProductType;
 import com.example.app.guest.model.VoucherRules;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.security.SecurityUtils;
 import com.example.app.settings.CourseModuleAccessService;
 import com.example.app.settings.BillingModuleAccessService;
@@ -77,6 +79,7 @@ public class ClientWalletPurchaseController {
     private final TransactionServiceRepository transactionServices;
     private final CourseModuleAccessService courseModuleAccessService;
     private final BillingModuleAccessService billingModuleAccessService;
+    private final LocationRepository locations;
 
     @Autowired
     public ClientWalletPurchaseController(
@@ -89,7 +92,8 @@ public class ClientWalletPurchaseController {
             PaymentMethodRepository paymentMethods,
             TransactionServiceRepository transactionServices,
             CourseModuleAccessService courseModuleAccessService,
-            BillingModuleAccessService billingModuleAccessService
+            BillingModuleAccessService billingModuleAccessService,
+            LocationRepository locations
     ) {
         this.clients = clients;
         this.products = products;
@@ -101,6 +105,7 @@ public class ClientWalletPurchaseController {
         this.transactionServices = transactionServices;
         this.courseModuleAccessService = courseModuleAccessService;
         this.billingModuleAccessService = billingModuleAccessService;
+        this.locations = locations;
     }
 
     /** Backwards-compatible constructor for older unit tests. Runtime wiring uses the @Autowired constructor above. */
@@ -114,7 +119,7 @@ public class ClientWalletPurchaseController {
             PaymentMethodRepository paymentMethods,
             TransactionServiceRepository transactionServices
     ) {
-        this(clients, products, orders, guestTenantLinks, guestUsers, openBills, paymentMethods, transactionServices, null, null);
+        this(clients, products, orders, guestTenantLinks, guestUsers, openBills, paymentMethods, transactionServices, null, null, null);
     }
 
     public record WalletProductResponse(
@@ -140,7 +145,7 @@ public class ClientWalletPurchaseController {
             List<String> voucherSessionTypeNames
     ) {}
 
-    public record CreateWalletPurchaseOpenBillRequest(String giftCardTo, String giftCardText) {}
+    public record CreateWalletPurchaseOpenBillRequest(Long locationId, String giftCardTo, String giftCardText) {}
     public record CreateWalletPurchaseOpenBillResponse(Long openBillId, Long orderId, Long productId) {}
     public record WalletPurchaseErrorResponse(String message) {}
 
@@ -186,12 +191,14 @@ public class ClientWalletPurchaseController {
             billingModuleAccessService.assertGiftCardsEnabled(companyId);
         }
 
+        Location location = resolveOperationalLocation(companyId, request == null ? null : request.locationId());
         GuestTenantLink link = resolveOrCreateGuestLink(client);
         var paymentMethod = resolveDefaultPaymentMethod(companyId);
-        var order = createPendingWalletOrder(client, link.getGuestUser(), product, request, me);
+        var order = createPendingWalletOrder(client, link.getGuestUser(), product, request, me, location);
 
         var open = new OpenBill();
         open.setCompany(me.getCompany());
+        open.setLocation(location);
         open.setClient(client);
         open.setConsultant(me);
         open.setPaymentMethod(paymentMethod);
@@ -305,10 +312,11 @@ public class ClientWalletPurchaseController {
         return guestTenantLinks.save(link);
     }
 
-    private GuestOrder createPendingWalletOrder(Client client, GuestUser guestUser, GuestProduct product, CreateWalletPurchaseOpenBillRequest request, User actor) {
+    private GuestOrder createPendingWalletOrder(Client client, GuestUser guestUser, GuestProduct product, CreateWalletPurchaseOpenBillRequest request, User actor, Location location) {
         BigDecimal total = safeGross(product.getPriceGross());
         var order = new GuestOrder();
         order.setCompany(client.getCompany());
+        order.setLocation(location);
         order.setClient(client);
         order.setGuestUser(guestUser);
         order.setStatus(OrderStatus.PENDING);
@@ -391,6 +399,25 @@ public class ClientWalletPurchaseController {
                     created.setActive(true);
                     return transactionServices.save(created);
                 });
+    }
+
+    private Location resolveOperationalLocation(Long companyId, Long requestedLocationId) {
+        if (locations == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Location configuration is unavailable.");
+        }
+        if (requestedLocationId != null) {
+            return locations.findByIdAndCompanyId(requestedLocationId, companyId)
+                    .filter(Location::isActive)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected location is invalid or inactive."));
+        }
+        List<Location> active = locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(companyId);
+        if (active.size() == 1) {
+            return active.getFirst();
+        }
+        if (active.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No active location is configured.");
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location selection is required.");
     }
 
     private long nextManualSessionNumber(Long companyId) {

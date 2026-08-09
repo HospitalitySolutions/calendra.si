@@ -29,7 +29,7 @@ public interface OpenBillRepository extends JpaRepository<OpenBill, Long> {
                 ELSE 'open:' || CAST(id AS TEXT)
             END)
             FROM open_bills
-            WHERE company_id = :companyId AND (location_id = :locationId OR location_id IS NULL)
+            WHERE company_id = :companyId AND location_id = :locationId
             """, nativeQuery = true)
     long countListRowsByCompanyIdAndLocationId(
             @Param("companyId") Long companyId,

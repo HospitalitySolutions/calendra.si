@@ -31,6 +31,8 @@ import com.example.app.company.Company;
 import com.example.app.company.CompanyProvisioningService;
 import com.example.app.company.CompanyRepository;
 import com.example.app.fiscal.FiscalizationService;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.monitoring.ScheduledJobTrackerService;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
@@ -101,6 +103,7 @@ public class PlatformSubscriptionBillingService {
     private final TimeService timeService;
     private final ScheduledJobTrackerService jobTracker;
     private final ObjectMapper objectMapper;
+    private final LocationRepository locations;
 
     private InvoiceIssuanceService invoiceIssuanceService;
     private WorkspaceSubscriptionService workspaceSubscriptions;
@@ -125,7 +128,8 @@ public class PlatformSubscriptionBillingService {
             StripeBillingService stripeBillingService,
             TimeService timeService,
             ScheduledJobTrackerService jobTracker,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            LocationRepository locations
     ) {
         this.companies = companies;
         this.users = users;
@@ -147,6 +151,19 @@ public class PlatformSubscriptionBillingService {
         this.timeService = timeService;
         this.jobTracker = jobTracker;
         this.objectMapper = objectMapper;
+        this.locations = locations;
+    }
+
+    private Location resolvePlatformBillingLocation(Company platformCompany) {
+        if (platformCompany == null || platformCompany.getId() == null) {
+            throw new IllegalStateException("Platform billing company is not configured.");
+        }
+        return locations.findFirstByCompanyIdAndDefaultLocationTrue(platformCompany.getId())
+                .filter(Location::isActive)
+                .orElseGet(() -> locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(platformCompany.getId())
+                        .stream()
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalStateException("Platform billing company has no active location.")));
     }
 
     @Autowired(required = false)
@@ -246,6 +263,9 @@ public class PlatformSubscriptionBillingService {
                     created.setReference(referenceForTenant(tenantCompany.getId()));
                     return created;
                 });
+        if (open.getLocation() == null) {
+            open.setLocation(resolvePlatformBillingLocation(platformCompany));
+        }
         open.setClient(client);
         open.setConsultant(consultant);
         open.setPaymentMethod(resolvePaymentMethod(platformCompany.getId(), requestedPaymentMethod).orElse(null));
@@ -665,6 +685,9 @@ public class PlatformSubscriptionBillingService {
                     created.setReference(reference);
                     return created;
                 });
+        if (open.getLocation() == null) {
+            open.setLocation(resolvePlatformBillingLocation(platformCompany));
+        }
         open.setClient(client);
         open.setConsultant(consultant);
         open.setPaymentMethod(resolvePaymentMethod(platformCompany.getId(), settingValueOrDefault(tenantId, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD, null)).orElse(null));
@@ -949,7 +972,7 @@ public class PlatformSubscriptionBillingService {
         bill.setPaymentMethod(open.getPaymentMethod() != null ? open.getPaymentMethod() : resolvePaymentMethod(platformCompany.getId(), null).orElse(null));
         bill.setBankTransferReference(open.getReference());
         bill.setIssueDate(timeService.localDate());
-        assignInvoiceIdentity(bill, platformCompany.getId());
+        assignInvoiceIdentity(bill, platformCompany.getId(), open.getLocation() == null ? null : open.getLocation().getId());
         bill.setFiscalStatus(BillFiscalStatus.NOT_SENT);
 
         BigDecimal totalNet = BigDecimal.ZERO;
@@ -1593,9 +1616,9 @@ public class PlatformSubscriptionBillingService {
         });
     }
 
-    private void assignInvoiceIdentity(Bill bill, Long companyId) {
+    private void assignInvoiceIdentity(Bill bill, Long companyId, Long locationId) {
         if (invoiceIssuanceService != null) {
-            invoiceIssuanceService.assign(bill, companyId, null, null, null, bill.getIssueDate());
+            invoiceIssuanceService.assign(bill, companyId, null, null, locationId, bill.getIssueDate());
         } else {
             bill.setBillNumber(nextInvoiceNumber(companyId));
         }

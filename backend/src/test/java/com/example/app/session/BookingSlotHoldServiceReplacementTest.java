@@ -12,6 +12,8 @@ import static org.mockito.Mockito.when;
 
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import java.time.LocalDateTime;
@@ -34,18 +36,27 @@ class BookingSlotHoldServiceReplacementTest {
     @Mock private UserRepository users;
     @Mock private SessionBookingRepository bookings;
     @Mock private SessionBookingCreationService bookingCreationService;
+    @Mock private LocationRepository locations;
+    @Mock private SessionTypeRepository sessionTypes;
 
     private BookingSlotHoldService service;
     private Company company;
+    private Location location;
     private User consultant;
     private BookingSlotHold previousHold;
 
     @BeforeEach
     void setUp() {
-        service = new BookingSlotHoldService(holds, companies, users, bookings, bookingCreationService);
+        service = new BookingSlotHoldService(
+                holds, companies, users, bookings, bookingCreationService, locations, sessionTypes);
 
         company = new Company();
         company.setId(7L);
+        location = new Location();
+        location.setId(3L);
+        location.setCompany(company);
+        location.setActive(true);
+        location.setPublicBookingEnabled(true);
         consultant = new User();
         consultant.setId(6L);
         consultant.setCompany(company);
@@ -53,9 +64,20 @@ class BookingSlotHoldServiceReplacementTest {
 
         previousHold = new BookingSlotHold();
         previousHold.setCompany(company);
+        previousHold.setLocation(location);
         previousHold.setHoldToken("old-token");
 
         when(companies.findByIdForUpdate(7L)).thenReturn(Optional.of(company));
+        when(locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(7L))
+                .thenReturn(List.of(location));
+        for (long serviceTypeId : List.of(4L, 1L)) {
+            SessionType type = new SessionType();
+            type.setId(serviceTypeId);
+            type.setCompany(company);
+            type.setName("Service " + serviceTypeId);
+            type.setAvailableAllLocations(true);
+            when(sessionTypes.findByIdAndCompanyId(serviceTypeId, 7L)).thenReturn(Optional.of(type));
+        }
         when(holds.findByHoldToken("old-token")).thenReturn(Optional.of(previousHold));
         when(users.findById(6L)).thenReturn(Optional.of(consultant));
     }
@@ -107,6 +129,7 @@ class BookingSlotHoldServiceReplacementTest {
         assertEquals(start, saved.getValue().getSlotStart());
         assertEquals(end, saved.getValue().getSlotEnd());
         assertEquals(busyEnd, saved.getValue().getBusyEnd());
+        assertEquals(3L, saved.getValue().getLocation().getId());
         assertEquals(response.holdToken(), saved.getValue().getHoldToken());
     }
 

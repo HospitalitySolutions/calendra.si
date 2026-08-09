@@ -2,6 +2,7 @@ package com.example.app.session;
 
 import com.example.app.common.BaseEntity;
 import com.example.app.company.Company;
+import com.example.app.location.Location;
 import com.example.app.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -24,6 +25,10 @@ public class BookingSlotHold extends BaseEntity {
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
+
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id", nullable = false)
+    private Location location;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "consultant_id")

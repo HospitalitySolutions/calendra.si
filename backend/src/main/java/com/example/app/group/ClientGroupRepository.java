@@ -1,5 +1,6 @@
 package com.example.app.group;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -11,6 +12,12 @@ public interface ClientGroupRepository extends JpaRepository<ClientGroup, Long> 
 
     @EntityGraph(attributePaths = {"members", "billingCompany"})
     List<ClientGroup> findAllByCompanyIdOrderByNameAsc(Long companyId);
+
+    @EntityGraph(attributePaths = {"members", "billingCompany", "assignedLocations"})
+    @Query("select distinct g from ClientGroup g where g.company.id = :companyId and g.id in :ids")
+    List<ClientGroup> findListRowsByCompanyIdAndIdIn(
+            @Param("companyId") Long companyId,
+            @Param("ids") Collection<Long> ids);
 
     @EntityGraph(attributePaths = {"members", "billingCompany"})
     Optional<ClientGroup> findByIdAndCompanyId(Long id, Long companyId);

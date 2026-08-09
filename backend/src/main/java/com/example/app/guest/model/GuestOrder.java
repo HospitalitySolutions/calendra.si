@@ -3,6 +3,7 @@ package com.example.app.guest.model;
 import com.example.app.client.Client;
 import com.example.app.common.BaseEntity;
 import com.example.app.company.Company;
+import com.example.app.location.Location;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -17,6 +18,14 @@ public class GuestOrder extends BaseEntity {
     @ManyToOne(optional = false)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
+
+    /**
+     * Physical branch that originated this order. Booking orders always set it.
+     * Non-booking product purchases become mandatory/location-scoped in Phase 5.5C.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id")
+    private Location location;
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "client_id", nullable = false)

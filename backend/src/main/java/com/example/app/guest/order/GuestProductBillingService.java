@@ -107,7 +107,8 @@ public class GuestProductBillingService {
         bill.setConsultant(consultant);
         bill.setPaymentMethod(paymentMethod);
         bill.setIssueDate(LocalDate.now());
-        assignInvoiceIdentity(bill, companyId, null);
+        Long orderLocationId = order.getLocation() == null ? null : order.getLocation().getId();
+        assignInvoiceIdentity(bill, companyId, orderLocationId);
         bill.setPaymentStatus(BillPaymentStatus.PAYMENT_PENDING);
         bill.setInvoiceLocale(resolveInvoiceLocale(order));
 

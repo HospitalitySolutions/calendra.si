@@ -458,6 +458,15 @@ function localizeWalletPurchaseError(message: string, locale: string): string {
   if (normalized.includes('wallet product not found')) {
     return 'Izbrana ugodnost ni več na voljo. Osvežite seznam in poskusite znova.'
   }
+  if (normalized.includes('location selection is required')) {
+    return 'Pred nakupom izberite poslovni prostor v zgornji vrstici.'
+  }
+  if (normalized.includes('selected location is invalid or inactive')) {
+    return 'Izbrani poslovni prostor ni več aktiven. Izberite drugega in poskusite znova.'
+  }
+  if (normalized.includes('no active location is configured')) {
+    return 'Za to poslovno enoto ni nastavljenega aktivnega poslovnega prostora.'
+  }
   return message
 }
 
@@ -2186,12 +2195,15 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setCreatingWalletOpenBill(true)
     setWalletPurchaseError('')
     try {
-      const payload = isGiftCardWalletProduct(selectedWalletProduct)
-        ? {
-            giftCardTo: giftCardDetails?.to?.trim() || '',
-            giftCardText: giftCardDetails?.text?.trim() || '',
-          }
-        : {}
+      const payload = {
+        locationId: selectedLocationId ?? undefined,
+        ...(isGiftCardWalletProduct(selectedWalletProduct)
+          ? {
+              giftCardTo: giftCardDetails?.to?.trim() || '',
+              giftCardText: giftCardDetails?.text?.trim() || '',
+            }
+          : {}),
+      }
       const res = await api.post<WalletPurchaseOpenBillResponse>(`/clients/${detailClient.id}/wallet/products/${selectedWalletProduct.id}/open-bill`, payload)
       const openBillId = res.data?.openBillId
       setGiftCardPersonalizationOpen(false)
@@ -2211,7 +2223,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     } finally {
       setCreatingWalletOpenBill(false)
     }
-  }, [detailClient, selectedWalletProduct, navigate, locale])
+  }, [detailClient, selectedWalletProduct, selectedLocationId, navigate, locale])
 
   const continueWalletPurchaseOpenBill = useCallback(() => {
     if (!selectedWalletProduct) return

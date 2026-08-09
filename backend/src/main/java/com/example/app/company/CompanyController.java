@@ -2,6 +2,7 @@ package com.example.app.company;
 
 import com.example.app.billing.BillRepository;
 import com.example.app.client.Client;
+import com.example.app.client.ClientDirectoryPageQueryService;
 import com.example.app.customfield.CustomFieldAppliesTo;
 import com.example.app.customfield.CustomFieldService;
 import com.example.app.files.CompanyFile;
@@ -53,6 +54,9 @@ public class CompanyController {
 
     @Autowired(required = false)
     private LocationRepository locations;
+
+    @Autowired
+    private ClientDirectoryPageQueryService directoryPages;
 
     public CompanyController(
             ClientCompanyRepository companies,
@@ -132,6 +136,16 @@ public class CompanyController {
             Map<Long, String> customFieldValues
     ) {}
 
+    public record CompanyPageResponse(
+            List<CompanyResponse> content,
+            long totalElements,
+            int page,
+            int size,
+            int totalPages
+    ) {}
+
+    public record CompanyOptionResponse(Long id, String name, boolean active) {}
+
     public record CompanyBillSummary(
             Long id,
             String billNumber,
@@ -165,6 +179,61 @@ public class CompanyController {
                         CustomFieldAppliesTo.COMPANY,
                         rows.stream().map(ClientCompany::getId).toList());
         return rows.stream().map(row -> toResponse(row, customValues.get(row.getId()))).toList();
+    }
+
+    @GetMapping("/options")
+    @Transactional(readOnly = true)
+    public List<CompanyOptionResponse> options(
+            @RequestParam(required = false) Long locationId,
+            @AuthenticationPrincipal User me
+    ) {
+        var rows = companies.findAllByOwnerCompanyIdAndActiveTrueOrderByNameAsc(me.getCompany().getId());
+        if (locationId != null) {
+            rows = rows.stream().filter(row -> visibleAtLocation(row.getAssignedLocations(), locationId)).toList();
+        }
+        return rows.stream()
+                .map(row -> new CompanyOptionResponse(row.getId(), row.getName(), row.isActive()))
+                .toList();
+    }
+
+    @GetMapping("/page")
+    @Transactional(readOnly = true)
+    public CompanyPageResponse page(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Long locationId,
+            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) String sortField,
+            @RequestParam(name = "sortDir", defaultValue = "asc") String sortDir,
+            @AuthenticationPrincipal User me
+    ) {
+        Long ownerCompanyId = me.getCompany().getId();
+        var idPage = directoryPages.companyIds(
+                ownerCompanyId,
+                locationId,
+                active,
+                search,
+                sortField,
+                sortDir,
+                Math.max(0, page),
+                Math.max(1, Math.min(size <= 0 ? 10 : size, 100)));
+        if (idPage.ids().isEmpty()) {
+            return new CompanyPageResponse(List.of(), idPage.totalElements(), idPage.page(), idPage.size(), idPage.totalPages());
+        }
+        Map<Long, ClientCompany> byId = companies.findListRowsByOwnerCompanyIdAndIdIn(ownerCompanyId, idPage.ids()).stream()
+                .collect(java.util.stream.Collectors.toMap(ClientCompany::getId, row -> row));
+        List<ClientCompany> rows = idPage.ids().stream().map(byId::get).filter(Objects::nonNull).toList();
+        Map<Long, Map<Long, String>> customValues = customFieldService == null
+                ? Map.of()
+                : customFieldService.valuesForEntities(
+                        ownerCompanyId,
+                        CustomFieldAppliesTo.COMPANY,
+                        rows.stream().map(ClientCompany::getId).toList());
+        List<CompanyResponse> content = rows.stream()
+                .map(row -> toResponse(row, customValues.get(row.getId())))
+                .toList();
+        return new CompanyPageResponse(content, idPage.totalElements(), idPage.page(), idPage.size(), idPage.totalPages());
     }
 
     @GetMapping("/{id}")

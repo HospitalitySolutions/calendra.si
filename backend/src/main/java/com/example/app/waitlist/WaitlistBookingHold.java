@@ -2,6 +2,7 @@ package com.example.app.waitlist;
 
 import com.example.app.common.BaseEntity;
 import com.example.app.company.Company;
+import com.example.app.location.Location;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.Space;
 import com.example.app.user.User;
@@ -23,6 +24,10 @@ public class WaitlistBookingHold extends BaseEntity {
     @OneToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "offer_id", nullable = false, unique = true)
     private WaitlistOffer offer;
+
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id", nullable = false)
+    private Location location;
 
     @Column(name = "slot_start", nullable = false)
     private LocalDateTime slotStart;
