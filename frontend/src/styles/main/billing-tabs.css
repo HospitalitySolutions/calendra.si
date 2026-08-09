@@ -4236,3 +4236,105 @@
         position: relative;
     }
 }
+
+/* Desktop Zaračunavanje tables reuse the Clients table system exactly.
+   Billing-specific column content/widths stay intact; only the table shell,
+   row spacing, headers and footer pagination inherit the Clients visuals. */
+@media (min-width: 1025px) {
+    .billing-clients-table-layout.clients-modern-card .billing-modern-table-wrap.clients-table-wrap {
+        border: 0;
+        border-radius: 0;
+        overflow-x: auto;
+        background: transparent;
+    }
+
+    .billing-clients-table-layout.clients-modern-card .billing-modern-table.clients-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .billing-clients-table-layout.clients-modern-card .billing-modern-table.clients-table th {
+        padding: 16px 14px;
+        border-bottom: 1px solid #e5e7eb;
+        background: transparent;
+        color: #475569;
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.045em;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .billing-clients-table-layout.clients-modern-card .billing-modern-table.clients-table td {
+        padding: 17px 14px;
+        border-bottom: 1px solid #edf2f7;
+        vertical-align: middle;
+        color: #1e293b;
+        font-size: 0.86rem;
+    }
+
+    .billing-clients-table-layout.clients-modern-card .billing-modern-table.clients-table tbody tr:last-child td {
+        border-bottom: 0;
+    }
+
+    .billing-clients-table-layout.clients-modern-card .clients-row {
+        transition: background-color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .billing-clients-table-layout.clients-modern-card .clients-row:hover {
+        background: #f8fbff;
+    }
+
+    .billing-clients-table-layout.clients-modern-card .billing-modern-footer.clients-modern-table-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        padding: 16px 4px 0;
+        color: #475569;
+        font-size: 0.9rem;
+    }
+
+    /* Preserve every billing column without compressing the Clients-style rows. */
+    .billing-clients-table-layout.clients-modern-card .billing-open-bills-table {
+        min-width: 1320px;
+    }
+
+    .billing-clients-table-layout.clients-modern-card .billing-modern-payments-table {
+        min-width: 1260px;
+    }
+
+    .billing-clients-table-layout.clients-modern-card .billing-modern-advances-table {
+        min-width: 1120px;
+    }
+
+    .billing-clients-table-layout.clients-modern-card .billing-modern-gift-cards-table {
+        min-width: 1320px;
+    }
+
+    .billing-clients-table-layout.clients-modern-card .billing-modern-history-table {
+        min-width: 1500px;
+    }
+}
+
+@media (min-width: 1025px) {
+    [data-theme="dark"] .billing-clients-table-layout.clients-modern-card .billing-modern-table.clients-table th {
+        background: transparent;
+        color: #cbd5e1;
+        border-bottom-color: rgba(148, 163, 184, 0.18);
+    }
+
+    [data-theme="dark"] .billing-clients-table-layout.clients-modern-card .billing-modern-table.clients-table td {
+        color: #e2e8f0;
+        border-bottom-color: rgba(148, 163, 184, 0.14);
+    }
+
+    [data-theme="dark"] .billing-clients-table-layout.clients-modern-card .clients-row:hover {
+        background: rgba(30, 41, 59, 0.55);
+    }
+
+    [data-theme="dark"] .billing-clients-table-layout.clients-modern-card .billing-modern-footer.clients-modern-table-footer {
+        color: #94a3b8;
+    }
+}

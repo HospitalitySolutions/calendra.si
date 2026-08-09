@@ -718,9 +718,14 @@ function doesUnusedAdvanceMatchRecipient(
   return Number(advance.client?.id || 0) === clientId
 }
 
-type OpenBillsSortField = 'gross' | 'client' | 'date'
-type HistorySortField = 'gross' | 'folio' | 'date'
+type OpenBillsSortField = 'sessionId' | 'client' | 'session' | 'employee' | 'paymentMethod' | 'gross' | 'date'
+type OpenPaymentsSortField = 'orderId' | 'billNumber' | 'payer' | 'date' | 'dueDate' | 'amount'
+type UnusedAdvancesSortField = 'advanceNumber' | 'customer' | 'sessionId' | 'originalAmount' | 'remainingAmount' | 'date'
+type GiftCardsSortField = 'id' | 'code' | 'type' | 'customer' | 'content' | 'expires' | 'status' | 'invoice' | 'issuedAt'
+type HistorySortField = 'invoiceNumber' | 'invoiceType' | 'orderId' | 'sessionId' | 'customer' | 'employee' | 'description' | 'date' | 'gross' | 'paymentStatus' | 'fiscalStatus'
 type SortDir = 'asc' | 'desc'
+type BillingSortState<K extends string> = { key: K | null; direction: SortDir }
+type BillingSortableValue = string | number | boolean | null | undefined
 function getOpenBillsSortOptions(loc: AppLocale): Array<{ field: OpenBillsSortField; label: string }> {
   if (loc === 'sl') {
     return [
@@ -734,6 +739,52 @@ function getOpenBillsSortOptions(loc: AppLocale): Array<{ field: OpenBillsSortFi
     { field: 'date', label: 'Date' },
     { field: 'client', label: 'Client' },
   ]
+}
+
+function nextBillingSortState<K extends string>(current: BillingSortState<K>, key: K): BillingSortState<K> {
+  if (current.key !== key) return { key, direction: 'asc' }
+  return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+}
+
+function compareBillingSortableValues(left: BillingSortableValue, right: BillingSortableValue, locale: AppLocale): number {
+  if (typeof left === 'number' && typeof right === 'number') return left - right
+  if (typeof left === 'boolean' && typeof right === 'boolean') return Number(left) - Number(right)
+  const compareLocale = locale === 'sl' ? 'sl-SI' : locale === 'sr' ? 'sr-Latn' : 'en'
+  return String(left ?? '').localeCompare(String(right ?? ''), compareLocale, { sensitivity: 'base', numeric: true })
+}
+
+function BillingSortableTableHeader<K extends string>({
+  label,
+  sortKey,
+  sortState,
+  onSort,
+  sortAriaPrefix,
+}: {
+  label: string
+  sortKey: K
+  sortState: BillingSortState<K>
+  onSort: (key: K) => void
+  sortAriaPrefix: string
+}) {
+  const active = sortState.key === sortKey
+  const direction = active ? sortState.direction : null
+  return (
+    <th aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button
+        type="button"
+        className={`clients-sort-header${active ? ' clients-sort-header--active' : ''}`}
+        onClick={() => onSort(sortKey)}
+        aria-label={`${sortAriaPrefix} ${label}`}
+        title={`${sortAriaPrefix} ${label}`}
+      >
+        <span>{label}</span>
+        <svg className={`clients-sort-icon${direction ? ` clients-sort-icon--${direction}` : ''}`} width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+          <path className="clients-sort-icon__up" d="m4.5 6 3.5-3.5L11.5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path className="clients-sort-icon__down" d="m4.5 10 3.5 3.5 3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+    </th>
+  )
 }
 
 export type EmbeddedCreateBillRequest = {
@@ -1179,8 +1230,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [openBillsSortField, setOpenBillsSortField] = useState<OpenBillsSortField>('gross')
   const [openBillsSortDir, setOpenBillsSortDir] = useState<SortDir>('desc')
   const [openBillsSortMenuOpen, setOpenBillsSortMenuOpen] = useState(false)
-  const [historySortField] = useState<HistorySortField>('date')
-  const [historySortDir] = useState<SortDir>('asc')
+  const [openPaymentsSort, setOpenPaymentsSort] = useState<BillingSortState<OpenPaymentsSortField>>({ key: null, direction: 'asc' })
+  const [unusedAdvancesSort, setUnusedAdvancesSort] = useState<BillingSortState<UnusedAdvancesSortField>>({ key: null, direction: 'asc' })
+  const [giftCardsSort, setGiftCardsSort] = useState<BillingSortState<GiftCardsSortField>>({ key: 'issuedAt', direction: 'desc' })
+  const [historySortField, setHistorySortField] = useState<HistorySortField>('date')
+  const [historySortDir, setHistorySortDir] = useState<SortDir>('asc')
   const [historySortMenuOpen, setHistorySortMenuOpen] = useState(false)
   const [historyPage, setHistoryPage] = useState(1)
   const [openPaymentsPage, setOpenPaymentsPage] = useState(1)
@@ -2253,22 +2307,39 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const list = [...filteredHistoryBills]
     const factor = historySortDir === 'asc' ? 1 : -1
     list.sort((a, b) => {
-      if (historySortField === 'gross') return (Number(a.totalGross || 0) - Number(b.totalGross || 0)) * factor
-      if (historySortField === 'date') {
+      let comparison = 0
+      if (historySortField === 'invoiceNumber') {
+        comparison = compareBillingSortableValues(a.billNumber || a.id, b.billNumber || b.id, locale)
+      } else if (historySortField === 'invoiceType') {
+        comparison = compareBillingSortableValues(historyInvoiceTypeForBill(a), historyInvoiceTypeForBill(b), locale)
+      } else if (historySortField === 'orderId') {
+        comparison = compareBillingSortableValues(displayInvoiceOrderId(a), displayInvoiceOrderId(b), locale)
+      } else if (historySortField === 'sessionId') {
+        comparison = compareBillingSortableValues(a.sessionId ?? Number.NEGATIVE_INFINITY, b.sessionId ?? Number.NEGATIVE_INFINITY, locale)
+      } else if (historySortField === 'customer') {
+        const customerA = a.billingTarget === 'COMPANY' ? (a.recipientCompany?.name || '') : (a.client ? fullName(a.client) : '')
+        const customerB = b.billingTarget === 'COMPANY' ? (b.recipientCompany?.name || '') : (b.client ? fullName(b.client) : '')
+        comparison = compareBillingSortableValues(customerA, customerB, locale)
+      } else if (historySortField === 'employee') {
+        comparison = compareBillingSortableValues(fullName(a.consultant), fullName(b.consultant), locale)
+      } else if (historySortField === 'description') {
+        comparison = compareBillingSortableValues(a.items?.[0]?.transactionService?.description || normalizeBillType(a), b.items?.[0]?.transactionService?.description || normalizeBillType(b), locale)
+      } else if (historySortField === 'date') {
         const tsA = Date.parse(String(a.issueDate || ''))
         const tsB = Date.parse(String(b.issueDate || ''))
-        const safeA = Number.isFinite(tsA) ? tsA : 0
-        const safeB = Number.isFinite(tsB) ? tsB : 0
-        return (safeA - safeB) * factor
+        comparison = (Number.isFinite(tsA) ? tsA : 0) - (Number.isFinite(tsB) ? tsB : 0)
+      } else if (historySortField === 'gross') {
+        comparison = Number(a.totalGross || 0) - Number(b.totalGross || 0)
+      } else if (historySortField === 'paymentStatus') {
+        comparison = compareBillingSortableValues(a.paymentStatus || 'open', b.paymentStatus || 'open', locale)
+      } else if (historySortField === 'fiscalStatus') {
+        comparison = compareBillingSortableValues(a.fiscalStatus || 'NOT_SENT', b.fiscalStatus || 'NOT_SENT', locale)
       }
-      const folioA = Number.parseInt(String(a.billNumber || a.id || 0).replace(/[^\d]/g, ''), 10)
-      const folioB = Number.parseInt(String(b.billNumber || b.id || 0).replace(/[^\d]/g, ''), 10)
-      const safeA = Number.isFinite(folioA) ? folioA : 0
-      const safeB = Number.isFinite(folioB) ? folioB : 0
-      return (safeA - safeB) * factor
+      if (comparison === 0) comparison = Number(a.id || 0) - Number(b.id || 0)
+      return comparison * factor
     })
     return list
-  }, [filteredHistoryBills, historySortField, historySortDir])
+  }, [filteredHistoryBills, historySortField, historySortDir, locale])
 
   useEffect(() => {
     setHistoryPage(1)
@@ -2324,12 +2395,40 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }, [locationFilteredGiftCards, giftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter])
 
   const sortedGiftCards = useMemo(() => {
+    const factor = giftCardsSort.direction === 'asc' ? 1 : -1
     return [...filteredGiftCards].sort((a, b) => {
-      const tsA = Date.parse(String(a.issuedAt || ''))
-      const tsB = Date.parse(String(b.issuedAt || ''))
-      return (Number.isFinite(tsB) ? tsB : 0) - (Number.isFinite(tsA) ? tsA : 0)
+      let comparison = 0
+      if (giftCardsSort.key === 'id') {
+        comparison = compareBillingSortableValues(a.giftCardNumber || a.id, b.giftCardNumber || b.id, locale)
+      } else if (giftCardsSort.key === 'code') {
+        comparison = compareBillingSortableValues(a.code, b.code, locale)
+      } else if (giftCardsSort.key === 'type') {
+        comparison = compareBillingSortableValues(`${a.voucherMode || ''} ${a.voucherScope || ''}`, `${b.voucherMode || ''} ${b.voucherScope || ''}`, locale)
+      } else if (giftCardsSort.key === 'customer') {
+        comparison = compareBillingSortableValues(`${a.clientName || ''} ${a.clientEmail || ''}`, `${b.clientName || ''} ${b.clientEmail || ''}`, locale)
+      } else if (giftCardsSort.key === 'content') {
+        comparison = compareBillingSortableValues(`${a.productName || ''} ${(a.eligibleServiceNames || []).join(' ')} ${a.valueGross ?? ''}`, `${b.productName || ''} ${(b.eligibleServiceNames || []).join(' ')} ${b.valueGross ?? ''}`, locale)
+      } else if (giftCardsSort.key === 'expires') {
+        const tsA = Date.parse(String(a.expiresAt || ''))
+        const tsB = Date.parse(String(b.expiresAt || ''))
+        comparison = (Number.isFinite(tsA) ? tsA : Number.POSITIVE_INFINITY) - (Number.isFinite(tsB) ? tsB : Number.POSITIVE_INFINITY)
+      } else if (giftCardsSort.key === 'status') {
+        comparison = compareBillingSortableValues(a.status, b.status, locale)
+      } else if (giftCardsSort.key === 'invoice') {
+        comparison = compareBillingSortableValues(a.billNumber || a.orderReference, b.billNumber || b.orderReference, locale)
+      } else if (giftCardsSort.key === 'issuedAt') {
+        const tsA = Date.parse(String(a.issuedAt || ''))
+        const tsB = Date.parse(String(b.issuedAt || ''))
+        comparison = (Number.isFinite(tsA) ? tsA : 0) - (Number.isFinite(tsB) ? tsB : 0)
+      }
+      if (comparison === 0) {
+        const tsA = Date.parse(String(a.issuedAt || ''))
+        const tsB = Date.parse(String(b.issuedAt || ''))
+        comparison = (Number.isFinite(tsA) ? tsA : 0) - (Number.isFinite(tsB) ? tsB : 0)
+      }
+      return comparison * factor
     })
-  }, [filteredGiftCards])
+  }, [filteredGiftCards, giftCardsSort, locale])
 
   const giftCardStats = useMemo(() => {
     const active = locationFilteredGiftCards.filter((card) => card.status === 'active').length
@@ -2356,7 +2455,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   useEffect(() => {
     setGiftCardsPage(1)
-  }, [giftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter])
+  }, [giftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter, giftCardsSort])
 
   useEffect(() => {
     if (giftCardsPagination.page !== giftCardsPage) setGiftCardsPage(giftCardsPagination.page)
@@ -3281,21 +3380,28 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const list = [...filteredOpenBills]
     const factor = openBillsSortDir === 'asc' ? 1 : -1
     list.sort((a, b) => {
-      if (openBillsSortField === 'gross') {
-        const grossA = openBillListGroupGross(a)
-        const grossB = openBillListGroupGross(b)
-        return (grossA - grossB) * factor
+      let comparison = 0
+      if (openBillsSortField === 'sessionId') {
+        comparison = compareBillingSortableValues(a.sessionDisplayId || formatBillingSessionIdDisplay(a.sessionId), b.sessionDisplayId || formatBillingSessionIdDisplay(b.sessionId), locale)
+      } else if (openBillsSortField === 'client') {
+        comparison = compareBillingSortableValues(openBillListGroupClientLabel(a), openBillListGroupClientLabel(b), locale)
+      } else if (openBillsSortField === 'session') {
+        comparison = compareBillingSortableValues(`${a.sessionInfo || ''} ${openBillDescription(a)}`, `${b.sessionInfo || ''} ${openBillDescription(b)}`, locale)
+      } else if (openBillsSortField === 'employee') {
+        comparison = compareBillingSortableValues(openBillListGroupEmployeeLabel(a), openBillListGroupEmployeeLabel(b), locale)
+      } else if (openBillsSortField === 'paymentMethod') {
+        const methodA = getOpenBillListGroupMembers(a)[0]?.paymentMethod?.name || a.paymentMethod?.name || ''
+        const methodB = getOpenBillListGroupMembers(b)[0]?.paymentMethod?.name || b.paymentMethod?.name || ''
+        comparison = compareBillingSortableValues(methodA, methodB, locale)
+      } else if (openBillsSortField === 'gross') {
+        comparison = openBillListGroupGross(a) - openBillListGroupGross(b)
+      } else {
+        const tsA = Date.parse(String(a.sessionInfo || ''))
+        const tsB = Date.parse(String(b.sessionInfo || ''))
+        comparison = (Number.isFinite(tsA) ? tsA : 0) - (Number.isFinite(tsB) ? tsB : 0)
       }
-      if (openBillsSortField === 'client') {
-        const labelA = openBillListGroupClientLabel(a).toLowerCase()
-        const labelB = openBillListGroupClientLabel(b).toLowerCase()
-        return labelA.localeCompare(labelB) * factor
-      }
-      const tsA = Date.parse(String(a.sessionInfo || ''))
-      const tsB = Date.parse(String(b.sessionInfo || ''))
-      const safeA = Number.isFinite(tsA) ? tsA : 0
-      const safeB = Number.isFinite(tsB) ? tsB : 0
-      return (safeA - safeB) * factor
+      if (comparison === 0) comparison = Number(a.id || 0) - Number(b.id || 0)
+      return comparison * factor
     })
     return list
   }, [filteredOpenBills, openBillsSortField, openBillsSortDir, openBillEdits, services, openBills, locale])
@@ -3312,7 +3418,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const openPayments = useMemo(() => {
     const q = openPaymentsSearch.trim().toLowerCase()
     const unpaid = locationFilteredBills.filter((bill) => (bill.paymentStatus || 'open') !== 'paid' && (bill.paymentStatus || 'open') !== 'cancelled')
-    const filtered = q
+    return q
       ? unpaid.filter((bill) => {
         const billNo = String(bill.billNumber || '').toLowerCase()
         const orderId = displayInvoiceOrderId(bill).toLowerCase()
@@ -3324,8 +3430,32 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         return billNo.includes(q) || orderId.includes(q) || client.includes(q) || method.includes(q) || amount.includes(q)
       })
       : unpaid
-    return [...filtered].sort((a, b) => Date.parse(String(b.issueDate || '')) - Date.parse(String(a.issueDate || '')))
   }, [locationFilteredBills, openPaymentsSearch])
+
+  const sortedOpenPayments = useMemo(() => {
+    if (!openPaymentsSort.key) return openPayments
+    const factor = openPaymentsSort.direction === 'asc' ? 1 : -1
+    return [...openPayments].sort((a, b) => {
+      let comparison = 0
+      if (openPaymentsSort.key === 'orderId') {
+        comparison = compareBillingSortableValues(displayInvoiceOrderId(a), displayInvoiceOrderId(b), locale)
+      } else if (openPaymentsSort.key === 'billNumber') {
+        comparison = compareBillingSortableValues(a.billNumber || a.id, b.billNumber || b.id, locale)
+      } else if (openPaymentsSort.key === 'payer') {
+        const payerA = a.billingTarget === 'COMPANY' ? (a.recipientCompany?.name || '') : (a.client ? fullName(a.client) : '')
+        const payerB = b.billingTarget === 'COMPANY' ? (b.recipientCompany?.name || '') : (b.client ? fullName(b.client) : '')
+        comparison = compareBillingSortableValues(payerA, payerB, locale)
+      } else if (openPaymentsSort.key === 'date' || openPaymentsSort.key === 'dueDate') {
+        const tsA = Date.parse(String(a.issueDate || ''))
+        const tsB = Date.parse(String(b.issueDate || ''))
+        comparison = (Number.isFinite(tsA) ? tsA : 0) - (Number.isFinite(tsB) ? tsB : 0)
+      } else if (openPaymentsSort.key === 'amount') {
+        comparison = billBankTransferDueAmount(a) - billBankTransferDueAmount(b)
+      }
+      if (comparison === 0) comparison = Number(a.id || 0) - Number(b.id || 0)
+      return comparison * factor
+    })
+  }, [openPayments, openPaymentsSort, locale])
 
   const filteredUnusedAdvances = useMemo(() => {
     const q = unusedAdvancesSearch.trim().toLowerCase()
@@ -3337,6 +3467,33 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       return billNo.includes(q) || clientLabel.includes(q) || sessionId.includes(q)
     })
   }, [locationFilteredUnusedAdvances, unusedAdvancesSearch])
+
+  const sortedUnusedAdvances = useMemo(() => {
+    if (!unusedAdvancesSort.key) return filteredUnusedAdvances
+    const factor = unusedAdvancesSort.direction === 'asc' ? 1 : -1
+    return [...filteredUnusedAdvances].sort((a, b) => {
+      let comparison = 0
+      if (unusedAdvancesSort.key === 'advanceNumber') {
+        comparison = compareBillingSortableValues(a.billNumber || a.advanceBillId, b.billNumber || b.advanceBillId, locale)
+      } else if (unusedAdvancesSort.key === 'customer') {
+        const customerA = `${a.client?.firstName || ''} ${a.client?.lastName || ''}`.trim() || a.recipientCompany?.name || ''
+        const customerB = `${b.client?.firstName || ''} ${b.client?.lastName || ''}`.trim() || b.recipientCompany?.name || ''
+        comparison = compareBillingSortableValues(customerA, customerB, locale)
+      } else if (unusedAdvancesSort.key === 'sessionId') {
+        comparison = compareBillingSortableValues(a.sessionId ?? Number.NEGATIVE_INFINITY, b.sessionId ?? Number.NEGATIVE_INFINITY, locale)
+      } else if (unusedAdvancesSort.key === 'originalAmount') {
+        comparison = Number(a.totalGross || 0) - Number(b.totalGross || 0)
+      } else if (unusedAdvancesSort.key === 'remainingAmount') {
+        comparison = Number(a.remainingGross || 0) - Number(b.remainingGross || 0)
+      } else if (unusedAdvancesSort.key === 'date') {
+        const tsA = Date.parse(String(a.issueDate || ''))
+        const tsB = Date.parse(String(b.issueDate || ''))
+        comparison = (Number.isFinite(tsA) ? tsA : 0) - (Number.isFinite(tsB) ? tsB : 0)
+      }
+      if (comparison === 0) comparison = Number(a.advanceBillId || 0) - Number(b.advanceBillId || 0)
+      return comparison * factor
+    })
+  }, [filteredUnusedAdvances, unusedAdvancesSort, locale])
 
   const openPaymentsTotal = useMemo(
     () => openPayments.reduce((sum, bill) => sum + billBankTransferDueAmount(bill), 0),
@@ -3356,34 +3513,34 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   )
 
   const openPaymentsPagination = useMemo(() => {
-    const total = openPayments.length
+    const total = sortedOpenPayments.length
     const totalPages = Math.max(1, Math.ceil(total / BILLING_LIST_PAGE_SIZE))
     const page = Math.min(Math.max(1, openPaymentsPage), totalPages)
     const offset = (page - 1) * BILLING_LIST_PAGE_SIZE
-    const slice = openPayments.slice(offset, offset + BILLING_LIST_PAGE_SIZE)
+    const slice = sortedOpenPayments.slice(offset, offset + BILLING_LIST_PAGE_SIZE)
     const showFrom = total === 0 ? 0 : offset + 1
     const showTo = total === 0 ? 0 : Math.min(offset + BILLING_LIST_PAGE_SIZE, total)
     return { total, totalPages, page, slice, showFrom, showTo }
-  }, [openPayments, openPaymentsPage])
+  }, [sortedOpenPayments, openPaymentsPage])
 
   const unusedAdvancesPagination = useMemo(() => {
-    const total = filteredUnusedAdvances.length
+    const total = sortedUnusedAdvances.length
     const totalPages = Math.max(1, Math.ceil(total / BILLING_LIST_PAGE_SIZE))
     const page = Math.min(Math.max(1, unusedAdvancesPage), totalPages)
     const offset = (page - 1) * BILLING_LIST_PAGE_SIZE
-    const slice = filteredUnusedAdvances.slice(offset, offset + BILLING_LIST_PAGE_SIZE)
+    const slice = sortedUnusedAdvances.slice(offset, offset + BILLING_LIST_PAGE_SIZE)
     const showFrom = total === 0 ? 0 : offset + 1
     const showTo = total === 0 ? 0 : Math.min(offset + BILLING_LIST_PAGE_SIZE, total)
     return { total, totalPages, page, slice, showFrom, showTo }
-  }, [filteredUnusedAdvances, unusedAdvancesPage])
+  }, [sortedUnusedAdvances, unusedAdvancesPage])
 
   useEffect(() => {
     setOpenPaymentsPage(1)
-  }, [openPaymentsSearch])
+  }, [openPaymentsSearch, openPaymentsSort])
 
   useEffect(() => {
     setUnusedAdvancesPage(1)
-  }, [unusedAdvancesSearch])
+  }, [unusedAdvancesSearch, unusedAdvancesSort])
 
   useEffect(() => {
     setOpenPaymentsPage(1)
@@ -8175,6 +8332,28 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     })
   }
 
+  const billingSortAriaPrefix = locale === 'sl' ? 'Razvrsti po' : locale === 'sr' ? 'Sortiraj po' : 'Sort by'
+  const openBillsSortState: BillingSortState<OpenBillsSortField> = { key: openBillsSortField, direction: openBillsSortDir }
+  const historySortState: BillingSortState<HistorySortField> = { key: historySortField, direction: historySortDir }
+
+  const handleOpenBillsSort = (key: OpenBillsSortField) => {
+    if (key === openBillsSortField) {
+      setOpenBillsSortDir((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+    setOpenBillsSortField(key)
+    setOpenBillsSortDir('asc')
+  }
+
+  const handleHistorySort = (key: HistorySortField) => {
+    if (key === historySortField) {
+      setHistorySortDir((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+    setHistorySortField(key)
+    setHistorySortDir('asc')
+  }
+
   return (
     <div className={overlayOnlyMode ? "stack gap-lg billing-open-bill-editor-only" : "stack gap-lg"}>
       <div className="stack gap-lg billing-page-main-stack" data-onboarding-panel="billing">
@@ -8378,16 +8557,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     </div>
                   </div>
                 ) : (
-                  <div className="billing-modern-table-wrap">
-                    <table className="billing-modern-table billing-open-bills-table">
+                  <div className={isBillingMobileOrTablet ? 'billing-clients-table-layout' : 'billing-clients-table-layout clients-modern-card'}>
+                  <div className="simple-table-wrap clients-table-wrap clients-table-desktop billing-modern-table-wrap">
+                    <table className="clients-table billing-modern-table billing-open-bills-table">
                       <thead>
                         <tr>
-                          <th>{billingCopy.openBillsColSessionId}</th>
-                          <th>{billingCopy.client}</th>
-                          <th>{billingCopy.openBillsColSession} / {locale === 'sl' ? 'Opis' : 'Description'}</th>
-                          <th>{locale === 'sl' ? 'Zaposleni' : 'Employee'}</th>
-                          <th>{billingCopy.paymentMethod}</th>
-                          <th>{locale === 'sl' ? 'Znesek' : 'Amount'}</th>
+                          <BillingSortableTableHeader label={billingCopy.openBillsColSessionId} sortKey="sessionId" sortState={openBillsSortState} onSort={handleOpenBillsSort} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={billingCopy.client} sortKey="client" sortState={openBillsSortState} onSort={handleOpenBillsSort} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={`${billingCopy.openBillsColSession} / ${locale === 'sl' ? 'Opis' : 'Description'}`} sortKey="session" sortState={openBillsSortState} onSort={handleOpenBillsSort} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Zaposleni' : 'Employee'} sortKey="employee" sortState={openBillsSortState} onSort={handleOpenBillsSort} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={billingCopy.paymentMethod} sortKey="paymentMethod" sortState={openBillsSortState} onSort={handleOpenBillsSort} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Znesek' : 'Amount'} sortKey="gross" sortState={openBillsSortState} onSort={handleOpenBillsSort} sortAriaPrefix={billingSortAriaPrefix} />
                           <th>{locale === 'sl' ? 'Dejanja' : 'Action'}</th>
                         </tr>
                       </thead>
@@ -8451,7 +8631,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         })}
                       </tbody>
                     </table>
-                    <div className="billing-modern-footer">
+                  </div>
+                    <div className="clients-modern-table-footer billing-modern-footer">
                       <span>{locale === 'sl' ? `Prikazujem 1 do ${sortedOpenBills.length} od ${sortedOpenBills.length} rezultatov` : `Showing 1 to ${sortedOpenBills.length} of ${sortedOpenBills.length} results`}</span>
                       <div className="clients-modern-pagination" aria-hidden="true">
                         <button type="button" className="secondary">‹</button>
@@ -8459,6 +8640,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         <button type="button" className="secondary">›</button>
                       </div>
                     </div>
+                  
                   </div>
                 )}
               </div>
@@ -8573,16 +8755,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     })}
                   </div>
                 ) : (
-                  <div className="billing-modern-table-wrap">
-                    <table className="billing-modern-table billing-modern-payments-table">
+                  <div className={isBillingMobileOrTablet ? 'billing-clients-table-layout' : 'billing-clients-table-layout clients-modern-card'}>
+                  <div className="simple-table-wrap clients-table-wrap clients-table-desktop billing-modern-table-wrap">
+                    <table className="clients-table billing-modern-table billing-modern-payments-table">
                       <thead>
                         <tr>
-                          <th>{locale === 'sl' ? 'ID naročila' : 'Order ID'}</th>
-                          <th>{locale === 'sl' ? 'Št. računa' : 'Bill No.'}</th>
-                          <th>{locale === 'sl' ? 'Plačnik' : 'Payer'}</th>
-                          <th>{locale === 'sl' ? 'Datum' : 'Date'}</th>
-                          <th>{locale === 'sl' ? 'Rok plačila' : 'Due Date'}</th>
-                          <th>{locale === 'sl' ? 'Znesek' : 'Amount'}</th>
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'ID naročila' : 'Order ID'} sortKey="orderId" sortState={openPaymentsSort} onSort={(key) => setOpenPaymentsSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Št. računa' : 'Bill No.'} sortKey="billNumber" sortState={openPaymentsSort} onSort={(key) => setOpenPaymentsSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Plačnik' : 'Payer'} sortKey="payer" sortState={openPaymentsSort} onSort={(key) => setOpenPaymentsSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Datum' : 'Date'} sortKey="date" sortState={openPaymentsSort} onSort={(key) => setOpenPaymentsSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Rok plačila' : 'Due Date'} sortKey="dueDate" sortState={openPaymentsSort} onSort={(key) => setOpenPaymentsSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Znesek' : 'Amount'} sortKey="amount" sortState={openPaymentsSort} onSort={(key) => setOpenPaymentsSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
                           <th>{locale === 'sl' ? 'Dejanja' : 'Action'}</th>
                         </tr>
                       </thead>
@@ -8591,7 +8774,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                           const dueDate = addDays(bill.issueDate, paymentDeadlineDays)
                           const dueLabel = relativeDueLabel(dueDate)
                           return (
-                            <tr key={bill.id}>
+                            <tr key={bill.id} className="clients-row">
                               <td className="billing-modern-link-cell">{displayInvoiceOrderId(bill)}</td>
                               <td>{bill.billNumber || `BILL-${bill.id}`}</td>
                               <td>{bill.billingTarget === 'COMPANY' ? (bill.recipientCompany?.name || '—') : (bill.client ? fullName(bill.client) : '—')}</td>
@@ -8614,7 +8797,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         })}
                       </tbody>
                     </table>
-                    <div className="billing-modern-footer">
+                  </div>
+                    <div className="clients-modern-table-footer billing-modern-footer">
                       <span>
                         {locale === 'sl'
                           ? `Prikazujem ${openPaymentsPagination.showFrom} do ${openPaymentsPagination.showTo} od ${openPaymentsPagination.total} rezultatov`
@@ -8649,6 +8833,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         </button>
                       </div>
                     </div>
+                  
                   </div>
                 )}
               </div>
@@ -8756,16 +8941,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     })}
                   </div>
                 ) : (
-                  <div className="billing-modern-table-wrap">
-                    <table className="billing-modern-table">
+                  <div className={isBillingMobileOrTablet ? 'billing-clients-table-layout' : 'billing-clients-table-layout clients-modern-card'}>
+                  <div className="simple-table-wrap clients-table-wrap clients-table-desktop billing-modern-table-wrap">
+                    <table className="clients-table billing-modern-table billing-modern-advances-table">
                       <thead>
                         <tr>
-                          <th>{locale === 'sl' ? 'Št. predplačila' : 'Advance No.'}</th>
-                          <th>{locale === 'sl' ? `${billingCopy.client} / Podjetje` : `${billingCopy.client} / Company`}</th>
-                          <th>{locale === 'sl' ? 'ID seje' : 'Session ID'}</th>
-                          <th>{locale === 'sl' ? 'Prvotni znesek' : 'Original Amount'}</th>
-                          <th>{locale === 'sl' ? 'Preostalo stanje' : 'Remaining Balance'}</th>
-                          <th>{locale === 'sl' ? 'Datum izdaje' : 'Issued Date'}</th>
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Št. predplačila' : 'Advance No.'} sortKey="advanceNumber" sortState={unusedAdvancesSort} onSort={(key) => setUnusedAdvancesSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? `${billingCopy.client} / Podjetje` : `${billingCopy.client} / Company`} sortKey="customer" sortState={unusedAdvancesSort} onSort={(key) => setUnusedAdvancesSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'ID seje' : 'Session ID'} sortKey="sessionId" sortState={unusedAdvancesSort} onSort={(key) => setUnusedAdvancesSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Prvotni znesek' : 'Original Amount'} sortKey="originalAmount" sortState={unusedAdvancesSort} onSort={(key) => setUnusedAdvancesSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Preostalo stanje' : 'Remaining Balance'} sortKey="remainingAmount" sortState={unusedAdvancesSort} onSort={(key) => setUnusedAdvancesSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Datum izdaje' : 'Issued Date'} sortKey="date" sortState={unusedAdvancesSort} onSort={(key) => setUnusedAdvancesSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
                           <th>{locale === 'sl' ? 'Dejanja' : 'Action'}</th>
                         </tr>
                       </thead>
@@ -8791,7 +8977,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         })}
                       </tbody>
                     </table>
-                    <div className="billing-modern-footer">
+                  </div>
+                    <div className="clients-modern-table-footer billing-modern-footer">
                       <span>
                         {locale === 'sl'
                           ? `Prikazujem ${unusedAdvancesPagination.showFrom} do ${unusedAdvancesPagination.showTo} od ${unusedAdvancesPagination.total} rezultatov`
@@ -8826,6 +9013,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         </button>
                       </div>
                     </div>
+                  
                   </div>
                 )}
               </div>
@@ -8882,24 +9070,25 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 )}
 
                 {sortedGiftCards.length === 0 ? <EmptyState title={t('billingTabGiftCards')} text={locale === 'sl' ? 'Ni izdanih bonov.' : 'No vouchers yet.'} /> : (
-                  <div className="billing-modern-table-wrap">
-                    <table className="billing-modern-table billing-modern-gift-cards-table">
+                  <div className={isBillingMobileOrTablet ? 'billing-clients-table-layout' : 'billing-clients-table-layout clients-modern-card'}>
+                    <div className="simple-table-wrap clients-table-wrap clients-table-desktop billing-modern-table-wrap">
+                    <table className="clients-table billing-modern-table billing-modern-gift-cards-table">
                       <thead>
                         <tr>
-                          <th>{locale === 'sl' ? 'ID bona' : 'Voucher ID'}</th>
-                          <th>{locale === 'sl' ? 'Koda' : 'Code'}</th>
-                          <th>{locale === 'sl' ? 'Vrsta' : 'Type'}</th>
-                          <th>{locale === 'sl' ? 'Stranka / Kupec' : 'Client / Buyer'}</th>
-                          <th>{locale === 'sl' ? 'Vsebina' : 'Content'}</th>
-                          <th>{locale === 'sl' ? 'Poteče' : 'Expires'}</th>
-                          <th>{locale === 'sl' ? 'Status' : 'Status'}</th>
-                          <th>{locale === 'sl' ? 'Račun' : 'Invoice'}</th>
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'ID bona' : 'Voucher ID'} sortKey="id" sortState={giftCardsSort} onSort={(key) => setGiftCardsSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Koda' : 'Code'} sortKey="code" sortState={giftCardsSort} onSort={(key) => setGiftCardsSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Vrsta' : 'Type'} sortKey="type" sortState={giftCardsSort} onSort={(key) => setGiftCardsSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Stranka / Kupec' : 'Client / Buyer'} sortKey="customer" sortState={giftCardsSort} onSort={(key) => setGiftCardsSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Vsebina' : 'Content'} sortKey="content" sortState={giftCardsSort} onSort={(key) => setGiftCardsSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Poteče' : 'Expires'} sortKey="expires" sortState={giftCardsSort} onSort={(key) => setGiftCardsSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Status' : 'Status'} sortKey="status" sortState={giftCardsSort} onSort={(key) => setGiftCardsSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Račun' : 'Invoice'} sortKey="invoice" sortState={giftCardsSort} onSort={(key) => setGiftCardsSort((current) => nextBillingSortState(current, key))} sortAriaPrefix={billingSortAriaPrefix} />
                           <th>{locale === 'sl' ? 'Dejanja' : 'Actions'}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {giftCardsPagination.slice.map((card) => (
-                          <tr key={card.id} className="billing-history-row" onClick={() => setDetailGiftCard(card)}>
+                          <tr key={card.id} className="clients-row billing-history-row" onClick={() => setDetailGiftCard(card)}>
                             <td className="billing-modern-link-cell">{card.giftCardNumber || `DB-${card.id}`}</td>
                             <td>{card.code || '—'}</td>
                             <td><span className="billing-status-pill billing-status-pill--not-sent">{voucherTypeLabel(card)}</span></td>
@@ -8927,7 +9116,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         ))}
                       </tbody>
                     </table>
-                    <div className="billing-modern-footer">
+                  </div>
+                    <div className="clients-modern-table-footer billing-modern-footer">
                       <span>
                         {locale === 'sl'
                           ? `Prikazujem ${giftCardsPagination.showFrom} do ${giftCardsPagination.showTo} od ${giftCardsPagination.total} bonov`
@@ -8962,6 +9152,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         </button>
                       </div>
                     </div>
+                  
                   </div>
                 )}
               </div>
@@ -9290,8 +9481,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         <button type="button" className="billing-history-selection-bar__clear" onClick={() => setSelectedHistoryBillIds([])}>{historyExportText.clearSelection}</button>
                       </div>
                     ) : null}
-                  <div className="billing-modern-table-wrap">
-                    <table className="billing-modern-table billing-modern-history-table">
+                  <div className={isBillingMobileOrTablet ? 'billing-clients-table-layout' : 'billing-clients-table-layout clients-modern-card'}>
+                    <div className="simple-table-wrap clients-table-wrap clients-table-desktop billing-modern-table-wrap">
+                    <table className="clients-table billing-modern-table billing-modern-history-table">
                       <thead>
                         <tr>
                           <th className="billing-history-checkbox-cell">
@@ -9302,23 +9494,23 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                               aria-label={locale === 'sl' ? 'Izberi vse račune na strani' : 'Select all invoices on page'}
                             />
                           </th>
-                          <th>{locale === 'sl' ? 'Št. računa' : 'Invoice No.'}</th>
-                          <th>{billingCopy.historyInvoiceTypeColumn}</th>
-                          <th>{locale === 'sl' ? 'ID naročila' : 'Order ID'}</th>
-                          <th>{locale === 'sl' ? 'ID seje' : 'Session ID'}</th>
-                          <th>{locale === 'sl' ? `${billingCopy.client} / Podjetje` : `${billingCopy.client} / Company`}</th>
-                          <th>{locale === 'sl' ? 'Zaposleni' : 'Employee'}</th>
-                          <th>{locale === 'sl' ? 'Opis' : 'Description'}</th>
-                          <th>{locale === 'sl' ? 'Datum izdaje' : 'Issue Date'}</th>
-                          <th>{locale === 'sl' ? 'Znesek' : 'Amount'}</th>
-                          <th>{locale === 'sl' ? 'Status plačila' : 'Payment Status'}</th>
-                          {fiscalCashRegisterEnabled ? <th>{locale === 'sl' ? 'Fiskalni status' : 'Fiscal Status'}</th> : null}
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Št. računa' : 'Invoice No.'} sortKey="invoiceNumber" sortState={historySortState} onSort={handleHistorySort} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={billingCopy.historyInvoiceTypeColumn} sortKey="invoiceType" sortState={historySortState} onSort={handleHistorySort} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'ID naročila' : 'Order ID'} sortKey="orderId" sortState={historySortState} onSort={handleHistorySort} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'ID seje' : 'Session ID'} sortKey="sessionId" sortState={historySortState} onSort={handleHistorySort} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? `${billingCopy.client} / Podjetje` : `${billingCopy.client} / Company`} sortKey="customer" sortState={historySortState} onSort={handleHistorySort} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Zaposleni' : 'Employee'} sortKey="employee" sortState={historySortState} onSort={handleHistorySort} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Opis' : 'Description'} sortKey="description" sortState={historySortState} onSort={handleHistorySort} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Datum izdaje' : 'Issue Date'} sortKey="date" sortState={historySortState} onSort={handleHistorySort} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Znesek' : 'Amount'} sortKey="gross" sortState={historySortState} onSort={handleHistorySort} sortAriaPrefix={billingSortAriaPrefix} />
+                          <BillingSortableTableHeader label={locale === 'sl' ? 'Status plačila' : 'Payment Status'} sortKey="paymentStatus" sortState={historySortState} onSort={handleHistorySort} sortAriaPrefix={billingSortAriaPrefix} />
+                          {fiscalCashRegisterEnabled ? <BillingSortableTableHeader label={locale === 'sl' ? 'Fiskalni status' : 'Fiscal Status'} sortKey="fiscalStatus" sortState={historySortState} onSort={handleHistorySort} sortAriaPrefix={billingSortAriaPrefix} /> : null}
                           <th>{locale === 'sl' ? 'Dejanja' : 'Action'}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {historyPagination.slice.map((bill) => (
-                          <tr key={bill.id} className={`billing-history-row${selectedHistoryBillIdSet.has(bill.id) ? ' billing-history-row--selected' : ''}`} onClick={() => { void openFolioPanel(bill) }}>
+                          <tr key={bill.id} className={`clients-row billing-history-row${selectedHistoryBillIdSet.has(bill.id) ? ' billing-history-row--selected' : ''}`} onClick={() => { void openFolioPanel(bill) }}>
                             <td className="billing-history-checkbox-cell" onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="checkbox"
@@ -9354,7 +9546,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         ))}
                       </tbody>
                     </table>
-                    <div className="billing-modern-footer">
+                  </div>
+                    <div className="clients-modern-table-footer billing-modern-footer">
                       <span>
                         {locale === 'sl'
                           ? `Prikazujem ${historyPagination.showFrom} do ${historyPagination.showTo} od ${historyPagination.total} rezultatov`
@@ -9390,6 +9583,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       </div>
                     </div>
                   </div>
+                  
                   </>
                 )}
               </div>
