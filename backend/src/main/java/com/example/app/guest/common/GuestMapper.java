@@ -176,6 +176,10 @@ public final class GuestMapper {
     }
 
     public static GuestDtos.EntitlementResponse toEntitlement(GuestEntitlement entitlement) {
+        return toEntitlement(entitlement, entitlement == null ? 0 : entitlement.getVisitCount());
+    }
+
+    public static GuestDtos.EntitlementResponse toEntitlement(GuestEntitlement entitlement, Integer visitCount) {
         boolean autoRenews = autoRenewSetting(entitlement);
         GuestProduct product = entitlement.getProduct();
         Integer totalUses = product == null ? null : product.getUsageLimit();
@@ -194,7 +198,7 @@ public final class GuestMapper {
                 entitlement.getEntitlementType().name(),
                 publicEntitlementCode(entitlement),
                 entitlement.getRemainingUses(),
-                entitlement.getVisitCount(),
+                visitCount,
                 totalUses,
                 entitlement.getValidUntil() == null ? null : entitlement.getValidUntil().toString(),
                 validityDays,

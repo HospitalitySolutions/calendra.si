@@ -131,6 +131,30 @@ class WalletEntitlementScannerLocationScopeTest {
         assertThat(usageCaptor.getValue().getScannedBy()).isSameAs(admin);
     }
 
+    @Test
+    void standaloneMembershipScan_validatesWithoutCountingVisit() {
+        entitlement.setEntitlementType(EntitlementType.MEMBERSHIP);
+        entitlement.setRemainingUses(null);
+        entitlement.setVisitCount(7);
+        when(locations.findByIdAndCompanyId(11L, 1L)).thenReturn(Optional.of(first));
+        when(commerceLocations.entitlementAvailableAt(entitlement, 11L)).thenReturn(true);
+        when(usages.save(any(GuestEntitlementUsage.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(entitlements.save(any(GuestEntitlement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = controller.scan(
+                new WalletEntitlementScannerController.ScanRequest("PACK-20", "QR", null, null, null, 11L),
+                admin);
+
+        assertThat(response.success()).isTrue();
+        assertThat(response.result()).isEqualTo("MEMBERSHIP_VALIDATED");
+        assertThat(response.entitlement().visitCount()).isEqualTo(7);
+        assertThat(entitlement.getVisitCount()).isEqualTo(7);
+
+        ArgumentCaptor<GuestEntitlementUsage> usageCaptor = ArgumentCaptor.forClass(GuestEntitlementUsage.class);
+        verify(usages).save(usageCaptor.capture());
+        assertThat(usageCaptor.getValue().getUnitsUsed()).isZero();
+    }
+
     private static Location location(Long id, Company company, String name) {
         Location location = new Location();
         location.setId(id);

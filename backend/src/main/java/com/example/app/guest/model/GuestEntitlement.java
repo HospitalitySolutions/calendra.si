@@ -69,7 +69,10 @@ public class GuestEntitlement extends BaseEntity {
     @Column(name = "entitlement_code", length = 32, unique = true)
     private String entitlementCode;
 
-    /** Membership visit count; incremented on every successful membership scan. */
+    /**
+     * Legacy persisted membership counter retained for schema compatibility.
+     * Membership cards derive visits from distinct covered CHECKED_OUT bookings instead.
+     */
     @Column(name = "visit_count", nullable = false)
     private int visitCount = 0;
 

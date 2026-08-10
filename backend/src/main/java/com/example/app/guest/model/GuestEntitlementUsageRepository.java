@@ -12,6 +12,8 @@ public interface GuestEntitlementUsageRepository extends JpaRepository<GuestEnti
     Optional<GuestEntitlementUsage> findBySessionBookingId(Long sessionBookingId);
     Optional<GuestEntitlementUsage> findBySessionServiceId(Long sessionServiceId);
     List<GuestEntitlementUsage> findAllBySessionBookingIdOrderByUsedAtAsc(Long sessionBookingId);
+    @EntityGraph(attributePaths = {"sessionBooking", "sessionBooking.location"})
+    List<GuestEntitlementUsage> findAllByEntitlementIdIn(Collection<Long> entitlementIds);
     @EntityGraph(attributePaths = {"sessionBooking", "entitlement", "entitlement.product"})
     List<GuestEntitlementUsage> findAllBySessionBookingIdInOrderByUsedAtAsc(Collection<Long> sessionBookingIds);
     List<GuestEntitlementUsage> findAllByEntitlementIdOrderByUsedAtDesc(Long entitlementId);

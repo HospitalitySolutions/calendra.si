@@ -603,15 +603,16 @@ public class ClientController {
         guestOrderService.ensurePaidWalletEntitlementsForClient(client.getId(), me.getCompany().getId());
         var allEntitlements = guestEntitlements.findAllByClientIdAndCompanyIdOrderByCreatedAtDesc(
                 client.getId(), me.getCompany().getId(), PageRequest.of(0, 500));
+        Map<Long, Integer> membershipVisitCounts = guestEntitlementService.membershipVisitCounts(allEntitlements);
         var activeEntitlements = allEntitlements.stream()
                 .filter(entitlement -> entitlement.getStatus() == EntitlementStatus.ACTIVE || entitlement.getStatus() == EntitlementStatus.PENDING)
                 .sorted(Comparator.comparing(GuestEntitlement::getCreatedAt).reversed())
-                .map(this::toWalletEntitlementResponse)
+                .map(entitlement -> toWalletEntitlementResponse(entitlement, membershipVisitCounts))
                 .toList();
         var inactiveEntitlements = allEntitlements.stream()
                 .filter(entitlement -> entitlement.getStatus() != EntitlementStatus.ACTIVE && entitlement.getStatus() != EntitlementStatus.PENDING)
                 .sorted(Comparator.comparing(GuestEntitlement::getCreatedAt).reversed())
-                .map(this::toWalletEntitlementResponse)
+                .map(entitlement -> toWalletEntitlementResponse(entitlement, membershipVisitCounts))
                 .toList();
         var entitlementIds = allEntitlements.stream()
                 .map(GuestEntitlement::getId)
@@ -791,9 +792,12 @@ public class ClientController {
         return null;
     }
 
-    private ClientWalletEntitlementResponse toWalletEntitlementResponse(GuestEntitlement entitlement) {
+    private ClientWalletEntitlementResponse toWalletEntitlementResponse(GuestEntitlement entitlement, Map<Long, Integer> membershipVisitCounts) {
         var product = entitlement.getProduct();
         var sessionType = product == null ? null : product.getSessionType();
+        Integer visitCount = entitlement.getEntitlementType() == com.example.app.guest.model.EntitlementType.MEMBERSHIP
+                ? membershipVisitCounts.getOrDefault(entitlement.getId(), 0)
+                : entitlement.getVisitCount();
         return new ClientWalletEntitlementResponse(
                 entitlement.getId(),
                 product == null ? null : product.getName(),
@@ -806,7 +810,7 @@ public class ClientController {
                 VoucherRules.entitlementMode(entitlement) == null ? null : VoucherRules.entitlementMode(entitlement).name(),
                 VoucherRules.entitlementScope(entitlement) == null ? null : VoucherRules.entitlementScope(entitlement).name(),
                 VoucherRules.entitlementEligibleServiceNames(entitlement).stream().toList(),
-                entitlement.getVisitCount(),
+                visitCount,
                 entitlement.getValidFrom(),
                 entitlement.getValidUntil(),
                 entitlement.getStatus() == null ? null : entitlement.getStatus().name(),

@@ -213,7 +213,7 @@ public final class GuestDtos {
             /** Opaque exact-match code encoded in the wallet QR. */
             String entitlementCode,
             Integer remainingUses,
-            /** Membership visit count incremented by staff scanner. */
+            /** Membership visit count derived from distinct covered bookings that are CHECKED_OUT. */
             Integer visitCount,
             /** Total uses granted at purchase (e.g. 8 for "Core Mix 8-vstopov"); null if unlimited. */
             Integer totalUses,

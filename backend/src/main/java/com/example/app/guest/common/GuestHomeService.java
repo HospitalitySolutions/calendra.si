@@ -1,6 +1,7 @@
 package com.example.app.guest.common;
 
 import com.example.app.guest.model.*;
+import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.guest.tenant.GuestTenantService;
 import com.example.app.session.SessionBookingRepository;
 import java.time.LocalDateTime;
@@ -16,13 +17,21 @@ public class GuestHomeService {
     private final GuestOrderRepository orders;
     private final SessionBookingRepository bookings;
     private final GuestSettingsService settingsService;
+    private final GuestEntitlementService entitlementService;
 
-    public GuestHomeService(GuestTenantService guestTenantService, GuestEntitlementRepository entitlements, GuestOrderRepository orders, SessionBookingRepository bookings, GuestSettingsService settingsService) {
+    @org.springframework.beans.factory.annotation.Autowired
+    public GuestHomeService(GuestTenantService guestTenantService, GuestEntitlementRepository entitlements, GuestOrderRepository orders, SessionBookingRepository bookings, GuestSettingsService settingsService, GuestEntitlementService entitlementService) {
         this.guestTenantService = guestTenantService;
         this.entitlements = entitlements;
         this.orders = orders;
         this.bookings = bookings;
         this.settingsService = settingsService;
+        this.entitlementService = entitlementService;
+    }
+
+    /** Backwards-compatible constructor used by focused unit tests. */
+    public GuestHomeService(GuestTenantService guestTenantService, GuestEntitlementRepository entitlements, GuestOrderRepository orders, SessionBookingRepository bookings, GuestSettingsService settingsService) {
+        this(guestTenantService, entitlements, orders, bookings, settingsService, null);
     }
 
     @Transactional(readOnly = true)
@@ -66,13 +75,21 @@ public class GuestHomeService {
                     );
                 })
                 .toList();
-        List<GuestDtos.EntitlementResponse> active = entitlements.findAllByClientIdAndCompanyIdAndStatusInOrderByCreatedAtDesc(
+        var activeRows = entitlements.findAllByClientIdAndCompanyIdAndStatusInOrderByCreatedAtDesc(
                         link.getClient().getId(),
                         companyId,
                         List.of(EntitlementStatus.ACTIVE, EntitlementStatus.PENDING),
                         PageRequest.of(0, 20)
-                ).stream()
-                .map(GuestMapper::toEntitlement)
+                );
+        var membershipVisitCounts = entitlementService == null
+                ? java.util.Map.<Long, Integer>of()
+                : entitlementService.membershipVisitCounts(activeRows);
+        List<GuestDtos.EntitlementResponse> active = activeRows.stream()
+                .map(entitlement -> GuestMapper.toEntitlement(
+                        entitlement,
+                        entitlement.getEntitlementType() == EntitlementType.MEMBERSHIP
+                                ? membershipVisitCounts.getOrDefault(entitlement.getId(), entitlement.getVisitCount())
+                                : entitlement.getVisitCount()))
                 .toList();
         List<GuestDtos.PendingOrderResponse> pending = orders.findAllByGuestUserIdAndCompanyIdAndStatusOrderByCreatedAtDesc(
                         guestUser.getId(),

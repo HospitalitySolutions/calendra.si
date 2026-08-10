@@ -13,6 +13,7 @@ import com.example.app.guest.model.GuestEntitlementRepository;
 import com.example.app.guest.model.GuestEntitlementUsage;
 import com.example.app.guest.model.GuestEntitlementUsageRepository;
 import com.example.app.guest.model.VoucherRules;
+import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
 import com.example.app.security.SecurityUtils;
@@ -50,6 +51,7 @@ public class WalletEntitlementScannerController {
     private final GuestEntitlementUsageRepository usages;
     private final SessionBookingCreationService bookingCreationService;
     private final SessionBookingRepository sessionBookings;
+    private final GuestEntitlementService entitlementService;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ActivityLogService activityLogs;
@@ -60,16 +62,29 @@ public class WalletEntitlementScannerController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private LocationRepository locations;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    public WalletEntitlementScannerController(
+            GuestEntitlementRepository entitlements,
+            GuestEntitlementUsageRepository usages,
+            SessionBookingCreationService bookingCreationService,
+            SessionBookingRepository sessionBookings,
+            GuestEntitlementService entitlementService
+    ) {
+        this.entitlements = entitlements;
+        this.usages = usages;
+        this.bookingCreationService = bookingCreationService;
+        this.sessionBookings = sessionBookings;
+        this.entitlementService = entitlementService;
+    }
+
+    /** Backwards-compatible constructor used by focused unit tests. */
     public WalletEntitlementScannerController(
             GuestEntitlementRepository entitlements,
             GuestEntitlementUsageRepository usages,
             SessionBookingCreationService bookingCreationService,
             SessionBookingRepository sessionBookings
     ) {
-        this.entitlements = entitlements;
-        this.usages = usages;
-        this.bookingCreationService = bookingCreationService;
-        this.sessionBookings = sessionBookings;
+        this(entitlements, usages, bookingCreationService, sessionBookings, null);
     }
 
     @GetMapping("/payment-options")
@@ -185,11 +200,10 @@ public class WalletEntitlementScannerController {
         String message;
 
         if (type == EntitlementType.MEMBERSHIP) {
-            before = entitlement.getVisitCount();
-            after = before + 1;
-            entitlement.setVisitCount(after);
-            result = "MEMBERSHIP_VISIT_COUNTED";
-            message = "Membership visit counted.";
+            before = currentVisitCount(entitlement);
+            after = before;
+            result = "MEMBERSHIP_VALIDATED";
+            message = "Membership is valid. Visits are counted when a linked booking is checked out.";
         } else {
             Integer remaining = entitlement.getRemainingUses();
             if (remaining == null || remaining <= 0) {
@@ -216,6 +230,10 @@ public class WalletEntitlementScannerController {
                 before,
                 after,
                 now);
+        if (type == EntitlementType.MEMBERSHIP) {
+            // A standalone membership scan is an audit/validation event, not a completed visit.
+            usage.setUnitsUsed(0);
+        }
         usages.save(usage);
         entitlements.save(entitlement);
         if (VoucherRules.isServiceVoucher(entitlement)) {
@@ -573,7 +591,7 @@ public class WalletEntitlementScannerController {
         return new ScanClientResponse(client.getId(), client.getFirstName(), client.getLastName(), client.getEmail(), client.getPhone());
     }
 
-    private static ScanEntitlementResponse entitlementResponse(GuestEntitlement entitlement) {
+    private ScanEntitlementResponse entitlementResponse(GuestEntitlement entitlement) {
         if (entitlement == null) return null;
         return new ScanEntitlementResponse(
                 entitlement.getId(),
@@ -582,13 +600,21 @@ public class WalletEntitlementScannerController {
                 entitlement.getEntitlementType() == null ? null : entitlement.getEntitlementType().name(),
                 entitlement.getRemainingUses(),
                 entitlement.getProduct() == null ? null : entitlement.getProduct().getUsageLimit(),
-                entitlement.getVisitCount(),
+                currentVisitCount(entitlement),
                 entitlement.getValidUntil(),
                 entitlement.getStatus() == null ? null : entitlement.getStatus().name(),
                 VoucherRules.entitlementMode(entitlement) == null ? null : VoucherRules.entitlementMode(entitlement).name(),
                 VoucherRules.entitlementScope(entitlement) == null ? null : VoucherRules.entitlementScope(entitlement).name(),
                 VoucherRules.isValueVoucher(entitlement) ? entitlement.getRemainingValueGross() : null,
                 List.copyOf(VoucherRules.entitlementEligibleServiceNames(entitlement)));
+    }
+
+    private int currentVisitCount(GuestEntitlement entitlement) {
+        if (entitlement == null) return 0;
+        if (entitlement.getEntitlementType() != EntitlementType.MEMBERSHIP || entitlementService == null) {
+            return Math.max(0, entitlement.getVisitCount());
+        }
+        return entitlementService.membershipVisitCount(entitlement);
     }
 
     private void recordScannedVoucherRedemption(User actor, GuestEntitlement entitlement, GuestEntitlementUsage usage) {

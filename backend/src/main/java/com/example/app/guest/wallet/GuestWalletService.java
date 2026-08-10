@@ -86,10 +86,15 @@ public class GuestWalletService {
                 .map(GuestOrder::getId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet()));
+        Map<Long, Integer> membershipVisitCounts = entitlementService.membershipVisitCounts(entitlementRows);
 
         return new GuestDtos.WalletResponse(
                 entitlementRows.stream()
-                        .map(GuestMapper::toEntitlement)
+                        .map(entitlement -> GuestMapper.toEntitlement(
+                                entitlement,
+                                entitlement.getEntitlementType() == EntitlementType.MEMBERSHIP
+                                        ? membershipVisitCounts.getOrDefault(entitlement.getId(), 0)
+                                        : entitlement.getVisitCount()))
                         .toList(),
                 orderRows.stream()
                         .map(order -> toWalletOrder(order, billById, productByOrderId))

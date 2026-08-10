@@ -14,6 +14,7 @@ import com.example.app.guest.model.*;
 import com.example.app.commerce.CommerceLocationScopeService;
 import com.example.app.session.BookingSource;
 import com.example.app.session.SessionBooking;
+import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionService;
 import com.example.app.session.SessionType;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -22,6 +23,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -358,9 +361,7 @@ public class GuestEntitlementService {
         usage.setReason(EntitlementUsageReason.BOOKING);
         usage.setUsedAt(Instant.now());
         usages.save(usage);
-        if (entitlement.getEntitlementType() == EntitlementType.MEMBERSHIP) {
-            entitlement.setVisitCount(Math.max(0, entitlement.getVisitCount()) + 1);
-        } else {
+        if (entitlement.getEntitlementType() != EntitlementType.MEMBERSHIP) {
             decrementIfLimited(entitlement);
         }
         entitlements.save(entitlement);
@@ -908,7 +909,9 @@ public class GuestEntitlementService {
         } else if (VoucherRules.isServiceVoucher(entitlement)) {
             incrementIfLimited(entitlement);
         } else if (entitlement.getEntitlementType() == EntitlementType.MEMBERSHIP) {
-            entitlement.setVisitCount(Math.max(0, entitlement.getVisitCount() - 1));
+            // Membership visits are derived from linked bookings that are effectively CHECKED_OUT.
+            // Restoring/removing a booking usage therefore changes the derived count automatically;
+            // never mutate the legacy stored visit_count counter here.
         } else {
             incrementIfLimited(entitlement);
         }
@@ -917,6 +920,92 @@ public class GuestEntitlementService {
         if (VoucherRules.isServiceVoucher(entitlement) || VoucherRules.isValueVoucher(entitlement)) {
             recordVoucherRestored(entitlement, usage, restoredVoucherAmount);
         }
+    }
+
+    /**
+     * Membership visits are not a payment/scan counter. A visit is one distinct booking covered by
+     * the membership whose effective lifecycle status is CHECKED_OUT. CANCELLED and NO_SHOW rows do
+     * not count, and multiple covered service lines in the same booking still count as one visit.
+     *
+     * <p>The persisted {@code guest_entitlements.visit_count} column is kept only for schema/backward
+     * compatibility; callers should use this derived value for memberships.</p>
+     */
+    @Transactional(readOnly = true)
+    public int membershipVisitCount(GuestEntitlement entitlement) {
+        if (entitlement == null || entitlement.getId() == null || entitlement.getEntitlementType() != EntitlementType.MEMBERSHIP) {
+            return entitlement == null ? 0 : Math.max(0, entitlement.getVisitCount());
+        }
+        return membershipVisitCounts(List.of(entitlement)).getOrDefault(entitlement.getId(), 0);
+    }
+
+    /** Bulk variant used by wallet/home responses so membership cards do not issue one query each. */
+    @Transactional(readOnly = true)
+    public Map<Long, Integer> membershipVisitCounts(java.util.Collection<GuestEntitlement> entitlementRows) {
+        if (entitlementRows == null || entitlementRows.isEmpty()) return Map.of();
+
+        LinkedHashSet<Long> membershipIds = entitlementRows.stream()
+                .filter(Objects::nonNull)
+                .filter(row -> row.getId() != null)
+                .filter(row -> row.getEntitlementType() == EntitlementType.MEMBERSHIP)
+                .map(GuestEntitlement::getId)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        if (membershipIds.isEmpty()) return Map.of();
+
+        Map<Long, Set<Long>> checkedOutBookingIdsByEntitlement = new LinkedHashMap<>();
+        for (Long entitlementId : membershipIds) {
+            checkedOutBookingIdsByEntitlement.put(entitlementId, new LinkedHashSet<>());
+        }
+
+        for (GuestEntitlementUsage usage : usages.findAllByEntitlementIdIn(membershipIds)) {
+            if (usage == null || usage.getEntitlement() == null || usage.getEntitlement().getId() == null) continue;
+            Long entitlementId = usage.getEntitlement().getId();
+            Set<Long> countedBookings = checkedOutBookingIdsByEntitlement.get(entitlementId);
+            if (countedBookings == null) continue;
+
+            SessionBooking booking = usage.getSessionBooking();
+            if (booking == null || booking.getId() == null || !isEffectivelyCheckedOut(booking)) continue;
+            countedBookings.add(booking.getId());
+        }
+
+        Map<Long, Integer> result = new LinkedHashMap<>();
+        for (Long entitlementId : membershipIds) {
+            result.put(entitlementId, checkedOutBookingIdsByEntitlement.get(entitlementId).size());
+        }
+        return Map.copyOf(result);
+    }
+
+    private boolean isEffectivelyCheckedOut(SessionBooking booking) {
+        String storedStatus = SessionBookingStatus.normalizeStored(booking.getBookingStatus());
+        if (SessionBookingStatus.CANCELLED.equals(storedStatus) || SessionBookingStatus.NO_SHOW.equals(storedStatus)) {
+            return false;
+        }
+        if (SessionBookingStatus.CHECKED_OUT.equals(storedStatus)) {
+            return true;
+        }
+        if (booking.getStartTime() == null || booking.getEndTime() == null) {
+            return false;
+        }
+
+        Long companyId = booking.getCompany() == null ? null : booking.getCompany().getId();
+        ZoneId zone = ZoneId.systemDefault();
+        String timezone = booking.getLocation() == null ? null : booking.getLocation().getTimezone();
+        if (timezone != null && !timezone.isBlank()) {
+            try {
+                zone = ZoneId.of(timezone.trim());
+            } catch (Exception ignored) {
+                zone = ZoneId.systemDefault();
+            }
+        }
+        LocalDateTime now = timeService == null ? null : timeService.localDateTime(zone, companyId);
+        if (now == null) {
+            now = LocalDateTime.now(zone);
+        }
+        return SessionBookingStatus.CHECKED_OUT.equals(SessionBookingStatus.deriveLifecycleStatus(
+                booking.getStartTime(),
+                booking.getEndTime(),
+                booking.getBookingStatus(),
+                now
+        ));
     }
 
     private EntitlementStatus restoredStatus(GuestEntitlement entitlement) {
