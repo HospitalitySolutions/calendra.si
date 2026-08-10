@@ -115,7 +115,6 @@ class PublicWidgetOrderClientMatchingTest {
         existing.setClient(wronglyLinked);
 
         when(links.findByGuestUserIdAndCompanyId(7L, 9L)).thenReturn(Optional.of(existing));
-        when(companies.findByIdForUpdate(9L)).thenReturn(Optional.of(company));
         when(clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(9L, "right@example.com"))
                 .thenReturn(List.of(correct));
         when(clients.save(any(Client.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -134,7 +133,9 @@ class PublicWidgetOrderClientMatchingTest {
         );
 
         assertSame(correct, existing.getClient());
-        verify(companies).findByIdForUpdate(9L);
+        // An already-existing email match does not need the tenant creation lock;
+        // the lock is only required on the create path after the initial lookup misses.
+        verify(companies, never()).findByIdForUpdate(9L);
         verify(links).save(existing);
     }
 

@@ -192,6 +192,7 @@ class GuestTenantServiceTest {
 
         CompanyRepository companies = mock(CompanyRepository.class);
         when(companies.findByTenantCodeIgnoreCase("LUNA-1")).thenReturn(Optional.of(company));
+        when(companies.findByIdForUpdate(company.getId())).thenReturn(Optional.of(company));
         GuestTenantLinkRepository links = mock(GuestTenantLinkRepository.class);
         when(links.findByGuestUserIdAndCompanyId(guest.getId(), company.getId())).thenReturn(Optional.of(existingLink));
         when(links.save(existingLink)).thenReturn(existingLink);
