@@ -218,7 +218,7 @@ api.interceptors.response.use(
       headers?.['X-Skip-Conflict-Toast'] === 'true'
       || headers?.['x-skip-conflict-toast'] === 'true'
     if (err?.response?.status === 409 && _conflict409Handler && !skipConflictToast) {
-      const msg: string = err.response.data?.message || 'The requested change conflicts with existing data.'
+      const msg: string = err.response.data?.message || err.response.data?.detail || 'The requested change conflicts with existing data.'
       _conflict409Handler(msg)
     }
     return Promise.reject(err)

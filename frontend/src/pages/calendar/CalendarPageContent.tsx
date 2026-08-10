@@ -48,6 +48,7 @@ import {
   type NewSlotQuery,
 } from '../calendarFormRoutes'
 import { api, getApiErrorMessage } from '../../api'
+import { clientMutationErrorMessage, skipConflictToastHeaders } from '../../lib/clientErrors'
 import { nowMs } from '../../lib/clock'
 import { setPostZoomReturnPath } from '../../lib/session'
 import { Card, Field, PageHeader } from '../../components/ui'
@@ -7504,7 +7505,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       if (isTenantAdmin) {
         payload.assignedToId = selectedBookedSession?.consultant?.id ?? form.consultantId
       }
-      const { data } = await api.post('/clients', payload)
+      const { data } = await api.post('/clients', payload, { headers: skipConflictToastHeaders })
       setMeta((m: any) => ({ ...m, clients: [...m.clients, data] }))
       if (selectedBookedSession) {
         const nextIds = multipleClientsPerSessionEnabled
@@ -7537,7 +7538,11 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       setShowAddClientModal(false)
       setNewClientForm({ firstName: '', lastName: '', email: '', phone: '' })
     } catch (e: any) {
-      setClientError(e?.response?.data?.message || 'Failed to create client.')
+      setClientError(clientMutationErrorMessage(
+        e,
+        locale,
+        locale === 'sl' ? 'Ustvarjanje stranke ni uspelo.' : 'Failed to create client.',
+      ))
     } finally {
       setSavingClient(false)
     }

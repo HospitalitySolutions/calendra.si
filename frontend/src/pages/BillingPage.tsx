@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser'
 import { api } from '../api'
+import { clientMutationErrorMessage, skipConflictToastHeaders } from '../lib/clientErrors'
 import { useAuthenticatedUser } from '../authUserContext'
 import type { Bill, BillingService, Booking, Client, Company, InvoiceIssuerOption, InvoiceSeriesOption, Location, OpenBill, PaymentMethod, PaymentSplit, User, WorkspaceBill } from '../lib/types'
 import { normalizePaymentMethod } from '../lib/types'
@@ -1295,6 +1296,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [newClientEmail, setNewClientEmail] = useState('')
   const [newClientPhone, setNewClientPhone] = useState('')
   const [creatingClientInline, setCreatingClientInline] = useState(false)
+  const [newClientInlineError, setNewClientInlineError] = useState('')
   const [showAddClientModal, setShowAddClientModal] = useState(false)
   const [addClientTarget, setAddClientTarget] = useState<{ mode: 'createBill' } | { mode: 'editOpenBill'; openBillId: number } | null>(null)
   const [payeeClientEdits, setPayeeClientEdits] = useState<Record<number, PayeeClientEditDraft>>({})
@@ -4226,12 +4228,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setNewClientLastName('')
     setNewClientEmail('')
     setNewClientPhone('')
+    setNewClientInlineError('')
     setShowAddClientModal(true)
   }
 
   const closeAddClientModal = () => {
     setShowAddClientModal(false)
     setAddClientTarget(null)
+    setNewClientInlineError('')
   }
 
   const getPayeeClientEdit = useCallback((client: Client | null | undefined) => {
@@ -4381,6 +4385,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const lastName = newClientLastName.trim()
     if (!firstName || !lastName || creatingClientInline) return
     setCreatingClientInline(true)
+    setNewClientInlineError('')
     try {
       const { data } = await api.post('/clients', {
         firstName,
@@ -4388,7 +4393,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         email: newClientEmail.trim() || null,
         phone: newClientPhone.trim() || null,
         preferredSlots: [],
-      })
+      }, { headers: skipConflictToastHeaders })
       const createdClient = data as Client
       setClients((prev) => [createdClient, ...prev].sort((a, b) => fullName(a).localeCompare(fullName(b))))
       if (addClientTarget?.mode === 'editOpenBill') {
@@ -4424,6 +4429,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         setBillForm((prev) => ({ ...prev, billingTarget: 'PERSON', clientId: createdClient.id, recipientCompanyId: undefined }))
       }
       closeAddClientModal()
+    } catch (error: any) {
+      setNewClientInlineError(clientMutationErrorMessage(
+        error,
+        locale,
+        locale === 'sl' ? 'Ustvarjanje stranke ni uspelo.' : 'Failed to create client.',
+      ))
     } finally {
       setCreatingClientInline(false)
     }
@@ -10729,9 +10740,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               saving={creatingClientInline}
               submitDisabled={creatingClientInline || !newClientFirstName.trim() || !newClientLastName.trim()}
               keyboardOpen={mobileKeyboardOpen}
+              error={newClientInlineError}
               inputNamePrefix="calendra-billing-new-client"
               onClose={closeAddClientModal}
               onChange={(field, value) => {
+                if (newClientInlineError) setNewClientInlineError('')
                 if (field === 'firstName') setNewClientFirstName(value)
                 else if (field === 'lastName') setNewClientLastName(value)
                 else if (field === 'email') setNewClientEmail(value)
@@ -10759,18 +10772,19 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             <div className="billing-add-company-modal-body">
               <div className="form-grid">
                 <Field label={billingCopy.clientFirstName}>
-                  <input value={newClientFirstName} onChange={(e) => setNewClientFirstName(e.target.value)} placeholder={billingCopy.clientFirstName} />
+                  <input value={newClientFirstName} onChange={(e) => { setNewClientInlineError(''); setNewClientFirstName(e.target.value) }} placeholder={billingCopy.clientFirstName} />
                 </Field>
                 <Field label={billingCopy.clientLastName}>
-                  <input value={newClientLastName} onChange={(e) => setNewClientLastName(e.target.value)} placeholder={billingCopy.clientLastName} />
+                  <input value={newClientLastName} onChange={(e) => { setNewClientInlineError(''); setNewClientLastName(e.target.value) }} placeholder={billingCopy.clientLastName} />
                 </Field>
                 <Field label={billingCopy.email}>
-                  <input type="email" value={newClientEmail} onChange={(e) => setNewClientEmail(e.target.value)} placeholder={billingCopy.emailOptional} />
+                  <input type="email" value={newClientEmail} onChange={(e) => { setNewClientInlineError(''); setNewClientEmail(e.target.value) }} placeholder={billingCopy.emailOptional} />
                 </Field>
                 <Field label={billingCopy.telephone}>
-                  <input value={newClientPhone} onChange={(e) => setNewClientPhone(e.target.value)} placeholder={billingCopy.telephoneOptional} />
+                  <input value={newClientPhone} onChange={(e) => { setNewClientInlineError(''); setNewClientPhone(e.target.value) }} placeholder={billingCopy.telephoneOptional} />
                 </Field>
               </div>
+              {newClientInlineError ? <div className="error">{newClientInlineError}</div> : null}
             </div>
             <div className="billing-add-company-modal-footer">
               <button

@@ -17,6 +17,7 @@ import { useSelectedLocationId } from '../lib/locationContext'
 import { clientListQueryOptions } from '../queries/clientsQueryOptions'
 import { customFieldsQueryOptions, locationsQueryOptions, settingsQueryOptions, usersQueryOptions } from '../queries/sharedQueryOptions'
 import { inboxCapabilitiesQueryOptions } from '../queries/remainingQueryOptions'
+import { clientMutationErrorMessage, skipConflictToastHeaders } from '../lib/clientErrors'
 
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
 type ConsultantSummary = UserSummary & { consultant?: boolean }
@@ -2829,7 +2830,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         assignedLocationIds: detailEditDraft.assignedLocationIds,
         ...(isAdmin ? { assignedToIds: detailEditDraft.assignedToIds } : {}),
       }
-      const response = await api.put<Client>(`/clients/${detailClient.id}`, payload)
+      const response = await api.put<Client>(`/clients/${detailClient.id}`, payload, { headers: skipConflictToastHeaders })
       setDetailClient(response.data)
       setDetailClientCustomValues(normalizeCustomFieldValues(response.data.customFieldValues))
       if (embeddedClientDetailMode) await onEmbeddedSaved?.()
@@ -2850,7 +2851,11 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       setClients((prev) => prev.map((c) => (c.id === response.data.id ? response.data : c)))
       setDetailEditField(null)
     } catch (error: any) {
-      setErrorMessage(error?.response?.data?.message || 'Failed to save client.')
+      setErrorMessage(clientMutationErrorMessage(
+        error,
+        locale,
+        locale === 'sl' ? 'Shranjevanje stranke ni uspelo.' : 'Failed to save client.',
+      ))
     } finally {
       setSavingDetailEdit(false)
     }
@@ -3504,16 +3509,27 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         preferredSlots: [],
         customFieldValues: clientCustomValues,
       }
-      await api.post('/clients', payload)
+      await api.post('/clients', payload, { headers: skipConflictToastHeaders })
 
       closeModal()
       await loadClients()
     } catch (error: any) {
-      const status = error?.response?.status
-      const backendMessage = error?.response?.data?.message
-      if (status === 400) setErrorMessage(backendMessage || 'Please check the entered fields.');
-      else if (status === 403) setErrorMessage('You are not allowed to create clients. Please log in again.');
-      else setErrorMessage('Failed to create client.');
+      const status = Number(error?.response?.status)
+      if (status === 409) {
+        setErrorMessage(clientMutationErrorMessage(error, locale, 'Failed to create client.'))
+      } else if (status === 400) {
+        setErrorMessage(clientMutationErrorMessage(
+          error,
+          locale,
+          locale === 'sl' ? 'Preverite vnesene podatke.' : 'Please check the entered fields.',
+        ))
+      } else if (status === 403) {
+        setErrorMessage(locale === 'sl'
+          ? 'Nimate dovoljenja za ustvarjanje strank.'
+          : 'You are not allowed to create clients.')
+      } else {
+        setErrorMessage(locale === 'sl' ? 'Ustvarjanje stranke ni uspelo.' : 'Failed to create client.')
+      }
     } finally {
       setSaving(false)
     }
