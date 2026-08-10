@@ -26,10 +26,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -91,6 +93,18 @@ public class PlatformAdminController {
         this.manualTenantService = manualTenantService;
         this.trialFollowUpEmailService = trialFollowUpEmailService;
         this.referrals = referrals;
+    }
+
+    // Keep Platform Admin service errors intact even when their root cause is a DataIntegrityViolationException.
+    // Without this controller-local handler, the global integrity handler can match the nested database cause and
+    // replace the useful tenant-purge explanation with the generic "Data integrity constraint violation." message.
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, String>> handleResponseStatusException(ResponseStatusException ex) {
+        String message = ex.getReason();
+        if (message == null || message.isBlank()) {
+            message = ex.getStatusCode().toString();
+        }
+        return ResponseEntity.status(ex.getStatusCode()).body(Map.of("message", message));
     }
 
     public record ReferralAdminRow(

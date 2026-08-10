@@ -2,6 +2,7 @@ package com.example.app.admin;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeastOnce;
@@ -17,6 +18,7 @@ import com.example.app.files.TenantFileS3Service;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import jakarta.persistence.EntityManager;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -129,6 +131,32 @@ class PlatformTenancyDeletionServiceTest {
 
 
     @Test
+    void deleteTenancy_purgesPlatformDemoHostReferencesBeforeDeletingUsers() {
+        Company tenant = new Company();
+        tenant.setId(7L);
+        tenant.setName("Demo host tenant");
+        when(companies.findById(7L)).thenReturn(Optional.of(tenant));
+        when(users.getReferenceById(1L)).thenReturn(actor);
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+
+        service.deleteTenancy(7L, actor, "cleanup");
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbc, atLeastOnce()).update(sqlCaptor.capture(), any(Object[].class));
+        List<String> sql = sqlCaptor.getAllValues();
+
+        int holds = indexOfSql(sql, "DELETE FROM platform_demo_booking_holds");
+        int bookings = indexOfSql(sql, "DELETE FROM platform_demo_bookings");
+        int profile = indexOfSql(sql, "UPDATE platform_demo_booking_profiles SET host_user_id = NULL");
+        int usersDelete = indexOfSql(sql, "DELETE FROM users WHERE company_id = ?");
+
+        assertTrue(holds >= 0, "Demo booking holds must be purged.");
+        assertTrue(bookings > holds, "Demo bookings must be purged after holds.");
+        assertTrue(profile > bookings, "Demo profile must be disabled after hosted bookings are removed.");
+        assertTrue(usersDelete > profile, "Tenant users must only be deleted after demo host references are cleared.");
+    }
+
+    @Test
     void deleteTenancy_doesNotCommitCompanyDeleteWhenExternalStorageFails() {
         Company tenant = new Company();
         tenant.setId(7L);
@@ -172,7 +200,19 @@ class PlatformTenancyDeletionServiceTest {
         ResponseStatusException ex =
                 assertThrows(ResponseStatusException.class, () -> service.deleteTenancy(7L, actor, "cleanup"));
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        assertEquals(
+                "This tenant cannot be deleted because tenant data is still referenced by another record. No database deletion was committed.",
+                ex.getReason());
         verify(tenancyAdminAuditLogs).saveAndFlush(any());
         verify(companies, never()).delete(any());
+    }
+
+    private static int indexOfSql(List<String> statements, String prefix) {
+        for (int i = 0; i < statements.size(); i++) {
+            if (statements.get(i) != null && statements.get(i).startsWith(prefix)) {
+                return i;
+            }
+        }
+        return -1;
     }
 }

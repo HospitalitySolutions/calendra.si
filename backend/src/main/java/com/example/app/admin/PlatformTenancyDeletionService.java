@@ -127,6 +127,14 @@ public class PlatformTenancyDeletionService {
                     ex);
         } catch (RuntimeException ex) {
             log.warn("Permanent tenant deletion failed companyId={}", companyId, ex);
+            String detail = ex.getMessage();
+            if (detail != null
+                    && (detail.startsWith("Tenant purge left ") || detail.startsWith("Workspace purge left "))) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        detail + ". No database deletion was committed.",
+                        ex);
+            }
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "This tenant could not be deleted completely. No database deletion was committed; fix the reported dependency or external-storage problem and retry.",
@@ -659,6 +667,20 @@ public class PlatformTenancyDeletionService {
     }
 
     private void purgeUsersForCompany(long companyId) {
+        // Platform demo-booking configuration is global Platform Admin data, but its host FK points at tenant users.
+        // A tenant that has ever been selected as the demo host therefore cannot be purged until those references are
+        // removed. Historical demo bookings hosted by the tenant are deleted together with that tenant; the stable
+        // public profile itself is preserved, disabled, and left without a host so Platform Admin can assign a new one.
+        exec(
+                "DELETE FROM platform_demo_booking_holds WHERE profile_id IN (SELECT id FROM platform_demo_booking_profiles WHERE host_user_id IN (SELECT id FROM users WHERE company_id = ?))",
+                companyId);
+        exec(
+                "DELETE FROM platform_demo_bookings WHERE host_user_id IN (SELECT id FROM users WHERE company_id = ?)",
+                companyId);
+        exec(
+                "UPDATE platform_demo_booking_profiles SET host_user_id = NULL, enabled = FALSE, updated_at = CURRENT_TIMESTAMP WHERE host_user_id IN (SELECT id FROM users WHERE company_id = ?)",
+                companyId);
+
         exec("DELETE FROM platform_announcement_reads WHERE user_id IN (SELECT id FROM users WHERE company_id = ?)", companyId);
         exec("DELETE FROM security_activity_events WHERE user_id IN (SELECT id FROM users WHERE company_id = ?)", companyId);
         exec("DELETE FROM security_alert_preferences WHERE user_id IN (SELECT id FROM users WHERE company_id = ?)", companyId);
@@ -668,7 +690,64 @@ public class PlatformTenancyDeletionService {
         exec("DELETE FROM password_reset_tokens WHERE user_id IN (SELECT id FROM users WHERE company_id = ?)", companyId);
         exec("DELETE FROM google_oauth_tokens WHERE user_id IN (SELECT id FROM users WHERE company_id = ?)", companyId);
         exec("DELETE FROM zoom_oauth_tokens WHERE user_id IN (SELECT id FROM users WHERE company_id = ?)", companyId);
+
+        // Fail with a useful dependency list before PostgreSQL reaches DELETE FROM users. This only checks RESTRICT /
+        // NO ACTION foreign keys; CASCADE and SET NULL references are intentionally allowed to resolve themselves.
+        assertNoRestrictingUserReferences(companyId);
         exec("DELETE FROM users WHERE company_id = ?", companyId);
+    }
+
+    private void assertNoRestrictingUserReferences(long companyId) {
+        List<Map<String, Object>> references = jdbc.queryForList(
+                """
+                SELECT DISTINCT
+                       child.relname AS table_name,
+                       child_col.attname AS column_name,
+                       con.conname AS constraint_name
+                  FROM pg_constraint con
+                  JOIN pg_class child ON child.oid = con.conrelid
+                  JOIN pg_namespace child_ns ON child_ns.oid = child.relnamespace
+                  JOIN pg_class parent ON parent.oid = con.confrelid
+                  JOIN pg_namespace parent_ns ON parent_ns.oid = parent.relnamespace
+                  JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS ck(attnum, ord) ON TRUE
+                  JOIN LATERAL unnest(con.confkey) WITH ORDINALITY AS fk(attnum, ord) ON fk.ord = ck.ord
+                  JOIN pg_attribute child_col ON child_col.attrelid = child.oid AND child_col.attnum = ck.attnum
+                  JOIN pg_attribute parent_col ON parent_col.attrelid = parent.oid AND parent_col.attnum = fk.attnum
+                 WHERE con.contype = 'f'
+                   AND child_ns.nspname = current_schema()
+                   AND parent_ns.nspname = current_schema()
+                   AND parent.relname = 'users'
+                   AND parent_col.attname = 'id'
+                   AND con.confdeltype IN ('a', 'r')
+                """);
+
+        List<String> leftovers = new ArrayList<>();
+        Set<String> checked = new LinkedHashSet<>();
+        for (Map<String, Object> row : references) {
+            String table = stringValue(row.get("table_name"));
+            String column = stringValue(row.get("column_name"));
+            String constraint = stringValue(row.get("constraint_name"));
+            if (table == null || column == null || !safeIdentifier(table) || !safeIdentifier(column)) {
+                continue;
+            }
+            String key = table + "." + column;
+            if (!checked.add(key)) {
+                continue;
+            }
+            Integer count = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM \"" + table + "\" WHERE \"" + column
+                            + "\" IN (SELECT id FROM users WHERE company_id = ?)",
+                    Integer.class,
+                    companyId);
+            if (count != null && count > 0) {
+                leftovers.add(key + "=" + count + (constraint == null ? "" : " (" + constraint + ")"));
+            }
+        }
+
+        if (!leftovers.isEmpty()) {
+            throw new IllegalStateException(
+                    "Tenant purge left restrictive user references: " + String.join(", ", leftovers));
+        }
     }
 
     private void purgeOrphanGuestUsers(Set<Long> candidates, ExternalDeletionPlan external) {
