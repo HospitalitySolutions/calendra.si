@@ -526,6 +526,22 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     return Number.isInteger(candidate) && candidate > 0 ? candidate : null
   }
 
+  const paymentStatusHasIssuedInvoice = (status: any) => (Array.isArray(status?.allocations) ? status.allocations : []).some((allocation: any) => {
+    const source = String(allocation?.source ?? '').trim().toUpperCase()
+    const paymentStatus = String(allocation?.paymentStatus ?? '').trim().toUpperCase()
+    return source === 'INVOICE' && Number(allocation?.billId ?? 0) > 0 && paymentStatus !== 'CANCELLED'
+  })
+
+  const paymentStatusHasEntitlementSettlement = (status: any) => (Array.isArray(status?.allocations) ? status.allocations : []).some((allocation: any) => (
+    String(allocation?.source ?? '').trim().toUpperCase() === 'ENTITLEMENT'
+  ))
+
+  const paymentStatusIsFinalizedForAutomaticInvoice = (status: any) => (
+    status?.status === 'PAID'
+    || paymentStatusHasIssuedInvoice(status)
+    || paymentStatusHasEntitlementSettlement(status)
+  )
+
   const openBookedAdvanceForm = (statusArg?: any, clientArg?: any) => {
     if (!advanceBillingEnabled) return false
     const clientId = Number(clientArg?.id ?? statusArg?.clientId ?? getBookedPaymentActionClientId() ?? 0)
@@ -555,21 +571,40 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     setBookedPaymentMenuOpen(false)
     setBookedBillingActionMenu(null)
     setSelectedBookedPaymentClientId(clientId)
-    const status = paymentStatusForClient(clientId)
-    const openBillIdRaw = Number(status?.openBillId ?? 0)
-    const shouldSyncPerClientBillTabs = !isGroupedSingleInvoiceMode
-      && selectedBookedSession?.type?.priceCalculationMode !== 'TOTAL'
-      && paymentManagerSessionClients.length > 1
-    if (Number.isInteger(openBillIdRaw) && openBillIdRaw > 0 && !shouldSyncPerClientBillTabs) {
-      openPaymentOpenBillEditor(status, openBillIdRaw)
+
+    const statuses = paymentManagerSessionClients
+      .map((client: any) => paymentStatusForClient(client?.id))
+      .filter((item: any) => !!item?.bookingId)
+    const selectedStatus = paymentStatusForClient(clientId)
+    const existingOpenStatus = (Number(selectedStatus?.openBillId ?? 0) > 0 ? selectedStatus : null)
+      ?? statuses.find((item: any) => Number(item?.openBillId ?? 0) > 0)
+      ?? null
+
+    if (existingOpenStatus) {
+      const existingOpenBillId = Number(existingOpenStatus.openBillId)
+      if (Number.isInteger(existingOpenBillId) && existingOpenBillId > 0) {
+        openPaymentOpenBillEditor(existingOpenStatus, existingOpenBillId)
+        return
+      }
+    }
+
+    const unbilledStatuses = statuses.filter((item: any) => (
+      Number(item?.openBillId ?? 0) <= 0
+      && !paymentStatusIsFinalizedForAutomaticInvoice(item)
+    ))
+
+    if (unbilledStatuses.length === 0) {
+      if (statuses.some((item: any) => paymentStatusHasIssuedInvoice(item))) {
+        openBookedBillingView('invoices')
+        return
+      }
+      showToast('info', locale === 'sl' ? 'Termin je že poravnan in novega odprtega računa ni treba ustvariti.' : 'This session is already settled and does not need another open invoice.')
       return
     }
-    if (status?.status === 'UNPAID' || shouldSyncPerClientBillTabs) {
-      const openBillId = await createOpenBillForPaymentStatus(status)
-      if (openBillId || openBillIdRaw) openPaymentOpenBillEditor(status, openBillId || openBillIdRaw)
-      return
-    }
-    showToast('info', locale === 'sl' ? 'Odprti račun lahko ustvarite le pri neplačanem terminu.' : 'Open invoice can only be created for unpaid sessions.')
+
+    const statusToCreate = unbilledStatuses.find((item: any) => Number(item?.clientId) === Number(clientId)) ?? unbilledStatuses[0]
+    const openBillId = await createOpenBillForPaymentStatus(statusToCreate)
+    if (openBillId) openPaymentOpenBillEditor(statusToCreate, openBillId)
   }
 
   const openBookedPaymentManagerTab = (_tab: 'details' | 'invoice') => {
@@ -1289,7 +1324,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   }
 
   const normalizeBillPaymentStatusKey = (value?: any) => String(value ?? '').trim().replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toUpperCase()
-  const visibleBillStatusKeys = new Set(['PAID', 'PAYMENT_PENDING'])
+  const visibleBillStatusKeys = new Set(['PAID', 'PAYMENT_PENDING', 'OPEN'])
 
   const clientNameForStatus = (status?: any) => {
     const clientId = Number(status?.clientId ?? 0)
@@ -1356,13 +1391,21 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const sessionAdvanceTotal = sessionAdvanceRows.reduce((sum: number, row: any) => sum + (Number(row.amountGross) || 0), 0)
   const sessionInvoiceTotal = sessionInvoiceRows.reduce((sum: number, row: any) => sum + (Number(row.amountGross) || 0), 0)
   const bookedBillingHasExistingAdvance = sessionAdvanceRows.length > 0
-  const bookedBillingHasExistingOpenBill = (Array.isArray(selectedBookedSession?.paymentStatuses) ? selectedBookedSession.paymentStatuses : [])
+  const bookedBillingPaymentStatuses = Array.isArray(selectedBookedSession?.paymentStatuses) ? selectedBookedSession.paymentStatuses : []
+  const bookedBillingHasExistingOpenBill = bookedBillingPaymentStatuses
     .some((status: any) => Number(status?.openBillId ?? 0) > 0)
+  const bookedBillingHasUnbilledStatus = bookedBillingPaymentStatuses.some((status: any) => (
+    Number(status?.bookingId ?? 0) > 0
+    && Number(status?.openBillId ?? 0) <= 0
+    && !paymentStatusIsFinalizedForAutomaticInvoice(status)
+  ))
   const bookedBillingHasInvoiceViewRows = sessionInvoiceRows.length > 0
+  const bookedBillingCanEditInvoice = bookedBillingHasExistingOpenBill || bookedBillingHasUnbilledStatus
+  const bookedBillingInvoiceActionCount = (bookedBillingCanEditInvoice ? 1 : 0) + (bookedBillingHasInvoiceViewRows ? 1 : 0)
   const mobilePrimaryBillingKind: 'advance' | 'invoice' = bookingServiceBillingButtonIsAdvance ? 'advance' : 'invoice'
   const mobilePrimaryBillingHasMultipleActions = mobilePrimaryBillingKind === 'advance'
     ? bookedBillingHasExistingAdvance
-    : (bookedBillingHasExistingOpenBill || bookedBillingHasInvoiceViewRows)
+    : bookedBillingInvoiceActionCount > 1
   const mobilePrimaryBillingMenuOpen = mobileBillingActionsOpen === mobilePrimaryBillingKind
 
   const formatSessionDate = (value?: string | null) => formatPaymentDateOnly(value)
@@ -1444,11 +1487,13 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         </>
       ) : (
         <>
-          <button type="button" role="menuitem" onClick={() => void openBookedInvoiceEditor()}>
-            <span aria-hidden>✎</span>
-            {locale === 'sl' ? 'Uredi' : 'Edit'}
-          </button>
-          {(bookedBillingHasExistingOpenBill || bookedBillingHasInvoiceViewRows) && (
+          {bookedBillingCanEditInvoice && (
+            <button type="button" role="menuitem" onClick={() => void openBookedInvoiceEditor()}>
+              <span aria-hidden>✎</span>
+              {locale === 'sl' ? 'Uredi' : 'Edit'}
+            </button>
+          )}
+          {bookedBillingHasInvoiceViewRows && (
             <button type="button" role="menuitem" onClick={() => openBookedBillingView('invoices')}>
               <span aria-hidden>◉</span>
               {locale === 'sl' ? 'Pregled' : 'View'}
@@ -1515,28 +1560,30 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         </>
       ) : (
         <>
-          <button
-            type="button"
-            role="menuitem"
-            className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action calendar-mobile-session-more-menu__invoice-subitem"
-            onClick={() => {
-              setMobileBillingActionsOpen(null)
-              setMobileBookingDetailsOpen(false)
-              void openBookedInvoiceEditor()
-            }}
-          >
-            <span className="calendar-mobile-session-more-menu__icon" aria-hidden>
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="m4.8 19.2.85-3.9L16.8 4.15a1.9 1.9 0 0 1 2.7 0l.35.35a1.9 1.9 0 0 1 0 2.7L8.7 18.35l-3.9.85Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="m15.4 5.55 3.05 3.05" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
-            </span>
-            <span className="calendar-mobile-session-more-menu__copy">
-              <strong>{locale === 'sl' ? 'Uredi' : 'Edit'}</strong>
-              <small>{locale === 'sl' ? 'Ustvari ali uredi račun' : 'Create or edit an invoice'}</small>
-            </span>
-          </button>
-          {(bookedBillingHasExistingOpenBill || bookedBillingHasInvoiceViewRows) && (
+          {bookedBillingCanEditInvoice && (
+            <button
+              type="button"
+              role="menuitem"
+              className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action calendar-mobile-session-more-menu__invoice-subitem"
+              onClick={() => {
+                setMobileBillingActionsOpen(null)
+                setMobileBookingDetailsOpen(false)
+                void openBookedInvoiceEditor()
+              }}
+            >
+              <span className="calendar-mobile-session-more-menu__icon" aria-hidden>
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="m4.8 19.2.85-3.9L16.8 4.15a1.9 1.9 0 0 1 2.7 0l.35.35a1.9 1.9 0 0 1 0 2.7L8.7 18.35l-3.9.85Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="m15.4 5.55 3.05 3.05" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              </span>
+              <span className="calendar-mobile-session-more-menu__copy">
+                <strong>{locale === 'sl' ? 'Uredi' : 'Edit'}</strong>
+                <small>{locale === 'sl' ? 'Ustvari ali uredi račun' : 'Create or edit an invoice'}</small>
+              </span>
+            </button>
+          )}
+          {bookedBillingHasInvoiceViewRows && (
             <button
               type="button"
               role="menuitem"
@@ -1573,8 +1620,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       : (locale === 'sl' ? 'Pregled računov za termin' : 'Session invoices')
     const mobileAdvanceTitle = locale === 'sl' ? 'Pregled predplačil' : 'Advances overview'
     const emptyText = isAdvances
-      ? (locale === 'sl' ? 'Za ta termin ni plačanih predplačil ali predplačil, ki čakajo na plačilo.' : 'No paid or payment-pending advances for this session yet.')
-      : (locale === 'sl' ? 'Za ta termin ni plačanih računov ali računov, ki čakajo na plačilo.' : 'No paid or payment-pending invoices for this session.')
+      ? (locale === 'sl' ? 'Za ta termin ni izdanih predplačil.' : 'No advances have been issued for this session yet.')
+      : (locale === 'sl' ? 'Za ta termin ni izdanih računov.' : 'No invoices have been issued for this session.')
     const numberLabel = isAdvances ? (locale === 'sl' ? 'Predplačilo št.' : 'Advance no.') : (locale === 'sl' ? 'Račun št.' : 'Invoice no.')
     const payerTitle = locale === 'sl' ? 'Plačnik' : 'Payer'
     const amountTitle = locale === 'sl' ? 'Znesek' : 'Amount'
@@ -1589,9 +1636,12 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
 
     const renderBillingRows = (mobile = false) => rows.map((row: any) => {
       const paid = row.statusKey === 'PAID'
+      const open = row.statusKey === 'OPEN'
       const statusLabel = paid
         ? (locale === 'sl' ? 'Plačano' : 'Paid')
-        : (locale === 'sl' ? 'Čaka na plačilo' : 'Payment pending')
+        : open
+          ? (locale === 'sl' ? 'Neplačano' : 'Unpaid')
+          : (locale === 'sl' ? 'Čaka na plačilo' : 'Payment pending')
       const payerLabel = Array.from(row.payerNames || []).join(', ') || '—'
       if (mobile) {
         return (
@@ -2404,7 +2454,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                                       setMobileBookingDetailsOpen(false)
                                       setMobileBillingActionsOpen(null)
                                       if (mobilePrimaryBillingKind === 'advance') openBookedAdvanceForm()
-                                      else void openBookedInvoiceEditor()
+                                      else if (bookedBillingCanEditInvoice) void openBookedInvoiceEditor()
+                                      else if (bookedBillingHasInvoiceViewRows) openBookedBillingView('invoices')
                                       return
                                     }
                                     setMobileBillingActionsOpen((current) => current === mobilePrimaryBillingKind ? null : mobilePrimaryBillingKind)
@@ -3001,8 +3052,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               openBookedAdvanceForm()
                               return
                             }
-                            if (actionKind === 'invoice' && !bookedBillingHasExistingOpenBill && !bookedBillingHasInvoiceViewRows) {
-                              void openBookedInvoiceEditor()
+                            if (actionKind === 'invoice' && bookedBillingInvoiceActionCount <= 1) {
+                              if (bookedBillingCanEditInvoice) void openBookedInvoiceEditor()
+                              else if (bookedBillingHasInvoiceViewRows) openBookedBillingView('invoices')
                               return
                             }
                             toggleBookedBillingActionMenu(actionKind)

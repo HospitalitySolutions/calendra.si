@@ -9801,8 +9801,20 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
 
   const invoiceAllocationForPaymentStatus = useCallback((status: BookingPaymentStatus | null): BookingPaymentAllocation | null => {
     const invoiceAllocations = (status?.allocations ?? [])
-      .filter((allocation) => allocation.source === 'INVOICE' && allocation.billId && allocation.paymentStatus !== 'CANCELLED')
+      .filter((allocation) => allocation.source === 'INVOICE' && allocation.billId && String(allocation.paymentStatus ?? '').toUpperCase() !== 'CANCELLED')
     return invoiceAllocations[invoiceAllocations.length - 1] ?? null
+  }, [])
+
+  const paymentStatusIsFinalizedForAutomaticInvoice = useCallback((status: BookingPaymentStatus | null | undefined) => {
+    if (!status) return false
+    if (status.status === 'PAID') return true
+    return (status.allocations ?? []).some((allocation) => {
+      const source = String(allocation.source ?? '').toUpperCase()
+      if (source === 'ENTITLEMENT') return true
+      return source === 'INVOICE'
+        && Number(allocation.billId ?? 0) > 0
+        && String(allocation.paymentStatus ?? '').toUpperCase() !== 'CANCELLED'
+    })
   }, [])
 
   const updateSelectedBookingPaymentStatus = useCallback((bookingId: number | null | undefined, patch: Partial<BookingPaymentStatus>) => {
@@ -9893,7 +9905,11 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
 
         const statusesToBill = paymentManagerSessionClients
           .map((client: any) => paymentStatusForClient(client?.id))
-          .filter((item): item is BookingPaymentStatus => !!item?.bookingId && !item.openBillId && item.status !== 'PAID')
+          .filter((item): item is BookingPaymentStatus => (
+            !!item?.bookingId
+            && !item.openBillId
+            && !paymentStatusIsFinalizedForAutomaticInvoice(item)
+          ))
 
         if (statusesToBill.length === 0) {
           showToast('success', locale === 'sl' ? 'Odprti račun je že ustvarjen.' : 'The open invoice has already been created.')
@@ -10016,6 +10032,15 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         }
       }
 
+      if (paymentStatusIsFinalizedForAutomaticInvoice(status)) {
+        if (!suppressToast) {
+          showToast('info', locale === 'sl'
+            ? 'Termin je že izdan ali poravnan. Nov odprti račun ni bil ustvarjen.'
+            : 'This session is already invoiced or settled. No new open invoice was created.')
+        }
+        return null
+      }
+
       const { data } = await api.post(`/billing/open-bills/session/${status.bookingId}`, null, { params: selectedOnly ? { selectedOnly: true } : undefined })
       updateSelectedBookingPaymentStatus(status.bookingId, { openBillId: data?.id ?? status.openBillId ?? -1 })
       if (!suppressToast) showToast('success', locale === 'sl' ? 'Odprti račun je ustvarjen.' : 'Open invoice has been created.')
@@ -10027,7 +10052,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       }
       return null
     }
-  }, [bookedBookingPayeeLinkedCompany?.id, bookedPaymentPayeeDrafts, bookingPayeeCompanies, canIssueOpenInvoice, isGroupedSingleInvoiceMode, loadCalendarRangeOnly, locale, paymentManagerSessionClients, paymentStatusForClient, selectedBookedClientIds, selectedBookedSession, selectedBookedStoredStatus, showToast, updateSelectedBookingPaymentStatus])
+  }, [bookedBookingPayeeLinkedCompany?.id, bookedPaymentPayeeDrafts, bookingPayeeCompanies, canIssueOpenInvoice, isGroupedSingleInvoiceMode, loadCalendarRangeOnly, locale, paymentManagerSessionClients, paymentStatusForClient, paymentStatusIsFinalizedForAutomaticInvoice, selectedBookedClientIds, selectedBookedSession, selectedBookedStoredStatus, showToast, updateSelectedBookingPaymentStatus])
 
   const openPaymentInvoicePdf = useCallback(async (status: BookingPaymentStatus | null) => {
     const invoice = invoiceAllocationForPaymentStatus(status)

@@ -120,6 +120,17 @@ export function openBillsQueryOptions<T = unknown>(unitId: ScopeId) {
   }
 }
 
+export function openBillQueryOptions<T = unknown>(unitId: ScopeId, openBillId: number) {
+  return {
+    queryKey: queryKeys.billing.openBill(unitId, openBillId),
+    queryFn: async (): Promise<T> => {
+      const response = await api.get<T>(`/billing/open-bills/${openBillId}`, { headers: unitHeaders(unitId) })
+      return response.data
+    },
+    staleTime: BILLING_EDITOR_STALE_TIME_MS,
+  }
+}
+
 export function billsQueryOptions<T = unknown>(unitId: ScopeId) {
   return {
     queryKey: queryKeys.billing.bills(unitId),

@@ -33,6 +33,7 @@ import {
   billingSummaryQueryOptions,
   billsPageQueryOptions,
   giftCardsPageQueryOptions,
+  openBillQueryOptions,
   openBillsQueryOptions,
   unusedAdvancesPageQueryOptions,
   unusedAdvancesQueryOptions,
@@ -1632,6 +1633,22 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return load(true)
   }
 
+  const reloadOpenBillsAfterEditorClose = async (closedOpenBillId: number) => {
+    await markBillingDynamicCacheStale()
+    queryClient.removeQueries({ queryKey: queryKeys.billing.openBill(activeUnitId, closedOpenBillId), exact: true })
+    try {
+      const rows = await fetchBillingQuery(openBillsQueryOptions<OpenBill>(activeUnitId), true)
+      const normalizedRows = rows.map((openBill) => normalizeOpenBill(openBill))
+      setOpenBills(normalizedRows)
+      void loadBillingSummary(true)
+      return normalizedRows
+    } catch {
+      const fallbackRows = openBills.filter((entry) => Number(entry.id) !== Number(closedOpenBillId))
+      setOpenBills(fallbackRows)
+      return fallbackRows
+    }
+  }
+
   useEffect(() => {
     // Never keep another unit's billing rows visible while the new unit is loading.
     const cachedSettings = queryClient.getQueryData<Record<string, string>>(queryKeys.settings.byUnit(activeUnitId))
@@ -1688,20 +1705,48 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }, [activeUnitId, selectedLocationId, queryClient])
 
   useEffect(() => {
+    // Embedded invoice editing has its own lightweight single-open-bill bootstrap below.
+    // Do not compete with that critical request by loading the complete Billing page first.
+    if (editorOnlyMode) return
     const request = load(false)
     billingPollInFlightRef.current = request
     const clear = () => {
       if (billingPollInFlightRef.current === request) billingPollInFlightRef.current = null
     }
     void request.then(clear, clear)
-  }, [activeUnitId, billingTab, selectedLocationId, debouncedOpenPaymentsSearch, openPaymentsSort, openPaymentsPage, debouncedUnusedAdvancesSearch, unusedAdvancesSort, unusedAdvancesPage, debouncedGiftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter, giftCardsSort, giftCardsPage, debouncedHistorySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter, historySortField, historySortDir, historyPage])
+  }, [activeUnitId, billingTab, selectedLocationId, editorOnlyMode, debouncedOpenPaymentsSearch, openPaymentsSort, openPaymentsPage, debouncedUnusedAdvancesSearch, unusedAdvancesSort, unusedAdvancesPage, debouncedGiftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter, giftCardsSort, giftCardsPage, debouncedHistorySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter, historySortField, historySortDir, historyPage])
 
   useEffect(() => {
-    if (!embeddedCreateBill && activeOpenBillId == null) return
+    // For an embedded existing bill, wait until the bill itself is visible before loading
+    // the editor catalogs. This keeps first paint dependent on one request instead of many.
+    if (!embeddedCreateBill && detailOpenBill == null) return
     void loadBillingEditorDependencies(false)
-  }, [activeUnitId, activeOpenBillId, embeddedCreateBill, selectedLocationId])
+  }, [activeUnitId, detailOpenBill?.id, embeddedCreateBill, selectedLocationId])
 
   useEffect(() => {
+    // Related group tabs need the complete open-bill list, but not for first paint. Load it
+    // only after the requested open bill is already on screen.
+    if (!editorOnlyMode || detailOpenBill == null) return
+    let cancelled = false
+    void fetchBillingQuery(openBillsQueryOptions<OpenBill>(activeUnitId), true)
+      .then((rows) => {
+        if (cancelled) return
+        const normalizedRows = rows.map((openBill) => normalizeOpenBill(openBill))
+        const active = detailOpenBill
+        if (active && !normalizedRows.some((entry) => Number(entry.id) === Number(active.id))) {
+          normalizedRows.unshift(active)
+        }
+        queryClient.setQueryData(queryKeys.billing.openBills(activeUnitId), normalizedRows)
+        setOpenBills(normalizedRows)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [activeUnitId, detailOpenBill?.id, editorOnlyMode, queryClient])
+
+  useEffect(() => {
+    if (editorOnlyMode) return
     const poll = () => {
       if (document.visibilityState !== 'visible' || billingPollInFlightRef.current) return
       const request = refreshBillingRows()
@@ -1717,7 +1762,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       window.clearInterval(interval)
       document.removeEventListener('visibilitychange', poll)
     }
-  }, [activeUnitId, billingTab, selectedLocationId, debouncedOpenPaymentsSearch, openPaymentsSort, openPaymentsPage, debouncedUnusedAdvancesSearch, unusedAdvancesSort, unusedAdvancesPage, debouncedGiftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter, giftCardsSort, giftCardsPage, debouncedHistorySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter, historySortField, historySortDir, historyPage])
+  }, [activeUnitId, billingTab, selectedLocationId, editorOnlyMode, debouncedOpenPaymentsSearch, openPaymentsSort, openPaymentsPage, debouncedUnusedAdvancesSearch, unusedAdvancesSort, unusedAdvancesPage, debouncedGiftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter, giftCardsSort, giftCardsPage, debouncedHistorySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter, historySortField, historySortDir, historyPage])
 
   const advanceBillingEnabled = settings.BILLING_ADVANCE_ENABLED !== 'false'
   const giftCardsEnabled = settings.BILLING_GIFT_CARDS_ENABLED === 'true'
@@ -2107,6 +2152,63 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   useEffect(() => {
     if (!activeOpenBillId) return
+    let cancelled = false
+
+    const hydrateTarget = (raw: OpenBill) => {
+      if (cancelled || !raw) return
+      const target = normalizeOpenBill(raw)
+      setBillingTab('open')
+      setOpenBillEditorRootId((current) => current ?? target.id)
+      setDetailOpenBill((prev) => (prev?.id === target.id ? prev : target))
+      setOpenBills((prev) => {
+        const existingIndex = prev.findIndex((entry) => Number(entry.id) === Number(target.id))
+        if (existingIndex < 0) return [target, ...prev]
+        const next = [...prev]
+        next[existingIndex] = target
+        return next
+      })
+      setOpenBillDetailsEdits((prev) => (
+        Object.prototype.hasOwnProperty.call(prev, target.id)
+          ? prev
+          : { ...prev, [target.id]: deriveOpenBillDetailsDraft(target) }
+      ))
+    }
+
+    const cached = queryClient.getQueryData<OpenBill>(queryKeys.billing.openBill(activeUnitId, activeOpenBillId))
+    if (cached) hydrateTarget(cached)
+
+    void queryClient.fetchQuery(openBillQueryOptions<OpenBill>(activeUnitId, activeOpenBillId))
+      .then(hydrateTarget)
+      .catch(async () => {
+        if (cancelled) return
+        // Compatibility/recovery fallback: if the targeted request fails, try the list once
+        // instead of leaving the editor in an endless loading state.
+        try {
+          const rows = await fetchBillingQuery(openBillsQueryOptions<OpenBill>(activeUnitId), true)
+          if (cancelled) return
+          const target = rows.find((entry) => Number(entry?.id) === Number(activeOpenBillId))
+          if (target) {
+            hydrateTarget(target)
+            return
+          }
+        } catch {
+          // Fall through to closing the missing/unavailable editor.
+        }
+        if (cancelled) return
+        if (onEmbeddedClose) {
+          onEmbeddedClose()
+          return
+        }
+        if (activeRouteOpenBillId) navigate('/billing', { replace: true })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeOpenBillId, activeRouteOpenBillId, activeUnitId, navigate, onEmbeddedClose, queryClient])
+
+  useEffect(() => {
+    if (!activeOpenBillId) return
     const target = openBills.find((entry) => Number(entry.id) === Number(activeOpenBillId)) || null
     if (!target) return
     setBillingTab('open')
@@ -2118,6 +2220,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         : { ...prev, [target.id]: deriveOpenBillDetailsDraft(target) }
     ))
   }, [activeOpenBillId, openBills, clients])
+
+  useEffect(() => {
+    if (activeOpenBillId != null || embeddedCreateBill) return
+    setDetailOpenBill(null)
+    setOpenBillEditorRootId(null)
+  }, [activeOpenBillId, embeddedCreateBill])
 
 
   useEffect(() => {
@@ -3937,7 +4045,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const closeDetailOpenBill = () => {
-    setDetailOpenBill(null)
     setOpenBillEditorRootId(null)
     setOpenBillAddMenuForId(null)
     setExternalOpenBillPickerForRootId(null)
@@ -3945,11 +4052,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setTemporaryOpenBillTabIds({})
     setSelectedOpenBillLines({})
     setMoveSelectedTargetOpenBillId(null)
-    if (!activeOpenBillId) return
-    if (onEmbeddedClose) {
+    if (activeOpenBillId && onEmbeddedClose) {
+      // Keep the current bill mounted until the parent removes editOpenBillId. Clearing it
+      // first produces a misleading "Loading bill data" shell after the last invoice.
       onEmbeddedClose()
       return
     }
+    setDetailOpenBill(null)
+    if (!activeOpenBillId) return
     const searchParams = new URLSearchParams(location.search)
     const returnTo = searchParams.get('returnTo')
     if (returnTo) {
@@ -4965,6 +5075,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     })
     const normalized = (data || []).map((entry: OpenBill) => normalizeOpenBill(entry))
     queryClient.setQueryData(queryKeys.billing.openBills(activeUnitId), normalized)
+    normalized.forEach((entry: OpenBill) => {
+      queryClient.setQueryData(queryKeys.billing.openBill(activeUnitId, entry.id), entry)
+    })
+    related.forEach((entry) => {
+      if (!normalized.some((candidate: OpenBill) => Number(candidate.id) === Number(entry.id))) {
+        queryClient.removeQueries({ queryKey: queryKeys.billing.openBill(activeUnitId, entry.id), exact: true })
+      }
+    })
     setOpenBills(normalized)
     void queryClient.invalidateQueries({ queryKey: queryKeys.billing.summaryByUnit(activeUnitId), refetchType: 'none' })
     clearOpenBillDrafts(related.map((entry) => entry.id))
@@ -5001,6 +5119,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     clearOpenBillDrafts(dirtyBills.map((entry) => entry.id))
     const snapshot = await reloadAfterBillingMutation()
     const refreshed = snapshot.openBills.map((entry) => normalizeOpenBill(entry))
+    refreshed.forEach((entry) => {
+      queryClient.setQueryData(queryKeys.billing.openBill(activeUnitId, entry.id), entry)
+    })
     setOpenBills(refreshed)
     const updatedActive = refreshed.find((entry) => entry.id === activeBill.id)
       ?? refreshed.find((entry) => entry.id === openBillEditorRootId)
@@ -5016,6 +5137,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setDeletingOpenId(ob.id)
     try {
       await api.delete(`/billing/open-bills/${ob.id}`)
+      queryClient.removeQueries({ queryKey: queryKeys.billing.openBill(activeUnitId, ob.id), exact: true })
       setOpenBills((prev) => {
         const next = prev.filter((x) => x.id !== ob.id)
         queryClient.setQueryData(queryKeys.billing.openBills(activeUnitId), next)
@@ -5299,14 +5421,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         showToast('success', locale === 'sl'
           ? `${data?.entitlementName || 'Ugodnost'} je pokrila termin. Nov račun ni bil izdan.`
           : `${data?.entitlementName || 'Entitlement'} covered the session. No new invoice was issued.`)
-        const snapshot = await reloadAfterBillingMutation()
-        await onEmbeddedSaved?.()
-        const movedToNextTab = selectNextOpenBillEditorTabAfterClose(sourceOpenBill.id, relatedOpenBillsBeforeClose, snapshot.openBills)
+        const refreshedOpenBills = await reloadOpenBillsAfterEditorClose(sourceOpenBill.id)
+        const movedToNextTab = selectNextOpenBillEditorTabAfterClose(sourceOpenBill.id, relatedOpenBillsBeforeClose, refreshedOpenBills)
         if (!movedToNextTab) {
           if (openBillEditorRootId === sourceOpenBill.id) setOpenBillEditorRootId(null)
-          setDetailOpenBill((prev) => (prev?.id === sourceOpenBill.id ? null : prev))
-          if (activeOpenBillId === sourceOpenBill.id) closeDetailOpenBill()
+          if (editorOnlyMode) closeDetailOpenBill()
+          else setDetailOpenBill((prev) => (prev?.id === sourceOpenBill.id ? null : prev))
         }
+        void Promise.resolve(onEmbeddedSaved?.()).catch(() => undefined)
         return
       }
 
@@ -5322,14 +5444,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         await api.post(`/billing/bills/${data.id}/checkout-session`)
       }
       notifyOpenBillClosedResult(data)
-      const snapshot = await reloadAfterBillingMutation()
-      await onEmbeddedSaved?.()
-      const movedToNextTab = selectNextOpenBillEditorTabAfterClose(sourceOpenBill.id, relatedOpenBillsBeforeClose, snapshot.openBills)
+      const refreshedOpenBills = await reloadOpenBillsAfterEditorClose(sourceOpenBill.id)
+      const movedToNextTab = selectNextOpenBillEditorTabAfterClose(sourceOpenBill.id, relatedOpenBillsBeforeClose, refreshedOpenBills)
       if (!movedToNextTab) {
         if (openBillEditorRootId === sourceOpenBill.id) setOpenBillEditorRootId(null)
-        setDetailOpenBill((prev) => (prev?.id === sourceOpenBill.id ? null : prev))
-        if (activeOpenBillId === sourceOpenBill.id) closeDetailOpenBill()
+        if (editorOnlyMode) closeDetailOpenBill()
+        else setDetailOpenBill((prev) => (prev?.id === sourceOpenBill.id ? null : prev))
       }
+      void Promise.resolve(onEmbeddedSaved?.()).catch(() => undefined)
     } catch (error: any) {
       closePdfActionWindow(printWindow)
       if (!showStripeSetupPopupFromError(error) && !showBankTransferQrSettingsPopupFromError(error)) {

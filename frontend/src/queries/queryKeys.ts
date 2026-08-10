@@ -32,6 +32,7 @@ export const queryKeys = {
     summaryByUnit: (unitId: ScopeId) => ['shared', 'billing', 'summary', scopeId(unitId)] as const,
     summary: (unitId: ScopeId, locationId: ScopeId) => ['shared', 'billing', 'summary', scopeId(unitId), scopeId(locationId)] as const,
     openBills: (unitId: ScopeId) => ['shared', 'billing', 'open-bills', scopeId(unitId)] as const,
+    openBill: (unitId: ScopeId, openBillId: number) => ['shared', 'billing', 'open-bill', scopeId(unitId), openBillId] as const,
     bills: (unitId: ScopeId) => ['shared', 'billing', 'bills', scopeId(unitId)] as const,
     billsPage: (unitId: ScopeId, view: string, locationId: ScopeId, signature: string) =>
       ['shared', 'billing', 'bills', scopeId(unitId), 'page', view, scopeId(locationId), signature] as const,

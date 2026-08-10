@@ -2,6 +2,8 @@ package com.example.app.billing;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
@@ -319,6 +321,46 @@ class BillingControllerBatchSyncRegressionTest {
 
         verify(openBillRepo, times(2)).deleteByIdAndCompanyId(any(Long.class), eq(1L));
         verify(openBillRepo, never()).delete(any(OpenBill.class));
+    }
+
+
+    @Test
+    void automaticSessionBillingGuard_treatsIssuedInvoiceAsFinalized() throws Exception {
+        SessionBooking booking = new SessionBooking();
+        booking.setId(321L);
+
+        Bill issuedInvoice = new Bill();
+        issuedInvoice.setBillType(BillType.INVOICE);
+        issuedInvoice.setPaymentStatus(BillPaymentStatus.PAID);
+        when(billRepo.findAllLinkedToSessionIds(1L, List.of(321L))).thenReturn(List.of(issuedInvoice));
+
+        assertTrue(invokeAutomaticBillingFinalized(booking, 1L));
+    }
+
+    @Test
+    void automaticSessionBillingGuard_ignoresAdvanceAndCancelledInvoice() throws Exception {
+        SessionBooking booking = new SessionBooking();
+        booking.setId(322L);
+
+        Bill advance = new Bill();
+        advance.setBillType(BillType.ADVANCE);
+        advance.setPaymentStatus(BillPaymentStatus.PAID);
+        Bill cancelledInvoice = new Bill();
+        cancelledInvoice.setBillType(BillType.INVOICE);
+        cancelledInvoice.setPaymentStatus(BillPaymentStatus.CANCELLED);
+        when(billRepo.findAllLinkedToSessionIds(1L, List.of(322L))).thenReturn(List.of(advance, cancelledInvoice));
+
+        assertFalse(invokeAutomaticBillingFinalized(booking, 1L));
+    }
+
+    private boolean invokeAutomaticBillingFinalized(SessionBooking booking, Long companyId) throws Exception {
+        Method method = BillingController.class.getDeclaredMethod(
+                "isSessionAlreadyFinalizedForAutomaticBilling",
+                SessionBooking.class,
+                Long.class
+        );
+        method.setAccessible(true);
+        return (boolean) method.invoke(controller, booking, companyId);
     }
 
     private void invokeSync(Long companyId) throws Exception {

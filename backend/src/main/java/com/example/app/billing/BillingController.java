@@ -1247,6 +1247,16 @@ public class BillingController {
         return openBillResponsePage(companyId, page, size);
     }
 
+    /**
+     * Lightweight editor lookup used by Calendar/Billing deep links. Loading one open bill
+     * must not depend on fetching the tenant's complete open-bill list first.
+     */
+    @GetMapping("/open-bills/{id}")
+    @Transactional(readOnly = true)
+    public OpenBillResponse openBill(@PathVariable Long id, @AuthenticationPrincipal User me) {
+        return openBillResponseById(me.getCompany().getId(), id);
+    }
+
 
     @PostMapping("/open-bills/session/{sessionBookingId}")
     @Transactional
@@ -1278,6 +1288,7 @@ public class BillingController {
         if (!isNoShowSession(session) && !SessionBillingSupport.hasTransactionServices(session, locationPrices == null ? null : locationPrices::effectiveNet)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected session has no transaction services.");
         }
+        assertSessionNotAlreadyFinalizedForAutomaticBilling(session, companyId);
 
         var consultant = resolveOpenBillConsultant(session, companyId);
         if (consultant == null) {
@@ -1308,12 +1319,29 @@ public class BillingController {
         return openBillResponseById(companyId, openBillId);
     }
 
+    private boolean isSessionAlreadyFinalizedForAutomaticBilling(SessionBooking session, Long companyId) {
+        if (session == null || session.getId() == null) return false;
+        Long sessionId = session.getId();
+        boolean hasIssuedInvoice = billRepo.findAllLinkedToSessionIds(companyId, List.of(sessionId)).stream()
+                .anyMatch(bill -> !BillType.ADVANCE.equals(bill.getBillType())
+                        && !BillPaymentStatus.CANCELLED.equals(bill.getPaymentStatus()));
+        if (hasIssuedInvoice) return true;
+        return guestEntitlementService != null && guestEntitlementService.findBookingUsage(sessionId).isPresent();
+    }
+
+    private void assertSessionNotAlreadyFinalizedForAutomaticBilling(SessionBooking session, Long companyId) {
+        if (isSessionAlreadyFinalizedForAutomaticBilling(session, companyId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Selected session is already invoiced or settled.");
+        }
+    }
+
     private boolean hasMultipleBillableRowsInBookingGroup(SessionBooking sourceSession, Long companyId) {
         if (sourceSession == null || sourceSession.getId() == null) return false;
         return sessionBookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(bookingGroupKey(sourceSession), companyId).stream()
                 .filter(row -> row.getClient() != null)
                 .filter(row -> !"CANCELLED".equalsIgnoreCase(String.valueOf(row.getBookingStatus())))
                 .filter(row -> isNoShowSession(row) || SessionBillingSupport.hasTransactionServices(row, locationPrices == null ? null : locationPrices::effectiveNet))
+                .filter(row -> !isSessionAlreadyFinalizedForAutomaticBilling(row, companyId))
                 .filter(row -> !isTotalPriceCalculation(row))
                 .limit(2)
                 .count() > 1;
@@ -1324,6 +1352,7 @@ public class BillingController {
                 .filter(row -> row.getClient() != null)
                 .filter(row -> !"CANCELLED".equalsIgnoreCase(String.valueOf(row.getBookingStatus())))
                 .filter(row -> isNoShowSession(row) || SessionBillingSupport.hasTransactionServices(row, locationPrices == null ? null : locationPrices::effectiveNet))
+                .filter(row -> !isSessionAlreadyFinalizedForAutomaticBilling(row, companyId))
                 .filter(row -> !isTotalPriceCalculation(row))
                 .toList();
         if (groupRows.isEmpty()) {
@@ -1375,8 +1404,12 @@ public class BillingController {
                 .filter(row -> row.getClient() != null)
                 .filter(row -> !"CANCELLED".equalsIgnoreCase(String.valueOf(row.getBookingStatus())))
                 .filter(row -> isNoShowSession(row) || SessionBillingSupport.hasTransactionServices(row, locationPrices == null ? null : locationPrices::effectiveNet))
+                .filter(row -> !isSessionAlreadyFinalizedForAutomaticBilling(row, companyId))
                 .toList();
         if (groupRows.isEmpty()) {
+            if (isSessionAlreadyFinalizedForAutomaticBilling(sourceSession, companyId)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Selected session group is already invoiced or settled.");
+            }
             groupRows = List.of(sourceSession);
         }
 
@@ -1386,6 +1419,7 @@ public class BillingController {
             if (billable == null || billable.getId() == null || billable.getClient() == null) continue;
             if ("CANCELLED".equalsIgnoreCase(String.valueOf(billable.getBookingStatus()))) continue;
             if (!isNoShowSession(billable) && !SessionBillingSupport.hasTransactionServices(billable, locationPrices == null ? null : locationPrices::effectiveNet)) continue;
+            if (isSessionAlreadyFinalizedForAutomaticBilling(billable, companyId)) continue;
             billableById.putIfAbsent(billable.getId(), billable);
         }
         var billableRows = new ArrayList<>(billableById.values());
