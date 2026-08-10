@@ -805,7 +805,7 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
             @Param("now") LocalDateTime now);
     long countByLocationId(Long locationId);
 
-    @EntityGraph(attributePaths = {"company", "location", "space", "space.location", "consultant", "consultant.loginAccount", "client", "type", "services", "services.sessionType", "services.space"})
+    @EntityGraph(attributePaths = {"company", "location", "space", "space.location", "consultant", "consultant.loginAccount", "client", "clientGroup", "type", "services", "services.sessionType", "services.space"})
     @Query("SELECT DISTINCT sb FROM SessionBooking sb WHERE sb.company.id IN :companyIds " +
            "AND sb.startTime < :rangeEnd AND sb.endTime > :rangeStart " +
            "AND UPPER(COALESCE(sb.bookingStatus, 'RESERVED')) NOT IN ('CANCELLED', 'NO_SHOW')")

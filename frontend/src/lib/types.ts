@@ -354,6 +354,7 @@ export type Booking = {
   bookingSource?: BookingSource
   billedAt?: string | null
   groupId?: number | null
+  groupName?: string | null
   sessionGroupEmailOverride?: string | null
   sessionGroupBillingCompany?: CompanySummary | null
   payees?: BookingPayee[]

@@ -7252,7 +7252,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       const rawClients = Array.isArray(bookingLike?.clients) ? bookingLike.clients : []
       const count =
         rawClients.length > 0 ? rawClients.length : bookingLike?.client?.id ? 1 : 0
-      const name = (g?.name && String(g.name).trim()) || `Group #${gid}`
+      const embeddedGroupName = String(bookingLike?.groupName ?? bookingLike?.group?.name ?? '').trim()
+      const name = embeddedGroupName || (g?.name && String(g.name).trim()) || (locale === 'sl' ? `Skupina #${gid}` : `Group #${gid}`)
       const maxRaw = bookingLike?.maxParticipantsOverride
         ?? getServiceChainMaxParticipants(getBookingServiceDrafts(bookingLike))
         ?? bookingLike?.type?.maxParticipantsPerSession

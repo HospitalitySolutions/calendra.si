@@ -949,6 +949,7 @@ public class SessionBookingCreationService {
                 before.meetingLink(),
                 before.meetingProvider(),
                 before.groupId(),
+                before.groupName(),
                 before.sessionGroupEmailOverride(),
                 before.sessionGroupBillingCompany(),
                 SessionBookingStatus.RESERVED,

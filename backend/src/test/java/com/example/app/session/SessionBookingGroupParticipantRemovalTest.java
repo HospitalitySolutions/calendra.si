@@ -97,6 +97,17 @@ class SessionBookingGroupParticipantRemovalTest {
         group = new ClientGroup();
         group.setId(5L);
         group.setCompany(company);
+        group.setName("Pilates skupina");
+    }
+
+    @Test
+    void bookingResponseIncludesClientGroupNameWithoutLoadingCalendarGroupDirectory() {
+        SessionBooking row = booking(299L, client(68L, "Andrej", "Novak"));
+
+        SessionBookingController.BookingResponse response = SessionBookingController.toResponse(row);
+
+        assertEquals(5L, response.groupId());
+        assertEquals("Pilates skupina", response.groupName());
     }
 
     @Test
@@ -123,6 +134,7 @@ class SessionBookingGroupParticipantRemovalTest {
 
         assertEquals(300L, response.id());
         assertEquals("group-1", response.bookingGroupKey());
+        assertEquals("Pilates skupina", response.groupName());
         assertEquals(SessionBookingStatus.RESERVED, response.bookingStatus());
         assertEquals(BookingSource.MANUAL, response.bookingSource());
         assertEquals(0, response.clients().size());

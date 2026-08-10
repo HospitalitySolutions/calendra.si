@@ -278,7 +278,7 @@ export function CalendarGroupGuestsPanel({
     }
   }
 
-  const titleName = String(group?.name || '').trim() || (sl ? `Skupina #${session?.groupId || ''}` : `Group #${session?.groupId || ''}`)
+  const titleName = String(group?.name || session?.groupName || '').trim() || (sl ? `Skupina #${session?.groupId || ''}` : `Group #${session?.groupId || ''}`)
   const displayedRows = mode === 'current' ? visibleAttendees : availableClients
 
   const content = (

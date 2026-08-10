@@ -2667,9 +2667,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                             type="button"
                             className="client-selected-display"
                             disabled
-                            title={bookedSessionResolvedGroup?.name ?? ''}
+                            title={bookedSessionResolvedGroup?.name ?? selectedBookedSession?.groupName ?? ''}
                           >
-                            {bookedSessionResolvedGroup?.name ?? (locale === 'sl' ? `Skupina #${bookedSessionGroupId}` : `Group #${bookedSessionGroupId}`)}
+                            {bookedSessionResolvedGroup?.name ?? selectedBookedSession?.groupName ?? (locale === 'sl' ? `Skupina #${bookedSessionGroupId}` : `Group #${bookedSessionGroupId}`)}
                           </button>
                         </div>
                         <div className="calendar-client-picker__actions">

@@ -363,6 +363,7 @@ public class SessionBookingController {
             String meetingLink,
             String meetingProvider,
             Long groupId,
+            String groupName,
             String sessionGroupEmailOverride,
             GroupBillingCompanySummary sessionGroupBillingCompany,
             String bookingStatus,
@@ -993,6 +994,7 @@ public class SessionBookingController {
         map.put("meetingLink", base.meetingLink());
         map.put("meetingProvider", base.meetingProvider());
         map.put("groupId", base.groupId());
+        map.put("groupName", base.groupName());
         map.put("bookingStatus", base.bookingStatus());
         map.put("bookingSource", base.bookingSource());
         map.put("payees", base.payees());
@@ -1190,6 +1192,7 @@ public class SessionBookingController {
                 base.meetingLink(),
                 base.meetingProvider(),
                 base.groupId(),
+                base.groupName(),
                 base.sessionGroupEmailOverride(),
                 base.sessionGroupBillingCompany(),
                 base.bookingStatus(),
@@ -1640,6 +1643,7 @@ public class SessionBookingController {
                 representative.getMeetingLink(),
                 provider,
                 representative.getClientGroup() != null ? representative.getClientGroup().getId() : null,
+                representative.getClientGroup() != null ? representative.getClientGroup().getName() : null,
                 representative.getSessionGroupEmailOverride(),
                 bcSumm,
                 SessionBookingStatus.normalizeStored(representative.getBookingStatus()),
