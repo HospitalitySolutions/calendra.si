@@ -17,6 +17,7 @@ import { useSelectedLocationId } from '../lib/locationContext'
 import { clientListQueryOptions } from '../queries/clientsQueryOptions'
 import { customFieldsQueryOptions, locationsQueryOptions, settingsQueryOptions, usersQueryOptions } from '../queries/sharedQueryOptions'
 import { inboxCapabilitiesQueryOptions } from '../queries/remainingQueryOptions'
+import { queryKeys } from '../queries/queryKeys'
 import { clientMutationErrorMessage, skipConflictToastHeaders } from '../lib/clientErrors'
 
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
@@ -1422,6 +1423,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const activeUnitId = me.activeUnitId ?? me.companyId
   const [selectedLocationId] = useSelectedLocationId(activeUnitId)
   const queryClient = useQueryClient()
+  const invalidateGroupCaches = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.groups.all, refetchType: 'none' })
+  }, [queryClient])
   const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
   const sharedWorkspaceUnitCount = (me.units ?? []).filter((unit) => unit.workspaceId === me.workspaceId).length
   const [workspaceClientsOpen, setWorkspaceClientsOpen] = useState(false)
@@ -2679,6 +2683,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         assignedLocationIds: (updated.assignedLocations ?? []).map((item) => item.id),
       })
       setGroups((prev) => prev.map((g) => g.id === updated.id ? updated : g))
+      await invalidateGroupCaches()
       if (embeddedGroupDetailMode) await onEmbeddedSaved?.()
     } catch {
       setGroupErrorMessage('Failed to save group.')
@@ -2708,6 +2713,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       if (updated) {
         setDetailGroup(updated)
         setGroups((prev) => prev.map((g) => g.id === updated!.id ? updated! : g))
+        await invalidateGroupCaches()
         if (embeddedGroupDetailMode) await onEmbeddedSaved?.()
       }
       setPendingGroupMemberIds([])
@@ -2727,6 +2733,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       setDetailGroup(updated)
       setDetailGroupCustomValues(normalizeCustomFieldValues(updated.customFieldValues))
       setGroups((prev) => prev.map((g) => g.id === updated.id ? updated : g))
+      await invalidateGroupCaches()
       if (embeddedGroupDetailMode) await onEmbeddedSaved?.()
     } catch { /* ignore */ } finally {
       setRemovingMemberId(null)
@@ -2739,6 +2746,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setGroupErrorMessage('')
     try {
       await api.post('/groups', { name: groupForm.name.trim(), email: groupForm.email.trim() || null, assignedLocationIds: groupForm.assignedLocationIds, customFieldValues: groupCustomValues })
+      await invalidateGroupCaches()
       closeGroupModal()
       loadGroups()
     } catch {
@@ -2761,6 +2769,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       const updated = response.data
       if (detailGroup?.id === groupId) setDetailGroup(updated)
       setGroups((prev) => prev.map((g) => (g.id === updated.id ? updated : g)))
+      await invalidateGroupCaches()
       if (embeddedGroupDetailMode) await onEmbeddedSaved?.()
       setOpenGroupMenuId(null)
     } catch (error: any) {
@@ -2777,6 +2786,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setGroupErrorMessage('')
     try {
       await api.delete(`/groups/${groupId}`)
+      await invalidateGroupCaches()
       if (detailGroup?.id === groupId) closeGroupDetailModal()
       await loadGroups()
       setOpenGroupMenuId(null)
