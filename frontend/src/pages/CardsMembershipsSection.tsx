@@ -368,19 +368,29 @@ function guestProductTypeUsesAutoPrice(
 }
 
 function transactionServiceLabel(service: BillingService): string {
-  const code = service.code?.trim();
   const description = service.description?.trim();
-  if (code && description) return `${code} — ${description}`;
-  return code || description || `#${service.id}`;
+  return description || `#${service.id}`;
 }
 
 function guestProductTransactionServiceLabel(
   product: GuestAdminProduct,
 ): string {
-  const code = product.transactionServiceCode?.trim();
   const description = product.transactionServiceDescription?.trim();
-  if (code && description) return `${code} — ${description}`;
-  return code || description || "—";
+  return description || "—";
+}
+
+function sessionTypeDisplayLabel(sessionType: SessionTypeT): string {
+  const description = sessionType.description?.trim();
+  if (description) return description;
+
+  const linkedDescriptions = (sessionType.linkedServices || [])
+    .map((service) => service.description?.trim())
+    .filter((value): value is string => Boolean(value));
+  if (linkedDescriptions.length > 0) {
+    return Array.from(new Set(linkedDescriptions)).join(", ");
+  }
+
+  return `#${sessionType.id}`;
 }
 
 function includedCoursesLabel(
@@ -2000,7 +2010,7 @@ export const CardsMembershipsSection = forwardRef<
                                   }))
                                 }
                               />
-                              <span>{sessionType.name}</span>
+                              <span>{sessionTypeDisplayLabel(sessionType)}</span>
                             </label>
                           );
                         })}
@@ -2170,7 +2180,7 @@ export const CardsMembershipsSection = forwardRef<
                               })
                             }
                           />
-                          <span>{sessionType.name}</span>
+                          <span>{sessionTypeDisplayLabel(sessionType)}</span>
                         </label>
                       );
                     })}
