@@ -489,19 +489,19 @@ public class PublicWidgetOrderService {
     private void ensureTenantLink(GuestUser guestUser, Company company, String firstName, String lastName, String email, String phone, String companyName, String requestedLocale) {
         GuestTenantLink existing = guestTenantLinks.findByGuestUserIdAndCompanyId(guestUser.getId(), company.getId()).orElse(null);
         String normalizedEmail = normalizeEmail(email);
-        Client linkedClient = existing == null ? null : existing.getClient();
         String publicLocale = preferredLocale(requestedLocale, guestUserLocale(guestUser));
-        Client client;
-        if (linkedClient != null && matchesPublicIdentity(
-                linkedClient, firstName, lastName, normalizedEmail, phone)) {
-            ClientOnlineAccessGuard.requireAllowed(linkedClient, publicLocale);
-            client = linkedClient;
-        } else {
+        Client client = normalizedEmail == null
+                ? null
+                : clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(company.getId(), normalizedEmail).stream()
+                        .filter(candidate -> candidate != null && !candidate.isAnonymized())
+                        .findFirst()
+                        .orElse(null);
+        if (client == null) {
             companies.findByIdForUpdate(company.getId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant not found."));
             client = matchOrCreateClient(company, firstName, lastName, normalizedEmail, phone);
-            ClientOnlineAccessGuard.requireAllowed(client, publicLocale);
         }
+        ClientOnlineAccessGuard.requireAllowed(client, publicLocale);
         // When the widget includes a company name, resolve (or create) a ClientCompany for the
         // tenant and attach it as the client's linked/billing company. We only set it when the
         // client does not already have a linked company so returning guests don't get overridden.
@@ -528,12 +528,12 @@ public class PublicWidgetOrderService {
         if (normalizedEmail == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid email is required.");
         }
-        // Match the direct public-booking rule: shared household contact details alone
-        // never identify a person. Name and, when supplied, phone must match as well.
+        // Email is the unique client identity inside a tenant. Online-payment flows must
+        // resolve the existing tenant client by normalized email rather than creating a
+        // second client because the submitted name or phone differs.
         Client match = clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(company.getId(), normalizedEmail)
                 .stream()
-                .filter(candidate -> matchesPublicIdentity(
-                        candidate, firstName, lastName, normalizedEmail, phone))
+                .filter(candidate -> candidate != null && !candidate.isAnonymized())
                 .findFirst()
                 .orElse(null);
         if (match != null) {
@@ -571,28 +571,7 @@ public class PublicWidgetOrderService {
         return clients.save(client);
     }
 
-    private static boolean matchesPublicIdentity(
-            Client client,
-            String firstName,
-            String lastName,
-            String normalizedEmail,
-            String phone
-    ) {
-        if (client == null || normalizedEmail == null
-                || !normalizedEmail.equals(Client.normalizeEmailStorage(client.getEmail()))) {
-            return false;
-        }
-        if (!sameText(client.getFirstName(), firstName) || !sameText(client.getLastName(), lastName)) {
-            return false;
-        }
-        String requestedPhone = WorkspaceClient.normalizePhone(phone);
-        return requestedPhone == null
-                || Objects.equals(requestedPhone, WorkspaceClient.normalizePhone(client.getPhone()));
-    }
 
-    private static boolean sameText(String first, String second) {
-        return first != null && second != null && first.trim().equalsIgnoreCase(second.trim());
-    }
 
     private static String guestUserLocale(GuestUser guestUser) {
         return guestUser == null ? null : guestUser.getLanguage();

@@ -412,14 +412,14 @@ public class GuestTenantService {
         List<Client> emailMatches = findByEmail(company.getId(), guestUser.getEmail());
         List<Client> phoneMatches = findByPhone(company.getId(), guestUser.getPhone());
 
-        if (emailMatches.size() > 1 || phoneMatches.size() > 1) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Duplicate clients found for this tenant. Please clean up tenant client data first.");
-        }
-        if (!emailMatches.isEmpty() && !phoneMatches.isEmpty() && !Objects.equals(emailMatches.get(0).getId(), phoneMatches.get(0).getId())) {
-            return new MatchResult(emailMatches.get(0), MatchType.EMAIL);
-        }
+        // Email is authoritative inside a tenant. If historical duplicate rows already
+        // exist, deterministically reuse the oldest matching row instead of creating yet
+        // another client or blocking the guest from joining.
         if (!emailMatches.isEmpty()) {
             return new MatchResult(emailMatches.get(0), MatchType.EMAIL);
+        }
+        if (phoneMatches.size() > 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Duplicate clients with this phone were found for this tenant. Please clean up tenant client data first.");
         }
         if (!phoneMatches.isEmpty()) {
             return new MatchResult(phoneMatches.get(0), MatchType.PHONE);
@@ -430,10 +430,18 @@ public class GuestTenantService {
 
     private MatchResult resolveClientForExistingLink(GuestTenantLink existing, Company company, GuestUser guestUser) {
         Client linkedClient = existing.getClient();
-        if (linkedClient != null && linkedClient.isAnonymized()) {
-            return new MatchResult(createClient(company, guestUser), MatchType.CREATED);
+        String normalizedEmail = normalizeEmail(guestUser.getEmail());
+        if (normalizedEmail != null) {
+            List<Client> emailMatches = findByEmail(company.getId(), normalizedEmail);
+            if (!emailMatches.isEmpty()) {
+                Client canonical = emailMatches.get(0);
+                return new MatchResult(canonical, Objects.equals(
+                        linkedClient == null ? null : linkedClient.getId(), canonical.getId())
+                        ? MatchType.LINKED
+                        : MatchType.EMAIL);
+            }
         }
-        if (linkedClient != null) {
+        if (linkedClient != null && !linkedClient.isAnonymized()) {
             return new MatchResult(linkedClient, MatchType.LINKED);
         }
         return matchOrCreateClient(company, guestUser);

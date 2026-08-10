@@ -59,21 +59,19 @@ class PublicWidgetOrderClientMatchingTest {
     }
 
     @Test
-    void onlinePaymentFlowDoesNotReuseHouseholdMemberWithSameEmail() throws Exception {
+    void onlinePaymentFlowReusesExistingClientWhenEmailMatchesEvenIfIdentityDiffers() throws Exception {
         ClientRepository clients = mock(ClientRepository.class);
         UserRepository users = mock(UserRepository.class);
         PublicWidgetOrderService service = service(null, null, clients, users);
         Company company = company(9L);
-        User owner = new User();
-        Client householdMember = new Client();
-        householdMember.setFirstName("Parent");
-        householdMember.setLastName("Person");
-        householdMember.setEmail("family@example.com");
-        householdMember.setPhone("040111000");
+        Client existing = new Client();
+        existing.setFirstName("Parent");
+        existing.setLastName("Person");
+        existing.setEmail("family@example.com");
+        existing.setPhone("040111000");
 
         when(clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(9L, "family@example.com"))
-                .thenReturn(List.of(householdMember));
-        when(users.findFirstByCompanyIdAndActiveTrueOrderByIdAsc(9L)).thenReturn(Optional.of(owner));
+                .thenReturn(List.of(existing));
         when(clients.save(any(Client.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Client resolved = invokeMatchOrCreate(
@@ -85,10 +83,10 @@ class PublicWidgetOrderClientMatchingTest {
                 "040111222"
         );
 
-        assertNotSame(householdMember, resolved);
-        assertEquals("Child", resolved.getFirstName());
+        assertSame(existing, resolved);
+        assertEquals("Parent", resolved.getFirstName());
         assertEquals("family@example.com", resolved.getEmail());
-        assertSame(owner, resolved.getAssignedTo());
+        assertEquals("040111000", resolved.getPhone());
     }
 
     @Test

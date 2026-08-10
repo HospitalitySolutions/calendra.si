@@ -2061,15 +2061,16 @@ public class PublicBookingWidgetService {
         }
         String normalizedPhone = phone == null ? null : phone.trim();
 
-        // Do not collapse household members merely because they share an email address.
-        // Reuse a unit client only when the submitted name and, when supplied, phone also match.
+        // Email is the unique client identity inside a tenant. Public booking must always
+        // reuse the existing tenant client for that normalized email, even when a submitted
+        // name or phone differs. This prevents guest/public flows from creating duplicate
+        // client rows for the same email address.
         Optional<Client> existing = clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(
                         company.getId(),
                         normalizedEmail
                 )
                 .stream()
-                .filter(candidate -> matchesPublicIdentity(
-                        candidate, firstName, lastName, normalizedEmail, normalizedPhone))
+                .filter(candidate -> candidate != null && !candidate.isAnonymized())
                 .findFirst();
         if (existing.isPresent()) {
             Client client = existing.get();
@@ -2117,28 +2118,7 @@ public class PublicBookingWidgetService {
     }
 
 
-    private static boolean matchesPublicIdentity(
-            Client client,
-            String firstName,
-            String lastName,
-            String normalizedEmail,
-            String phone
-    ) {
-        if (client == null || normalizedEmail == null
-                || !normalizedEmail.equals(Client.normalizeEmailStorage(client.getEmail()))) {
-            return false;
-        }
-        if (!sameText(client.getFirstName(), firstName) || !sameText(client.getLastName(), lastName)) {
-            return false;
-        }
-        String requestedPhone = WorkspaceClient.normalizePhone(phone);
-        return requestedPhone == null
-                || Objects.equals(requestedPhone, WorkspaceClient.normalizePhone(client.getPhone()));
-    }
 
-    private static boolean sameText(String first, String second) {
-        return first != null && second != null && first.trim().equalsIgnoreCase(second.trim());
-    }
 
     private User resolveConsultantForBooking(Long companyId, Long consultantId, boolean availabilityEnabled) {
         if (consultantId == null) {

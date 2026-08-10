@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 class PublicBookingWidgetClientMatchingTest {
 
     @Test
-    void reusesExistingTenantClientOnlyWhenSubmittedIdentityMatches() throws Exception {
+    void reusesExistingTenantClientWhenEmailMatches() throws Exception {
         ClientRepository clients = mock(ClientRepository.class);
         PublicBookingWidgetService service = service(clients);
         Company company = company(42L);
@@ -54,20 +54,20 @@ class PublicBookingWidgetClientMatchingTest {
     }
 
     @Test
-    void createsNewClientWhenHouseholdMemberSharesEmailButIdentityDiffers() throws Exception {
+    void reusesExistingTenantClientWhenSameEmailIsSubmittedWithDifferentIdentity() throws Exception {
         ClientRepository clients = mock(ClientRepository.class);
         PublicBookingWidgetService service = service(clients);
         Company company = company(42L);
         User actor = new User();
-        Client householdMember = new Client();
-        householdMember.setCompany(company);
-        householdMember.setFirstName("Parent");
-        householdMember.setLastName("Person");
-        householdMember.setEmail("family@example.com");
-        householdMember.setPhone("+38640111000");
+        Client existing = new Client();
+        existing.setCompany(company);
+        existing.setFirstName("Parent");
+        existing.setLastName("Person");
+        existing.setEmail("family@example.com");
+        existing.setPhone("+38640111000");
 
         when(clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(42L, "family@example.com"))
-                .thenReturn(List.of(householdMember));
+                .thenReturn(List.of(existing));
         when(clients.save(any(Client.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Client resolved = invokeFindOrCreate(
@@ -81,10 +81,11 @@ class PublicBookingWidgetClientMatchingTest {
                 "sl"
         );
 
-        assertNotSame(householdMember, resolved);
-        assertEquals("Child", resolved.getFirstName());
+        assertSame(existing, resolved);
+        assertEquals("Parent", resolved.getFirstName());
         assertEquals("family@example.com", resolved.getEmail());
-        assertSame(company, resolved.getCompany());
+        assertEquals("+38640111000", resolved.getPhone());
+        verify(clients).save(existing);
     }
 
     @Test

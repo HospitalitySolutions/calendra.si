@@ -860,7 +860,7 @@ public class ClientController {
                 && repository.existsOtherWithNormalizedEmail(
                         me.getCompany().getId(), normalizedEmail, c.getId())) {
             throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "A client with this email already exists for this company.");
+                    HttpStatus.CONFLICT, "A client with this email already exists for this tenant.");
         }
         c.setEmail(normalizedEmail);
         String normalizedPhone = blankToNull(req.phone());
