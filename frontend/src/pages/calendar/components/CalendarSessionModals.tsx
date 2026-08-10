@@ -141,7 +141,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     return () => media.removeEventListener?.('change', sync)
   }, [])
   const onlineSessionBookingEnabled = settings?.ONLINE_SESSION_BOOKING_ENABLED !== 'false'
-  const scannerModuleEnabled = settings?.SCANNER_MODULE_ENABLED === 'true'
+  const scannerModuleEnabled =
+    settings?.ENTITLEMENTS_ENABLED !== 'false' &&
+    settings?.SCANNER_MODULE_ENABLED === 'true'
   const multipleServicesEnabled = (() => {
     try {
       return JSON.parse(String(settings?.GUEST_APP_SETTINGS_JSON || '{}'))?.multipleServicesEnabled === true

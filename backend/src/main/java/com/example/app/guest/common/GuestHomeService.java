@@ -75,12 +75,14 @@ public class GuestHomeService {
                     );
                 })
                 .toList();
-        var activeRows = entitlements.findAllByClientIdAndCompanyIdAndStatusInOrderByCreatedAtDesc(
+        var activeRows = settingsService.entitlementsEnabled(companyId)
+                ? entitlements.findAllByClientIdAndCompanyIdAndStatusInOrderByCreatedAtDesc(
                         link.getClient().getId(),
                         companyId,
                         List.of(EntitlementStatus.ACTIVE, EntitlementStatus.PENDING),
                         PageRequest.of(0, 20)
-                );
+                )
+                : List.<GuestEntitlement>of();
         var membershipVisitCounts = entitlementService == null
                 ? java.util.Map.<Long, Integer>of()
                 : entitlementService.membershipVisitCounts(activeRows);

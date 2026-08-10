@@ -109,10 +109,17 @@ public class GuestSettingsService {
                 && settingEnabled(values, SettingKey.BILLING_ADVANCE_ENABLED, true);
     }
 
+    public boolean entitlementsEnabled(Long companyId) {
+        Map<String, String> values = settings.findAllByCompanyId(companyId).stream()
+                .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
+        return settingEnabled(values, SettingKey.ENTITLEMENTS_ENABLED, true);
+    }
+
     public boolean giftCardsEnabled(Long companyId) {
         Map<String, String> values = settings.findAllByCompanyId(companyId).stream()
                 .collect(Collectors.toMap(s -> s.getKey(), s -> s.getValue(), (a, b) -> b));
-        return settingEnabled(values, SettingKey.BILLING_ENABLED, true)
+        return settingEnabled(values, SettingKey.ENTITLEMENTS_ENABLED, true)
+                && settingEnabled(values, SettingKey.BILLING_ENABLED, true)
                 && settingEnabled(values, SettingKey.BILLING_GIFT_CARDS_ENABLED, false);
     }
 
@@ -129,7 +136,8 @@ public class GuestSettingsService {
             return List.of();
         }
         JsonNode root = parse(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
-        boolean giftCardsEnabled = settingEnabled(values, SettingKey.BILLING_GIFT_CARDS_ENABLED, false);
+        boolean giftCardsEnabled = settingEnabled(values, SettingKey.ENTITLEMENTS_ENABLED, true)
+                && settingEnabled(values, SettingKey.BILLING_GIFT_CARDS_ENABLED, false);
         List<String> accepted = parseAcceptedPaymentMethods(root.path("acceptedPaymentMethodIds"));
         var capabilities = tenantPaymentCapabilities(values);
         return applyGlobalProviderCapabilities(accepted, capabilities, giftCardsEnabled);
@@ -254,7 +262,8 @@ public class GuestSettingsService {
         }
         String paymentRequirement = normalizePaymentRequirement(root.path("paymentRequirement").asText(null), requireOnlinePayment);
         int depositPercent = normalizeDepositPercent(root.path("depositPercent").asInt(20));
-        boolean giftCardsEnabled = settingEnabled(values, SettingKey.BILLING_GIFT_CARDS_ENABLED, false);
+        boolean giftCardsEnabled = settingEnabled(values, SettingKey.ENTITLEMENTS_ENABLED, true)
+                && settingEnabled(values, SettingKey.BILLING_GIFT_CARDS_ENABLED, false);
         return new GuestBookingRules(
                 reservationRules.cancelUntilHours(),
                 reservationRules.rescheduleUntilHours(),

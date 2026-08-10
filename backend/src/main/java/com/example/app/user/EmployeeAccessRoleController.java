@@ -322,21 +322,25 @@ public class EmployeeAccessRoleController {
             case "SERVICES" -> settingEnabled(settings, SettingKey.TYPES_ENABLED, true);
             case "SPACES" -> settingEnabled(settings, SettingKey.SPACES_ENABLED, false);
             case "COURSES" -> settingEnabled(settings, SettingKey.TYPES_ENABLED, true)
+                    && settingEnabled(settings, SettingKey.ENTITLEMENTS_ENABLED, true)
                     && settingEnabled(settings, SettingKey.COURSES_ENABLED, true);
             case "BILLING_INVOICES" -> settingEnabled(settings, SettingKey.BILLING_ENABLED, true)
                     && settingEnabled(settings, SettingKey.BILLING_INVOICES_ENABLED, true);
             case "ORDERS" -> websiteWidgetEnabled(settings) || guestOrdersEnabled(settings);
-            case "WALLET_BENEFITS" -> guestWalletEnabled(settings);
+            case "WALLET_BENEFITS" -> settingEnabled(settings, SettingKey.ENTITLEMENTS_ENABLED, true)
+                    && guestWalletEnabled(settings);
             case "INBOX_MESSAGES" -> settingEnabled(settings, SettingKey.INBOX_ENABLED, true) || guestInboxEnabled(settings);
             case "NOTIFICATIONS", "DELIVERY_LOGS" -> settingEnabled(settings, SettingKey.NOTIFICATIONS_ENABLED, true);
             case "INTEGRATIONS" -> settingEnabled(settings, SettingKey.GOOGLE_CALENDAR_MODULE_ENABLED, true)
-                    || settingEnabled(settings, SettingKey.SCANNER_MODULE_ENABLED, true)
+                    || (settingEnabled(settings, SettingKey.ENTITLEMENTS_ENABLED, true)
+                        && settingEnabled(settings, SettingKey.SCANNER_MODULE_ENABLED, true))
                     || settingEnabled(settings, SettingKey.WHATSAPP_MODULE_ENABLED, true)
                     || settingEnabled(settings, SettingKey.VIBER_MODULE_ENABLED, false);
             case "WEBSITE_WIDGET" -> websiteWidgetEnabled(settings);
             case "GUEST_MOBILE_APP" -> guestAppEnabled(settings);
             case "PAYMENTS" -> settingEnabled(settings, SettingKey.BILLING_ENABLED, true);
-            case "SCANNER" -> settingEnabled(settings, SettingKey.SCANNER_MODULE_ENABLED, true);
+            case "SCANNER" -> settingEnabled(settings, SettingKey.ENTITLEMENTS_ENABLED, true)
+                    && settingEnabled(settings, SettingKey.SCANNER_MODULE_ENABLED, true);
             default -> true;
         };
     }

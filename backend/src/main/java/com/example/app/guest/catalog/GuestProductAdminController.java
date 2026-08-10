@@ -24,6 +24,7 @@ import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.session.TypeTransactionService;
 import com.example.app.settings.CourseModuleAccessService;
+import com.example.app.settings.EntitlementsModuleAccessService;
 import com.example.app.settings.BillingModuleAccessService;
 import com.example.app.user.User;
 import java.math.BigDecimal;
@@ -68,6 +69,9 @@ public class GuestProductAdminController {
     @Autowired(required = false)
     private CommerceLocationScopeService commerceLocations;
 
+    @Autowired(required = false)
+    private EntitlementsModuleAccessService entitlementsModuleAccessService;
+
     @Autowired
     public GuestProductAdminController(
             GuestProductRepository products,
@@ -108,6 +112,7 @@ public class GuestProductAdminController {
     @Transactional(readOnly = true)
     public List<ProductAdminResponse> list(@AuthenticationPrincipal User me) {
         Long companyId = me.getCompany().getId();
+        assertEntitlementsEnabled(companyId);
         boolean giftCardsEnabled = giftCardsEnabled(companyId);
         return products.findAllByCompanyIdOrderBySortOrderAscIdAsc(companyId).stream()
                 .filter(product -> product.getCourse() == null)
@@ -119,6 +124,7 @@ public class GuestProductAdminController {
     @PostMapping
     @Transactional
     public ProductAdminResponse create(@RequestBody ProductAdminRequest request, @AuthenticationPrincipal User me) {
+        assertEntitlementsEnabled(me.getCompany().getId());
         GuestProduct product = new GuestProduct();
         product.setCompany(me.getCompany());
         apply(product, request, me);
@@ -132,6 +138,7 @@ public class GuestProductAdminController {
     @PutMapping("/{id}")
     @Transactional
     public ProductAdminResponse update(@PathVariable Long id, @RequestBody ProductAdminRequest request, @AuthenticationPrincipal User me) {
+        assertEntitlementsEnabled(me.getCompany().getId());
         GuestProduct product = products.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found."));
         apply(product, request, me);
@@ -145,6 +152,7 @@ public class GuestProductAdminController {
     @DeleteMapping("/{id}")
     @Transactional
     public void delete(@PathVariable Long id, @AuthenticationPrincipal User me) {
+        assertEntitlementsEnabled(me.getCompany().getId());
         GuestProduct product = products.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found."));
         if (orderItems.countByProductId(product.getId()) > 0 || entitlements.countByProductId(product.getId()) > 0) {
@@ -159,6 +167,12 @@ public class GuestProductAdminController {
             activityLogs.recordUser(me, ActivityModule.SERVICES, ActivityAction.PRODUCT_DELETED,
                     "GUEST_PRODUCT", deletedId, deletedName, "Deleted card/membership product", null, null,
                     ActivityDetails.of("productType", deletedType, "targetPath", "/session-types?subtab=cards-memberships"));
+        }
+    }
+
+    private void assertEntitlementsEnabled(Long companyId) {
+        if (entitlementsModuleAccessService != null) {
+            entitlementsModuleAccessService.assertEnabled(companyId);
         }
     }
 

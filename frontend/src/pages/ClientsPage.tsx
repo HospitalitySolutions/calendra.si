@@ -1624,7 +1624,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [giftCardRecipientName, setGiftCardRecipientName] = useState('')
   const [giftCardMessage, setGiftCardMessage] = useState('')
   const groupBookingEnabled = settings.GROUP_BOOKING_ENABLED === 'true'
-  const giftCardsFeatureEnabled = settings.BILLING_GIFT_CARDS_ENABLED === 'true'
+  const entitlementsFeatureEnabled = settings.ENTITLEMENTS_ENABLED !== 'false'
+  const giftCardsFeatureEnabled =
+    entitlementsFeatureEnabled && settings.BILLING_GIFT_CARDS_ENABLED === 'true'
   const invoiceEmailDeliveryEnabled = settings.INVOICE_DELIVERY_EMAIL_ENABLED !== 'false'
   const giftCardDisplaySettings = parseGiftCardDisplaySettings(settings[GIFT_CARD_SETTINGS_KEY])
   const clientCustomFieldDefs = useMemo(() => activeCustomFields(customFieldDefinitions, 'CLIENT'), [customFieldDefinitions])
@@ -1835,6 +1837,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }, [openGroupMenuId, refreshGroupMenuAnchor])
 
   const loadDetailWallet = useCallback(async (clientId: number, options: { silent?: boolean } = {}) => {
+    if (!entitlementsFeatureEnabled) {
+      setDetailWallet(null)
+      setDetailWalletError('')
+      setDetailWalletLoading(false)
+      return
+    }
     if (!options.silent) {
       setDetailWalletLoading(true)
     }
@@ -1849,7 +1857,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         setDetailWalletLoading(false)
       }
     }
-  }, [locale])
+  }, [locale, entitlementsFeatureEnabled])
 
   useEffect(() => {
     if (!detailClient) return
@@ -1876,8 +1884,20 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   useEffect(() => {
     if (!detailClient) return
     setDetailWallet(null)
-    void loadDetailWallet(detailClient.id)
-  }, [detailClient, loadDetailWallet])
+    if (entitlementsFeatureEnabled) {
+      void loadDetailWallet(detailClient.id)
+    }
+  }, [detailClient, entitlementsFeatureEnabled, loadDetailWallet])
+
+  useEffect(() => {
+    if (entitlementsFeatureEnabled) return
+    if (clientDetailMainTab === 'wallet') {
+      setClientDetailMainTab('sessions')
+    }
+    setWalletPurchaseDrawerOpen(false)
+    setDetailWallet(null)
+    setDetailWalletError('')
+  }, [entitlementsFeatureEnabled, clientDetailMainTab])
 
   useEffect(() => {
     if (!detailClient || clientDetailMainTab !== 'files' || clientDetailDatotekeSubTab !== 'racuni') return
@@ -2189,12 +2209,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }, [locale, giftCardsFeatureEnabled, selectedLocationId])
 
   const openWalletPurchaseDrawer = useCallback(() => {
-    if (!detailClient) return
+    if (!detailClient || !entitlementsFeatureEnabled) return
     setWalletPurchaseDrawerOpen(true)
     setWalletProductSearch('')
     setWalletPurchaseError('')
     void loadWalletProducts(detailClient.id)
-  }, [detailClient, loadWalletProducts])
+  }, [detailClient, entitlementsFeatureEnabled, loadWalletProducts])
 
   useEffect(() => {
     if (!walletPurchaseDrawerOpen || !isClientsMobile) return
@@ -4597,16 +4617,18 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                       <ClientWorkspaceIcon name="sessions" />
                       {clientsCopy.sessions}
                     </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      className={clientDetailMainTab === 'wallet' ? 'clients-session-tab active' : 'clients-session-tab'}
-                      aria-selected={clientDetailMainTab === 'wallet'}
-                      onClick={() => setClientDetailMainTab('wallet')}
-                    >
-                      <ClientWorkspaceIcon name="wallet" />
-                      {clientsCopy.clientDetailTabWallet}
-                    </button>
+                    {entitlementsFeatureEnabled ? (
+                      <button
+                        type="button"
+                        role="tab"
+                        className={clientDetailMainTab === 'wallet' ? 'clients-session-tab active' : 'clients-session-tab'}
+                        aria-selected={clientDetailMainTab === 'wallet'}
+                        onClick={() => setClientDetailMainTab('wallet')}
+                      >
+                        <ClientWorkspaceIcon name="wallet" />
+                        {clientsCopy.clientDetailTabWallet}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       role="tab"
@@ -4630,7 +4652,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   </div>
                 </div>
 
-                {clientDetailMainTab === 'wallet' && (
+                {entitlementsFeatureEnabled && clientDetailMainTab === 'wallet' && (
                   <div className={`clients-detail-sessions-card clients-detail-wallet-card${walletPurchaseDrawerOpen ? ' clients-detail-wallet-card--drawer-open' : ''}`} role="tabpanel">
                     {detailWalletError && <div className="error">{detailWalletError}</div>}
                     {detailWalletLoading ? (

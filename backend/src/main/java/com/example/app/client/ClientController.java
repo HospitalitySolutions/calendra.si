@@ -23,6 +23,7 @@ import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.guest.order.GuestOrderService;
 import com.example.app.guest.notifications.GuestNotificationService;
 import com.example.app.security.SecurityUtils;
+import com.example.app.settings.EntitlementsModuleAccessService;
 import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
 import com.example.app.session.SessionBooking;
@@ -89,6 +90,9 @@ public class ClientController {
 
     @Autowired(required = false)
     private ActivityLogService activityLogs;
+
+    @Autowired(required = false)
+    private EntitlementsModuleAccessService entitlementsModuleAccessService;
 
     @Autowired
     private ClientDirectoryPageQueryService directoryPages;
@@ -599,6 +603,7 @@ public class ClientController {
     @GetMapping("/{id}/wallet")
     @Transactional
     public ClientWalletResponse clientWallet(@PathVariable Long id, @AuthenticationPrincipal User me) {
+        assertEntitlementsEnabled(me == null || me.getCompany() == null ? null : me.getCompany().getId());
         var client = loadClientForWalletAccess(id, me);
         guestOrderService.ensurePaidWalletEntitlementsForClient(client.getId(), me.getCompany().getId());
         var allEntitlements = guestEntitlements.findAllByClientIdAndCompanyIdOrderByCreatedAtDesc(
@@ -633,6 +638,7 @@ public class ClientController {
             @PathVariable Long entitlementId,
             @AuthenticationPrincipal User me
     ) {
+        assertEntitlementsEnabled(me == null || me.getCompany() == null ? null : me.getCompany().getId());
         var client = loadClientForDetailAccess(id, me);
         var entitlement = guestEntitlements.findById(entitlementId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
@@ -657,6 +663,12 @@ public class ClientController {
         }
         if (guestNotifications != null) {
             guestNotifications.webEntitlementRemoved(entitlement);
+        }
+    }
+
+    private void assertEntitlementsEnabled(Long companyId) {
+        if (entitlementsModuleAccessService != null) {
+            entitlementsModuleAccessService.assertEnabled(companyId);
         }
     }
 

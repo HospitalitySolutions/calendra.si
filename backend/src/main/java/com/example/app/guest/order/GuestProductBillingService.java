@@ -7,9 +7,11 @@ import com.example.app.commerce.CommerceLocationScopeService;
 import com.example.app.guest.common.GuestInvoiceSettingsSupport;
 import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.model.GuestProduct;
+import com.example.app.guest.model.OrderStatus;
 import com.example.app.guest.model.ProductType;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.EntitlementsModuleAccessService;
 import com.example.app.settings.SettingKey;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
@@ -50,6 +52,7 @@ public class GuestProductBillingService {
 
     private InvoiceIssuanceService invoiceIssuanceService;
     private CommerceLocationScopeService commerceLocations;
+    private EntitlementsModuleAccessService entitlementsModuleAccessService;
 
     public GuestProductBillingService(
             BillRepository bills,
@@ -83,6 +86,11 @@ public class GuestProductBillingService {
         this.commerceLocations = commerceLocations;
     }
 
+    @Autowired(required = false)
+    void configureEntitlementsModuleAccessService(EntitlementsModuleAccessService entitlementsModuleAccessService) {
+        this.entitlementsModuleAccessService = entitlementsModuleAccessService;
+    }
+
     /**
      * Creates (or returns the existing) bill for the given wallet order with
      * {@code PAYMENT_PENDING} status. For bank transfers, the bill gets a bank
@@ -90,6 +98,12 @@ public class GuestProductBillingService {
      */
     @Transactional
     public Bill issuePendingBill(GuestOrder order, GuestProduct product, String paymentMethodType) {
+        if (order != null
+                && order.getCompany() != null
+                && order.getStatus() != OrderStatus.PAID
+                && entitlementsModuleAccessService != null) {
+            entitlementsModuleAccessService.assertEnabled(order.getCompany().getId());
+        }
         if (order.getBillId() != null) {
             Bill existing = bills.findById(order.getBillId()).orElse(null);
             if (existing != null) {

@@ -54,6 +54,7 @@ public class ManualTenantService {
             new FeatureDefinition("SPACES_ENABLED", "Spaces / resources", SettingKey.SPACES_ENABLED),
             new FeatureDefinition("TYPES_ENABLED", "Services", SettingKey.TYPES_ENABLED),
             new FeatureDefinition("SERVICE_GROUPS_ENABLED", "Service groups", SettingKey.SERVICE_GROUPS_ENABLED),
+            new FeatureDefinition("ENTITLEMENTS_ENABLED", "Entitlements", SettingKey.ENTITLEMENTS_ENABLED),
             new FeatureDefinition("COURSES_ENABLED", "Courses", SettingKey.COURSES_ENABLED),
             new FeatureDefinition("BOOKABLE_ENABLED", "Bookable sessions", SettingKey.BOOKABLE_ENABLED),
             new FeatureDefinition("ONLINE_SESSION_BOOKING_ENABLED", "Online session booking", SettingKey.ONLINE_SESSION_BOOKING_ENABLED),
@@ -429,6 +430,9 @@ public class ManualTenantService {
         if (!"CUSTOM".equals(packageName)) {
             selected.addAll(defaultFeaturesFor(packageName));
         }
+        if (!selected.contains("ENTITLEMENTS_ENABLED")) {
+            selected.remove("COURSES_ENABLED");
+        }
         for (FeatureDefinition f : FEATURES) {
             if (f.settingKey() != null) {
                 seedSetting(company, f.settingKey(), Boolean.toString(selected.contains(f.key())));
@@ -454,6 +458,7 @@ public class ManualTenantService {
         out.addAll(List.of(
                 "TYPES_ENABLED",
                 "SERVICE_GROUPS_ENABLED",
+                "ENTITLEMENTS_ENABLED",
                 "BOOKABLE_ENABLED",
                 "WEBSITE_WIDGET_ENABLED",
                 "COMMUNICATION_ENABLED",

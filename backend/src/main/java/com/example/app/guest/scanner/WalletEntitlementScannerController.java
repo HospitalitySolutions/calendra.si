@@ -21,6 +21,7 @@ import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingCreationService;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionType;
+import com.example.app.settings.EntitlementsModuleAccessService;
 import com.example.app.user.User;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -62,6 +63,9 @@ public class WalletEntitlementScannerController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private LocationRepository locations;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private EntitlementsModuleAccessService entitlementsModuleAccessService;
+
     @org.springframework.beans.factory.annotation.Autowired
     public WalletEntitlementScannerController(
             GuestEntitlementRepository entitlements,
@@ -94,6 +98,7 @@ public class WalletEntitlementScannerController {
             @RequestParam(required = false) Long paymentClientId,
             @AuthenticationPrincipal User me
     ) {
+        assertEntitlementsEnabled(me == null || me.getCompany() == null ? null : me.getCompany().getId());
         if (!SecurityUtils.canScanWalletEntitlements(me)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have permission to scan wallet entitlements.");
         }
@@ -142,6 +147,7 @@ public class WalletEntitlementScannerController {
     @PostMapping("/scan")
     @Transactional
     public ScanResponse scan(@RequestBody ScanRequest request, @AuthenticationPrincipal User me) {
+        assertEntitlementsEnabled(me == null || me.getCompany() == null ? null : me.getCompany().getId());
         if (!SecurityUtils.canScanWalletEntitlements(me)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have permission to scan wallet entitlements.");
         }
@@ -240,6 +246,12 @@ public class WalletEntitlementScannerController {
         }
 
         return new ScanResponse(true, result, message, clientResponse(entitlement.getClient()), entitlementResponse(entitlement), null);
+    }
+
+    private void assertEntitlementsEnabled(Long companyId) {
+        if (entitlementsModuleAccessService != null) {
+            entitlementsModuleAccessService.assertEnabled(companyId);
+        }
     }
 
     private ScanResponse scanIntoPaymentBooking(ScanRequest request, GuestEntitlement entitlement, User me, Instant now) {

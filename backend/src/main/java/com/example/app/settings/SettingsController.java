@@ -60,6 +60,7 @@ public class SettingsController {
             SettingKey.LOCATIONS_ENABLED.name(),
             SettingKey.SPACES_ENABLED.name(),
             SettingKey.TYPES_ENABLED.name(),
+            SettingKey.ENTITLEMENTS_ENABLED.name(),
             SettingKey.COURSES_ENABLED.name(),
             SettingKey.BOOKABLE_ENABLED.name(),
             SettingKey.NO_SHOW_ENABLED.name(),
@@ -294,7 +295,11 @@ public class SettingsController {
         boolean projectToDifferentCompany = workspaceBillingOwner != null
                 && workspaceBillingOwner.getId() != null
                 && !workspaceBillingOwner.getId().equals(companyId);
-        if ("false".equalsIgnoreCase(String.valueOf(payload.get(SettingKey.COURSES_ENABLED.name())).trim()) && courseModuleAccessService != null) {
+        boolean entitlementsDisabledForSave = "false".equalsIgnoreCase(
+                String.valueOf(payloadOrStored(companyId, normalizedPayload, SettingKey.ENTITLEMENTS_ENABLED)).trim());
+        if ("false".equalsIgnoreCase(String.valueOf(normalizedPayload.get(SettingKey.COURSES_ENABLED.name())).trim())
+                && !entitlementsDisabledForSave
+                && courseModuleAccessService != null) {
             courseModuleAccessService.assertCanDisable(companyId);
         }
         Arrays.stream(SettingKey.values()).forEach(key -> {
@@ -476,6 +481,17 @@ public class SettingsController {
             }
         }
 
+        String entitlementsKey = SettingKey.ENTITLEMENTS_ENABLED.name();
+        String coursesKey = SettingKey.COURSES_ENABLED.name();
+        if (normalized.containsKey(entitlementsKey) || normalized.containsKey(coursesKey)) {
+            boolean entitlementsEnabled = !"false".equalsIgnoreCase(
+                    String.valueOf(payloadOrStored(companyId, normalized, SettingKey.ENTITLEMENTS_ENABLED)).trim()
+            );
+            if (!entitlementsEnabled) {
+                normalized.put(coursesKey, "false");
+            }
+        }
+
         String billingKey = SettingKey.BILLING_ENABLED.name();
         String multipleCompaniesKey = SettingKey.MULTIPLE_COMPANIES_ENABLED.name();
         if (normalized.containsKey(billingKey) || normalized.containsKey(multipleCompaniesKey)) {
@@ -496,6 +512,12 @@ public class SettingsController {
         );
         if (!multipleClientsEnabled) {
             values.put(SettingKey.GROUP_BOOKING_ENABLED.name(), "false");
+        }
+        boolean entitlementsEnabled = !"false".equalsIgnoreCase(
+                String.valueOf(values.getOrDefault(SettingKey.ENTITLEMENTS_ENABLED.name(), "true")).trim()
+        );
+        if (!entitlementsEnabled) {
+            values.put(SettingKey.COURSES_ENABLED.name(), "false");
         }
         boolean billingEnabled = "true".equalsIgnoreCase(
                 String.valueOf(values.getOrDefault(SettingKey.BILLING_ENABLED.name(), "false")).trim()

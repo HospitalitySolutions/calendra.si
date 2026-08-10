@@ -12,19 +12,33 @@ public class CourseModuleAccessService {
     private final AppSettingRepository settings;
     private final CourseRepository courses;
     private final GuestProductRepository products;
+    private final EntitlementsModuleAccessService entitlementsModuleAccessService;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    public CourseModuleAccessService(
+            AppSettingRepository settings,
+            CourseRepository courses,
+            GuestProductRepository products,
+            EntitlementsModuleAccessService entitlementsModuleAccessService
+    ) {
+        this.settings = settings;
+        this.courses = courses;
+        this.products = products;
+        this.entitlementsModuleAccessService = entitlementsModuleAccessService;
+    }
+
+    /** Backwards-compatible constructor for focused unit tests. */
     public CourseModuleAccessService(
             AppSettingRepository settings,
             CourseRepository courses,
             GuestProductRepository products
     ) {
-        this.settings = settings;
-        this.courses = courses;
-        this.products = products;
+        this(settings, courses, products, null);
     }
 
     public boolean isEnabled(Long companyId) {
         if (companyId == null) return true;
+        if (entitlementsModuleAccessService != null && !entitlementsModuleAccessService.isEnabled(companyId)) return false;
         return settings.findByCompanyIdAndKey(companyId, SettingKey.COURSES_ENABLED)
                 .map(AppSetting::getValue)
                 .map(value -> !"false".equalsIgnoreCase(String.valueOf(value).trim()))

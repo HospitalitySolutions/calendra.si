@@ -9,6 +9,7 @@ import com.example.app.guest.model.*;
 import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.guest.tenant.GuestTenantService;
 import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.EntitlementsModuleAccessService;
 import com.example.app.settings.SettingKey;
 import com.example.app.session.SessionBookingRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,6 +35,9 @@ public class GuestWalletService {
     private final GuestEntitlementService entitlementService;
     private final BillRepository bills;
     private final AppSettingRepository settings;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private EntitlementsModuleAccessService entitlementsModuleAccessService;
 
     public GuestWalletService(GuestTenantService guestTenantService, GuestEntitlementRepository entitlements,
                               GuestOrderRepository orders, SessionBookingRepository bookings,
@@ -67,12 +71,14 @@ public class GuestWalletService {
             int entitlementsSize
     ) {
         GuestTenantLink link = guestTenantService.requireLink(guestUser, companyId);
-        var entitlementRows = entitlements.findAllByClientIdAndCompanyIdAndStatusNotOrderByCreatedAtDesc(
-                link.getClient().getId(),
-                companyId,
-                EntitlementStatus.CANCELLED,
-                PageRequest.of(safePage(entitlementsPage), safeSize(entitlementsSize, 100, 500))
-        );
+        var entitlementRows = entitlementsEnabled(companyId)
+                ? entitlements.findAllByClientIdAndCompanyIdAndStatusNotOrderByCreatedAtDesc(
+                        link.getClient().getId(),
+                        companyId,
+                        EntitlementStatus.CANCELLED,
+                        PageRequest.of(safePage(entitlementsPage), safeSize(entitlementsSize, 100, 500))
+                )
+                : List.<GuestEntitlement>of();
         var orderRows = orders.findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(
                 guestUser.getId(),
                 companyId,
@@ -233,10 +239,21 @@ public class GuestWalletService {
 
     @Transactional
     public GuestDtos.ToggleAutoRenewResponse updateAutoRenew(GuestUser guestUser, Long companyId, Long entitlementId, boolean autoRenews) {
+        assertEntitlementsEnabled(companyId);
         GuestTenantLink link = guestTenantService.requireLink(guestUser, companyId);
         GuestEntitlement entitlement = entitlementService.findOwnedEntitlement(entitlementId, link.getClient().getId(), companyId)
                 .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "Entitlement not found."));
         GuestEntitlement updated = entitlementService.updateAutoRenew(entitlement, autoRenews);
         return new GuestDtos.ToggleAutoRenewResponse(String.valueOf(updated.getId()), entitlementService.autoRenews(updated));
     }
+    private boolean entitlementsEnabled(Long companyId) {
+        return entitlementsModuleAccessService == null || entitlementsModuleAccessService.isEnabled(companyId);
+    }
+
+    private void assertEntitlementsEnabled(Long companyId) {
+        if (entitlementsModuleAccessService != null) {
+            entitlementsModuleAccessService.assertEnabled(companyId);
+        }
+    }
+
 }

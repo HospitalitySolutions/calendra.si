@@ -29,6 +29,7 @@ import com.example.app.session.SessionTypeRepository;
 import com.example.app.session.SessionTypeLocationPriceService;
 import com.example.app.session.SessionTypeBreakSettingsService;
 import com.example.app.settings.CourseModuleAccessService;
+import com.example.app.settings.EntitlementsModuleAccessService;
 import com.example.app.settings.TenantFeatureAccessService;
 import com.example.app.settings.TenantReservationRulesService;
 import com.example.app.user.User;
@@ -89,6 +90,9 @@ public class GuestCatalogService {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private SessionTypeBreakSettingsService breakSettings;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private EntitlementsModuleAccessService entitlementsModuleAccessService;
 
     public GuestCatalogService(
             SessionTypeRepository sessionTypes,
@@ -160,6 +164,9 @@ public class GuestCatalogService {
                     List.of(),
                     List.of()
             ));
+        }
+        if (!entitlementsEnabled(companyId)) {
+            return out;
         }
         for (GuestProduct product : guestProducts.findAllByCompanyIdAndActiveTrueAndGuestVisibleTrueOrderBySortOrderAscIdAsc(companyId)) {
             if (product.getCourse() != null) continue;
@@ -720,6 +727,18 @@ public class GuestCatalogService {
      */
     @Transactional(readOnly = true)
     public ResolvedProduct resolveStaffWalletProduct(Long companyId, Long productId) {
+        return resolveExistingWalletProduct(companyId, productId);
+    }
+
+    /**
+     * Resolves the stored wallet product behind an order that already exists. This path is
+     * intentionally independent of the current Ugodnosti switch: disabling the module blocks
+     * new purchases and redemptions, but an already-captured payment must still be fulfilled so
+     * we never leave a paid order without the benefit it purchased. The resulting entitlement
+     * remains hidden while the module is disabled.
+     */
+    @Transactional(readOnly = true)
+    public ResolvedProduct resolveExistingWalletProduct(Long companyId, Long productId) {
         if (productId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing product identifier.");
         }
@@ -758,6 +777,7 @@ public class GuestCatalogService {
             BigDecimal price = sessionTypePriceGross(type, locationId);
             return new ResolvedProduct(null, type, type.getName(), type.isWidgetGroupBookingEnabled() ? "CLASS_TICKET" : "SESSION_SINGLE", price, tenantCurrency(companyId), true);
         }
+        assertEntitlementsEnabled(companyId);
         GuestProduct product = guestProducts.findByIdAndCompanyId(parseId(productId), companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found."));
         boolean coursesEnabled = courseModuleAccessService == null || courseModuleAccessService.isEnabled(companyId);
@@ -780,6 +800,16 @@ public class GuestCatalogService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not available in the guest app.");
         }
         return new ResolvedProduct(product, product.getSessionType(), product.getName(), product.getProductType().name(), product.getPriceGross(), product.getCurrency(), product.isBookable());
+    }
+
+    private boolean entitlementsEnabled(Long companyId) {
+        return entitlementsModuleAccessService == null || entitlementsModuleAccessService.isEnabled(companyId);
+    }
+
+    private void assertEntitlementsEnabled(Long companyId) {
+        if (entitlementsModuleAccessService != null) {
+            entitlementsModuleAccessService.assertEnabled(companyId);
+        }
     }
 
     public SlotPayload parseSlotId(String slotId) {

@@ -24,6 +24,7 @@ import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import com.example.app.settings.GlobalPaymentProviderService;
 import com.example.app.settings.BillingModuleAccessService;
+import com.example.app.settings.EntitlementsModuleAccessService;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
 import com.example.app.fiscal.FiscalizationService;
@@ -138,6 +139,7 @@ public class BillingController {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private GuestEntitlementRepository giftEntitlements;
+    private EntitlementsModuleAccessService entitlementsModuleAccessService;
 
     public BillingController(TransactionServiceRepository txRepo, PaymentMethodRepository paymentMethodRepo, BillRepository billRepo, AdvanceAllocationRepository advanceAllocationRepo, OpenBillRepository openBillRepo,
                              SessionBookingRepository sessionBookings, ClientRepository clients, ClientCompanyRepository clientCompanies, UserRepository users,
@@ -201,6 +203,11 @@ public class BillingController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     void configureCommerceLocationService(CommerceLocationScopeService commerceLocations) {
         this.commerceLocations = commerceLocations;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void configureEntitlementsModuleAccessService(EntitlementsModuleAccessService entitlementsModuleAccessService) {
+        this.entitlementsModuleAccessService = entitlementsModuleAccessService;
     }
 
     @ModelAttribute
@@ -933,13 +940,12 @@ public class BillingController {
 
         Map<String, String> featureSettings = settings.findAllByCompanyIdsAndKeys(
                         List.of(companyId),
-                        List.of(SettingKey.BILLING_ADVANCE_ENABLED.name(), SettingKey.BILLING_GIFT_CARDS_ENABLED.name()))
+                        List.of(SettingKey.BILLING_ADVANCE_ENABLED.name()))
                 .stream()
                 .collect(Collectors.toMap(AppSetting::getKey, AppSetting::getValue, (left, right) -> right));
         boolean advanceEnabled = !"false".equalsIgnoreCase(
                 String.valueOf(featureSettings.getOrDefault(SettingKey.BILLING_ADVANCE_ENABLED.name(), "true")).trim());
-        boolean giftCardsEnabled = "true".equalsIgnoreCase(
-                String.valueOf(featureSettings.getOrDefault(SettingKey.BILLING_GIFT_CARDS_ENABLED.name(), "false")).trim());
+        boolean giftCardsEnabled = billingModuleAccess.isGiftCardsEnabled(companyId);
 
         long unusedAdvanceCount = advanceEnabled
                 ? advanceAllocationRepo.countUnusedAdvancesByCompanyIdAndOptionalLocation(companyId, locationId)
@@ -2528,6 +2534,9 @@ public class BillingController {
             @AuthenticationPrincipal User me
     ) {
         Long companyId = me.getCompany().getId();
+        if (entitlementsModuleAccessService != null) {
+            entitlementsModuleAccessService.assertEnabled(companyId);
+        }
         requireCanIssueOpenInvoice(me);
         if (!SecurityUtils.canScanWalletEntitlements(me)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have permission to use wallet entitlements.");

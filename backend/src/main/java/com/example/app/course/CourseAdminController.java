@@ -77,6 +77,7 @@ public class CourseAdminController {
     @GetMapping
     @Transactional(readOnly = true)
     public List<CourseResponse> list(@AuthenticationPrincipal User me) {
+        assertCoursesEnabled(me.getCompany().getId());
         return courses.findAllByCompanyIdOrderBySortOrderAscIdAsc(me.getCompany().getId()).stream()
                 .map(this::toResponse)
                 .toList();

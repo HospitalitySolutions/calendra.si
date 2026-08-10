@@ -1858,6 +1858,7 @@ public class SignupService {
         seedSetting(company, SettingKey.SPACES_ENABLED, "false");
         seedSetting(company, SettingKey.TYPES_ENABLED, "true");
         seedSetting(company, SettingKey.SERVICE_GROUPS_ENABLED, "true");
+        seedSetting(company, SettingKey.ENTITLEMENTS_ENABLED, "true");
         seedSetting(company, SettingKey.COURSES_ENABLED, "false");
         seedSetting(company, SettingKey.BOOKABLE_ENABLED, "true");
         seedSetting(company, SettingKey.ONLINE_SESSION_BOOKING_ENABLED, "false");

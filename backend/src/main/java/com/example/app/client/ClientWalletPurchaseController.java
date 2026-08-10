@@ -31,6 +31,7 @@ import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
 import com.example.app.security.SecurityUtils;
 import com.example.app.settings.CourseModuleAccessService;
+import com.example.app.settings.EntitlementsModuleAccessService;
 import com.example.app.settings.BillingModuleAccessService;
 import com.example.app.session.TypeTransactionService;
 import com.example.app.user.User;
@@ -85,6 +86,9 @@ public class ClientWalletPurchaseController {
 
     @Autowired(required = false)
     private CommerceLocationScopeService commerceLocations;
+
+    @Autowired(required = false)
+    private EntitlementsModuleAccessService entitlementsModuleAccessService;
 
     @Autowired
     public ClientWalletPurchaseController(
@@ -166,6 +170,7 @@ public class ClientWalletPurchaseController {
     ) {
         loadClientForWalletWrite(clientId, me);
         Long companyId = me.getCompany().getId();
+        assertEntitlementsEnabled(companyId);
         Location selectedLocation = locationId == null || commerceLocations == null
                 ? null
                 : commerceLocations.requireActiveLocation(companyId, locationId);
@@ -192,6 +197,7 @@ public class ClientWalletPurchaseController {
     ) {
         var client = loadClientForWalletWrite(clientId, me);
         Long companyId = me.getCompany().getId();
+        assertEntitlementsEnabled(companyId);
         var product = products.findByIdAndCompanyId(productId, companyId)
                 .filter(GuestProduct::isActive)
                 .filter(p -> p.getCourse() == null)
@@ -248,6 +254,12 @@ public class ClientWalletPurchaseController {
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<WalletPurchaseErrorResponse> handleWalletPurchaseError(ResponseStatusException ex) {
         return ResponseEntity.status(ex.getStatusCode()).body(new WalletPurchaseErrorResponse(errorMessage(ex)));
+    }
+
+    private void assertEntitlementsEnabled(Long companyId) {
+        if (entitlementsModuleAccessService != null) {
+            entitlementsModuleAccessService.assertEnabled(companyId);
+        }
     }
 
     private String errorMessage(ResponseStatusException ex) {

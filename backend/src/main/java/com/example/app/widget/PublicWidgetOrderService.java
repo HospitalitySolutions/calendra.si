@@ -22,6 +22,7 @@ import com.example.app.location.LocationRepository;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
 import com.example.app.session.BookingSource;
+import com.example.app.settings.EntitlementsModuleAccessService;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import com.example.app.workspaceclient.WorkspaceClient;
@@ -70,6 +71,9 @@ public class PublicWidgetOrderService {
 
     @Autowired(required = false)
     private WorkspaceClientRepository workspaceClients;
+
+    @Autowired(required = false)
+    private EntitlementsModuleAccessService entitlementsModuleAccessService;
 
     public PublicWidgetOrderService(
             CompanyRepository companies,
@@ -166,6 +170,9 @@ public class PublicWidgetOrderService {
             HttpServletRequest httpRequest
     ) {
         Company company = resolveCompany(tenantCode);
+        if (entitlementsModuleAccessService != null) {
+            entitlementsModuleAccessService.assertEnabled(company.getId());
+        }
         guardWidgetRequest(company, httpRequest, false, "voucher-resolution");
         GuestUser guestUser = requireGuest(httpRequest);
         GuestTenantLink link = guestTenantLinks.findByGuestUserIdAndCompanyId(guestUser.getId(), company.getId())

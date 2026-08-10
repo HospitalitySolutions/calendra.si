@@ -5,6 +5,7 @@ import com.example.app.guest.model.EntitlementType;
 import com.example.app.guest.model.GuestEntitlement;
 import com.example.app.guest.model.GuestEntitlementRepository;
 import com.example.app.guest.model.GuestProduct;
+import com.example.app.settings.CourseModuleAccessService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
@@ -37,6 +38,7 @@ public class CourseAccessController {
     private final MembershipCourseRepository membershipCourses;
     private final CourseAccessProgressRepository progressRepository;
     private final BunnyMediaService bunnyMediaService;
+    private final CourseModuleAccessService courseModuleAccessService;
 
     @Autowired
     public CourseAccessController(
@@ -44,13 +46,15 @@ public class CourseAccessController {
             CourseRepository courses,
             MembershipCourseRepository membershipCourses,
             CourseAccessProgressRepository progressRepository,
-            BunnyMediaService bunnyMediaService
+            BunnyMediaService bunnyMediaService,
+            CourseModuleAccessService courseModuleAccessService
     ) {
         this.entitlements = entitlements;
         this.courses = courses;
         this.membershipCourses = membershipCourses;
         this.progressRepository = progressRepository;
         this.bunnyMediaService = bunnyMediaService;
+        this.courseModuleAccessService = courseModuleAccessService;
     }
 
     /** Backwards-compatible constructor for older tests. Runtime wiring uses the @Autowired constructor above. */
@@ -59,7 +63,7 @@ public class CourseAccessController {
             CourseRepository courses,
             MembershipCourseRepository membershipCourses
     ) {
-        this(entitlements, courses, membershipCourses, null, null);
+        this(entitlements, courses, membershipCourses, null, null, null);
     }
 
     @GetMapping("/{token}")
@@ -159,6 +163,10 @@ public class CourseAccessController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Course access not found."));
         if (entitlement.getEntitlementType() != EntitlementType.COURSE || entitlement.getProduct() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This QR code is not a course access card.");
+        }
+        Long companyId = entitlement.getCompany() == null ? null : entitlement.getCompany().getId();
+        if (courseModuleAccessService != null) {
+            courseModuleAccessService.assertEnabled(companyId);
         }
         Instant now = Instant.now();
         if (entitlement.getStatus() != EntitlementStatus.ACTIVE

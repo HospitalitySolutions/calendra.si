@@ -9,6 +9,9 @@ import org.springframework.web.server.ResponseStatusException;
 public class BillingModuleAccessService {
     private final AppSettingRepository settings;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private EntitlementsModuleAccessService entitlementsModuleAccessService;
+
     public BillingModuleAccessService(AppSettingRepository settings) {
         this.settings = settings;
     }
@@ -38,7 +41,8 @@ public class BillingModuleAccessService {
         if (companyId == null) {
             return false;
         }
-        return isEnabled(companyId, SettingKey.BILLING_ENABLED, true)
+        return (entitlementsModuleAccessService == null || entitlementsModuleAccessService.isEnabled(companyId))
+                && isEnabled(companyId, SettingKey.BILLING_ENABLED, true)
                 && isEnabled(companyId, SettingKey.BILLING_GIFT_CARDS_ENABLED, false);
     }
 

@@ -1765,7 +1765,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }, [activeUnitId, billingTab, selectedLocationId, editorOnlyMode, debouncedOpenPaymentsSearch, openPaymentsSort, openPaymentsPage, debouncedUnusedAdvancesSearch, unusedAdvancesSort, unusedAdvancesPage, debouncedGiftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter, giftCardsSort, giftCardsPage, debouncedHistorySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter, historySortField, historySortDir, historyPage])
 
   const advanceBillingEnabled = settings.BILLING_ADVANCE_ENABLED !== 'false'
-  const giftCardsEnabled = settings.BILLING_GIFT_CARDS_ENABLED === 'true'
+  const entitlementsEnabled = settings.ENTITLEMENTS_ENABLED !== 'false'
+  const giftCardsEnabled =
+    entitlementsEnabled && settings.BILLING_GIFT_CARDS_ENABLED === 'true'
   const fiscalCashRegisterEnabled = settings.BILLING_FISCAL_CASH_REGISTER_ENABLED === 'true'
   const stripeBillingEnabled = settings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== 'false'
   const visiblePaymentMethods = useMemo(
@@ -1866,6 +1868,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setFolioPanelTab('invoice')
     }
   }, [advanceBillingEnabled, giftCardsEnabled, fiscalCashRegisterEnabled, billingTab, historyFiscalStatusFilter, folioPanelTab])
+
+  useEffect(() => {
+    if (entitlementsEnabled) return
+    entitlementWalletRequestRef.current += 1
+    stopEntitlementCamera()
+    setEntitlementPaymentTarget(null)
+    setEntitlementPaymentStep('choice')
+    setEntitlementWalletOptions([])
+    setEntitlementScanResult(null)
+  }, [entitlementsEnabled])
 
   const embeddedCreateKey = embeddedCreateBill
     ? [
@@ -3432,6 +3444,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   async function loadEntitlementWalletOptions(paymentBookingId: number, requestId: number, paymentClientId?: number | null) {
+    if (!entitlementsEnabled) return
     setEntitlementWalletLoading(true)
     try {
       const clientId = Number(paymentClientId)
@@ -3453,6 +3466,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   function openEntitlementPaymentChooser(ob: OpenBill, splitKey: string, totalGross: number) {
+    if (!entitlementsEnabled) return
     const paymentClientId = getEntitlementPaymentClientIdForOpenBill(ob)
     const paymentBookingId = getEntitlementPaymentBookingIdForOpenBill(ob, paymentClientId)
     const walletRequestId = entitlementWalletRequestRef.current + 1
@@ -3549,7 +3563,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   async function submitEntitlementPaymentCode(rawCode: string, source: EntitlementScanSource) {
     const code = rawCode.trim()
-    if (!code || entitlementSubmitting || !entitlementPaymentTarget) return
+    if (!entitlementsEnabled || !code || entitlementSubmitting || !entitlementPaymentTarget) return
     const paymentBookingId = Number(entitlementPaymentTarget.paymentBookingId)
     if (!Number.isInteger(paymentBookingId) || paymentBookingId <= 0) {
       setEntitlementScanResult({
@@ -6212,7 +6226,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   {methodOptions.map((method) => (
                     <option key={method.id} value={method.id}>{localizedPaymentMethodName(method, locale)}</option>
                   ))}
-                  {effectiveType === 'INVOICE' && <option value={ENTITLEMENT_PAYMENT_OPTION_VALUE}>{entitlementPaymentLabel()}</option>}
+                  {effectiveType === 'INVOICE' && entitlementsEnabled && <option value={ENTITLEMENT_PAYMENT_OPTION_VALUE}>{entitlementPaymentLabel()}</option>}
                 </select>
                 <input
                   className="billing-invoice-payment-amount-input"
@@ -6575,7 +6589,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const renderEntitlementPaymentModal = () => {
-    if (!entitlementPaymentTarget) return null
+    if (!entitlementsEnabled || !entitlementPaymentTarget) return null
     const targetBill = detailOpenBill?.id === entitlementPaymentTarget.openBillId
       ? detailOpenBill
       : openBills.find((entry) => entry.id === entitlementPaymentTarget.openBillId)

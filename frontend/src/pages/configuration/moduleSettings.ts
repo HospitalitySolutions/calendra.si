@@ -13,6 +13,7 @@ export type ModulesDraft = {
   TYPES_ENABLED: string;
   DEFAULT_SERVICE_BREAK_MINUTES: string;
   SERVICE_GROUPS_ENABLED: string;
+  ENTITLEMENTS_ENABLED: string;
   COURSES_ENABLED: string;
   BOOKABLE_ENABLED: string;
   NO_SHOW_ENABLED: string;
@@ -98,6 +99,7 @@ const MODULE_VISIBILITY_KEYS = new Set<string>([
   "SPACES_ENABLED",
   "TYPES_ENABLED",
   "SERVICE_GROUPS_ENABLED",
+  "ENTITLEMENTS_ENABLED",
   "COURSES_ENABLED",
   "BOOKABLE_ENABLED",
   "NO_SHOW_ENABLED",
@@ -293,6 +295,7 @@ export const buildModulesDraftFromCommitted = (
     "SERVICE_GROUPS_ENABLED",
     true,
   ),
+  ENTITLEMENTS_ENABLED: modulesStringSetting(s, "ENTITLEMENTS_ENABLED", true),
   COURSES_ENABLED: modulesStringSetting(s, "COURSES_ENABLED", true),
   BOOKABLE_ENABLED: s.BOOKABLE_ENABLED === "true" ? "true" : "false",
   NO_SHOW_ENABLED: modulesStringSetting(s, "NO_SHOW_ENABLED", false),
@@ -565,7 +568,9 @@ export const normalizeModulesDraftDependencies = (
   ...draft,
   AI_BOOKING_ENABLED: "false",
   COURSES_ENABLED:
-    draft.TYPES_ENABLED === "true" && draft.COURSES_ENABLED === "true"
+    draft.TYPES_ENABLED === "true" &&
+    draft.ENTITLEMENTS_ENABLED === "true" &&
+    draft.COURSES_ENABLED === "true"
       ? "true"
       : "false",
   multipleServicesEnabled:
@@ -619,6 +624,7 @@ export const modulesDraftToSettingsPatch = (
   TYPES_ENABLED: draft.TYPES_ENABLED,
   DEFAULT_SERVICE_BREAK_MINUTES: draft.DEFAULT_SERVICE_BREAK_MINUTES,
   SERVICE_GROUPS_ENABLED: draft.SERVICE_GROUPS_ENABLED,
+  ENTITLEMENTS_ENABLED: draft.ENTITLEMENTS_ENABLED,
   COURSES_ENABLED: draft.COURSES_ENABLED,
   BOOKABLE_ENABLED: draft.BOOKABLE_ENABLED,
   NO_SHOW_ENABLED: draft.NO_SHOW_ENABLED,

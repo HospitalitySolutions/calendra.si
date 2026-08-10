@@ -224,6 +224,16 @@ public class GuestOrderService {
                 link.getClient(),
                 channel
         );
+        boolean entitlementRequested = normalizeId(request.entitlementId()) != null
+                || (request.services() != null && request.services().stream()
+                .anyMatch(item -> item != null && normalizeId(item.entitlementId()) != null))
+                || "GIFT_CARD".equalsIgnoreCase(String.valueOf(request.paymentMethodType()))
+                || serviceLines.stream().anyMatch(line -> line != null
+                && line.product() != null
+                && line.product().persistedProduct() != null);
+        if (entitlementRequested && !guestSettings.entitlementsEnabled(companyId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Entitlements are disabled for this tenant.");
+        }
         var product = serviceLines.get(0).product();
         String resolvedLocationId = request.locationId();
         if (channel == PaymentChannel.GUEST && request.slotId() != null && !request.slotId().isBlank()
@@ -632,6 +642,10 @@ public class GuestOrderService {
         GuestOrder order = orders.findByIdAndGuestUserId(orderId, guestUser.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found."));
         GuestPaymentMethodType paymentMethodType = parsePaymentMethod(request.paymentMethodType());
+        if (orderUsesEntitlementFeatures(order, paymentMethodType)
+                && !guestSettings.entitlementsEnabled(order.getCompany().getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Entitlements are disabled for this tenant.");
+        }
         applyRequestedInvoiceLocale(order, request.locale(), request.language(), guestUser);
         if (order.getPaymentMethodType() != paymentMethodType) {
             order.setPaymentMethodType(paymentMethodType);
@@ -1212,6 +1226,40 @@ public class GuestOrderService {
             return productType == null ? "SESSION_SINGLE" : String.valueOf(productType);
         } catch (Exception ex) {
             return "SESSION_SINGLE";
+        }
+    }
+
+    private boolean orderUsesEntitlementFeatures(GuestOrder order, GuestPaymentMethodType paymentMethodType) {
+        if (paymentMethodType == GuestPaymentMethodType.ENTITLEMENT
+                || paymentMethodType == GuestPaymentMethodType.GIFT_CARD) {
+            return true;
+        }
+        if (order == null || order.getMetadataJson() == null || order.getMetadataJson().isBlank()) return false;
+        try {
+            Map<?, ?> map = JSON.readValue(order.getMetadataJson(), Map.class);
+            if (parseMetadataLong(map.get("entitlementId")) != null) return true;
+
+            Object guestProductId = map.get("guestProductId");
+            String productType = String.valueOf(map.get("productType"));
+            if (guestProductId != null && ("PACK".equals(productType)
+                    || "MEMBERSHIP".equals(productType)
+                    || "CLASS_TICKET".equals(productType)
+                    || "GIFT_CARD".equals(productType)
+                    || "COURSE".equals(productType))) {
+                return true;
+            }
+
+            Object rawServices = map.get("services");
+            if (rawServices instanceof List<?> rows) {
+                for (Object raw : rows) {
+                    if (raw instanceof Map<?, ?> row && parseMetadataLong(row.get("entitlementId")) != null) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        } catch (Exception ex) {
+            return false;
         }
     }
 
@@ -2038,9 +2086,9 @@ public class GuestOrderService {
             if (!("PACK".equals(productTypeName) || "MEMBERSHIP".equals(productTypeName) || "CLASS_TICKET".equals(productTypeName) || "GIFT_CARD".equals(productTypeName) || "COURSE".equals(productTypeName))) return;
             Long guestProductIdLong = Long.parseLong(String.valueOf(guestProductId));
             boolean staffClientWalletOrder = isStaffClientWalletOrder(map);
-            GuestProduct product = staffClientWalletOrder
-                    ? catalogService.resolveStaffWalletProduct(order.getCompany().getId(), guestProductIdLong).persistedProduct()
-                    : catalogService.resolveProduct(order.getCompany().getId(), String.valueOf(guestProductIdLong), order.getGuestUser()).persistedProduct();
+            GuestProduct product = catalogService
+                    .resolveExistingWalletProduct(order.getCompany().getId(), guestProductIdLong)
+                    .persistedProduct();
             if (product != null) {
                 boolean alreadyExists = entitlements.findBySourceOrderIdAndProductId(order.getId(), product.getId()).isPresent();
                 GuestEntitlement entitlement = entitlementService.ensureEntitlementForOrder(order, product);

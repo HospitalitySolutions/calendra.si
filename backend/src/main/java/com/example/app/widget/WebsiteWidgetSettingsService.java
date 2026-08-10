@@ -205,7 +205,8 @@ public class WebsiteWidgetSettingsService {
     }
 
     private static boolean giftCardsEnabled(Map<String, String> values) {
-        return settingEnabled(values, SettingKey.BILLING_ENABLED, true)
+        return settingEnabled(values, SettingKey.ENTITLEMENTS_ENABLED, true)
+                && settingEnabled(values, SettingKey.BILLING_ENABLED, true)
                 && settingEnabled(values, SettingKey.BILLING_GIFT_CARDS_ENABLED, false);
     }
 

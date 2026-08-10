@@ -5,7 +5,9 @@ public enum SettingKey {
     LOCATIONS_ENABLED,
     SPACES_ENABLED,
     TYPES_ENABLED,
-    /** Enables course catalog and course-access entitlements. */
+    /** Master switch for tenant wallet benefits/entitlements (Ugodnosti). */
+    ENTITLEMENTS_ENABLED,
+    /** Enables course catalog and course-access entitlements. Depends on ENTITLEMENTS_ENABLED. */
     COURSES_ENABLED,
     BOOKABLE_ENABLED,
     NO_SHOW_ENABLED,

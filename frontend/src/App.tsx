@@ -323,7 +323,10 @@ export default function App() {
     if (appSettingsQuery.data) {
       setBillingModuleEnabled(appSettingsQuery.data.BILLING_ENABLED !== 'false')
       setInboxModuleEnabled(appSettingsQuery.data.INBOX_ENABLED !== 'false')
-      setScannerModuleEnabled(appSettingsQuery.data.SCANNER_MODULE_ENABLED !== 'false')
+      setScannerModuleEnabled(
+        appSettingsQuery.data.ENTITLEMENTS_ENABLED !== 'false' &&
+        appSettingsQuery.data.SCANNER_MODULE_ENABLED !== 'false',
+      )
       setWaitlistModuleEnabled(appSettingsQuery.data.WAITLIST_ENABLED === 'true')
     } else if (appSettingsQuery.isError) {
       setBillingModuleEnabled(true)

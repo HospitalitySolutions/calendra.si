@@ -745,7 +745,7 @@ export function SessionTypesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const showServiceGroupsParam =
     searchParams.get("subtab") === SESSION_TYPES_SUBTAB_GROUPS;
-  const showCardsMemberships =
+  const showCardsMembershipsParam =
     searchParams.get("subtab") === SESSION_TYPES_SUBTAB_CARDS;
   const showCoursesParam =
     searchParams.get("subtab") === SESSION_TYPES_SUBTAB_COURSES;
@@ -791,8 +791,13 @@ export function SessionTypesPage() {
   const typesModuleEnabled = settings.TYPES_ENABLED !== "false";
   const serviceGroupsModuleEnabled =
     settings.SERVICE_GROUPS_ENABLED !== "false";
-  const coursesModuleEnabled = settings.COURSES_ENABLED !== "false";
-  const giftCardsModuleEnabled = settings.BILLING_GIFT_CARDS_ENABLED === "true";
+  const entitlementsModuleEnabled = settings.ENTITLEMENTS_ENABLED !== "false";
+  const coursesModuleEnabled =
+    entitlementsModuleEnabled && settings.COURSES_ENABLED !== "false";
+  const giftCardsModuleEnabled =
+    entitlementsModuleEnabled && settings.BILLING_GIFT_CARDS_ENABLED === "true";
+  const showCardsMemberships =
+    entitlementsModuleEnabled && showCardsMembershipsParam;
   const websiteWidgetModuleEnabled = settings.WEBSITE_WIDGET_ENABLED !== "false";
   const guestAppModuleEnabled = parseGuestAppSettings(
     settings[GUEST_APP_SETTINGS_KEY],
@@ -955,6 +960,17 @@ export function SessionTypesPage() {
   const onCoursesFilteredCount = useCallback((n: number) => {
     setCoursesFilteredCount(n);
   }, []);
+
+  useEffect(() => {
+    if (boot || entitlementsModuleEnabled || !showCardsMembershipsParam) return;
+    setSessionTypesSubtab(typesModuleEnabled ? "types" : "transactionServices");
+  }, [
+    boot,
+    entitlementsModuleEnabled,
+    showCardsMembershipsParam,
+    typesModuleEnabled,
+    setSessionTypesSubtab,
+  ]);
 
   useEffect(() => {
     if (!showCardsMemberships) {
@@ -3157,21 +3173,23 @@ export function SessionTypesPage() {
                 <span>{t("sessionTypesSubtabTypes")}</span>
                 <span className="service-config-tab-count">{filteredTypes.length}</span>
               </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={showCardsMemberships}
-                className={
-                  showCardsMemberships
-                    ? "clients-session-tab active"
-                    : "clients-session-tab"
-                }
-                onClick={() => setSessionTypesSubtab("cardsMemberships")}
-              >
-                <ServiceConfigTabIcon name="cards" />
-                <span>{t("sessionTypesSubtabCards")}</span>
-                <span className="service-config-tab-count">{guestCardsFilteredCount}</span>
-              </button>
+              {entitlementsModuleEnabled ? (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={showCardsMemberships}
+                  className={
+                    showCardsMemberships
+                      ? "clients-session-tab active"
+                      : "clients-session-tab"
+                  }
+                  onClick={() => setSessionTypesSubtab("cardsMemberships")}
+                >
+                  <ServiceConfigTabIcon name="cards" />
+                  <span>{t("sessionTypesSubtabCards")}</span>
+                  <span className="service-config-tab-count">{guestCardsFilteredCount}</span>
+                </button>
+              ) : null}
             </div>
           </div>
           <div className="clients-toolbar clients-modern-toolbar service-config-toolbar">
@@ -3332,21 +3350,23 @@ export function SessionTypesPage() {
                 <span className="service-config-tab-label service-config-tab-label--desktop">{t("configBillingServicesTab")}</span><span className="service-config-tab-label service-config-tab-label--mobile">{locale === "sl" ? "Obračunske" : "Billing"}</span>
                 <span className="service-config-tab-count">{filteredServices.length}</span>
               </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={showCardsMemberships}
-                className={
-                  showCardsMemberships
-                    ? "clients-session-tab active"
-                    : "clients-session-tab"
-                }
-                onClick={() => setSessionTypesSubtab("cardsMemberships")}
-              >
-                <ServiceConfigTabIcon name="cards" />
-                <span>{t("sessionTypesSubtabCards")}</span>
-                <span className="service-config-tab-count">{guestCardsFilteredCount}</span>
-              </button>
+              {entitlementsModuleEnabled ? (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={showCardsMemberships}
+                  className={
+                    showCardsMemberships
+                      ? "clients-session-tab active"
+                      : "clients-session-tab"
+                  }
+                  onClick={() => setSessionTypesSubtab("cardsMemberships")}
+                >
+                  <ServiceConfigTabIcon name="cards" />
+                  <span>{t("sessionTypesSubtabCards")}</span>
+                  <span className="service-config-tab-count">{guestCardsFilteredCount}</span>
+                </button>
+              ) : null}
             </div>
           </div>
           <div className="clients-toolbar clients-modern-toolbar service-config-toolbar">

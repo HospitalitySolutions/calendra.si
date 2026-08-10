@@ -473,7 +473,10 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       setTypesModuleEnabled(settingsData.TYPES_ENABLED !== 'false')
       setBillingModuleEnabled(settingsData.BILLING_ENABLED !== 'false')
       setInboxModuleEnabled(settingsData.INBOX_ENABLED !== 'false')
-      setScannerModuleEnabled(settingsData.SCANNER_MODULE_ENABLED !== 'false')
+      setScannerModuleEnabled(
+        settingsData.ENTITLEMENTS_ENABLED !== 'false' &&
+        settingsData.SCANNER_MODULE_ENABLED !== 'false',
+      )
       setWaitlistModuleEnabled(settingsData.WAITLIST_ENABLED === 'true')
       setSettingsLoaded(true)
     } else if (shellSettingsQuery.isError) {

@@ -2778,8 +2778,11 @@ export function ConfigurationPage() {
     locationIssuerOptions.find((issuer) => issuer.defaultForCurrentUnit) ??
     locationIssuerOptions[0] ??
     null;
+  const entitlementsEnabledCommitted = settings.ENTITLEMENTS_ENABLED !== "false";
   const giftCardsEnabledCommitted =
-    billingEnabledCommitted && settings.BILLING_GIFT_CARDS_ENABLED === "true";
+    entitlementsEnabledCommitted &&
+    billingEnabledCommitted &&
+    settings.BILLING_GIFT_CARDS_ENABLED === "true";
   const fiscalCashRegisterEnabledCommitted =
     billingEnabledCommitted && settings.BILLING_FISCAL_CASH_REGISTER_ENABLED === "true";
   const stripeModuleEnabledCommitted =
@@ -3667,6 +3670,7 @@ export function ConfigurationPage() {
           AI_BOOKING_ENABLED: "false",
           COURSES_ENABLED:
             modulesDraft.TYPES_ENABLED === "true" &&
+            modulesDraft.ENTITLEMENTS_ENABLED === "true" &&
             modulesDraft.COURSES_ENABLED === "true"
               ? "true"
               : "false",
@@ -3710,6 +3714,7 @@ export function ConfigurationPage() {
           TYPES_ENABLED: modulesDraftForSave.TYPES_ENABLED,
           DEFAULT_SERVICE_BREAK_MINUTES: modulesDraftForSave.DEFAULT_SERVICE_BREAK_MINUTES,
           SERVICE_GROUPS_ENABLED: modulesDraftForSave.SERVICE_GROUPS_ENABLED,
+          ENTITLEMENTS_ENABLED: modulesDraftForSave.ENTITLEMENTS_ENABLED,
           COURSES_ENABLED: modulesDraftForSave.COURSES_ENABLED,
           BOOKABLE_ENABLED: modulesDraftForSave.BOOKABLE_ENABLED,
           NO_SHOW_ENABLED: modulesDraftForSave.NO_SHOW_ENABLED,
@@ -3880,7 +3885,11 @@ export function ConfigurationPage() {
             effectiveWebsiteBookingRules,
             effectiveWebsiteSettings.paymentOnLocation,
           ),
-          { giftCardsEnabled: effectiveSettings.BILLING_GIFT_CARDS_ENABLED === "true" },
+          {
+            giftCardsEnabled:
+              effectiveSettings.ENTITLEMENTS_ENABLED !== "false" &&
+              effectiveSettings.BILLING_GIFT_CARDS_ENABLED === "true",
+          },
         ),
       };
       const { data } = await api.put("/settings", payload);
@@ -4616,7 +4625,9 @@ export function ConfigurationPage() {
         ...guestAppSettings,
         tenantType: unifiedTenantType,
       };
-      const giftCardsEnabled = effectiveSettings.BILLING_GIFT_CARDS_ENABLED === "true";
+      const giftCardsEnabled =
+        effectiveSettings.ENTITLEMENTS_ENABLED !== "false" &&
+        effectiveSettings.BILLING_GIFT_CARDS_ENABLED === "true";
       const effectiveGuestAppSettings = giftCardsEnabled
         ? effectiveGuestAppBase
         : (() => {
@@ -5519,7 +5530,17 @@ export function ConfigurationPage() {
           multipleServicesEnabled: checked ? d.multipleServicesEnabled : false,
         };
       }
-      if (key === "COURSES_ENABLED" && d.TYPES_ENABLED !== "true") {
+      if (key === "ENTITLEMENTS_ENABLED") {
+        return {
+          ...d,
+          ENTITLEMENTS_ENABLED: checked ? "true" : "false",
+          COURSES_ENABLED: checked ? d.COURSES_ENABLED : "false",
+        };
+      }
+      if (
+        key === "COURSES_ENABLED" &&
+        (d.TYPES_ENABLED !== "true" || d.ENTITLEMENTS_ENABLED !== "true")
+      ) {
         return { ...d, COURSES_ENABLED: "false" };
       }
       if (key === "AI_BOOKING_ENABLED") {
@@ -5605,6 +5626,9 @@ export function ConfigurationPage() {
       if (next.TYPES_ENABLED !== "true") {
         next.COURSES_ENABLED = "false";
         next.multipleServicesEnabled = false;
+      }
+      if (next.ENTITLEMENTS_ENABLED !== "true") {
+        next.COURSES_ENABLED = "false";
       }
       if (next.MULTIPLE_CLIENTS_PER_SESSION_ENABLED !== "true") {
         next.GROUP_BOOKING_ENABLED = "false";
@@ -5707,6 +5731,7 @@ export function ConfigurationPage() {
   const servicesModuleKeys: ModulesStringKey[] = [
     "TYPES_ENABLED",
     "SERVICE_GROUPS_ENABLED",
+    "ENTITLEMENTS_ENABLED",
     "COURSES_ENABLED",
   ];
   const guestModuleKeys: ModulesBooleanKey[] = [
@@ -6036,9 +6061,12 @@ export function ConfigurationPage() {
                   ? "Omogoči prodajo, pošiljanje, plačilo in pregled darilnih bonov."
                   : "Enable gift-card sales, sending, payment and tracking.",
               checked:
+                moduleOn("ENTITLEMENTS_ENABLED") &&
                 moduleOn("BILLING_ENABLED") &&
                 moduleOn("BILLING_GIFT_CARDS_ENABLED"),
-              disabled: !moduleOn("BILLING_ENABLED"),
+              disabled:
+                !moduleOn("ENTITLEMENTS_ENABLED") ||
+                !moduleOn("BILLING_ENABLED"),
               onChange: (checked) =>
                 setModuleStringSetting("BILLING_GIFT_CARDS_ENABLED", checked),
             },
@@ -6261,16 +6289,37 @@ export function ConfigurationPage() {
                 setModuleBooleanSetting("multipleServicesEnabled", checked),
             },
             {
+              id: "services-entitlements",
+              ...moduleVisibilityProps("ENTITLEMENTS_ENABLED"),
+              icon: "wallet",
+              title: locale === "sl" ? "Ugodnosti" : "Entitlements",
+              subtitle:
+                locale === "sl"
+                  ? "Omogoči ugodnosti, članstva, pakete, bone in njihovo uporabo v aplikaciji, obračunu ter aplikaciji za goste."
+                  : "Enable entitlements, memberships, packs and vouchers across the app, billing and guest app.",
+              checked:
+                moduleOn("TYPES_ENABLED") &&
+                moduleOn("ENTITLEMENTS_ENABLED"),
+              disabled: !moduleOn("TYPES_ENABLED"),
+              onChange: (checked) =>
+                setModuleStringSetting("ENTITLEMENTS_ENABLED", checked),
+            },
+            {
               id: "services-courses",
               ...moduleVisibilityProps("COURSES_ENABLED"),
               icon: "services",
               title: locale === "sl" ? "Tečaji" : "Courses",
               subtitle:
                 locale === "sl"
-                  ? "Skrije zavihek Tečaji in onemogoči prodajo dostopa do tečajev. Izklop je mogoč samo brez aktivnih dostopov in obstoječih tečajev."
-                  : "Hides the Courses tab and blocks course-access sales. Can only be turned off when there are no active course accesses or existing courses.",
-              checked: moduleOn("TYPES_ENABLED") && moduleOn("COURSES_ENABLED"),
-              disabled: !moduleOn("TYPES_ENABLED"),
+                  ? "Omogoči zavihek Tečaji in prodajo dostopa do tečajev. Tečaji so na voljo samo, ko so Ugodnosti vključene."
+                  : "Enable the Courses tab and course-access sales. Courses are available only while Entitlements are enabled.",
+              checked:
+                moduleOn("TYPES_ENABLED") &&
+                moduleOn("ENTITLEMENTS_ENABLED") &&
+                moduleOn("COURSES_ENABLED"),
+              disabled:
+                !moduleOn("TYPES_ENABLED") ||
+                !moduleOn("ENTITLEMENTS_ENABLED"),
               onChange: (checked) =>
                 setModuleStringSetting("COURSES_ENABLED", checked),
             },
@@ -6359,10 +6408,12 @@ export function ConfigurationPage() {
                   icon: "wallet",
                   title: locale === "sl" ? "Ugodnosti" : "Entitlements",
                   checked:
+                    moduleOn("ENTITLEMENTS_ENABLED") &&
                     moduleBool("guestAppEnabled") &&
                     moduleBool("guestWalletEnabled") &&
                     moduleBool("guestEntitlementsEnabled"),
                   disabled:
+                    !moduleOn("ENTITLEMENTS_ENABLED") ||
                     !moduleBool("guestAppEnabled") ||
                     !moduleBool("guestWalletEnabled"),
                   onChange: (checked) =>
@@ -6504,7 +6555,10 @@ export function ConfigurationPage() {
           ...moduleVisibilityProps("SCANNER_MODULE_ENABLED"),
           icon: "scanner",
           title: locale === "sl" ? "Skener" : "Scanner",
-          checked: moduleOn("SCANNER_MODULE_ENABLED"),
+          checked:
+            moduleOn("ENTITLEMENTS_ENABLED") &&
+            moduleOn("SCANNER_MODULE_ENABLED"),
+          disabled: !moduleOn("ENTITLEMENTS_ENABLED"),
           onChange: (checked) =>
             setModuleStringSetting("SCANNER_MODULE_ENABLED", checked),
         },
