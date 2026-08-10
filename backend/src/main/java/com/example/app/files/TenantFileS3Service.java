@@ -4,7 +4,11 @@ import com.example.app.billing.InvoiceS3Properties;
 import com.example.app.client.Client;
 import com.example.app.company.ClientCompany;
 import com.example.app.company.Company;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -18,6 +22,10 @@ import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectVersionsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectVersionsResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -121,6 +129,98 @@ public class TenantFileS3Service {
             log.warn("Failed to delete S3 object {}", objectKey, e);
         }
     }
+
+    /**
+     * Permanently deletes one object, including every historical version and delete marker when bucket versioning is enabled.
+     * This method is intentionally strict and is used by irreversible Platform Admin tenant deletion.
+     */
+    public void deletePermanently(String objectKey) {
+        if (objectKey == null || objectKey.isBlank()) {
+            return;
+        }
+        S3Client client = requireClient();
+        String bucket = requireBucket();
+        String key = objectKey.trim();
+        deleteCurrentObjects(client, bucket, key, true);
+        deleteObjectVersions(client, bucket, key, true);
+    }
+
+    /**
+     * Permanently removes every S3 object owned by one tenant. Invoice PDFs, attachments, avatars, guest-app
+     * assets and location logos all share this prefix. Historical object versions are removed too.
+     */
+    public void deleteTenantDataPermanently(Company tenant) {
+        if (!properties.isEnabled()) {
+            return;
+        }
+        S3Client client = requireClient();
+        String bucket = requireBucket();
+        String prefix = basePrefix() + "/" + safeTenantCode(tenant) + "/";
+        deleteCurrentObjects(client, bucket, prefix, false);
+        deleteObjectVersions(client, bucket, prefix, false);
+    }
+
+    private void deleteCurrentObjects(S3Client client, String bucket, String keyOrPrefix, boolean exactKey) {
+        Set<String> objectKeys = new LinkedHashSet<>();
+        String continuationToken = null;
+        do {
+            ListObjectsV2Request request = ListObjectsV2Request.builder()
+                    .bucket(bucket)
+                    .prefix(keyOrPrefix)
+                    .continuationToken(continuationToken)
+                    .build();
+            ListObjectsV2Response response = client.listObjectsV2(request);
+            response.contents().stream()
+                    .map(object -> object.key())
+                    .filter(key -> !exactKey || keyOrPrefix.equals(key))
+                    .forEach(objectKeys::add);
+            continuationToken = Boolean.TRUE.equals(response.isTruncated()) ? response.nextContinuationToken() : null;
+        } while (continuationToken != null && !continuationToken.isBlank());
+
+        for (String key : objectKeys) {
+            client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key).build());
+        }
+    }
+
+    private void deleteObjectVersions(S3Client client, String bucket, String keyOrPrefix, boolean exactKey) {
+        List<VersionedObject> versions = new ArrayList<>();
+        String keyMarker = null;
+        String versionIdMarker = null;
+        do {
+            ListObjectVersionsRequest request = ListObjectVersionsRequest.builder()
+                    .bucket(bucket)
+                    .prefix(keyOrPrefix)
+                    .keyMarker(keyMarker)
+                    .versionIdMarker(versionIdMarker)
+                    .build();
+            ListObjectVersionsResponse response = client.listObjectVersions(request);
+            response.versions().stream()
+                    .filter(version -> !exactKey || keyOrPrefix.equals(version.key()))
+                    .map(version -> new VersionedObject(version.key(), version.versionId()))
+                    .forEach(versions::add);
+            response.deleteMarkers().stream()
+                    .filter(marker -> !exactKey || keyOrPrefix.equals(marker.key()))
+                    .map(marker -> new VersionedObject(marker.key(), marker.versionId()))
+                    .forEach(versions::add);
+            if (Boolean.TRUE.equals(response.isTruncated())) {
+                keyMarker = response.nextKeyMarker();
+                versionIdMarker = response.nextVersionIdMarker();
+            } else {
+                keyMarker = null;
+                versionIdMarker = null;
+            }
+        } while (keyMarker != null || versionIdMarker != null);
+
+        for (VersionedObject version : versions) {
+            client.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(version.key())
+                    .versionId(version.versionId())
+                    .build());
+        }
+    }
+
+    private record VersionedObject(String key, String versionId) {}
 
     private StoredS3File uploadWithLimit(String objectKey, MultipartFile file, long maxBytes) {
         return uploadWithLimit(objectKey, file, maxBytes, "attachment");

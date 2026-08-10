@@ -362,7 +362,7 @@ const modalContent: Record<string, [string, string, string[]]> = {
   ],
   delete: [
     "Delete tenant",
-    "Permanently removes this tenant, its users, settings, and billing history from the platform. This cannot be undone.",
+    "Permanently removes this operating unit and all unit-owned clients/guests, employees, bookings, invoices, services, files and integration records. Shared workspace identities are kept only if another operating unit still uses them; if this is the last unit, the workspace is removed too. This cannot be undone.",
     ["Delete permanently"],
   ],
 };
@@ -5906,12 +5906,12 @@ export function PlatformAdminPage() {
               await loadTenanciesList();
               closeModal();
             } catch (e) {
-              if (axios.isAxiosError(e) && e.response?.status === 409) {
+              if (axios.isAxiosError(e) && e.response) {
                 const msg =
                   typeof e.response.data === "string"
                     ? e.response.data
                     : (e.response.data as { message?: string })?.message;
-                window.alert(msg || "This tenant cannot be deleted.");
+                window.alert(msg || "Could not delete this tenant. Please try again.");
               } else {
                 window.alert("Could not delete this tenant. Please try again.");
               }

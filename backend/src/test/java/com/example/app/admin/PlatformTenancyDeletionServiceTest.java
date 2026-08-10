@@ -3,16 +3,17 @@ package com.example.app.admin;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
+import com.example.app.course.BunnyMediaService;
+import com.example.app.files.TenantFileS3Service;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
 import jakarta.persistence.EntityManager;
@@ -46,13 +47,20 @@ class PlatformTenancyDeletionServiceTest {
     @Mock
     private EntityManager entityManager;
 
+    @Mock
+    private TenantFileS3Service fileStorage;
+
+    @Mock
+    private BunnyMediaService bunnyMediaService;
+
     private PlatformTenancyDeletionService service;
 
     private User actor;
 
     @BeforeEach
     void setUp() {
-        service = new PlatformTenancyDeletionService(companies, users, tenancyAdminAuditLogs, jdbc, entityManager);
+        service = new PlatformTenancyDeletionService(
+                companies, users, tenancyAdminAuditLogs, jdbc, entityManager, fileStorage, bunnyMediaService);
         actor = new User();
         actor.setId(1L);
         actor.setEmail("admin@example.com");
@@ -102,7 +110,6 @@ class PlatformTenancyDeletionServiceTest {
         when(companies.findById(7L)).thenReturn(Optional.of(tenant));
         when(users.getReferenceById(1L)).thenReturn(actor);
         when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
-        when(jdbc.update(anyString(), anyLong())).thenReturn(1);
 
         service.deleteTenancy(7L, actor, "Demo tenant removal");
 
@@ -114,9 +121,29 @@ class PlatformTenancyDeletionServiceTest {
         assertEquals(tenant, audit.getCompany());
 
         verify(entityManager).detach(audit);
-        verify(jdbc, atLeastOnce()).update(anyString(), eq(7L));
-        verify(jdbc, atLeastOnce()).update(anyString(), eq("CALENDRA-SUBSCRIPTION:7"));
-        verify(companies).delete(tenant);
+        verify(entityManager).detach(tenant);
+        verify(jdbc, atLeastOnce()).update(anyString(), any(Object[].class));
+        verify(fileStorage).deleteTenantDataPermanently(tenant);
+        verify(companies, never()).delete(any());
+    }
+
+
+    @Test
+    void deleteTenancy_doesNotCommitCompanyDeleteWhenExternalStorageFails() {
+        Company tenant = new Company();
+        tenant.setId(7L);
+        tenant.setName("Storage failure tenant");
+        when(companies.findById(7L)).thenReturn(Optional.of(tenant));
+        when(users.getReferenceById(1L)).thenReturn(actor);
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+        doThrow(new IllegalStateException("S3 unavailable")).when(fileStorage).deleteTenantDataPermanently(tenant);
+
+        ResponseStatusException ex =
+                assertThrows(ResponseStatusException.class, () -> service.deleteTenancy(7L, actor, "cleanup"));
+
+        assertEquals(HttpStatus.BAD_GATEWAY, ex.getStatusCode());
+        verify(entityManager, never()).clear();
+        verify(companies, never()).delete(any());
     }
 
     @Test

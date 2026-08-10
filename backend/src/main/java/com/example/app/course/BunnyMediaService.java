@@ -64,6 +64,33 @@ public class BunnyMediaService {
         deleteAudio(storagePath);
     }
 
+    /** Permanently deletes a tenant-specific Bunny Stream video library after its videos are removed. */
+    public void deleteVideoLibrary(String libraryId) {
+        if (!hasText(libraryId)) return;
+        if (!properties.hasStreamApiKey()) {
+            throw new IllegalStateException("Bunny account API key is not configured; video library cannot be deleted.");
+        }
+        try {
+            restClient.delete()
+                    .uri(properties.effectiveCoreBaseUrl() + "/videolibrary/" + libraryId.trim())
+                    .header("AccessKey", properties.apiKey())
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().value() == 404) {
+                log.info("Bunny Stream library {} was already deleted.", libraryId);
+                return;
+            }
+            String body = ex.getResponseBodyAsString();
+            log.warn("Could not delete Bunny Stream library {}. Bunny returned HTTP {}: {}", libraryId, ex.getStatusCode(), body, ex);
+            throw new IllegalStateException(
+                    "Bunny Stream library delete failed: HTTP " + ex.getStatusCode().value() + " " + abbreviate(body));
+        } catch (Exception ex) {
+            log.warn("Could not delete Bunny Stream library {}.", libraryId, ex);
+            throw new IllegalStateException("Bunny Stream library delete failed: " + ex.getMessage());
+        }
+    }
+
     private void deleteVideo(String libraryId, String libraryName, String videoId) {
         if (!properties.hasStreamApiKey()) {
             throw new IllegalStateException("Bunny account API key is not configured; Bunny Stream video cannot be deleted.");
