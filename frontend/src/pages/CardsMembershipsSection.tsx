@@ -16,12 +16,12 @@ import { GuestConfigSaveIcon } from "../components/GuestConfigSaveIcon";
 import { ServiceConfigDeleteButton, ServiceConfigEditButton, ServiceConfigTableFooter } from "../components/ServiceConfigTableUi";
 import { EmptyState, Field } from "../components/ui";
 import { useToast } from "../components/Toast";
-import { currency, formatDate } from "../lib/format";
+import { currency } from "../lib/format";
 import { useLocale } from "../locale";
 
 const SESSION_TYPES_SUBTAB_TRANSACTION = "transaction-services";
 
-type GuestAdminProductType =
+export type GuestAdminProductType =
   | "CLASS_TICKET"
   | "PACK"
   | "MEMBERSHIP"
@@ -503,7 +503,7 @@ function CardsMembershipIcon({ index }: { index: number }) {
   const tone =
     CARD_MEMBERSHIP_ICON_TONES[index % CARD_MEMBERSHIP_ICON_TONES.length];
   return (
-    <span className={`clients-name-avatar service-config-icon service-config-icon--${tone}`}>
+    <span className={`service-config-icon service-config-icon--${tone}`}>
       <svg
         width="22"
         height="22"
@@ -530,11 +530,11 @@ function CardsMembershipNameCell({
   index: number;
 }) {
   return (
-    <div className="clients-name-cell service-config-name-cell">
+    <div className="service-config-name-cell">
       <CardsMembershipIcon index={index} />
-      <div className="clients-name-stack service-config-name-stack">
-        <span className="clients-name">{product.name}</span>
-        <span className="clients-id">
+      <div className="service-config-name-stack">
+        <strong>{product.name}</strong>
+        <span>
           {product.description?.trim()
             ? product.description
             : guestProductWalletSubtitle(product)}
@@ -664,6 +664,7 @@ export type CardsMembershipsSectionProps = {
   giftCardsEnabled: boolean;
   searchQuery: string;
   activeFilter: "active" | "inactive";
+  typeFilter: "all" | GuestAdminProductType;
   onFilteredCountChange?: (filteredCount: number) => void;
 };
 
@@ -677,6 +678,7 @@ export const CardsMembershipsSection = forwardRef<
     giftCardsEnabled,
     searchQuery,
     activeFilter,
+    typeFilter,
     onFilteredCountChange,
   },
   ref,
@@ -1471,9 +1473,13 @@ export const CardsMembershipsSection = forwardRef<
         ? product.active === false
         : product.active !== false,
     );
+    const byType =
+      typeFilter === "all"
+        ? byStatus
+        : byStatus.filter((product) => product.productType === typeFilter);
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return byStatus;
-    return byStatus.filter((p) => {
+    if (!q) return byType;
+    return byType.filter((p) => {
       const vis = p.guestVisible ? "visible" : "hidden";
       const st = p.active ? "active" : "archived";
       const validityLabel =
@@ -1501,6 +1507,7 @@ export const CardsMembershipsSection = forwardRef<
     guestProducts,
     searchQuery,
     activeFilter,
+    typeFilter,
     coursesEnabled,
     giftCardsEnabled,
     locale,
@@ -1692,11 +1699,6 @@ export const CardsMembershipsSection = forwardRef<
                       {t("sessionTypesCardsColStatus")}
                     </CardsMembershipSortableHeader>
                   </th>
-                  <th>
-                    <CardsMembershipSortableHeader>
-                      {locale === "sl" ? "Ustvarjeno" : "Created"}
-                    </CardsMembershipSortableHeader>
-                  </th>
                   <th>{locale === "sl" ? "Dejanja" : "Actions"}</th>
                 </tr>
               </thead>
@@ -1757,9 +1759,6 @@ export const CardsMembershipsSection = forwardRef<
                           ? inactiveStatusLabel
                           : activeStatusLabel}
                       </button>
-                    </td>
-                    <td className="clients-muted">
-                      {product.createdAt ? formatDate(product.createdAt) : "—"}
                     </td>
                     <td
                       className="clients-actions service-config-actions account-table-actions"

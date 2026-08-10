@@ -46,6 +46,7 @@ import {
 import {
   CardsMembershipsSection,
   type CardsMembershipsSectionHandle,
+  type GuestAdminProductType,
 } from "./CardsMembershipsSection";
 import { CoursesSection, type CoursesSectionHandle } from "./CoursesSection";
 import { WorkspaceServiceManager } from "../components/WorkspaceServiceManager";
@@ -926,6 +927,9 @@ export function SessionTypesPage() {
   const [cardsActiveFilter, setCardsActiveFilter] = useState<
     "active" | "inactive"
   >("active");
+  const [cardTypeFilter, setCardTypeFilter] = useState<"all" | GuestAdminProductType>("all");
+  const [cardTypeFilterOpen, setCardTypeFilterOpen] = useState(false);
+  const cardTypeFilterRef = useRef<HTMLDivElement | null>(null);
   const [coursesActiveFilter, setCoursesActiveFilter] = useState<
     "active" | "inactive"
   >("active");
@@ -977,6 +981,8 @@ export function SessionTypesPage() {
   useEffect(() => {
     if (!showCardsMemberships) {
       setCardSearch("");
+      setCardTypeFilter("all");
+      setCardTypeFilterOpen(false);
       setGuestCardsFilteredCount(0);
     }
     if (!showCourses) {
@@ -1004,6 +1010,24 @@ export function SessionTypesPage() {
   }, [typeCategoryFilterOpen]);
 
   useEffect(() => {
+    if (!cardTypeFilterOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!cardTypeFilterRef.current?.contains(event.target as Node)) {
+        setCardTypeFilterOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setCardTypeFilterOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [cardTypeFilterOpen]);
+
+  useEffect(() => {
     if (
       isSessionTypesNarrow ||
       showCourses ||
@@ -1012,6 +1036,9 @@ export function SessionTypesPage() {
       showTransactionServices
     ) {
       setTypeCategoryFilterOpen(false);
+    }
+    if (isSessionTypesNarrow || !showCardsMemberships) {
+      setCardTypeFilterOpen(false);
     }
   }, [
     isSessionTypesNarrow,
@@ -2347,6 +2374,22 @@ export function SessionTypesPage() {
   const typeCategoryFilterLabel = locale === "sl" ? "Kategorija" : "Category";
   const allTypeCategoriesLabel = locale === "sl" ? "Vse kategorije" : "All categories";
   const selectedTypeCategoryLabel = typeCategoryFilter === "all" ? allTypeCategoriesLabel : typeCategoryFilter;
+  const cardTypeFilterLabel = locale === "sl" ? "Tip" : "Type";
+  const allCardTypesLabel = locale === "sl" ? "Vsi tipi" : "All types";
+  const cardTypeFilterOptions: Array<{ value: GuestAdminProductType; label: string }> = [
+    { value: "PACK", label: locale === "sl" ? "Paket obiskov" : "Visit package" },
+    { value: "MEMBERSHIP", label: locale === "sl" ? "Članarina" : "Membership" },
+    ...(giftCardsModuleEnabled
+      ? [{ value: "GIFT_CARD" as const, label: locale === "sl" ? "Bon" : "Voucher" }]
+      : []),
+    ...(coursesModuleEnabled
+      ? [{ value: "COURSE" as const, label: locale === "sl" ? "Dostop do tečaja" : "Course access" }]
+      : []),
+  ];
+  const selectedCardTypeLabel =
+    cardTypeFilter === "all"
+      ? allCardTypesLabel
+      : cardTypeFilterOptions.find((option) => option.value === cardTypeFilter)?.label ?? cardTypeFilter;
   const serviceConfigActiveFilter = showCourses
     ? coursesActiveFilter
     : showCardsMemberships
@@ -3333,6 +3376,59 @@ export function SessionTypesPage() {
                   )}
                 </div>
               )}
+              {showCardsMemberships && !isSessionTypesNarrow && (
+                <div className="clients-owner-filter service-config-category-filter" ref={cardTypeFilterRef}>
+                  <button
+                    type="button"
+                    className={`clients-owner-filter__button${cardTypeFilter !== "all" ? " clients-owner-filter__button--active" : ""}`}
+                    aria-haspopup="listbox"
+                    aria-expanded={cardTypeFilterOpen}
+                    onClick={() => setCardTypeFilterOpen((open) => !open)}
+                  >
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M4 5h16l-6.3 7.2V18l-3.4 1.8v-7.6L4 5Z" />
+                    </svg>
+                    <span className="clients-owner-filter__label">{cardTypeFilterLabel}:</span>
+                    <strong>{selectedCardTypeLabel}</strong>
+                    <svg className={`clients-owner-filter__chevron${cardTypeFilterOpen ? " clients-owner-filter__chevron--open" : ""}`} width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="m5 7.5 5 5 5-5" />
+                    </svg>
+                  </button>
+                  {cardTypeFilterOpen && (
+                    <div className="clients-owner-filter__menu" role="listbox" aria-label={cardTypeFilterLabel}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={cardTypeFilter === "all"}
+                        className={cardTypeFilter === "all" ? "clients-owner-filter__option active" : "clients-owner-filter__option"}
+                        onClick={() => {
+                          setCardTypeFilter("all");
+                          setCardTypeFilterOpen(false);
+                        }}
+                      >
+                        <span>{allCardTypesLabel}</span>
+                        {cardTypeFilter === "all" && <span className="clients-owner-filter__check">✓</span>}
+                      </button>
+                      {cardTypeFilterOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          role="option"
+                          aria-selected={cardTypeFilter === option.value}
+                          className={cardTypeFilter === option.value ? "clients-owner-filter__option active" : "clients-owner-filter__option"}
+                          onClick={() => {
+                            setCardTypeFilter(option.value);
+                            setCardTypeFilterOpen(false);
+                          }}
+                        >
+                          <span>{option.label}</span>
+                          {cardTypeFilter === option.value && <span className="clients-owner-filter__check">✓</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="clients-toolbar-actions service-config-toolbar-trailing">
               <div
@@ -3418,6 +3514,7 @@ export function SessionTypesPage() {
               giftCardsEnabled={giftCardsModuleEnabled}
               searchQuery={cardSearch}
               activeFilter={cardsActiveFilter}
+              typeFilter={cardTypeFilter}
               onFilteredCountChange={onGuestCardsFilteredCount}
             />
           ) : showTransactionServices ? (
@@ -3470,28 +3567,83 @@ export function SessionTypesPage() {
             </div>
           </div>
           <div className="clients-toolbar clients-modern-toolbar service-config-toolbar">
-            <div className="clients-search-wrap service-config-search-wrap">
-              <input
-                className="clients-search-input"
-                placeholder={
-                  showCourses
-                    ? (locale === "sl" ? "Išči tečaje..." : "Search courses...")
-                    : showCardsMemberships
-                      ? t("sessionTypesSearchCardsPlaceholder")
-                      : t("sessionTypesSearchServicesPlaceholder")
-                }
-                value={showCourses ? courseSearch : showCardsMemberships ? cardSearch : serviceSearch}
-                onChange={(e) =>
-                  showCourses
-                    ? setCourseSearch(e.target.value)
-                    : showCardsMemberships
-                      ? setCardSearch(e.target.value)
-                      : setServiceSearch(e.target.value)
-                }
-              />
-              <span className="clients-search-icon" aria-hidden>
-                <ServiceConfigTabIcon name="search" />
-              </span>
+            <div className="clients-toolbar-primary service-config-toolbar-primary">
+              <div className="clients-search-wrap service-config-search-wrap">
+                <input
+                  className="clients-search-input"
+                  placeholder={
+                    showCourses
+                      ? (locale === "sl" ? "Išči tečaje..." : "Search courses...")
+                      : showCardsMemberships
+                        ? t("sessionTypesSearchCardsPlaceholder")
+                        : t("sessionTypesSearchServicesPlaceholder")
+                  }
+                  value={showCourses ? courseSearch : showCardsMemberships ? cardSearch : serviceSearch}
+                  onChange={(e) =>
+                    showCourses
+                      ? setCourseSearch(e.target.value)
+                      : showCardsMemberships
+                        ? setCardSearch(e.target.value)
+                        : setServiceSearch(e.target.value)
+                  }
+                />
+                <span className="clients-search-icon" aria-hidden>
+                  <ServiceConfigTabIcon name="search" />
+                </span>
+              </div>
+              {showCardsMemberships && !isSessionTypesNarrow && (
+                <div className="clients-owner-filter service-config-category-filter" ref={cardTypeFilterRef}>
+                  <button
+                    type="button"
+                    className={`clients-owner-filter__button${cardTypeFilter !== "all" ? " clients-owner-filter__button--active" : ""}`}
+                    aria-haspopup="listbox"
+                    aria-expanded={cardTypeFilterOpen}
+                    onClick={() => setCardTypeFilterOpen((open) => !open)}
+                  >
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M4 5h16l-6.3 7.2V18l-3.4 1.8v-7.6L4 5Z" />
+                    </svg>
+                    <span className="clients-owner-filter__label">{cardTypeFilterLabel}:</span>
+                    <strong>{selectedCardTypeLabel}</strong>
+                    <svg className={`clients-owner-filter__chevron${cardTypeFilterOpen ? " clients-owner-filter__chevron--open" : ""}`} width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="m5 7.5 5 5 5-5" />
+                    </svg>
+                  </button>
+                  {cardTypeFilterOpen && (
+                    <div className="clients-owner-filter__menu" role="listbox" aria-label={cardTypeFilterLabel}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={cardTypeFilter === "all"}
+                        className={cardTypeFilter === "all" ? "clients-owner-filter__option active" : "clients-owner-filter__option"}
+                        onClick={() => {
+                          setCardTypeFilter("all");
+                          setCardTypeFilterOpen(false);
+                        }}
+                      >
+                        <span>{allCardTypesLabel}</span>
+                        {cardTypeFilter === "all" && <span className="clients-owner-filter__check">✓</span>}
+                      </button>
+                      {cardTypeFilterOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          role="option"
+                          aria-selected={cardTypeFilter === option.value}
+                          className={cardTypeFilter === option.value ? "clients-owner-filter__option active" : "clients-owner-filter__option"}
+                          onClick={() => {
+                            setCardTypeFilter(option.value);
+                            setCardTypeFilterOpen(false);
+                          }}
+                        >
+                          <span>{option.label}</span>
+                          {cardTypeFilter === option.value && <span className="clients-owner-filter__check">✓</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="clients-toolbar-actions service-config-toolbar-trailing">
               <div
@@ -3571,6 +3723,7 @@ export function SessionTypesPage() {
               giftCardsEnabled={giftCardsModuleEnabled}
               searchQuery={cardSearch}
               activeFilter={cardsActiveFilter}
+              typeFilter={cardTypeFilter}
               onFilteredCountChange={onGuestCardsFilteredCount}
             />
           ) : (
