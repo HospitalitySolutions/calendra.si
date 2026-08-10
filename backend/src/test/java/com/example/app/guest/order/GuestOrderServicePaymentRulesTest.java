@@ -176,6 +176,9 @@ class GuestOrderServicePaymentRulesTest {
 
         when(settingsService.billingEnabled(any(Long.class))).thenReturn(true);
         when(settingsService.advanceBillingEnabled(any(Long.class))).thenReturn(true);
+        // Existing tenants default Ugodnosti to enabled when the setting is absent.
+        // Mockito booleans default to false, so mirror the production default explicitly.
+        when(settingsService.entitlementsEnabled(any(Long.class))).thenReturn(true);
         when(settingsService.acceptedPaymentMethods(any(Long.class))).thenReturn(acceptedPaymentMethods);
         // Default: PayPal merchant configured, PayPal method present.
         // guestEnabled is intentionally false to verify guest channel no longer depends on it.
