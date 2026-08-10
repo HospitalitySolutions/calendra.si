@@ -5,6 +5,7 @@ import com.example.app.course.Course;
 import com.example.app.billing.TransactionService;
 import com.example.app.company.Company;
 import com.example.app.location.Location;
+import com.example.app.session.ServiceGroup;
 import com.example.app.session.SessionType;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
@@ -54,6 +55,16 @@ public class GuestProduct extends BaseEntity {
     )
     @OrderBy("name ASC, id ASC")
     private Set<SessionType> eligibleSessionTypes = new LinkedHashSet<>();
+
+    /**
+     * Optional dynamic service-group scope. When set, the entitlement is valid for every
+     * service that currently belongs to this group. The explicit eligibleSessionTypes set is
+     * still kept as a snapshot/fallback so historical products remain safe if a group is later
+     * removed.
+     */
+    @ManyToOne
+    @JoinColumn(name = "service_group_id")
+    private ServiceGroup serviceGroup;
 
     /** Transaction service used for invoicing wallet product purchases. */
     @ManyToOne
@@ -134,6 +145,17 @@ public class GuestProduct extends BaseEntity {
     private String entitlementRulesJson;
 
     /** Returns whether this product may cover the supplied booking service. */
+    public boolean allowsSessionType(SessionType candidate) {
+        if (candidate == null || candidate.getId() == null) return false;
+        if (serviceGroup != null && serviceGroup.getId() != null) {
+            ServiceGroup candidateGroup = candidate.getServiceGroup();
+            return candidateGroup != null
+                    && java.util.Objects.equals(serviceGroup.getId(), candidateGroup.getId());
+        }
+        return allowsSessionType(candidate.getId());
+    }
+
+    /** Returns whether this product may cover the supplied booking service id. */
     public boolean allowsSessionType(Long sessionTypeId) {
         if (sessionTypeId == null) return false;
         if (eligibleSessionTypes != null && !eligibleSessionTypes.isEmpty()) {

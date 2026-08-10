@@ -30,6 +30,7 @@ type GuestAdminProductType =
 
 type VoucherRedemptionMode = "SERVICE" | "VALUE";
 type VoucherServiceScope = "ALL_SERVICES" | "SELECTED_SERVICES";
+type EntitlementServiceScope = "SERVICES" | "SERVICE_GROUP";
 
 type GuestAdminProduct = {
   id: number;
@@ -50,6 +51,8 @@ type GuestAdminProduct = {
   sessionTypeName?: string | null;
   sessionTypeIds?: number[] | null;
   sessionTypeNames?: string[] | null;
+  serviceGroupId?: number | null;
+  serviceGroupName?: string | null;
   transactionServiceId?: number | null;
   transactionServiceCode?: string | null;
   transactionServiceDescription?: string | null;
@@ -133,6 +136,8 @@ type GuestProductFormState = {
   sortOrder: string;
   sessionTypeId: string;
   sessionTypeIds: string[];
+  serviceScope: EntitlementServiceScope;
+  serviceGroupId: string;
   transactionServiceId: string;
   includedCourseIds: string[];
   voucherRedemptionMode: VoucherRedemptionMode;
@@ -174,6 +179,8 @@ const defaultGuestProductForm = (): GuestProductFormState => ({
   sortOrder: "0",
   sessionTypeId: "",
   sessionTypeIds: [],
+  serviceScope: "SERVICES",
+  serviceGroupId: "",
   transactionServiceId: "",
   includedCourseIds: [],
   voucherRedemptionMode: "SERVICE",
@@ -311,6 +318,8 @@ const normalizeGuestProductFormForType = (
           : current.usageLimit,
     sessionTypeId: primarySessionTypeId,
     sessionTypeIds,
+    serviceScope: nextProductType === "GIFT_CARD" ? "SERVICES" : current.serviceScope,
+    serviceGroupId: nextProductType === "GIFT_CARD" ? "" : current.serviceGroupId,
     voucherSessionTypeIds:
       nextProductType === "GIFT_CARD" && current.voucherSessionTypeIds.length === 0 && defaultSessionTypeId
         ? [defaultSessionTypeId]
@@ -379,7 +388,8 @@ function guestProductTransactionServiceLabel(
   return description || "—";
 }
 
-function sessionTypeDisplayLabel(sessionType: SessionTypeT): string {
+function sessionTypeDisplayLabel(sessionType: SessionTypeT | undefined): string {
+  if (!sessionType) return "—";
   const description = sessionType.description?.trim();
   if (description) return description;
 
@@ -405,7 +415,9 @@ function includedCoursesLabel(
     : product.sessionTypeName
       ? [product.sessionTypeName]
       : [];
-  const serviceLabel = serviceNames.length === 0
+  const serviceLabel = product.serviceGroupName?.trim()
+    ? (locale === "sl" ? `Skupina: ${product.serviceGroupName}` : `Group: ${product.serviceGroupName}`)
+    : serviceNames.length === 0
     ? (locale === "sl" ? "Vse storitve" : "All services")
     : serviceNames.length === 1
       ? serviceNames[0]
@@ -443,6 +455,7 @@ function syncGuestProductPriceFromSessionTypes(
   form: GuestProductFormState,
   sessionTypes: SessionTypeT[],
 ): GuestProductFormState {
+  if (form.serviceScope === "SERVICE_GROUP") return form;
   if (!guestProductTypeUsesAutoPrice(form.productType, form.sessionTypeIds.length)) return form;
   const suggested = suggestedGuestCardGross(
     form.productType,
@@ -765,6 +778,7 @@ export const CardsMembershipsSection = forwardRef<
 
   useEffect(() => {
     if (!showGuestProductModal) return;
+    if (guestProductForm.serviceScope === "SERVICE_GROUP") return;
     if (!guestProductTypeUsesAutoPrice(guestProductForm.productType, guestProductForm.sessionTypeIds.length)) return;
     setGuestProductForm((f) =>
       syncGuestProductPriceFromSessionTypes(f, sessionTypes),
@@ -772,6 +786,7 @@ export const CardsMembershipsSection = forwardRef<
   }, [
     showGuestProductModal,
     guestProductForm.productType,
+    guestProductForm.serviceScope,
     guestProductForm.sessionTypeId,
     guestProductForm.sessionTypeIds,
     guestProductForm.usageLimit,
@@ -800,6 +815,22 @@ export const CardsMembershipsSection = forwardRef<
     [transactionServices],
   );
 
+  const serviceGroups = useMemo(() => {
+    const groups = new Map<number, { id: number; name: string; serviceCount: number }>();
+    sessionTypes.forEach((sessionType) => {
+      const groupId = sessionType.serviceGroupId;
+      const groupName = sessionType.serviceGroupName?.trim();
+      if (groupId == null || !groupName || sessionType.serviceGroupActive === false) return;
+      const current = groups.get(groupId);
+      groups.set(groupId, {
+        id: groupId,
+        name: groupName,
+        serviceCount: (current?.serviceCount ?? 0) + 1,
+      });
+    });
+    return Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [sessionTypes]);
+
   const availableAdminGuestProductTypes = useMemo(() => {
     let types = ADMIN_GUEST_PRODUCT_TYPES;
     if (!coursesEnabled && guestProductForm.productType !== "COURSE") {
@@ -822,6 +853,8 @@ export const CardsMembershipsSection = forwardRef<
       ...base,
       sessionTypeId: firstSessionTypeId,
       sessionTypeIds: firstSessionTypeId ? [firstSessionTypeId] : [],
+      serviceScope: "SERVICES",
+      serviceGroupId: "",
       voucherSessionTypeIds: firstSessionTypeId ? [firstSessionTypeId] : [],
       transactionServiceId: activeTransactionServices.length === 1
         ? String(activeTransactionServices[0].id)
@@ -871,6 +904,8 @@ export const CardsMembershipsSection = forwardRef<
               : product.sessionTypeId == null
                 ? []
                 : [String(product.sessionTypeId)],
+          serviceScope: product.serviceGroupId != null ? "SERVICE_GROUP" : "SERVICES",
+          serviceGroupId: product.serviceGroupId == null ? "" : String(product.serviceGroupId),
           transactionServiceId:
             product.transactionServiceId == null
               ? activeTransactionServices.length === 1
@@ -1129,7 +1164,7 @@ export const CardsMembershipsSection = forwardRef<
       return;
     }
     if (guestProductForm.productType === "PACK") {
-      if (guestProductForm.sessionTypeIds.length === 0) {
+      if (guestProductForm.serviceScope === "SERVICES" && guestProductForm.sessionTypeIds.length === 0) {
         window.alert(locale === "sl" ? "Paket obiskov mora veljati za vsaj eno storitev." : "Tickets must be valid for at least one service type.");
         return;
       }
@@ -1143,8 +1178,12 @@ export const CardsMembershipsSection = forwardRef<
     }
     const isClassTicket = guestProductForm.productType === "CLASS_TICKET";
     const isMembership = guestProductForm.productType === "MEMBERSHIP";
-    if (isClassTicket && guestProductForm.sessionTypeIds.length === 0) {
+    if (isClassTicket && guestProductForm.serviceScope === "SERVICES" && guestProductForm.sessionTypeIds.length === 0) {
       window.alert(locale === "sl" ? "Vstopnica mora veljati za vsaj eno storitev." : "The ticket must be valid for at least one service type.");
+      return;
+    }
+    if (!isGiftCard && guestProductForm.serviceScope === "SERVICE_GROUP" && !guestProductForm.serviceGroupId) {
+      window.alert(locale === "sl" ? "Izberite skupino storitev." : "Select a service group.");
       return;
     }
     const validityDays = parsePositiveIntegerInput(
@@ -1188,7 +1227,7 @@ export const CardsMembershipsSection = forwardRef<
       );
       return;
     }
-    if (isCourseAccess && guestProductForm.sessionTypeIds.length === 0) {
+    if (isCourseAccess && guestProductForm.serviceScope === "SERVICES" && guestProductForm.sessionTypeIds.length === 0) {
       window.alert(
         locale === "sl"
           ? "Dostop do tečaja mora veljati za vsaj eno storitev."
@@ -1236,16 +1275,20 @@ export const CardsMembershipsSection = forwardRef<
           ? guestProductForm.autoRenews
           : false,
       sortOrder: Number.parseInt(guestProductForm.sortOrder || "0", 10) || 0,
-      sessionTypeId: isGiftCard
+      sessionTypeId: isGiftCard || guestProductForm.serviceScope === "SERVICE_GROUP"
         ? null
         : guestProductForm.sessionTypeIds[0]
           ? Number.parseInt(guestProductForm.sessionTypeIds[0], 10)
           : null,
-      sessionTypeIds: isGiftCard
+      sessionTypeIds: isGiftCard || guestProductForm.serviceScope === "SERVICE_GROUP"
         ? []
         : guestProductForm.sessionTypeIds
             .map((id) => Number.parseInt(id, 10))
             .filter((id) => Number.isFinite(id)),
+      serviceGroupId:
+        !isGiftCard && guestProductForm.serviceScope === "SERVICE_GROUP" && guestProductForm.serviceGroupId
+          ? Number.parseInt(guestProductForm.serviceGroupId, 10)
+          : null,
       transactionServiceId,
       voucherRedemptionMode: isGiftCard
         ? guestProductForm.voucherRedemptionMode
@@ -2034,7 +2077,7 @@ export const CardsMembershipsSection = forwardRef<
               <Field
                 label={locale === "sl" ? "Cena (bruto) *" : "Price (gross) *"}
                 hint={
-                  guestProductTypeUsesAutoPrice(guestProductForm.productType, guestProductForm.sessionTypeIds.length)
+                  guestProductForm.serviceScope === "SERVICES" && guestProductTypeUsesAutoPrice(guestProductForm.productType, guestProductForm.sessionTypeIds.length)
                     ? guestProductForm.productType === "PACK"
                       ? locale === "sl"
                         ? "Izračunano iz storitve (vsota bruto cen povezanih obračunskih storitev) × količina."
@@ -2049,17 +2092,18 @@ export const CardsMembershipsSection = forwardRef<
                   type="number"
                   min="0"
                   step="0.01"
-                  readOnly={guestProductTypeUsesAutoPrice(
+                  readOnly={guestProductForm.serviceScope === "SERVICES" && guestProductTypeUsesAutoPrice(
                     guestProductForm.productType,
                     guestProductForm.sessionTypeIds.length,
                   )}
-                  aria-readonly={guestProductTypeUsesAutoPrice(
+                  aria-readonly={guestProductForm.serviceScope === "SERVICES" && guestProductTypeUsesAutoPrice(
                     guestProductForm.productType,
                     guestProductForm.sessionTypeIds.length,
                   )}
                   value={guestProductForm.priceGross}
                   onChange={(e) => {
                     if (
+                      guestProductForm.serviceScope === "SERVICES" &&
                       guestProductTypeUsesAutoPrice(
                         guestProductForm.productType,
                         guestProductForm.sessionTypeIds.length,
@@ -2117,80 +2161,178 @@ export const CardsMembershipsSection = forwardRef<
                 </Field>
               )}
               {guestProductForm.productType !== "GIFT_CARD" && (
-                <Field
-                  label={
-                    guestProductForm.productType === "MEMBERSHIP"
-                      ? locale === "sl" ? "Velja za storitve" : "Valid for services"
-                      : locale === "sl" ? "Velja za storitve *" : "Valid for services *"
-                  }
-                  hint={
-                    guestProductForm.productType === "MEMBERSHIP"
-                      ? locale === "sl"
-                        ? "Izberite eno ali več storitev. Če ne izberete nobene, članarina velja za vse storitve."
-                        : "Select one or more services. With none selected, the membership is valid for all services."
-                      : guestProductForm.productType === "PACK"
-                        ? locale === "sl"
-                          ? "Izberite eno ali več storitev, pri katerih je mogoče koristiti paket. Pri več storitvah prodajno ceno določite ročno."
-                          : "Select one or more services that can use this pack. With multiple services, set the selling price manually."
-                        : locale === "sl"
-                          ? "Izberite eno ali več storitev, pri katerih je mogoče koristiti ugodnost."
-                          : "Select one or more services for which this entitlement may be used."
-                  }
-                >
-                  <div className="cards-product-voucher-services">
-                    {guestProductForm.productType === "MEMBERSHIP" && (
-                      <label
-                        className={`cards-product-voucher-service-option${guestProductForm.sessionTypeIds.length === 0 ? " is-selected" : ""}`}
+                <>
+                  <div className="field full-span cards-product-scope-field">
+                    <span className="field-label">{locale === "sl" ? "Velja za *" : "Valid for *"}</span>
+                    <span className="field-hint">
+                      {locale === "sl"
+                        ? "Izberite, ali ugodnost velja za izbrane storitve ali za vse storitve znotraj ene skupine."
+                        : "Choose whether the entitlement applies to selected services or every service in one group."}
+                    </span>
+                    <div className="cards-product-scope-options" role="radiogroup" aria-label={locale === "sl" ? "Velja za" : "Valid for"}>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={guestProductForm.serviceScope === "SERVICES"}
+                        className={`cards-product-scope-option${guestProductForm.serviceScope === "SERVICES" ? " is-selected" : ""}`}
+                        onClick={() =>
+                          setGuestProductForm((current) => ({
+                            ...current,
+                            serviceScope: "SERVICES",
+                            serviceGroupId: "",
+                          }))
+                        }
                       >
-                        <input
-                          type="checkbox"
-                          checked={guestProductForm.sessionTypeIds.length === 0}
-                          onChange={() =>
-                            setGuestProductForm((current) => ({
-                              ...current,
-                              sessionTypeId: "",
-                              sessionTypeIds: [],
-                            }))
-                          }
-                        />
-                        <span>{locale === "sl" ? "Vse storitve" : "All services"}</span>
-                      </label>
-                    )}
-                    {sessionTypes.map((sessionType) => {
-                      const id = String(sessionType.id);
-                      const checked = guestProductForm.sessionTypeIds.includes(id);
-                      return (
-                        <label
-                          key={sessionType.id}
-                          className={`cards-product-voucher-service-option${checked ? " is-selected" : ""}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) =>
-                              setGuestProductForm((current) => {
-                                const nextIds = e.target.checked
-                                  ? Array.from(new Set([...current.sessionTypeIds, id]))
-                                  : current.sessionTypeIds.filter((value) => value !== id);
-                                return {
-                                  ...current,
-                                  sessionTypeIds: nextIds,
-                                  sessionTypeId: nextIds[0] || "",
-                                };
-                              })
-                            }
-                          />
-                          <span>{sessionTypeDisplayLabel(sessionType)}</span>
-                        </label>
-                      );
-                    })}
-                    {sessionTypes.length === 0 && (
-                      <span className="muted">
-                        {locale === "sl" ? "Ni razpoložljivih storitev." : "No services available."}
+                        <span className="cards-product-scope-radio" aria-hidden />
+                        <span className="cards-product-scope-icon" aria-hidden>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5v-9Z" />
+                            <path d="m4.5 7.8 7.5 4.3 7.5-4.3M12 12.1V21" />
+                          </svg>
+                        </span>
+                        <span className="cards-product-scope-copy">
+                          <strong>{locale === "sl" ? "Storitve" : "Services"}</strong>
+                          <span>{locale === "sl" ? "Velja za eno ali več izbranih storitev." : "Applies to one or more selected services."}</span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={guestProductForm.serviceScope === "SERVICE_GROUP"}
+                        disabled={serviceGroups.length === 0}
+                        className={`cards-product-scope-option${guestProductForm.serviceScope === "SERVICE_GROUP" ? " is-selected" : ""}`}
+                        onClick={() =>
+                          setGuestProductForm((current) => ({
+                            ...current,
+                            serviceScope: "SERVICE_GROUP",
+                            serviceGroupId: "",
+                            sessionTypeId: "",
+                            sessionTypeIds: [],
+                          }))
+                        }
+                      >
+                        <span className="cards-product-scope-radio" aria-hidden />
+                        <span className="cards-product-scope-icon" aria-hidden>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="4" y="4" width="6" height="6" rx="1" />
+                            <rect x="14" y="4" width="6" height="6" rx="1" />
+                            <rect x="4" y="14" width="6" height="6" rx="1" />
+                            <rect x="14" y="14" width="6" height="6" rx="1" />
+                          </svg>
+                        </span>
+                        <span className="cards-product-scope-copy">
+                          <strong>{locale === "sl" ? "Skupino storitev" : "Service group"}</strong>
+                          <span>{locale === "sl" ? "Velja za vse storitve v izbrani skupini." : "Applies to every service in the selected group."}</span>
+                        </span>
+                      </button>
+                    </div>
+                    {serviceGroups.length === 0 && (
+                      <span className="field-hint cards-product-scope-empty-hint">
+                        {locale === "sl"
+                          ? "Za uporabo skupine storitev najprej ustvarite skupino in ji dodelite vsaj eno storitev."
+                          : "Create a service group and assign at least one service before using group scope."}
                       </span>
                     )}
                   </div>
-                </Field>
+
+                  {guestProductForm.serviceScope === "SERVICES" ? (
+                    <Field
+                      label={guestProductForm.productType === "MEMBERSHIP"
+                        ? locale === "sl" ? "Storitve" : "Services"
+                        : locale === "sl" ? "Storitve *" : "Services *"}
+                      hint={guestProductForm.productType === "MEMBERSHIP"
+                        ? locale === "sl"
+                          ? "Izberite eno ali več storitev. Če ne izberete nobene, članarina velja za vse storitve."
+                          : "Select one or more services. With none selected, the membership is valid for all services."
+                        : guestProductForm.productType === "PACK"
+                          ? locale === "sl"
+                            ? "Izberite eno ali več storitev. Pri več storitvah prodajno ceno določite ročno."
+                            : "Select one or more services. With multiple services, set the selling price manually."
+                          : locale === "sl"
+                            ? "Izberite eno ali več storitev, pri katerih je mogoče koristiti ugodnost."
+                            : "Select one or more services for which this entitlement may be used."}
+                    >
+                      <details className="cards-product-service-dropdown">
+                        <summary>
+                          <span>
+                            {guestProductForm.productType === "MEMBERSHIP" && guestProductForm.sessionTypeIds.length === 0
+                              ? locale === "sl" ? "Vse storitve" : "All services"
+                              : guestProductForm.sessionTypeIds.length === 0
+                                ? locale === "sl" ? "Izberite storitve" : "Select services"
+                                : guestProductForm.sessionTypeIds.length === 1
+                                  ? sessionTypeDisplayLabel(sessionTypes.find((item) => String(item.id) === guestProductForm.sessionTypeIds[0]) || sessionTypes[0])
+                                  : locale === "sl"
+                                    ? `${guestProductForm.sessionTypeIds.length} izbrane storitve`
+                                    : `${guestProductForm.sessionTypeIds.length} selected services`}
+                          </span>
+                          <span className="cards-product-service-dropdown-chevron" aria-hidden>⌄</span>
+                        </summary>
+                        <div className="cards-product-service-dropdown-menu">
+                          {guestProductForm.productType === "MEMBERSHIP" && (
+                            <label className={`cards-product-service-dropdown-option${guestProductForm.sessionTypeIds.length === 0 ? " is-selected" : ""}`}>
+                              <input
+                                type="checkbox"
+                                checked={guestProductForm.sessionTypeIds.length === 0}
+                                onChange={() =>
+                                  setGuestProductForm((current) => ({ ...current, sessionTypeId: "", sessionTypeIds: [] }))
+                                }
+                              />
+                              <span>{locale === "sl" ? "Vse storitve" : "All services"}</span>
+                            </label>
+                          )}
+                          {sessionTypes.map((sessionType) => {
+                            const id = String(sessionType.id);
+                            const checked = guestProductForm.sessionTypeIds.includes(id);
+                            return (
+                              <label key={sessionType.id} className={`cards-product-service-dropdown-option${checked ? " is-selected" : ""}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(event) =>
+                                    setGuestProductForm((current) => {
+                                      const nextIds = event.target.checked
+                                        ? Array.from(new Set([...current.sessionTypeIds, id]))
+                                        : current.sessionTypeIds.filter((value) => value !== id);
+                                      return { ...current, sessionTypeIds: nextIds, sessionTypeId: nextIds[0] || "" };
+                                    })
+                                  }
+                                />
+                                <span>{sessionTypeDisplayLabel(sessionType)}</span>
+                              </label>
+                            );
+                          })}
+                          {sessionTypes.length === 0 && (
+                            <span className="muted cards-product-service-dropdown-empty">
+                              {locale === "sl" ? "Ni razpoložljivih storitev." : "No services available."}
+                            </span>
+                          )}
+                        </div>
+                      </details>
+                    </Field>
+                  ) : (
+                    <Field
+                      label={locale === "sl" ? "Skupina storitev *" : "Service group *"}
+                      hint={locale === "sl"
+                        ? "Ugodnost bo veljala za vse trenutne in prihodnje storitve, ki pripadajo izbrani skupini."
+                        : "The entitlement applies to all current and future services assigned to the selected group."}
+                    >
+                      <select
+                        required
+                        value={guestProductForm.serviceGroupId}
+                        onChange={(event) =>
+                          setGuestProductForm((current) => ({ ...current, serviceGroupId: event.target.value }))
+                        }
+                      >
+                        <option value="">{locale === "sl" ? "Izberite skupino storitev" : "Select service group"}</option>
+                        {serviceGroups.map((group) => (
+                          <option key={group.id} value={group.id}>
+                            {group.name} · {group.serviceCount}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
+                </>
               )}
               <Field
                 label={locale === "sl" ? "Postavka na računu *" : "Invoice line item *"}
@@ -2231,7 +2373,7 @@ export const CardsMembershipsSection = forwardRef<
                   {locale === "sl" ? "." : " before creating the entitlement."}
                 </p>
               )}
-              {guestProductTypeUsesAutoPrice(guestProductForm.productType, guestProductForm.sessionTypeIds.length) &&
+              {guestProductForm.serviceScope === "SERVICES" && guestProductTypeUsesAutoPrice(guestProductForm.productType, guestProductForm.sessionTypeIds.length) &&
                 guestProductForm.sessionTypeId.trim() !== "" &&
                 sessionUnitGrossSum(
                   sessionTypes.find(

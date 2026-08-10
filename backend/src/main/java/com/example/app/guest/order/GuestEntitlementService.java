@@ -17,6 +17,7 @@ import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionService;
 import com.example.app.session.SessionType;
+import com.example.app.session.SessionTypeRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -63,6 +64,9 @@ public class GuestEntitlementService {
 
     @Autowired(required = false)
     private CommerceLocationScopeService commerceLocations;
+
+    @Autowired(required = false)
+    private SessionTypeRepository sessionTypes;
 
     private final String publicBaseUrl;
 
@@ -324,7 +328,7 @@ public class GuestEntitlementService {
         boolean matchesService = entitlement.getProduct() != null
                 && (serviceVoucher
                     ? VoucherRules.entitlementAllowsService(entitlement, sessionTypeId)
-                    : entitlement.getProduct().allowsSessionType(sessionTypeId));
+                    : productAllowsSessionType(entitlement.getProduct(), companyId, sessionTypeId));
         boolean locationMatches = locationId == null || commerceLocations == null || commerceLocations.entitlementAvailableAt(entitlement, locationId);
         if (!matchesClient || !matchesCompany || !active || !validFrom || !validUntil || !hasUses || !serviceEntitlement || !matchesService || !locationMatches) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected pass or visit is not available for this service.");
@@ -1529,9 +1533,17 @@ public class GuestEntitlementService {
                 .filter(entitlement -> locationId == null || commerceLocations == null || commerceLocations.entitlementAvailableAt(entitlement, locationId))
                 .filter(entitlement -> VoucherRules.isServiceVoucher(entitlement)
                         ? VoucherRules.entitlementAllowsService(entitlement, sessionTypeId)
-                        : entitlement.getProduct().allowsSessionType(sessionTypeId))
+                        : productAllowsSessionType(entitlement.getProduct(), companyId, sessionTypeId))
                 .sorted(entitlementPriority())
                 .findFirst();
+    }
+
+    private boolean productAllowsSessionType(GuestProduct product, Long companyId, Long sessionTypeId) {
+        if (product == null || sessionTypeId == null) return false;
+        if (product.getServiceGroup() == null) return product.allowsSessionType(sessionTypeId);
+        if (sessionTypes == null) return product.allowsSessionType(sessionTypeId);
+        SessionType candidate = sessionTypes.findByIdAndCompanyId(sessionTypeId, companyId).orElse(null);
+        return product.allowsSessionType(candidate);
     }
 
     private static com.example.app.location.Location requireBookingLocation(SessionBooking booking) {

@@ -171,7 +171,8 @@ public class GuestCatalogService {
         for (GuestProduct product : guestProducts.findAllByCompanyIdAndActiveTrueAndGuestVisibleTrueOrderBySortOrderAscIdAsc(companyId)) {
             if (product.getCourse() != null) continue;
             if (product.getProductType() == ProductType.GIFT_CARD && !giftCardsEnabled) continue;
-            if (product.getProductType() == ProductType.COURSE && (!coursesEnabled || product.getSessionType() == null)) continue;
+            if (product.getProductType() == ProductType.COURSE
+                    && (!coursesEnabled || (product.getSessionType() == null && product.getServiceGroup() == null))) continue;
             if (!billingEnabled && !product.isBookable()) continue;
             // Wallet products can cover several services. For guest visibility/location
             // checks, any eligible service is sufficient; an unrestricted membership
@@ -197,12 +198,18 @@ public class GuestCatalogService {
                     product.getPromoText(),
                     product.getValidityDays(),
                     product.getUsageLimit(),
-                    product.getSessionType() == null || publicGroup(product.getSessionType()) == null
-                            ? null : String.valueOf(publicGroup(product.getSessionType()).getId()),
-                    product.getSessionType() == null || publicGroup(product.getSessionType()) == null
-                            ? null : publicGroup(product.getSessionType()).getName(),
-                    product.getSessionType() == null || publicGroup(product.getSessionType()) == null
-                            ? null : publicGroup(product.getSessionType()).getSortOrder(),
+                    product.getServiceGroup() != null
+                            ? String.valueOf(product.getServiceGroup().getId())
+                            : product.getSessionType() == null || publicGroup(product.getSessionType()) == null
+                                ? null : String.valueOf(publicGroup(product.getSessionType()).getId()),
+                    product.getServiceGroup() != null
+                            ? product.getServiceGroup().getName()
+                            : product.getSessionType() == null || publicGroup(product.getSessionType()) == null
+                                ? null : publicGroup(product.getSessionType()).getName(),
+                    product.getServiceGroup() != null
+                            ? product.getServiceGroup().getSortOrder()
+                            : product.getSessionType() == null || publicGroup(product.getSessionType()) == null
+                                ? null : publicGroup(product.getSessionType()).getSortOrder(),
                     product.getSessionType() == null ? Integer.MAX_VALUE : product.getSessionType().getGuestSortOrder(),
                     product.getProductType() == ProductType.GIFT_CARD && VoucherRules.productMode(product) != null ? VoucherRules.productMode(product).name() : null,
                     product.getProductType() == ProductType.GIFT_CARD && VoucherRules.productScope(product) != null ? VoucherRules.productScope(product).name() : null,
@@ -218,6 +225,11 @@ public class GuestCatalogService {
 
     private List<SessionType> productEligibleSessionTypes(GuestProduct product) {
         if (product == null) return List.of();
+        if (product.getServiceGroup() != null && product.getServiceGroup().getId() != null
+                && product.getCompany() != null && product.getCompany().getId() != null) {
+            return sessionTypes.findAllByCompanyIdAndServiceGroupId(
+                    product.getCompany().getId(), product.getServiceGroup().getId());
+        }
         if (product.getEligibleSessionTypes() != null && !product.getEligibleSessionTypes().isEmpty()) {
             return product.getEligibleSessionTypes().stream().filter(Objects::nonNull).toList();
         }
@@ -226,12 +238,14 @@ public class GuestCatalogService {
 
     private boolean productHasVisibleEligibleService(GuestProduct product, Long companyId, GuestUser guestUser) {
         List<SessionType> eligible = productEligibleSessionTypes(product);
+        if (product != null && product.getServiceGroup() != null && eligible.isEmpty()) return false;
         if (eligible.isEmpty()) return true;
         return eligible.stream().anyMatch(type -> isVisibleInGuestServiceStep(companyId, type, guestUser));
     }
 
     private boolean productHasEligibleServiceAtLocation(GuestProduct product, Long locationId) {
         List<SessionType> eligible = productEligibleSessionTypes(product);
+        if (product != null && product.getServiceGroup() != null && eligible.isEmpty()) return false;
         if (eligible.isEmpty() || locationId == null || guestLocations == null) return true;
         return eligible.stream().anyMatch(type -> guestLocations.isServiceAvailableAt(type, locationId));
     }
@@ -786,7 +800,8 @@ public class GuestCatalogService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Vouchers are disabled for this tenant.");
         }
         if (product.getCourse() != null || !product.isActive() || !product.isGuestVisible()
-                || (product.getProductType() == ProductType.COURSE && (!coursesEnabled || product.getSessionType() == null))) {
+                || (product.getProductType() == ProductType.COURSE
+                    && (!coursesEnabled || (product.getSessionType() == null && product.getServiceGroup() == null)))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This product is not available in the guest app.");
         }
         if (Boolean.FALSE.equals(guestSettings.billingEnabled(companyId)) && !product.isBookable()) {

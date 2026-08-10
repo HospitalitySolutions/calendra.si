@@ -22,6 +22,8 @@ import com.example.app.guest.model.VoucherRedemptionMode;
 import com.example.app.guest.model.VoucherServiceScope;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
+import com.example.app.session.ServiceGroup;
+import com.example.app.session.ServiceGroupRepository;
 import com.example.app.session.TypeTransactionService;
 import com.example.app.settings.CourseModuleAccessService;
 import com.example.app.settings.EntitlementsModuleAccessService;
@@ -71,6 +73,9 @@ public class GuestProductAdminController {
 
     @Autowired(required = false)
     private EntitlementsModuleAccessService entitlementsModuleAccessService;
+
+    @Autowired(required = false)
+    private ServiceGroupRepository serviceGroups;
 
     @Autowired
     public GuestProductAdminController(
@@ -181,7 +186,8 @@ public class GuestProductAdminController {
         activityLogs.recordUser(me, ActivityModule.SERVICES, action,
                 "GUEST_PRODUCT", row.id(), row.name(), summary, null, null,
                 ActivityDetails.of("productType", row.productType(), "priceGross", row.priceGross(), "currency", row.currency(),
-                        "sessionTypeIds", row.sessionTypeIds(), "transactionServiceId", row.transactionServiceId(),
+                        "sessionTypeIds", row.sessionTypeIds(), "serviceGroupId", row.serviceGroupId(),
+                        "transactionServiceId", row.transactionServiceId(),
                         "voucherRedemptionMode", row.voucherRedemptionMode(), "voucherServiceScope", row.voucherServiceScope(),
                         "availableAllLocations", row.availableAllLocations(), "locationIds", row.locationIds(),
                         "active", row.active(), "guestVisible", row.guestVisible(), "targetPath", "/session-types?subtab=cards-memberships"));
@@ -202,9 +208,14 @@ public class GuestProductAdminController {
         if (productType == ProductType.GIFT_CARD) {
             assertGiftCardsEnabled(companyId);
         }
+        ServiceGroup serviceGroup = productType == ProductType.GIFT_CARD
+                ? null
+                : resolveServiceGroup(request.serviceGroupId(), companyId);
         Set<SessionType> eligibleSessionTypes = productType == ProductType.GIFT_CARD
                 ? Set.of()
-                : resolveProductSessionTypes(request.sessionTypeIds(), request.sessionTypeId(), companyId);
+                : serviceGroup != null
+                    ? new LinkedHashSet<>(sessionTypes.findAllByCompanyIdAndServiceGroupId(companyId, serviceGroup.getId()))
+                    : resolveProductSessionTypes(request.sessionTypeIds(), request.sessionTypeId(), companyId);
         SessionType sessionType = eligibleSessionTypes.stream().findFirst().orElse(null);
         // Invoice accounting is intentionally independent from the services on which the
         // entitlement may be redeemed. Historical rows without a transaction service keep
@@ -266,7 +277,9 @@ public class GuestProductAdminController {
                 && !request.includedCourseIds().isEmpty()) {
             assertCoursesEnabled(companyId);
         }
-        validatePackOrClassPriceGross(productType, eligibleSessionTypes, usageLimit, priceGross);
+        if (serviceGroup == null) {
+            validatePackOrClassPriceGross(productType, eligibleSessionTypes, usageLimit, priceGross);
+        }
 
         Integer validityDays = productType == ProductType.COURSE ? null : normalizePositiveInteger(request.validityDays(), "Validity days");
         if (productType == ProductType.GIFT_CARD && validityDays == null) {
@@ -302,6 +315,7 @@ public class GuestProductAdminController {
         product.setSessionType(sessionType);
         product.getEligibleSessionTypes().clear();
         product.getEligibleSessionTypes().addAll(eligibleSessionTypes);
+        product.setServiceGroup(serviceGroup);
         product.setTransactionService(transactionService);
         product.setVoucherRedemptionMode(voucherRedemptionMode);
         product.setVoucherServiceScope(voucherServiceScope);
@@ -392,6 +406,21 @@ public class GuestProductAdminController {
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service type was not found.")));
         }
         return resolved;
+    }
+
+    private ServiceGroup resolveServiceGroup(Long serviceGroupId, Long companyId) {
+        if (serviceGroupId == null) return null;
+        if (serviceGroups == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Service groups are not available.");
+        }
+        ServiceGroup group = serviceGroups.findById(serviceGroupId)
+                .filter(candidate -> candidate.getCompany() != null
+                        && java.util.Objects.equals(candidate.getCompany().getId(), companyId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service group was not found."));
+        if (!group.isActive()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service group is inactive.");
+        }
+        return group;
     }
 
     private SessionType resolveSessionType(Long sessionTypeId, Long companyId) {
@@ -537,6 +566,8 @@ public class GuestProductAdminController {
                 product.getSessionType() == null ? null : product.getSessionType().getName(),
                 product.getEligibleSessionTypes().stream().map(SessionType::getId).toList(),
                 product.getEligibleSessionTypes().stream().map(SessionType::getName).toList(),
+                product.getServiceGroup() == null ? null : product.getServiceGroup().getId(),
+                product.getServiceGroup() == null ? null : product.getServiceGroup().getName(),
                 product.getTransactionService() == null ? null : product.getTransactionService().getId(),
                 product.getTransactionService() == null ? null : product.getTransactionService().getCode(),
                 product.getTransactionService() == null ? null : product.getTransactionService().getDescription(),
@@ -571,6 +602,7 @@ public class GuestProductAdminController {
             Integer sortOrder,
             Long sessionTypeId,
             List<Long> sessionTypeIds,
+            Long serviceGroupId,
             Long transactionServiceId,
             List<Long> includedCourseIds,
             String voucherRedemptionMode,
@@ -601,7 +633,7 @@ public class GuestProductAdminController {
         ) {
             this(name, description, promoText, productType, priceGross, currency, active, guestVisible,
                     bookable, usageLimit, validityDays, autoRenews, sortOrder, sessionTypeId,
-                    null, transactionServiceId, includedCourseIds, null, null, null, null, null, null);
+                    null, null, transactionServiceId, includedCourseIds, null, null, null, null, null, null);
         }
     }
 
@@ -624,6 +656,8 @@ public class GuestProductAdminController {
             String sessionTypeName,
             List<Long> sessionTypeIds,
             List<String> sessionTypeNames,
+            Long serviceGroupId,
+            String serviceGroupName,
             Long transactionServiceId,
             String transactionServiceCode,
             String transactionServiceDescription,

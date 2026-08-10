@@ -138,7 +138,7 @@ public class WalletEntitlementScannerController {
                 .filter(entitlement -> entitlement.getProduct() != null
                         && (VoucherRules.isServiceVoucher(entitlement)
                             ? bookingHasSingleService(booking) && VoucherRules.entitlementAllowsService(entitlement, bookingTypeId)
-                            : entitlement.getProduct().allowsSessionType(bookingTypeId)))
+                            : entitlement.getProduct().allowsSessionType(booking.getType())))
                 .filter(entitlement -> firstUsableCode(entitlement) != null)
                 .map(this::paymentOptionResponse)
                 .toList();
@@ -426,7 +426,7 @@ public class WalletEntitlementScannerController {
         // no configured service scope remains a wildcard entitlement for backwards compatibility.
         boolean matches = VoucherRules.isServiceVoucher(entitlement)
                 ? VoucherRules.entitlementAllowsService(entitlement, bookingType.getId())
-                : entitlement.getProduct().allowsSessionType(bookingType.getId());
+                : entitlement.getProduct().allowsSessionType(bookingType);
         if (!matches) {
             return failure(
                     "SERVICE_TYPE_MISMATCH",
@@ -463,7 +463,7 @@ public class WalletEntitlementScannerController {
         }
         boolean matches = VoucherRules.isServiceVoucher(entitlement)
                 ? VoucherRules.entitlementAllowsService(entitlement, groupSessionType.getId())
-                : entitlement.getProduct().allowsSessionType(groupSessionType.getId());
+                : entitlement.getProduct().allowsSessionType(groupSessionType);
         if (!matches) {
             return failure(
                     "SERVICE_TYPE_MISMATCH",
