@@ -166,17 +166,16 @@ public class GuestCatalogService {
             if (product.getProductType() == ProductType.GIFT_CARD && !giftCardsEnabled) continue;
             if (product.getProductType() == ProductType.COURSE && (!coursesEnabled || product.getSessionType() == null)) continue;
             if (!billingEnabled && !product.isBookable()) continue;
-            // Course access entitlements are sellable wallet products that only use
-            // their linked service type for accounting/VAT mapping. They should not
-            // be hidden just because the linked service type is not visible/bookable
-            // in the guest booking service step.
+            // Wallet products can cover several services. For guest visibility/location
+            // checks, any eligible service is sufficient; an unrestricted membership
+            // (no explicit service scope) remains visible as a wildcard product. Course
+            // access products intentionally ignore booking-step visibility.
             if (product.getProductType() != ProductType.COURSE
-                    && product.getSessionType() != null
-                    && !isVisibleInGuestServiceStep(companyId, product.getSessionType(), guestUser)) continue;
+                    && !productHasVisibleEligibleService(product, companyId, guestUser)) continue;
             if (selectedLocation != null && commerceLocations != null
                     && !commerceLocations.productAvailableAt(product, selectedLocation.getId())) continue;
-            if (selectedLocation != null && product.getSessionType() != null
-                    && !guestLocations.isServiceAvailableAt(product.getSessionType(), selectedLocation.getId())) continue;
+            if (selectedLocation != null
+                    && !productHasEligibleServiceAtLocation(product, selectedLocation.getId())) continue;
             out.add(new GuestDtos.ProductResponse(
                     String.valueOf(product.getId()),
                     product.getName(),
@@ -208,6 +207,26 @@ public class GuestCatalogService {
             ));
         }
         return out;
+    }
+
+    private List<SessionType> productEligibleSessionTypes(GuestProduct product) {
+        if (product == null) return List.of();
+        if (product.getEligibleSessionTypes() != null && !product.getEligibleSessionTypes().isEmpty()) {
+            return product.getEligibleSessionTypes().stream().filter(Objects::nonNull).toList();
+        }
+        return product.getSessionType() == null ? List.of() : List.of(product.getSessionType());
+    }
+
+    private boolean productHasVisibleEligibleService(GuestProduct product, Long companyId, GuestUser guestUser) {
+        List<SessionType> eligible = productEligibleSessionTypes(product);
+        if (eligible.isEmpty()) return true;
+        return eligible.stream().anyMatch(type -> isVisibleInGuestServiceStep(companyId, type, guestUser));
+    }
+
+    private boolean productHasEligibleServiceAtLocation(GuestProduct product, Long locationId) {
+        List<SessionType> eligible = productEligibleSessionTypes(product);
+        if (eligible.isEmpty() || locationId == null || guestLocations == null) return true;
+        return eligible.stream().anyMatch(type -> guestLocations.isServiceAvailableAt(type, locationId));
     }
 
     private com.example.app.session.ServiceGroup publicGroup(SessionType type) {
@@ -720,10 +739,12 @@ public class GuestCatalogService {
         );
     }
 
+    @Transactional(readOnly = true)
     public ResolvedProduct resolveProduct(Long companyId, String productId, GuestUser guestUser) {
         return resolveProduct(companyId, productId, null, guestUser);
     }
 
+    @Transactional(readOnly = true)
     public ResolvedProduct resolveProduct(Long companyId, String productId, Long locationId, GuestUser guestUser) {
         if (productId == null || productId.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing product identifier.");
         if (productId.startsWith("session-")) {
@@ -751,12 +772,11 @@ public class GuestCatalogService {
         if (Boolean.FALSE.equals(guestSettings.billingEnabled(companyId)) && !product.isBookable()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Purchases are disabled for this tenant.");
         }
-        // Course access entitlements are non-booking products. The linked service
-        // type is required for billing/accounting, but its booking visibility must
-        // not block purchase from Wallet Buy / widget / client wallet flows.
+        // Course access products intentionally ignore booking-step visibility. Other
+        // wallet products with an explicit multi-service scope are purchasable when at
+        // least one eligible service is visible. Unrestricted memberships are wildcards.
         if (product.getProductType() != ProductType.COURSE
-                && product.getSessionType() != null
-                && !isVisibleInGuestServiceStep(companyId, product.getSessionType(), guestUser)) {
+                && !productHasVisibleEligibleService(product, companyId, guestUser)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not available in the guest app.");
         }
         return new ResolvedProduct(product, product.getSessionType(), product.getName(), product.getProductType().name(), product.getPriceGross(), product.getCurrency(), product.isBookable());

@@ -324,8 +324,7 @@ public class GuestEntitlementService {
         boolean matchesService = entitlement.getProduct() != null
                 && (serviceVoucher
                     ? VoucherRules.entitlementAllowsService(entitlement, sessionTypeId)
-                    : entitlement.getProduct().getSessionType() == null
-                        || Objects.equals(entitlement.getProduct().getSessionType().getId(), sessionTypeId));
+                    : entitlement.getProduct().allowsSessionType(sessionTypeId));
         boolean locationMatches = locationId == null || commerceLocations == null || commerceLocations.entitlementAvailableAt(entitlement, locationId);
         if (!matchesClient || !matchesCompany || !active || !validFrom || !validUntil || !hasUses || !serviceEntitlement || !matchesService || !locationMatches) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected pass or visit is not available for this service.");
@@ -1530,8 +1529,7 @@ public class GuestEntitlementService {
                 .filter(entitlement -> locationId == null || commerceLocations == null || commerceLocations.entitlementAvailableAt(entitlement, locationId))
                 .filter(entitlement -> VoucherRules.isServiceVoucher(entitlement)
                         ? VoucherRules.entitlementAllowsService(entitlement, sessionTypeId)
-                        : entitlement.getProduct().getSessionType() == null
-                            || Objects.equals(entitlement.getProduct().getSessionType().getId(), sessionTypeId))
+                        : entitlement.getProduct().allowsSessionType(sessionTypeId))
                 .sorted(entitlementPriority())
                 .findFirst();
     }

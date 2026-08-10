@@ -39,7 +39,23 @@ public class GuestProduct extends BaseEntity {
     @JoinColumn(name = "session_type_id")
     private SessionType sessionType;
 
-    /** Transaction service used for invoicing guest product purchases such as gift cards. */
+    /**
+     * Booking services covered by this wallet product. When this set has rows it is the
+     * authoritative service scope. The legacy {@code sessionType} field is retained as
+     * a primary/fallback service for backwards compatibility and older integrations.
+     * An empty set together with a null legacy service means the entitlement is valid
+     * for every service (currently used by unrestricted memberships).
+     */
+    @ManyToMany
+    @JoinTable(
+            name = "guest_product_session_types",
+            joinColumns = @JoinColumn(name = "product_id"),
+            inverseJoinColumns = @JoinColumn(name = "session_type_id")
+    )
+    @OrderBy("name ASC, id ASC")
+    private Set<SessionType> eligibleSessionTypes = new LinkedHashSet<>();
+
+    /** Transaction service used for invoicing wallet product purchases. */
     @ManyToOne
     @JoinColumn(name = "transaction_service_id")
     private TransactionService transactionService;
@@ -116,4 +132,17 @@ public class GuestProduct extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String entitlementRulesJson;
+
+    /** Returns whether this product may cover the supplied booking service. */
+    public boolean allowsSessionType(Long sessionTypeId) {
+        if (sessionTypeId == null) return false;
+        if (eligibleSessionTypes != null && !eligibleSessionTypes.isEmpty()) {
+            return eligibleSessionTypes.stream()
+                    .filter(java.util.Objects::nonNull)
+                    .map(SessionType::getId)
+                    .filter(java.util.Objects::nonNull)
+                    .anyMatch(sessionTypeId::equals);
+        }
+        return sessionType == null || java.util.Objects.equals(sessionType.getId(), sessionTypeId);
+    }
 }

@@ -367,6 +367,14 @@ public class ClientWalletPurchaseController {
 
     private String walletProductInvoiceLineDescription(GuestProduct product) {
         if (product == null) return "Wallet product";
+        if (product.getTransactionService() != null) {
+            String description = product.getTransactionService().getDescription() == null
+                    ? "" : product.getTransactionService().getDescription().trim();
+            if (!description.isBlank()) return description;
+            String code = product.getTransactionService().getCode() == null
+                    ? "" : product.getTransactionService().getCode().trim();
+            if (!code.isBlank()) return code;
+        }
         String name = product.getName() == null ? "" : product.getName().trim();
         if (!name.isBlank()) return name;
         return switch (product.getProductType() == null ? ProductType.PACK : product.getProductType()) {

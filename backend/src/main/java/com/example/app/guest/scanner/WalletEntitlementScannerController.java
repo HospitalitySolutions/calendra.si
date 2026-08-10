@@ -133,8 +133,7 @@ public class WalletEntitlementScannerController {
                 .filter(entitlement -> entitlement.getProduct() != null
                         && (VoucherRules.isServiceVoucher(entitlement)
                             ? bookingHasSingleService(booking) && VoucherRules.entitlementAllowsService(entitlement, bookingTypeId)
-                            : entitlement.getProduct().getSessionType() == null
-                                || Objects.equals(entitlement.getProduct().getSessionType().getId(), bookingTypeId)))
+                            : entitlement.getProduct().allowsSessionType(bookingTypeId)))
                 .filter(entitlement -> firstUsableCode(entitlement) != null)
                 .map(this::paymentOptionResponse)
                 .toList();
@@ -411,12 +410,11 @@ public class WalletEntitlementScannerController {
                     entitlement
             );
         }
-        // A product without a specific session type is a wildcard entitlement and may cover
-        // any service. When a session type is configured, it must match this booking exactly.
+        // Non-voucher wallet products may cover one or several services. A membership with
+        // no configured service scope remains a wildcard entitlement for backwards compatibility.
         boolean matches = VoucherRules.isServiceVoucher(entitlement)
                 ? VoucherRules.entitlementAllowsService(entitlement, bookingType.getId())
-                : entitlement.getProduct().getSessionType() == null
-                    || Objects.equals(entitlement.getProduct().getSessionType().getId(), bookingType.getId());
+                : entitlement.getProduct().allowsSessionType(bookingType.getId());
         if (!matches) {
             return failure(
                     "SERVICE_TYPE_MISMATCH",
@@ -444,15 +442,17 @@ public class WalletEntitlementScannerController {
         if (groupSessionType == null || groupSessionType.getId() == null) {
             return failure("GROUP_JOIN_FAILED", "Selected group session has no service type.", entitlement);
         }
-        if (entitlement.getProduct() == null || entitlement.getProduct().getSessionType() == null
-                || entitlement.getProduct().getSessionType().getId() == null) {
+        if (entitlement.getProduct() == null) {
             return failure(
                     "SERVICE_TYPE_MISMATCH",
-                    "This ticket or pack is not linked to the service type on this group session.",
+                    "This ticket or pack has no product configuration.",
                     entitlement
             );
         }
-        if (!Objects.equals(entitlement.getProduct().getSessionType().getId(), groupSessionType.getId())) {
+        boolean matches = VoucherRules.isServiceVoucher(entitlement)
+                ? VoucherRules.entitlementAllowsService(entitlement, groupSessionType.getId())
+                : entitlement.getProduct().allowsSessionType(groupSessionType.getId());
+        if (!matches) {
             return failure(
                     "SERVICE_TYPE_MISMATCH",
                     "This ticket or pack is for a different service type than this group session.",
