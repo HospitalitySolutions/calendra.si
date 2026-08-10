@@ -26,21 +26,21 @@ public class OpenBill extends BaseEntity {
     public static final String BATCH_SCOPE_CLIENT = "CLIENT";
     public static final String BATCH_SCOPE_COMPANY = "COMPANY";
 
-    @ManyToOne(optional = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "location_id", nullable = false)
     private Location location;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     private Client client;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     private User consultant;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     private PaymentMethod paymentMethod;
 
     @OneToMany(mappedBy = "openBill", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -50,7 +50,7 @@ public class OpenBill extends BaseEntity {
     @Column(length = 255)
     private String reference;
 
-    @OneToOne
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "session_booking_id", unique = true)
     private SessionBooking sessionBooking;
 
