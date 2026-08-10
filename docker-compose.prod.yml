@@ -4,10 +4,10 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
-      - "443:443"
+    environment:
+      CALENDRA_PUBLIC_SITE_UPSTREAM: ${CALENDRA_PUBLIC_SITE_UPSTREAM:-host.docker.internal:8080}
     volumes:
-      - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
+      - ./Caddyfile.production.alb:/etc/caddy/Caddyfile:ro
       - caddy_config:/config
     extra_hosts:
       - "host.docker.internal:host-gateway"
