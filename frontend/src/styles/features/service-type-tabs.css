@@ -121,6 +121,18 @@
     min-width: 0;
 }
 
+/* Keep the Services search + category filter grouped exactly like the Clients
+   search + assigned-owner filter. The category control deliberately reuses the
+   Clients owner-filter classes so its sizing, border, radius, dropdown and
+   interaction states remain visually identical. */
+.service-config-toolbar-primary.clients-toolbar-primary {
+    gap: 12px;
+}
+
+.service-config-category-filter {
+    z-index: 12;
+}
+
 .service-config-search-wrap.clients-search-wrap {
     width: auto;
     max-width: none;
@@ -661,19 +673,6 @@
   background: rgba(239, 68, 68, 0.12);
 }
 
-.service-config-actions.account-table-actions .service-config-action-edit {
-  color: #2563eb;
-}
-
-.service-config-actions.account-table-actions .service-config-action-edit:not(:disabled):hover {
-  color: #1d4ed8;
-  background: rgba(37, 99, 235, 0.12);
-}
-
-.service-config-actions.account-table-actions .service-config-action-delete {
-  color: #ef4444;
-}
-
 /* Mobile visual implementation matching the approved Storitve preview. */
 .service-config-tab-label--mobile { display: none; }
 
@@ -800,6 +799,10 @@
         gap: 10px;
         align-items: center;
         margin: 0 0 18px;
+    }
+
+    .clients-modern-page--mobile .service-config-toolbar-primary.clients-toolbar-primary {
+        display: contents;
     }
 
     .clients-modern-page--mobile .service-config-card .service-config-toolbar .service-config-search-wrap.clients-search-wrap {
@@ -984,89 +987,4 @@
     color: #64748b;
     font-size: 0.82rem;
     line-height: 1.35;
-}
-
-/* Services toolbar: visible category filter aligned with Clients-style controls */
-.service-config-toolbar-leading {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex: 1 1 auto;
-    min-width: 0;
-    flex-wrap: wrap;
-}
-
-.service-config-category-filter {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    min-height: 46px;
-    border: 1px solid #dbe3ef;
-    border-radius: 14px;
-    background: #ffffff;
-    color: #334155;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
-    overflow: hidden;
-}
-
-.service-config-category-filter__label {
-    padding-left: 14px;
-    font-size: 0.88rem;
-    font-weight: 700;
-    color: #64748b;
-    white-space: nowrap;
-    pointer-events: none;
-}
-
-.service-config-category-filter select {
-    min-height: 44px;
-    max-width: 220px;
-    padding: 0 38px 0 6px;
-    border: 0;
-    outline: 0;
-    background: transparent;
-    color: #0f172a;
-    font: inherit;
-    font-size: 0.9rem;
-    font-weight: 700;
-    appearance: none;
-    cursor: pointer;
-}
-
-.service-config-category-filter > svg {
-    position: absolute;
-    right: 12px;
-    pointer-events: none;
-    color: #64748b;
-}
-
-.service-config-category-filter:focus-within,
-.service-config-category-filter:hover {
-    border-color: rgba(22, 114, 243, 0.42);
-    box-shadow: 0 0 0 3px rgba(22, 114, 243, 0.08);
-}
-
-[data-theme="dark"] .service-config-category-filter {
-    background: #111827;
-    border-color: #334155;
-    color: #e2e8f0;
-}
-
-[data-theme="dark"] .service-config-category-filter select {
-    color: #f8fafc;
-}
-
-@media (max-width: 720px) {
-    .service-config-toolbar-leading {
-        width: 100%;
-    }
-
-    .service-config-category-filter {
-        width: 100%;
-    }
-
-    .service-config-category-filter select {
-        flex: 1;
-        max-width: none;
-    }
 }
