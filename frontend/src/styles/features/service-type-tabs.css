@@ -661,6 +661,19 @@
   background: rgba(239, 68, 68, 0.12);
 }
 
+.service-config-actions.account-table-actions .service-config-action-edit {
+  color: #2563eb;
+}
+
+.service-config-actions.account-table-actions .service-config-action-edit:not(:disabled):hover {
+  color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.service-config-actions.account-table-actions .service-config-action-delete {
+  color: #ef4444;
+}
+
 /* Mobile visual implementation matching the approved Storitve preview. */
 .service-config-tab-label--mobile { display: none; }
 

@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.text.Normalizer;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -168,6 +169,7 @@ public class SessionTypeController {
             boolean guestBookingEnabled,
             SessionPriceCalculationMode priceCalculationMode,
             boolean active,
+            Instant createdAt,
             List<String> guestLimitUserEmails,
             Long serviceGroupId,
             String serviceGroupName,
@@ -567,6 +569,7 @@ public class SessionTypeController {
                 t.isGuestBookingEnabled(),
                 t.getPriceCalculationMode() != null ? t.getPriceCalculationMode() : SessionPriceCalculationMode.PER_CLIENT,
                 t.isActive(),
+                t.getCreatedAt(),
                 parseGuestLimitUserEmails(t.getGuestLimitUserEmails()),
                 !groupsEnabled || t.getServiceGroup() == null ? null : t.getServiceGroup().getId(),
                 !groupsEnabled || t.getServiceGroup() == null ? null : t.getServiceGroup().getName(),

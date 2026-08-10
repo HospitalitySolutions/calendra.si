@@ -29,7 +29,7 @@ import {
   EmptyState,
   Field,
 } from "../components/ui";
-import { currency } from "../lib/format";
+import { currency, formatDate } from "../lib/format";
 import { useLocale, type AppLocale } from "../locale";
 import {
   GUEST_APP_SETTINGS_KEY,
@@ -629,7 +629,7 @@ function ServiceConfigIcon({ visual }: { visual: ServiceConfigVisual }) {
     "aria-hidden": true,
   };
   return (
-    <span className={`service-config-icon service-config-icon--${visual.tone}`}>
+    <span className={`clients-name-avatar service-config-icon service-config-icon--${visual.tone}`}>
       {visual.icon === "calendar" ? (
         <svg {...common}>
           <rect x="3" y="4" width="18" height="18" rx="3" />
@@ -685,11 +685,11 @@ function ServiceConfigNameCell({
   visual: ServiceConfigVisual;
 }) {
   return (
-    <div className="service-config-name-cell">
+    <div className="clients-name-cell service-config-name-cell">
       <ServiceConfigIcon visual={visual} />
-      <div className="service-config-name-stack">
-        <strong>{title}</strong>
-        {subtitle ? <span>{subtitle}</span> : null}
+      <div className="clients-name-stack service-config-name-stack">
+        <span className="clients-name">{title}</span>
+        {subtitle ? <span className="clients-id">{subtitle}</span> : null}
       </div>
     </div>
   );
@@ -707,6 +707,8 @@ function ServiceConfigSortableHeader({ children }: { children: ReactNode }) {
 }
 
 function typeLinkedCategory(type: SessionTypeT): string {
+  const serviceGroupName = type.serviceGroupName?.trim();
+  if (serviceGroupName) return serviceGroupName;
   const first = type.linkedServices?.[0];
   if (first) return first.description?.trim() || first.code?.trim() || "—";
   return type.groupBookingEnabled === true ? "Skupinske vadbe" : "—";
@@ -2618,6 +2620,11 @@ export function SessionTypesPage() {
                     {locale === "sl" ? "Status" : "Status"}
                   </ServiceConfigSortableHeader>
                 </th>
+                <th>
+                  <ServiceConfigSortableHeader>
+                    {locale === "sl" ? "Ustvarjeno" : "Created"}
+                  </ServiceConfigSortableHeader>
+                </th>
                 <th>{locale === "sl" ? "Dejanja" : "Actions"}</th>
               </tr>
             </thead>
@@ -2639,23 +2646,15 @@ export function SessionTypesPage() {
                     }}
                   >
                     <td>
-                      <div className="service-config-name-with-group">
-                        <ServiceConfigNameCell
-                          title={
-                            [
-                              type.description?.trim() ||
-                                (locale === "sl" ? "Storitev" : locale === "sr" ? "Usluga" : "Service"),
-                              type.internalDescription?.trim(),
-                            ].filter(Boolean).join(" — ")
-                          }
-                          visual={serviceConfigVisual(index)}
-                        />
-                        {serviceGroupsModuleEnabled ? (
-                          <span className={`service-group-indicator${type.serviceGroupId == null ? " is-ungrouped" : ""}`}>
-                            {type.serviceGroupName || (locale === "sl" ? "Brez skupine" : "Ungrouped")}
-                          </span>
-                        ) : null}
-                      </div>
+                      <ServiceConfigNameCell
+                        title={
+                          type.internalDescription?.trim() ||
+                          type.description?.trim() ||
+                          (locale === "sl" ? "Storitev" : locale === "sr" ? "Usluga" : "Service")
+                        }
+                        subtitle={type.name?.trim() || `ID #${type.id}`}
+                        visual={serviceConfigVisual(index)}
+                      />
                     </td>
                     <td className="clients-muted service-config-category-cell">
                       {typeLinkedCategory(type)}
@@ -2683,6 +2682,9 @@ export function SessionTypesPage() {
                           ? inactiveStatusLabel
                           : activeStatusLabel}
                       </button>
+                    </td>
+                    <td className="clients-muted">
+                      {type.createdAt ? formatDate(type.createdAt) : "—"}
                     </td>
                     <td className="clients-actions service-config-actions account-table-actions" onClick={(e) => e.stopPropagation()}>
                       <ServiceConfigEditButton
@@ -3143,7 +3145,7 @@ export function SessionTypesPage() {
     setShowServiceConfigFilters(false);
   };
 
-  const sessionTypesPageClass = `stack gap-lg${isSessionTypesNarrow ? " clients-modern-page--mobile" : ""}`;
+  const sessionTypesPageClass = `stack gap-lg clients-modern-page${isSessionTypesNarrow ? " clients-modern-page--mobile" : ""}`;
   const sessionTypesCardClass = `service-config-card clients-modern-card${isSessionTypesNarrow ? " clients-mobile-shell" : ""}`;
   const sessionTypesHeaderClass = `clients-page-header${isSessionTypesNarrow ? " clients-page-header--sticky-mobile" : ""}`;
 
@@ -3173,7 +3175,7 @@ export function SessionTypesPage() {
               >
                 <ServiceConfigTabIcon name="types" />
                 <span>{t("sessionTypesSubtabTypes")}</span>
-                <span className="service-config-tab-count">{filteredTypes.length}</span>
+                <span className="clients-tab-count service-config-tab-count">{filteredTypes.length}</span>
               </button>
               {entitlementsModuleEnabled ? (
                 <button
@@ -3189,7 +3191,7 @@ export function SessionTypesPage() {
                 >
                   <ServiceConfigTabIcon name="cards" />
                   <span>{t("sessionTypesSubtabCards")}</span>
-                  <span className="service-config-tab-count">{guestCardsFilteredCount}</span>
+                  <span className="clients-tab-count service-config-tab-count">{guestCardsFilteredCount}</span>
                 </button>
               ) : null}
             </div>
@@ -3350,7 +3352,7 @@ export function SessionTypesPage() {
               >
                 <ServiceConfigTabIcon name="services" />
                 <span className="service-config-tab-label service-config-tab-label--desktop">{t("configBillingServicesTab")}</span><span className="service-config-tab-label service-config-tab-label--mobile">{locale === "sl" ? "Obračunske" : "Billing"}</span>
-                <span className="service-config-tab-count">{filteredServices.length}</span>
+                <span className="clients-tab-count service-config-tab-count">{filteredServices.length}</span>
               </button>
               {entitlementsModuleEnabled ? (
                 <button
@@ -3366,7 +3368,7 @@ export function SessionTypesPage() {
                 >
                   <ServiceConfigTabIcon name="cards" />
                   <span>{t("sessionTypesSubtabCards")}</span>
-                  <span className="service-config-tab-count">{guestCardsFilteredCount}</span>
+                  <span className="clients-tab-count service-config-tab-count">{guestCardsFilteredCount}</span>
                 </button>
               ) : null}
             </div>

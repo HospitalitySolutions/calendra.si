@@ -30,7 +30,7 @@ export function ServiceConfigEditButton({
   disabled?: boolean
 }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled}>
+    <button type="button" className="secondary clients-row-action-btn service-config-action-edit" onClick={onClick} disabled={disabled}>
       <ServiceConfigActionIcon kind="edit" />
       {label}
     </button>
@@ -47,7 +47,7 @@ export function ServiceConfigDeleteButton({
   disabled?: boolean
 }) {
   return (
-    <button type="button" className="account-table-action-danger" onClick={onClick} disabled={disabled}>
+    <button type="button" className="secondary clients-row-action-btn clients-row-action-btn--danger account-table-action-danger service-config-action-delete" onClick={onClick} disabled={disabled}>
       <ServiceConfigActionIcon kind="delete" />
       {label}
     </button>
