@@ -48,6 +48,28 @@ public class ManualTenantService {
     private static final Set<String> TENANT_TYPES = Set.of("salon", "gym", "therapy", "spa", "personal_training");
     private static final Set<String> ACCESS_STATUSES = Set.of("ACTIVE", "SUSPENDED", "CANCELLED");
     private static final Set<String> BILLING_STATUSES = Set.of("PENDING_PAYMENT", "PAID", "PAST_DUE");
+    private static final String DEFAULT_INVOICE_DELIVERY_SUBJECT_EN = "Invoice {{invoiceNumber}} from {{companyName}}";
+    private static final String DEFAULT_INVOICE_DELIVERY_BODY_EN = """
+            Hello {{guestName}},
+
+            your invoice {{invoiceNumber}} dated {{invoiceDate}} is attached.
+            Amount due: {{amount}}
+            Due date: {{dueDate}}
+
+            Thank you,
+            {{companyName}}
+            """;
+    private static final String DEFAULT_INVOICE_DELIVERY_SUBJECT_SL = "Račun {{invoiceNumber}} – {{companyName}}";
+    private static final String DEFAULT_INVOICE_DELIVERY_BODY_SL = """
+            Pozdravljeni {{guestName}},
+
+            v priponki vam pošiljamo račun {{invoiceNumber}} z dne {{invoiceDate}}.
+            Znesek za plačilo: {{amount}}
+            Rok plačila: {{dueDate}}
+
+            Hvala,
+            {{companyName}}
+            """;
 
     private static final List<FeatureDefinition> FEATURES = List.of(
             new FeatureDefinition("LOCATIONS_ENABLED", "Multiple locations", SettingKey.LOCATIONS_ENABLED),
@@ -200,6 +222,7 @@ public class ManualTenantService {
 
         seedTenantDefaults(company, companyName, tenantType);
         seedBillingAndCompanySettings(company, request, packageName, interval, userCount, smsCount, paymentMethod, true);
+        seedInvoiceDeliveryEmailDefaults(company, request.language());
         companyProvisioningService.initializeDefaultLocation(
                 company,
                 companyName,
@@ -563,6 +586,25 @@ public class ManualTenantService {
         seedSetting(company, SettingKey.EMAIL_CUSTOM_REPLY_TO_EMAIL, "");
         seedSetting(company, SettingKey.EMAIL_CUSTOM_DOMAIN, "");
         seedSetting(company, SettingKey.EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS, "NOT_VERIFIED");
+    }
+
+    private void seedInvoiceDeliveryEmailDefaults(Company company, String language) {
+        String normalized = language == null ? "" : language.trim().toLowerCase(Locale.ROOT);
+        boolean slovenian = normalized.equals("sl")
+                || normalized.startsWith("sl-")
+                || normalized.startsWith("sl_")
+                || normalized.equals("slovenian")
+                || normalized.equals("slovenščina");
+        seedSetting(
+                company,
+                SettingKey.INVOICE_DELIVERY_EMAIL_SUBJECT,
+                slovenian ? DEFAULT_INVOICE_DELIVERY_SUBJECT_SL : DEFAULT_INVOICE_DELIVERY_SUBJECT_EN
+        );
+        seedSetting(
+                company,
+                SettingKey.INVOICE_DELIVERY_EMAIL_BODY,
+                slovenian ? DEFAULT_INVOICE_DELIVERY_BODY_SL : DEFAULT_INVOICE_DELIVERY_BODY_EN
+        );
     }
 
     private void seedSetting(Company company, SettingKey key, String value) {

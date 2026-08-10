@@ -57,6 +57,28 @@ public class SignupService {
     private static final String CALENDRA_LOGO_CONTENT_ID = "calendraSignupVerificationLogo";
     private static final String CALENDRA_LOGO_CLASSPATH = "static/widget/calendra-transparent-logo.png";
     private static final int INTENT_TOKEN_BYTES = 32;
+    private static final String DEFAULT_INVOICE_DELIVERY_SUBJECT_EN = "Invoice {{invoiceNumber}} from {{companyName}}";
+    private static final String DEFAULT_INVOICE_DELIVERY_BODY_EN = """
+            Hello {{guestName}},
+
+            your invoice {{invoiceNumber}} dated {{invoiceDate}} is attached.
+            Amount due: {{amount}}
+            Due date: {{dueDate}}
+
+            Thank you,
+            {{companyName}}
+            """;
+    private static final String DEFAULT_INVOICE_DELIVERY_SUBJECT_SL = "Račun {{invoiceNumber}} – {{companyName}}";
+    private static final String DEFAULT_INVOICE_DELIVERY_BODY_SL = """
+            Pozdravljeni {{guestName}},
+
+            v priponki vam pošiljamo račun {{invoiceNumber}} z dne {{invoiceDate}}.
+            Znesek za plačilo: {{amount}}
+            Rok plačila: {{dueDate}}
+
+            Hvala,
+            {{companyName}}
+            """;
 
     private final UserRepository users;
     private final PasswordEncoder passwordEncoder;
@@ -586,6 +608,7 @@ public class SignupService {
         registerReferralIfPresent(request, company, normalizedEmail);
 
         seedTenantDefaults(company, companyName);
+        seedInvoiceDeliveryEmailDefaults(company, localeFromSignupRequest(request));
         companyProvisioningService.ensureDefaultPaymentMethods(company);
         seedSetting(company, SettingKey.COMPANY_EMAIL, normalizedEmail);
         if (phone != null) {
@@ -734,6 +757,7 @@ public class SignupService {
         }
 
         seedSetting(company, SettingKey.COMPANY_VAT_ID, stringOrEmpty(request.vatId()));
+        seedSetting(company, SettingKey.FISCAL_TAX_NUMBER, stringOrEmpty(request.vatId()));
         seedSetting(company, SettingKey.COMPANY_ADDRESS, stringOrEmpty(request.address()));
         seedSetting(company, SettingKey.COMPANY_POSTAL_CODE, stringOrEmpty(request.postalCode()));
         seedSetting(company, SettingKey.COMPANY_CITY, stringOrEmpty(request.city()));
@@ -1918,6 +1942,20 @@ public class SignupService {
         seedSetting(company, SettingKey.EMAIL_CUSTOM_REPLY_TO_EMAIL, "");
         seedSetting(company, SettingKey.EMAIL_CUSTOM_DOMAIN, "");
         seedSetting(company, SettingKey.EMAIL_CUSTOM_DOMAIN_VERIFICATION_STATUS, "NOT_VERIFIED");
+    }
+
+    private void seedInvoiceDeliveryEmailDefaults(Company company, String localeCode) {
+        boolean slovenian = "sl".equals(supportedSignupLocale(localeCode));
+        seedSetting(
+                company,
+                SettingKey.INVOICE_DELIVERY_EMAIL_SUBJECT,
+                slovenian ? DEFAULT_INVOICE_DELIVERY_SUBJECT_SL : DEFAULT_INVOICE_DELIVERY_SUBJECT_EN
+        );
+        seedSetting(
+                company,
+                SettingKey.INVOICE_DELIVERY_EMAIL_BODY,
+                slovenian ? DEFAULT_INVOICE_DELIVERY_BODY_SL : DEFAULT_INVOICE_DELIVERY_BODY_EN
+        );
     }
 
     private void seedSetting(Company company, SettingKey key, String value) {

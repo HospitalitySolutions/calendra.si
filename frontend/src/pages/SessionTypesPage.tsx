@@ -1492,6 +1492,8 @@ export function SessionTypesPage() {
     });
   }, []);
 
+  const multipleClientsPerSessionEnabled =
+    settings.MULTIPLE_CLIENTS_PER_SESSION_ENABLED === "true";
   const groupBookingModuleEnabled = settings.GROUP_BOOKING_ENABLED === "true";
   const noShowModuleEnabled = settings.NO_SHOW_ENABLED !== "false";
   const advanceModuleEnabled = settings.BILLING_ADVANCE_ENABLED !== "false";
@@ -3778,9 +3780,11 @@ export function SessionTypesPage() {
             )}
 
             <div className="form-actions booking-side-panel-footer session-type-config-modal-footer linked-entity-modal-footer">
-              <button type="button" className="secondary" onClick={dismissGroupModal}>
-                {locale === "sl" ? "Nazaj" : "Back"}
-              </button>
+              {groupModalAction !== "edit" ? (
+                <button type="button" className="secondary" onClick={dismissGroupModal}>
+                  {locale === "sl" ? "Nazaj" : "Back"}
+                </button>
+              ) : null}
               {groupModalTab === "existing" && groupModalAction === "link" ? (
                 <button
                   type="button"
@@ -4357,93 +4361,95 @@ export function SessionTypesPage() {
                   </span>
                   <h3>{locale === "sl" ? "Pravila rezervacij" : "Booking rules"}</h3>
                 </div>
-                <Field label={locale === "sl" ? "Cena na terminu" : "Session price"}>
-                  <div
-                    className={`guest-booking-select session-price-mode-select${priceCalculationPickerOpen ? " is-open" : ""}`}
-                    ref={priceCalculationSelectRef}
-                  >
-                    <button
-                      type="button"
-                      className="guest-booking-select-trigger"
-                      aria-haspopup="listbox"
-                      aria-expanded={priceCalculationPickerOpen}
-                      onClick={() => setPriceCalculationPickerOpen((o) => !o)}
+                {multipleClientsPerSessionEnabled ? (
+                  <Field label={locale === "sl" ? "Cena na terminu" : "Session price"}>
+                    <div
+                      className={`guest-booking-select session-price-mode-select${priceCalculationPickerOpen ? " is-open" : ""}`}
+                      ref={priceCalculationSelectRef}
                     >
-                      <span className="guest-booking-select-trigger-main">
-                        <span className="guest-booking-select-value">
-                          {
-                            priceCalculationOptionMeta(
-                              typeForm.priceCalculationMode,
-                              locale,
-                            ).label
-                          }
-                        </span>
-                        <span className="guest-booking-select-line">
-                          {
-                            priceCalculationOptionMeta(
-                              typeForm.priceCalculationMode,
-                              locale,
-                            ).line
-                          }
-                        </span>
-                      </span>
-                      <span
-                        className="guest-booking-select-chevron"
-                        aria-hidden
+                      <button
+                        type="button"
+                        className="guest-booking-select-trigger"
+                        aria-haspopup="listbox"
+                        aria-expanded={priceCalculationPickerOpen}
+                        onClick={() => setPriceCalculationPickerOpen((o) => !o)}
                       >
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 20 20"
-                          fill="none"
+                        <span className="guest-booking-select-trigger-main">
+                          <span className="guest-booking-select-value">
+                            {
+                              priceCalculationOptionMeta(
+                                typeForm.priceCalculationMode,
+                                locale,
+                              ).label
+                            }
+                          </span>
+                          <span className="guest-booking-select-line">
+                            {
+                              priceCalculationOptionMeta(
+                                typeForm.priceCalculationMode,
+                                locale,
+                              ).line
+                            }
+                          </span>
+                        </span>
+                        <span
+                          className="guest-booking-select-chevron"
+                          aria-hidden
                         >
-                          <path
-                            d="M5.5 8.25 10 12.75 14.5 8.25"
-                            stroke="currentColor"
-                            strokeWidth="1.75"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </span>
-                    </button>
-                    {priceCalculationPickerOpen ? (
-                      <ul className="guest-booking-select-menu" role="listbox">
-                        {(locale === "sl"
-                          ? PRICE_CALCULATION_OPTIONS_SL
-                          : PRICE_CALCULATION_OPTIONS_EN
-                        ).map((opt) => {
-                          const selected =
-                            typeForm.priceCalculationMode === opt.value;
-                          return (
-                            <li key={opt.value} role="presentation">
-                              <button
-                                type="button"
-                                role="option"
-                                aria-selected={selected}
-                                className={`guest-booking-select-option${selected ? " is-selected" : ""}`}
-                                onClick={() => {
-                                  setTypeForm({
-                                    ...typeForm,
-                                    priceCalculationMode: opt.value,
-                                  });
-                                  setPriceCalculationPickerOpen(false);
-                                }}
-                              >
-                                <span className="guest-booking-select-option-label">
-                                  {opt.label}
-                                </span>
-                                <span className="guest-booking-select-option-line">
-                                  {opt.line}
-                                </span>
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    ) : null}
-                  </div>
-                </Field>
+                          <svg
+                            width="20"
+                            height="20"
+                            viewBox="0 0 20 20"
+                            fill="none"
+                          >
+                            <path
+                              d="M5.5 8.25 10 12.75 14.5 8.25"
+                              stroke="currentColor"
+                              strokeWidth="1.75"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </span>
+                      </button>
+                      {priceCalculationPickerOpen ? (
+                        <ul className="guest-booking-select-menu" role="listbox">
+                          {(locale === "sl"
+                            ? PRICE_CALCULATION_OPTIONS_SL
+                            : PRICE_CALCULATION_OPTIONS_EN
+                          ).map((opt) => {
+                            const selected =
+                              typeForm.priceCalculationMode === opt.value;
+                            return (
+                              <li key={opt.value} role="presentation">
+                                <button
+                                  type="button"
+                                  role="option"
+                                  aria-selected={selected}
+                                  className={`guest-booking-select-option${selected ? " is-selected" : ""}`}
+                                  onClick={() => {
+                                    setTypeForm({
+                                      ...typeForm,
+                                      priceCalculationMode: opt.value,
+                                    });
+                                    setPriceCalculationPickerOpen(false);
+                                  }}
+                                >
+                                  <span className="guest-booking-select-option-label">
+                                    {opt.label}
+                                  </span>
+                                  <span className="guest-booking-select-option-line">
+                                    {opt.line}
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : null}
+                    </div>
+                  </Field>
+                ) : null}
                 {!guestBookingDisabledByModules ? (
                   <Field label={locale === "sl" ? "Rezervacija gostov" : "Guest booking"}>
                     <div

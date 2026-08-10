@@ -1240,7 +1240,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                   </>
                 )}
 
-                {!selfService && form.consultant && (
+                {!selfService && form.consultant && locations.length > 1 && (
                   <div className="full-span employee-location-scope-card">
                     <div className="employee-location-scope-header">
                       <div>
@@ -1447,7 +1447,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                       </div>
                     </div>
 
-                    {!selfService && form.consultant && workingHoursOverrideLocations.length > 0 && (
+                    {!selfService && form.consultant && locations.length > 1 && workingHoursOverrideLocations.length > 0 && (
                       <div className="full-span employee-location-hours-section">
                         <div className="employee-location-hours-heading">
                           <strong>{locale === 'sl' ? 'Delovni čas po lokacijah' : 'Working hours by location'}</strong>

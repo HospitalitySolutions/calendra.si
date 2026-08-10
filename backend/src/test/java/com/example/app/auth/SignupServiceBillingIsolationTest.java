@@ -120,13 +120,18 @@ class SignupServiceBillingIsolationTest {
                 5,
                 "MONTHLY",
                 false,
-                null
+                "locale=sl"
         );
 
         HttpServletRequest httpRequest = new MockHttpServletRequest();
         HttpServletResponse httpResponse = new MockHttpServletResponse();
         ResponseEntity<?> signupResponse = service.provisionNewTenant(signup, "ana@example.com", httpRequest, httpResponse, false);
         assertTrue(signupResponse.getStatusCode().is2xxSuccessful());
+        assertEquals(
+                "Račun {{invoiceNumber}} – {{companyName}}",
+                settingValue(10L, SettingKey.INVOICE_DELIVERY_EMAIL_SUBJECT)
+        );
+        assertTrue(settingValue(10L, SettingKey.INVOICE_DELIVERY_EMAIL_BODY).startsWith("Pozdravljeni {{guestName}}"));
 
         User owner = users.findAllByEmailIgnoreCase("ana@example.com").stream().findFirst().orElseGet(() -> {
             User created = new User();
@@ -158,6 +163,7 @@ class SignupServiceBillingIsolationTest {
 
         assertEquals("0.00", settingValue(10L, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT));
         assertEquals(beforeDetailsStart, settingValue(10L, SettingKey.BILLING_SUBSCRIPTION_START));
+        assertEquals("SI12345678", settingValue(10L, SettingKey.FISCAL_TAX_NUMBER));
         verify(tenantCreatedAdminEmailService, times(1)).notifyAfterCommit(any());
     }
 

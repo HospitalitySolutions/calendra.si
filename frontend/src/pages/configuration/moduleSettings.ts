@@ -177,10 +177,14 @@ const defaultModuleVisibilityPackage = (
   key: ModuleVisibilityRuleKey,
 ): ModuleVisibilityPackage => {
   switch (key) {
-    case "LOCATIONS_ENABLED":
     case "WAITLIST_ENABLED":
     case "CUSTOM_FIELDS_ENABLED":
+    case "CUSTOM_EMAIL_SENDER_ENABLED":
+    case "INBOX_ENABLED":
+    case "AI_BOOKING_ENABLED":
+    case "COURSES_ENABLED":
       return "PREMIUM";
+    case "LOCATIONS_ENABLED":
     case "BILLING_ENABLED":
     case "MULTIPLE_COMPANIES_ENABLED":
     case "BILLING_INVOICES_ENABLED":
@@ -194,10 +198,9 @@ const defaultModuleVisibilityPackage = (
     case "MULTIPLE_SESSIONS_PER_SPACE_ENABLED":
     case "GROUP_BOOKING_ENABLED":
     case "MULTIPLE_CLIENTS_PER_SESSION_ENABLED":
+    case "multipleServicesEnabled":
+    case "NO_SHOW_ENABLED":
       return "PROFESSIONAL";
-    case "INBOX_ENABLED":
-    case "AI_BOOKING_ENABLED":
-      return "PREMIUM";
     default:
       return "BASIC";
   }
@@ -473,7 +476,7 @@ type ModulesPresetRule = {
 const MODULE_CONFIG_PRESET_RULES: ModulesPresetRule[] = [
   {
     key: "NO_SHOW_ENABLED",
-    minPackage: "BASIC",
+    minPackage: "PROFESSIONAL",
     values: {
       therapy: "on",
       gym: "on",

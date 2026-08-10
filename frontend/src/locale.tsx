@@ -1047,7 +1047,7 @@ const DICT: Record<AppLocale, Record<string, string>> = {
     configModulesTypesHelp: 'Omogoči izbiro storitve pri rezervaciji.',
     configModulesAvailabilityLabel: 'Dostopnost',
     configModulesAvailabilityHelp: 'Omogoči razpoložljivost svetovalcev (rezervabilne termine) in povezana preverjanja v koledarju.',
-    configModulesNoShowLabel: 'No Show',
+    configModulesNoShowLabel: 'Neprihodi',
     configModulesNoShowHelp: 'Omogoči status NO SHOW pri rezervacijah in namensko stikalo pri transakcijskih storitvah.',
     configModulesAiLabel: 'AI rezervacije',
     configModulesAiHelp: 'Omogoči AI glasovne rezervacije v spletni in Android aplikaciji.',
