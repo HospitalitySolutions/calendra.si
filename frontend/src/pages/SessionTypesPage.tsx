@@ -695,14 +695,55 @@ function ServiceConfigNameCell({
   );
 }
 
-function ServiceConfigSortableHeader({ children }: { children: ReactNode }) {
+function ServiceConfigStaticHeader({ children }: { children: ReactNode }) {
   return (
     <span className="service-config-sortable-header">
       {children}
-      <span className="service-config-sort-icon" aria-hidden>
-        ↕
-      </span>
+      <span className="service-config-sort-icon" aria-hidden>↕</span>
     </span>
+  );
+}
+
+type ServiceTypeSortKey = "name" | "category" | "duration" | "price" | "status" | "createdAt";
+type ServiceTypeSortDirection = "asc" | "desc";
+type ServiceTypeSortState = { key: ServiceTypeSortKey | null; direction: ServiceTypeSortDirection };
+
+function nextServiceTypeSortState(current: ServiceTypeSortState, key: ServiceTypeSortKey): ServiceTypeSortState {
+  if (current.key !== key) return { key, direction: "asc" };
+  return { key, direction: current.direction === "asc" ? "desc" : "asc" };
+}
+
+function ServiceConfigSortableHeader({
+  label,
+  sortKey,
+  sortState,
+  onSort,
+  sortAriaPrefix,
+}: {
+  label: string;
+  sortKey: ServiceTypeSortKey;
+  sortState: ServiceTypeSortState;
+  onSort: (key: ServiceTypeSortKey) => void;
+  sortAriaPrefix: string;
+}) {
+  const active = sortState.key === sortKey;
+  const direction = active ? sortState.direction : null;
+  return (
+    <th aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : "none"}>
+      <button
+        type="button"
+        className={`clients-sort-header${active ? " clients-sort-header--active" : ""}`}
+        onClick={() => onSort(sortKey)}
+        aria-label={`${sortAriaPrefix} ${label}`}
+        title={`${sortAriaPrefix} ${label}`}
+      >
+        <span>{label}</span>
+        <svg className={`clients-sort-icon${direction ? ` clients-sort-icon--${direction}` : ""}`} width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+          <path className="clients-sort-icon__up" d="m4.5 6 3.5-3.5L11.5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path className="clients-sort-icon__down" d="m4.5 10 3.5 3.5 3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+    </th>
   );
 }
 
@@ -932,6 +973,7 @@ export function SessionTypesPage() {
     "active" | "inactive"
   >("active");
   const [typeCategoryFilter, setTypeCategoryFilter] = useState<string>("all");
+  const [typeSort, setTypeSort] = useState<ServiceTypeSortState>({ key: null, direction: "asc" });
   const [typeDurationFilter, setTypeDurationFilter] = useState<string>("all");
   const [typeVisibilityFilter, setTypeVisibilityFilter] = useState<"all" | GuestBookingMode>("all");
   const [showServiceConfigFilters, setShowServiceConfigFilters] = useState(false);
@@ -1291,6 +1333,28 @@ export function SessionTypesPage() {
         .toLowerCase();
       return hay.includes(q);
     });
+    if (typeSort.key) {
+      const direction = typeSort.direction === "asc" ? 1 : -1;
+      const valueFor = (type: SessionTypeT): string | number => {
+        switch (typeSort.key) {
+          case "name": return type.internalDescription?.trim() || type.description?.trim() || type.name || "";
+          case "category": return typeLinkedCategory(type);
+          case "duration": return type.durationMinutes ?? Number.MAX_SAFE_INTEGER;
+          case "price": return typeGrossPrice(type) ?? Number.MAX_SAFE_INTEGER;
+          case "status": return type.active === false ? 0 : 1;
+          case "createdAt": return type.createdAt ? new Date(type.createdAt).getTime() : Number.MAX_SAFE_INTEGER;
+          default: return "";
+        }
+      };
+      return [...matched].sort((a, b) => {
+        const av = valueFor(a);
+        const bv = valueFor(b);
+        const compared = typeof av === "number" && typeof bv === "number"
+          ? av - bv
+          : String(av).localeCompare(String(bv), locale === "sl" ? "sl-SI" : locale === "sr" ? "sr-Latn" : "en", { sensitivity: "base", numeric: true });
+        return compared * direction || a.name.localeCompare(b.name);
+      });
+    }
     return [...matched].sort((a, b) => {
       const ga = a.serviceGroupSortOrder ?? Number.MAX_SAFE_INTEGER;
       const gb = b.serviceGroupSortOrder ?? Number.MAX_SAFE_INTEGER;
@@ -1306,7 +1370,14 @@ export function SessionTypesPage() {
     typeCategoryFilter,
     typeDurationFilter,
     typeVisibilityFilter,
+    typeSort,
+    locale,
   ]);
+
+  const serviceTypeCategoryOptions = useMemo(() => {
+    const categories = Array.from(new Set(types.map(typeLinkedCategory).filter((category) => category && category !== "—")));
+    return categories.sort((a, b) => a.localeCompare(b, locale === "sl" ? "sl-SI" : locale === "sr" ? "sr-Latn" : "en", { sensitivity: "base" }));
+  }, [types, locale]);
 
   const activeTypes = useMemo(
     () => types.filter((type) => type.active !== false),
@@ -2595,36 +2666,12 @@ export function SessionTypesPage() {
           <table className="clients-table session-types-table service-config-table">
             <thead>
               <tr>
-                <th>
-                  <ServiceConfigSortableHeader>
-                    {locale === "sl" ? "Naziv" : "Name"}
-                  </ServiceConfigSortableHeader>
-                </th>
-                <th>
-                  <ServiceConfigSortableHeader>
-                    {locale === "sl" ? "Kategorija" : "Category"}
-                  </ServiceConfigSortableHeader>
-                </th>
-                <th>
-                  <ServiceConfigSortableHeader>
-                    {locale === "sl" ? "Trajanje" : "Duration"}
-                  </ServiceConfigSortableHeader>
-                </th>
-                <th>
-                  <ServiceConfigSortableHeader>
-                    {locale === "sl" ? "Cena" : "Price"}
-                  </ServiceConfigSortableHeader>
-                </th>
-                <th>
-                  <ServiceConfigSortableHeader>
-                    {locale === "sl" ? "Status" : "Status"}
-                  </ServiceConfigSortableHeader>
-                </th>
-                <th>
-                  <ServiceConfigSortableHeader>
-                    {locale === "sl" ? "Ustvarjeno" : "Created"}
-                  </ServiceConfigSortableHeader>
-                </th>
+                <ServiceConfigSortableHeader label={locale === "sl" ? "Naziv" : "Name"} sortKey="name" sortState={typeSort} onSort={(key) => setTypeSort((current) => nextServiceTypeSortState(current, key))} sortAriaPrefix={locale === "sl" ? "Razvrsti po" : "Sort by"} />
+                <ServiceConfigSortableHeader label={locale === "sl" ? "Kategorija" : "Category"} sortKey="category" sortState={typeSort} onSort={(key) => setTypeSort((current) => nextServiceTypeSortState(current, key))} sortAriaPrefix={locale === "sl" ? "Razvrsti po" : "Sort by"} />
+                <ServiceConfigSortableHeader label={locale === "sl" ? "Trajanje" : "Duration"} sortKey="duration" sortState={typeSort} onSort={(key) => setTypeSort((current) => nextServiceTypeSortState(current, key))} sortAriaPrefix={locale === "sl" ? "Razvrsti po" : "Sort by"} />
+                <ServiceConfigSortableHeader label={locale === "sl" ? "Cena" : "Price"} sortKey="price" sortState={typeSort} onSort={(key) => setTypeSort((current) => nextServiceTypeSortState(current, key))} sortAriaPrefix={locale === "sl" ? "Razvrsti po" : "Sort by"} />
+                <ServiceConfigSortableHeader label={locale === "sl" ? "Status" : "Status"} sortKey="status" sortState={typeSort} onSort={(key) => setTypeSort((current) => nextServiceTypeSortState(current, key))} sortAriaPrefix={locale === "sl" ? "Razvrsti po" : "Sort by"} />
+                <ServiceConfigSortableHeader label={locale === "sl" ? "Ustvarjeno" : "Created"} sortKey="createdAt" sortState={typeSort} onSort={(key) => setTypeSort((current) => nextServiceTypeSortState(current, key))} sortAriaPrefix={locale === "sl" ? "Razvrsti po" : "Sort by"} />
                 <th>{locale === "sl" ? "Dejanja" : "Actions"}</th>
               </tr>
             </thead>
@@ -2835,29 +2882,29 @@ export function SessionTypesPage() {
             <thead>
               <tr>
                 <th>
-                  <ServiceConfigSortableHeader>
+                  <ServiceConfigStaticHeader>
                     {locale === "sl" ? "Naziv" : "Name"}
-                  </ServiceConfigSortableHeader>
+                  </ServiceConfigStaticHeader>
                 </th>
                 <th>
-                  <ServiceConfigSortableHeader>
+                  <ServiceConfigStaticHeader>
                     {locale === "sl" ? "Kategorija" : "Category"}
-                  </ServiceConfigSortableHeader>
+                  </ServiceConfigStaticHeader>
                 </th>
                 <th>
-                  <ServiceConfigSortableHeader>
+                  <ServiceConfigStaticHeader>
                     {t("sessionTypesTxLabelGross")}
-                  </ServiceConfigSortableHeader>
+                  </ServiceConfigStaticHeader>
                 </th>
                 <th>
-                  <ServiceConfigSortableHeader>
+                  <ServiceConfigStaticHeader>
                     {t("sessionTypesTxLabelTax")}
-                  </ServiceConfigSortableHeader>
+                  </ServiceConfigStaticHeader>
                 </th>
                 <th>
-                  <ServiceConfigSortableHeader>
+                  <ServiceConfigStaticHeader>
                     {locale === "sl" ? "Status" : "Status"}
-                  </ServiceConfigSortableHeader>
+                  </ServiceConfigStaticHeader>
                 </th>
                 <th>{locale === "sl" ? "Dejanja" : "Actions"}</th>
               </tr>
@@ -3197,6 +3244,7 @@ export function SessionTypesPage() {
             </div>
           </div>
           <div className="clients-toolbar clients-modern-toolbar service-config-toolbar">
+            <div className="service-config-toolbar-leading">
             <div className="clients-search-wrap service-config-search-wrap">
               <input
                 className="clients-search-input"
@@ -3237,6 +3285,29 @@ export function SessionTypesPage() {
               <span className="clients-search-icon" aria-hidden>
                 <ServiceConfigTabIcon name="search" />
               </span>
+            </div>
+            {!showCourses && !showServiceGroups && !showCardsMemberships && !showTransactionServices ? (
+              <label className="service-config-category-filter">
+                <span className="service-config-category-filter__label">{locale === "sl" ? "Kategorija" : "Category"}</span>
+                <select
+                  value={typeCategoryFilter}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setTypeCategoryFilter(value);
+                    setServiceConfigFilterDraft((current) => ({ ...current, typeCategory: value }));
+                  }}
+                  aria-label={locale === "sl" ? "Filtriraj po kategoriji storitve" : "Filter by service category"}
+                >
+                  <option value="all">{locale === "sl" ? "Vse kategorije" : "All categories"}</option>
+                  {serviceTypeCategoryOptions.map((category) => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </select>
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="m6 8 4 4 4-4" />
+                </svg>
+              </label>
+            ) : null}
             </div>
             <div className="clients-toolbar-actions service-config-toolbar-trailing">
               <div
