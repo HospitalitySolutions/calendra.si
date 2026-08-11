@@ -1565,6 +1565,7 @@ export function ConfigurationPage() {
   const customFieldsFeatureEntitled = premiumFeatureEntitled(
     "CUSTOM_FIELDS_ENABLED",
   );
+  const consumablesFeatureEntitled = premiumFeatureEntitled("CONSUMABLES_ENABLED");
   const subscriptionTrialStart = String(
     settings.BILLING_SUBSCRIPTION_START || "",
   ).trim();
@@ -3674,6 +3675,10 @@ export function ConfigurationPage() {
             modulesDraft.COURSES_ENABLED === "true"
               ? "true"
               : "false",
+          CONSUMABLES_ENABLED:
+            modulesDraft.TYPES_ENABLED === "true" && modulesDraft.CONSUMABLES_ENABLED === "true"
+              ? "true"
+              : "false",
           multipleServicesEnabled:
             modulesDraft.TYPES_ENABLED === "true" &&
             modulesDraft.multipleServicesEnabled === true,
@@ -3716,6 +3721,7 @@ export function ConfigurationPage() {
           SERVICE_GROUPS_ENABLED: modulesDraftForSave.SERVICE_GROUPS_ENABLED,
           ENTITLEMENTS_ENABLED: modulesDraftForSave.ENTITLEMENTS_ENABLED,
           COURSES_ENABLED: modulesDraftForSave.COURSES_ENABLED,
+          CONSUMABLES_ENABLED: modulesDraftForSave.CONSUMABLES_ENABLED,
           BOOKABLE_ENABLED: modulesDraftForSave.BOOKABLE_ENABLED,
           NO_SHOW_ENABLED: modulesDraftForSave.NO_SHOW_ENABLED,
           WAITLIST_ENABLED: modulesDraftForSave.WAITLIST_ENABLED,
@@ -5527,6 +5533,7 @@ export function ConfigurationPage() {
           ...d,
           TYPES_ENABLED: checked ? "true" : "false",
           COURSES_ENABLED: checked ? d.COURSES_ENABLED : "false",
+          CONSUMABLES_ENABLED: checked ? d.CONSUMABLES_ENABLED : "false",
           multipleServicesEnabled: checked ? d.multipleServicesEnabled : false,
         };
       }
@@ -5625,6 +5632,7 @@ export function ConfigurationPage() {
       }
       if (next.TYPES_ENABLED !== "true") {
         next.COURSES_ENABLED = "false";
+        next.CONSUMABLES_ENABLED = "false";
         next.multipleServicesEnabled = false;
       }
       if (next.ENTITLEMENTS_ENABLED !== "true") {
@@ -5733,6 +5741,7 @@ export function ConfigurationPage() {
     "SERVICE_GROUPS_ENABLED",
     "ENTITLEMENTS_ENABLED",
     "COURSES_ENABLED",
+    "CONSUMABLES_ENABLED",
   ];
   const guestModuleKeys: ModulesBooleanKey[] = [
     "guestAppEnabled",
@@ -6322,6 +6331,25 @@ export function ConfigurationPage() {
                 !moduleOn("ENTITLEMENTS_ENABLED"),
               onChange: (checked) =>
                 setModuleStringSetting("COURSES_ENABLED", checked),
+            },
+            {
+              id: "services-consumables",
+              ...moduleVisibilityProps("CONSUMABLES_ENABLED"),
+              hidden:
+                moduleVisibilityProps("CONSUMABLES_ENABLED").hidden ||
+                !consumablesFeatureEntitled,
+              icon: "services",
+              title: locale === "sl" ? "Porabni material" : "Consumables",
+              subtitle:
+                locale === "sl"
+                  ? "Omogoči porabni material, zalogo ter povezavo materiala s storitvami in termini. Na voljo od paketa Premium."
+                  : "Enable consumables, inventory and consumable assignment to services and appointments. Available from Premium.",
+              checked:
+                moduleOn("TYPES_ENABLED") &&
+                moduleOn("CONSUMABLES_ENABLED"),
+              disabled: !moduleOn("TYPES_ENABLED"),
+              onChange: (checked) =>
+                setModuleStringSetting("CONSUMABLES_ENABLED", checked),
             },
           ],
         },

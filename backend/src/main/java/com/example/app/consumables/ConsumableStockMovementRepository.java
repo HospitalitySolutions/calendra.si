@@ -63,4 +63,10 @@ public interface ConsumableStockMovementRepository extends JpaRepository<Consuma
             StockMovementSourceType sourceType,
             Long sourceId
     );
+
+    List<ConsumableStockMovement> findByCompanyIdAndSourceTypeAndSourceId(
+            Long companyId,
+            StockMovementSourceType sourceType,
+            Long sourceId
+    );
 }

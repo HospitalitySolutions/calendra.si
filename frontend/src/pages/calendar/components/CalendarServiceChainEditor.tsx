@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { api } from '../../../api'
 import type { CalendarServiceDraft, CalendarServiceSegment } from '../calendarTypes'
 
 function formatMinutes(totalMinutes: number, locale: string) {
@@ -214,6 +215,24 @@ function SwapIcon() {
   )
 }
 
+type SessionConsumableDraft = {
+  consumableId: number
+  itemName: string
+  unit: string
+  quantity: number
+  quantityMode: 'PER_SESSION' | 'PER_PARTICIPANT'
+  billable: boolean
+  notes?: string | null
+}
+
+type ConsumableCatalogItem = {
+  id: number
+  name: string
+  unit?: string | null
+  billable?: boolean
+  active?: boolean
+}
+
 export function CalendarServiceChainEditor({
   locale,
   services,
@@ -232,6 +251,12 @@ export function CalendarServiceChainEditor({
   showSessionMaxParticipants = false,
   sessionMaxParticipants = null,
   onSessionMaxParticipantsChange,
+  consumablesEnabled = false,
+  bookingId = null,
+  sessionConsumables,
+  resetSessionConsumablesToDefaults = false,
+  sessionConsumablesOverridden = false,
+  onSessionConsumablesChange,
 }: {
   locale: string
   services: CalendarServiceDraft[]
@@ -250,6 +275,12 @@ export function CalendarServiceChainEditor({
   showSessionMaxParticipants?: boolean
   sessionMaxParticipants?: number | null
   onSessionMaxParticipantsChange?: (value: number | null) => void
+  consumablesEnabled?: boolean
+  bookingId?: number | null
+  sessionConsumables?: SessionConsumableDraft[] | null
+  resetSessionConsumablesToDefaults?: boolean
+  sessionConsumablesOverridden?: boolean
+  onSessionConsumablesChange?: (rows: SessionConsumableDraft[] | null, resetToDefaults: boolean) => void
 }) {
   const copy = labels(locale)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -261,6 +292,13 @@ export function CalendarServiceChainEditor({
   const [editingServiceDuration, setEditingServiceDuration] = useState('60')
   const [editingServicePrice, setEditingServicePrice] = useState('0,00')
   const [editingSessionMaxParticipants, setEditingSessionMaxParticipants] = useState('')
+  const [consumablesOpen, setConsumablesOpen] = useState(false)
+  const [consumablesLoading, setConsumablesLoading] = useState(false)
+  const [consumablePreview, setConsumablePreview] = useState<SessionConsumableDraft[]>([])
+  const [workingConsumables, setWorkingConsumables] = useState<SessionConsumableDraft[]>([])
+  const [workingConsumablesReset, setWorkingConsumablesReset] = useState(false)
+  const [consumableCatalog, setConsumableCatalog] = useState<ConsumableCatalogItem[]>([])
+  const [consumableToAdd, setConsumableToAdd] = useState('')
 
   const count = services.filter((service) => service.typeId != null).length
   const isMultiMode = count > 1
@@ -269,6 +307,126 @@ export function CalendarServiceChainEditor({
   const singleServiceGross = count === 1 && services[0]?.typeId != null
     ? segments[0]?.grossPrice ?? services[0]?.grossPriceOverride ?? null
     : null
+
+  const primaryTypeId = services.find((service) => service.typeId != null)?.typeId ?? null
+
+  const loadConsumableCatalog = async (): Promise<ConsumableCatalogItem[]> => {
+    try {
+      const response = await api.get('/consumables/items')
+      const unique = new Map<number, ConsumableCatalogItem>()
+      ;(Array.isArray(response.data) ? response.data : []).forEach((item: ConsumableCatalogItem) => {
+        if (item?.id != null && item.active !== false) unique.set(Number(item.id), item)
+      })
+      const items = Array.from(unique.values()).sort((a, b) => String(a.name).localeCompare(String(b.name)))
+      setConsumableCatalog(items)
+      return items
+    } catch {
+      setConsumableCatalog([])
+      return []
+    }
+  }
+
+  const loadServiceConsumableDefaults = async (): Promise<SessionConsumableDraft[]> => {
+    if (!primaryTypeId) return []
+    try {
+      const [defaultsResponse, catalog] = await Promise.all([
+        api.get(`/consumables/service-types/${primaryTypeId}/defaults`),
+        loadConsumableCatalog(),
+      ])
+      const catalogById = new Map(catalog.map((item) => [Number(item.id), item]))
+      return (Array.isArray(defaultsResponse.data) ? defaultsResponse.data : []).map((row: any) => {
+        const item = catalogById.get(Number(row.consumableId))
+        const baseQuantity = Math.max(0, Number(row.defaultQuantity ?? 0) || 0)
+        const quantityMode = row.quantityMode === 'PER_PARTICIPANT' ? 'PER_PARTICIPANT' : 'PER_SESSION'
+        return {
+          consumableId: Number(row.consumableId),
+          itemName: String(row.itemName || item?.name || `#${row.consumableId}`),
+          unit: String(row.unit || item?.unit || 'kos'),
+          quantity: baseQuantity,
+          quantityMode,
+          billable: row.billableOverride == null ? item?.billable === true : row.billableOverride === true,
+          notes: row.notes || null,
+        } satisfies SessionConsumableDraft
+      })
+    } catch {
+      return []
+    }
+  }
+
+  const loadCurrentConsumables = async () => {
+    if (!consumablesEnabled || !primaryTypeId) {
+      setConsumablePreview([])
+      return
+    }
+    if (Array.isArray(sessionConsumables)) {
+      setConsumablePreview(sessionConsumables)
+      return
+    }
+    setConsumablesLoading(true)
+    try {
+      if (bookingId != null && !resetSessionConsumablesToDefaults) {
+        const response = await api.get(`/consumables/bookings/${bookingId}/session-consumables`)
+        const rows: SessionConsumableDraft[] = (Array.isArray(response.data) ? response.data : []).map((row: any) => ({
+          consumableId: Number(row.consumableId),
+          itemName: String(row.itemName || `#${row.consumableId}`),
+          unit: String(row.unit || 'kos'),
+          quantity: Math.max(0, Number(row.quantity ?? 0) || 0),
+          quantityMode: row.quantityMode === 'PER_PARTICIPANT' ? 'PER_PARTICIPANT' : 'PER_SESSION',
+          billable: row.billable === true,
+          notes: row.notes || null,
+        }))
+        // Older appointments may predate material snapshots. Show their service defaults unless
+        // an explicitly empty appointment override was saved.
+        setConsumablePreview(rows.length === 0 && !sessionConsumablesOverridden ? await loadServiceConsumableDefaults() : rows)
+      } else {
+        setConsumablePreview(await loadServiceConsumableDefaults())
+      }
+    } finally {
+      setConsumablesLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadCurrentConsumables()
+    // The appointment/service key is intentionally the refresh boundary. Parent-provided manual rows
+    // are applied through sessionConsumables without writing inventory until the appointment is saved.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consumablesEnabled, bookingId, primaryTypeId, sessionConsumables, resetSessionConsumablesToDefaults, sessionConsumablesOverridden])
+
+  const openConsumablesEditor = async () => {
+    setWorkingConsumables(consumablePreview.map((row) => ({ ...row })))
+    setWorkingConsumablesReset(resetSessionConsumablesToDefaults)
+    setConsumableToAdd('')
+    setConsumablesOpen(true)
+    if (consumableCatalog.length === 0) await loadConsumableCatalog()
+  }
+
+  const resetWorkingConsumables = async () => {
+    setConsumablesLoading(true)
+    try {
+      setWorkingConsumables(await loadServiceConsumableDefaults())
+      setWorkingConsumablesReset(true)
+    } finally {
+      setConsumablesLoading(false)
+    }
+  }
+
+  const mutateWorkingConsumables = (next: SessionConsumableDraft[]) => {
+    setWorkingConsumables(next)
+    setWorkingConsumablesReset(false)
+  }
+
+  const saveConsumablesEditor = () => {
+    if (workingConsumablesReset) {
+      onSessionConsumablesChange?.(null, true)
+      setConsumablePreview(workingConsumables)
+    } else {
+      const normalized = workingConsumables.map((row) => ({ ...row, quantity: Math.max(0, Number(row.quantity) || 0) }))
+      onSessionConsumablesChange?.(normalized, false)
+      setConsumablePreview(normalized)
+    }
+    setConsumablesOpen(false)
+  }
 
   const countLabel = (() => {
     if (locale === 'sl') {
@@ -613,12 +771,95 @@ export function CalendarServiceChainEditor({
           </label>
         )}
 
+        {consumablesEnabled && primaryTypeId ? (
+          <div className="calendar-consumables-summary">
+            <div className="calendar-consumables-summary__header">
+              <div>
+                <strong>{locale === 'sl' ? 'Porabni material' : locale === 'sr' ? 'Potrošni materijal' : 'Consumables'}</strong>
+                <span>{consumablePreview.length} {locale === 'sl' ? 'privzeti artikli' : locale === 'sr' ? 'artikla' : 'default items'}</span>
+              </div>
+              <button type="button" className="secondary slim-btn" onClick={openConsumablesEditor}>
+                {locale === 'sl' ? 'Uredi' : locale === 'sr' ? 'Uredi' : 'Edit'}
+              </button>
+            </div>
+            {consumablesLoading ? (
+              <div className="calendar-consumables-summary__empty">{locale === 'sl' ? 'Nalaganje …' : 'Loading…'}</div>
+            ) : consumablePreview.length > 0 ? (
+              <div className="calendar-consumables-summary__list">
+                {consumablePreview.slice(0, 4).map((row) => (
+                  <div key={row.consumableId}>
+                    <span>{row.itemName}</span>
+                    <strong>{Number(row.quantity).toLocaleString(locale === 'sl' ? 'sl-SI' : undefined)} {row.unit}</strong>
+                  </div>
+                ))}
+                {consumablePreview.length > 4 ? <small>+{consumablePreview.length - 4}</small> : null}
+              </div>
+            ) : (
+              <div className="calendar-consumables-summary__empty">{locale === 'sl' ? 'Za storitev ni nastavljenega porabnega materiala.' : 'No consumables are configured for this service.'}</div>
+            )}
+            <p>{locale === 'sl' ? 'Privzeto iz storitve. Za ta termin lahko količine prilagodite.' : 'Defaults from the service. Quantities can be adjusted for this appointment.'}</p>
+          </div>
+        ) : null}
+
         {warnings && warnings.length > 0 ? (
           <div className="calendar-service-chain__warning" role="alert">
             {warnings.map((warning) => <span key={warning}>{warning}</span>)}
           </div>
         ) : null}
       </section>
+
+      {consumablesOpen ? (
+        <div className="calendar-service-picker-backdrop calendar-consumables-editor-backdrop" onClick={() => setConsumablesOpen(false)}>
+          <div className="calendar-consumables-editor" role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Uredi porabni material' : 'Edit consumables'} onClick={(event) => event.stopPropagation()}>
+            <div className="calendar-consumables-editor__header">
+              <div>
+                <h3>{locale === 'sl' ? 'Uredi porabni material' : locale === 'sr' ? 'Uredi potrošni materijal' : 'Edit consumables'}</h3>
+                <p>{locale === 'sl' ? 'Prilagodite porabni material za ta termin.' : 'Adjust consumables for this appointment.'}</p>
+              </div>
+              <button type="button" className="calendar-service-picker-modal__close" onClick={() => setConsumablesOpen(false)}><CloseIcon /></button>
+            </div>
+            <div className="calendar-consumables-editor__toolbar">
+              <div className="calendar-consumables-editor__add">
+                <select value={consumableToAdd} onChange={(event) => setConsumableToAdd(event.target.value)}>
+                  <option value="">{locale === 'sl' ? 'Dodaj artikel …' : 'Add item…'}</option>
+                  {consumableCatalog.filter((item) => !workingConsumables.some((row) => row.consumableId === item.id)).map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </select>
+                <button type="button" className="secondary slim-btn" disabled={!consumableToAdd} onClick={() => {
+                  const item = consumableCatalog.find((entry) => String(entry.id) === consumableToAdd)
+                  if (!item) return
+                  mutateWorkingConsumables([...workingConsumables, { consumableId: item.id, itemName: item.name, unit: item.unit || 'kos', quantity: 1, quantityMode: 'PER_SESSION', billable: item.billable === true, notes: null }])
+                  setConsumableToAdd('')
+                }}>{locale === 'sl' ? 'Dodaj artikel' : 'Add item'}</button>
+              </div>
+              <button type="button" className="calendar-consumables-editor__reset" onClick={resetWorkingConsumables}>↻ {locale === 'sl' ? 'Ponastavi na privzeto' : 'Reset to defaults'}</button>
+            </div>
+            <div className="calendar-consumables-editor__head" aria-hidden>
+              <span>{locale === 'sl' ? 'Artikel' : 'Item'}</span><span>{locale === 'sl' ? 'Količina' : 'Quantity'}</span><span>{locale === 'sl' ? 'Obračun' : 'Calculation'}</span><span>{locale === 'sl' ? 'Zaračunaj' : 'Bill'}</span><span />
+            </div>
+            <div className="calendar-consumables-editor__rows">
+              {workingConsumables.map((row, index) => (
+                <div className="calendar-consumables-editor__row" key={`${row.consumableId}-${index}`}>
+                  <strong>{row.itemName}</strong>
+                  <div className="calendar-consumables-editor__quantity"><input type="number" min="0" step="0.01" value={row.quantity} onChange={(event) => mutateWorkingConsumables(workingConsumables.map((item, rowIndex) => rowIndex === index ? { ...item, quantity: Number(event.target.value) } : item))} /><span>{row.unit}</span></div>
+                  <select value={row.quantityMode} onChange={(event) => mutateWorkingConsumables(workingConsumables.map((item, rowIndex) => rowIndex === index ? { ...item, quantityMode: event.target.value === 'PER_PARTICIPANT' ? 'PER_PARTICIPANT' : 'PER_SESSION' } : item))}>
+                    <option value="PER_SESSION">{locale === 'sl' ? 'Na termin' : 'Per appointment'}</option>
+                    <option value="PER_PARTICIPANT">{locale === 'sl' ? 'Na udeleženca' : 'Per participant'}</option>
+                  </select>
+                  <label className="switch calendar-consumables-editor__switch"><input type="checkbox" checked={row.billable} onChange={(event) => mutateWorkingConsumables(workingConsumables.map((item, rowIndex) => rowIndex === index ? { ...item, billable: event.target.checked } : item))} /><span className="slider" /></label>
+                  <button type="button" className="calendar-consumables-editor__remove" aria-label={locale === 'sl' ? 'Odstrani' : 'Remove'} onClick={() => mutateWorkingConsumables(workingConsumables.filter((_, rowIndex) => rowIndex !== index))}><TrashIcon /></button>
+                </div>
+              ))}
+            </div>
+            <div className="calendar-consumables-editor__note">ⓘ {locale === 'sl' ? 'Spremembe veljajo samo za ta termin in ne spremenijo privzetih nastavitev storitve.' : 'Changes apply only to this appointment and do not change the service defaults.'}</div>
+            <div className="calendar-consumables-editor__footer">
+              <button type="button" className="secondary" onClick={() => setConsumablesOpen(false)}>{locale === 'sl' ? 'Prekliči' : 'Cancel'}</button>
+              <button type="button" className="primary" onClick={saveConsumablesEditor}>{locale === 'sl' ? 'Shrani spremembe' : 'Save changes'}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {pickerOpen ? (
         <div className="calendar-service-picker-backdrop" onClick={closePicker}>

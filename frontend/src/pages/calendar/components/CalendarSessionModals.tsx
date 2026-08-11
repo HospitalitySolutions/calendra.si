@@ -38,6 +38,8 @@ function bookingFormSignature(session: any, clientIds: any[], services: any[]) {
     repeatEndType: String(session?.repeatEndType ?? ''),
     repeatEndCount: Number(session?.repeatEndCount ?? 0),
     repeatEndDate: String(session?.repeatEndDate ?? ''),
+    sessionConsumables: Array.isArray(session?.sessionConsumables) ? session.sessionConsumables : null,
+    resetSessionConsumablesToDefaults: Boolean(session?.resetSessionConsumablesToDefaults),
   })
 }
 
@@ -3036,6 +3038,19 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     onSessionMaxParticipantsChange={(value) =>
                       setSelectedBookedSession((current: any) => current ? { ...current, maxParticipantsOverride: value } : current)
                     }
+                    consumablesEnabled={settings?.CONSUMABLES_ENABLED === 'true'}
+                    bookingId={selectedBookedSession.id ?? null}
+                    sessionConsumables={selectedBookedSession.sessionConsumables}
+                    resetSessionConsumablesToDefaults={selectedBookedSession.resetSessionConsumablesToDefaults === true}
+                    sessionConsumablesOverridden={selectedBookedSession.sessionConsumablesOverridden === true}
+                    onSessionConsumablesChange={(rows, resetToDefaults) =>
+                      setSelectedBookedSession((current: any) => current ? {
+                        ...current,
+                        sessionConsumables: rows,
+                        resetSessionConsumablesToDefaults: resetToDefaults,
+                        sessionConsumablesOverridden: !resetToDefaults,
+                      } : current)
+                    }
                   />
                   <div className="calendar-booking-service-chain__billing-actions calendar-booking-service-chain__billing-actions--relocated-desktop">
                     <div className="calendar-session-billing-actions">
@@ -5538,6 +5553,18 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     defaultSpaceId={form.spaceId ?? null}
                     multipleServicesEnabled={multipleServicesEnabled}
                     allowServiceEdit
+                    consumablesEnabled={settings?.CONSUMABLES_ENABLED === 'true'}
+                    bookingId={null}
+                    sessionConsumables={form.sessionConsumables}
+                    resetSessionConsumablesToDefaults={form.resetSessionConsumablesToDefaults === true}
+                    sessionConsumablesOverridden={Array.isArray(form.sessionConsumables)}
+                    onSessionConsumablesChange={(rows, resetToDefaults) =>
+                      setForm((current: any) => ({
+                        ...current,
+                        sessionConsumables: rows,
+                        resetSessionConsumablesToDefaults: resetToDefaults,
+                      }))
+                    }
                   />
                 </div>
               )}

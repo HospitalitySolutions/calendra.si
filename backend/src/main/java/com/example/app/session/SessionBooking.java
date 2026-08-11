@@ -197,6 +197,10 @@ public class SessionBooking extends BaseEntity {
     @Column(name = "max_participants_override")
     private Integer maxParticipantsOverride;
 
+    /** True when this logical appointment has explicit session-level consumable overrides, including an intentionally empty list. */
+    @Column(name = "session_consumables_overridden", nullable = false)
+    private boolean sessionConsumablesOverridden = false;
+
     /**
      * When set, overrides {@link ClientGroup#getBillingCompany()} for this session only.
      */

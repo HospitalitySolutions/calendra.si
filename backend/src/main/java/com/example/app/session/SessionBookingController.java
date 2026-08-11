@@ -1,5 +1,6 @@
 package com.example.app.session;
 
+import com.example.app.consumables.ConsumableController;
 import com.example.app.activitylog.ActivityAction;
 import com.example.app.activitylog.ActivityLogService;
 import com.example.app.activitylog.ActivityModule;
@@ -199,7 +200,11 @@ public class SessionBookingController {
             /** Physical branch inside the selected operating unit. Defaults from space or unit default. */
             Long locationId,
             /** Session-only participant limit for a group booking. Null preserves/defaults, non-positive clears on update. */
-            Integer maxParticipantsOverride
+            Integer maxParticipantsOverride,
+            /** Optional session-specific consumables. Null keeps automatic defaults/current session setup; empty removes all. */
+            List<ConsumableController.SessionConsumableRequest> sessionConsumables,
+            /** Explicitly restore automatic service defaults for this appointment. */
+            Boolean resetSessionConsumablesToDefaults
     ) {
         /** Source-compatible constructor for legacy callers that only provide typeId. */
         public BookingRequest(
@@ -225,7 +230,7 @@ public class SessionBookingController {
             this(clientId, clientIds, consultantId, startTime, endTime, spaceId, typeId, notes,
                     meetingLink, online, meetingProvider, allowPersonalBlockOverlap, groupId,
                     groupEmailOverride, groupBillingCompanyIdOverride, bookingStatus, payees,
-                    recurrenceSeriesKey, null, null, null);
+                    recurrenceSeriesKey, null, null, null, null, null);
         }
 
         /** Source-compatible constructor for callers that provide a service chain but no location. */
@@ -240,7 +245,7 @@ public class SessionBookingController {
             this(clientId, clientIds, consultantId, startTime, endTime, spaceId, typeId, notes,
                     meetingLink, online, meetingProvider, allowPersonalBlockOverlap, groupId,
                     groupEmailOverride, groupBillingCompanyIdOverride, bookingStatus, payees,
-                    recurrenceSeriesKey, services, null, null);
+                    recurrenceSeriesKey, services, null, null, null, null);
         }
 
         /** Source-compatible constructor for callers that provide a service chain and location. */
@@ -255,7 +260,22 @@ public class SessionBookingController {
             this(clientId, clientIds, consultantId, startTime, endTime, spaceId, typeId, notes,
                     meetingLink, online, meetingProvider, allowPersonalBlockOverlap, groupId,
                     groupEmailOverride, groupBillingCompanyIdOverride, bookingStatus, payees,
-                    recurrenceSeriesKey, services, locationId, null);
+                    recurrenceSeriesKey, services, locationId, null, null, null);
+        }
+
+        /** Source-compatible constructor for callers using the pre-consumables canonical shape. */
+        public BookingRequest(
+                Long clientId, List<Long> clientIds, Long consultantId, String startTime, String endTime,
+                Long spaceId, Long typeId, String notes, String meetingLink, Boolean online,
+                String meetingProvider, Boolean allowPersonalBlockOverlap, Long groupId,
+                String groupEmailOverride, Long groupBillingCompanyIdOverride, String bookingStatus,
+                List<BookingPayeeRequest> payees, String recurrenceSeriesKey,
+                List<BookingServiceRequest> services, Long locationId, Integer maxParticipantsOverride
+        ) {
+            this(clientId, clientIds, consultantId, startTime, endTime, spaceId, typeId, notes,
+                    meetingLink, online, meetingProvider, allowPersonalBlockOverlap, groupId,
+                    groupEmailOverride, groupBillingCompanyIdOverride, bookingStatus, payees,
+                    recurrenceSeriesKey, services, locationId, maxParticipantsOverride, null, null);
         }
     }
 
@@ -376,7 +396,8 @@ public class SessionBookingController {
             int totalBreakMinutes,
             BigDecimal totalGross,
             LocationSummary location,
-            Integer maxParticipantsOverride
+            Integer maxParticipantsOverride,
+            boolean sessionConsumablesOverridden
     ) {}
     public record BookableSlotResponse(
             Long id,
@@ -1205,7 +1226,8 @@ public class SessionBookingController {
                 base.totalBreakMinutes(),
                 base.totalGross(),
                 base.location(),
-                base.maxParticipantsOverride()
+                base.maxParticipantsOverride(),
+                base.sessionConsumablesOverridden()
         );
     }
 
@@ -1658,7 +1680,8 @@ public class SessionBookingController {
                 representative.getLocation() == null ? null : new LocationSummary(
                         representative.getLocation().getId(), representative.getLocation().getName(),
                         representative.getLocation().getCity(), representative.getLocation().getTimezone()),
-                representative.getMaxParticipantsOverride()
+                representative.getMaxParticipantsOverride(),
+                visibleRows.stream().anyMatch(SessionBooking::isSessionConsumablesOverridden)
         );
     }
 

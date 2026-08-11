@@ -4686,6 +4686,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       const services = normalizeCalendarServiceDrafts(nextServices)
       const chain = buildCalendarServiceChain(currentForm.startTime, services, currentForm.endTime)
       const first = services.find((service) => service.typeId != null) ?? services[0]
+      const previousPrimaryTypeId = Number(currentForm.typeId ?? normalizeCalendarServiceDrafts(currentForm.services, currentForm.typeId, currentForm.spaceId).find((service) => service.typeId != null)?.typeId) || null
+      const nextPrimaryTypeId = Number(first?.typeId) || null
+      const serviceTypeChanged = previousPrimaryTypeId !== nextPrimaryTypeId
       const firstSpace = first?.spaceId != null
         ? metaSpaces.find((space: any) => Number(space?.id) === Number(first.spaceId)) ?? null
         : null
@@ -4697,6 +4700,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         typeId: first?.typeId ?? null,
         spaceId: first?.spaceId ?? null,
         locationId: firstSpaceLocationId ?? locationFilterId ?? currentForm.locationId ?? null,
+        ...(serviceTypeChanged ? { sessionConsumables: null, resetSessionConsumablesToDefaults: false } : {}),
         endTime: allDay ? currentForm.endTime : bookingServicesPayload(services).length > 0 ? chain.endTime : currentForm.endTime,
       }
     })
@@ -4708,6 +4712,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       const services = normalizeCalendarServiceDrafts(nextServices)
       const chain = buildCalendarServiceChain(current.startTime, services, current.endTime)
       const first = services.find((service) => service.typeId != null) ?? services[0]
+      const previousPrimaryTypeId = Number(current?.type?.id ?? getBookingServiceDrafts(current).find((service: any) => service.typeId != null)?.typeId) || null
+      const nextPrimaryTypeId = Number(first?.typeId) || null
+      const serviceTypeChanged = previousPrimaryTypeId !== nextPrimaryTypeId
       const firstType = first?.typeId != null ? metaTypes.find((type: any) => Number(type?.id) === Number(first.typeId)) ?? null : null
       const firstSpace = first?.spaceId != null ? metaSpaces.find((space: any) => Number(space?.id) === Number(first.spaceId)) ?? null : null
       const firstSpaceLocationId = firstSpace?.location?.id ?? firstSpace?.locationId ?? null
@@ -4727,6 +4734,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         type: firstType,
         space: firstSpace,
         location: nextLocation,
+        ...(serviceTypeChanged ? { sessionConsumables: null, resetSessionConsumablesToDefaults: true, sessionConsumablesOverridden: false } : {}),
         endTime: allDay ? current.endTime : bookingServicesPayload(services).length > 0 ? chain.endTime : current.endTime,
         availabilityEndTime: allDay ? current.endTime : bookingServicesPayload(services).length > 0 ? chain.availabilityEndTime : current.availabilityEndTime,
         totalServiceMinutes: chain.totalServiceMinutes,
@@ -4765,6 +4773,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         ...currentForm,
         services,
         typeId: nextTypeId,
+        sessionConsumables: null,
+        resetSessionConsumablesToDefaults: false,
         endTime: allDay ? currentForm.endTime : bookingServicesPayload(services).length > 0 ? chain.endTime : getBookingEndTimeForStart(currentForm.startTime, nextTypeId),
       }
     })
@@ -7701,6 +7711,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       meetingProvider: 'zoom',
       task: '',
       todo: false,
+      sessionConsumables: null,
+      resetSessionConsumablesToDefaults: false,
       outsideBookable: selectedOutsideBookable,
     })
     placeSessionPopup(anchorEl)
@@ -9071,6 +9083,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           locationId: form.locationId ?? null,
           typeId: primaryService?.typeId ?? form.typeId ?? null,
           services: currentServicesPayload,
+          sessionConsumables: Array.isArray(form.sessionConsumables) ? form.sessionConsumables.map((row: any) => ({ consumableId: row.consumableId, quantity: row.quantity, unit: row.unit, quantityMode: row.quantityMode, billable: row.billable, notes: row.notes ?? null })) : null,
+          resetSessionConsumablesToDefaults: form.resetSessionConsumablesToDefaults === true,
           notes: form.notes ?? '',
           meetingProvider: provider,
           waitlistRequestId: form.waitlistRequestId ?? null,
@@ -9130,6 +9144,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           groupEmailOverride: null,
           groupBillingCompanyIdOverride: null,
           recurrenceSeriesKey,
+          sessionConsumables: Array.isArray(form.sessionConsumables) ? form.sessionConsumables.map((row: any) => ({
+            consumableId: row.consumableId, quantity: row.quantity, unit: row.unit, quantityMode: row.quantityMode, billable: row.billable, notes: row.notes ?? null,
+          })) : null,
+          resetSessionConsumablesToDefaults: form.resetSessionConsumablesToDefaults === true,
           payees: normalizeBookingPayeesForPayload(resolvedClientIds, form.payees, formBookingPayeeLinkedCompany?.id),
         }
         const bookingDates = form.repeats
@@ -10548,6 +10566,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             bookingStatus: requestedStoredStatus,
             recurrenceSeriesKey,
             maxParticipantsOverride: bookedIsGroupSession ? (selectedBookedSession.maxParticipantsOverride ?? 0) : null,
+            sessionConsumables: Array.isArray(selectedBookedSession.sessionConsumables) ? selectedBookedSession.sessionConsumables.map((row: any) => ({ consumableId: row.consumableId, quantity: row.quantity, unit: row.unit, quantityMode: row.quantityMode, billable: row.billable, notes: row.notes ?? null })) : null,
+            resetSessionConsumablesToDefaults: selectedBookedSession.resetSessionConsumablesToDefaults === true,
             payees: normalizeBookingPayeesForPayload(resolvedClientIds, selectedBookedSession.payees, bookedBookingPayeeLinkedCompany?.id),
           },
         })
@@ -10575,6 +10595,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           locationId: selectedBookedSession.location?.id ?? null,
           typeId: currentBookedPrimaryService?.typeId ?? selectedBookedSession.type?.id ?? null,
           services: currentBookedServicesPayload,
+          sessionConsumables: Array.isArray(selectedBookedSession.sessionConsumables) ? selectedBookedSession.sessionConsumables.map((row: any) => ({ consumableId: row.consumableId, quantity: row.quantity, unit: row.unit, quantityMode: row.quantityMode, billable: row.billable, notes: row.notes ?? null })) : null,
+          resetSessionConsumablesToDefaults: selectedBookedSession.resetSessionConsumablesToDefaults === true,
           notes: selectedBookedSession.notes ?? '',
           meetingProvider: provider,
           bookingStatus: requestedStoredStatus,
@@ -10613,6 +10635,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       bookingStatus: requestedStoredStatus,
       recurrenceSeriesKey,
       maxParticipantsOverride: bookedIsGroupSession ? (selectedBookedSession.maxParticipantsOverride ?? 0) : null,
+      sessionConsumables: Array.isArray(selectedBookedSession.sessionConsumables) ? selectedBookedSession.sessionConsumables.map((row: any) => ({
+        consumableId: row.consumableId, quantity: row.quantity, unit: row.unit, quantityMode: row.quantityMode, billable: row.billable, notes: row.notes ?? null,
+      })) : null,
+      resetSessionConsumablesToDefaults: selectedBookedSession.resetSessionConsumablesToDefaults === true,
       payees: normalizeBookingPayeesForPayload(resolvedClientIds, selectedBookedSession.payees, bookedBookingPayeeLinkedCompany?.id),
     }
     const futureOccurrencePayloads: any[] = selectedBookedSession.repeats
@@ -11378,6 +11404,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           bookingStatus: editPayload.bookingStatus ?? 'RESERVED',
           recurrenceSeriesKey: editPayload.recurrenceSeriesKey ?? null,
           maxParticipantsOverride: editPayload.maxParticipantsOverride ?? null,
+          sessionConsumables: editPayload.sessionConsumables ?? null,
+          resetSessionConsumablesToDefaults: editPayload.resetSessionConsumablesToDefaults === true,
           payees: editPayload.payees ?? [],
           allowPersonalBlockOverlap: true,
         }))
@@ -11415,6 +11443,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         bookingStatus: editStatus,
         recurrenceSeriesKey: editPayload.recurrenceSeriesKey ?? null,
         maxParticipantsOverride: editPayload.maxParticipantsOverride ?? null,
+        sessionConsumables: editPayload.sessionConsumables ?? null,
+        resetSessionConsumablesToDefaults: editPayload.resetSessionConsumablesToDefaults === true,
         payees: editPayload.payees ?? [],
         allowPersonalBlockOverlap: true,
       })

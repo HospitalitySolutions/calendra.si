@@ -15,6 +15,7 @@ import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
+import com.example.app.settings.GlobalConsumablesFeatureService;
 import com.example.app.user.User;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -49,6 +50,7 @@ public class ConsumableService {
     private final ConsumableSupplierRepository suppliers;
     private final ConsumablePurchaseOrderRepository purchaseOrders;
     private final TimeService timeService;
+    private final GlobalConsumablesFeatureService consumablesFeatureService;
 
     /** A shared SKU projected through the stock settings of one concrete branch. */
     public record ItemStockView(
@@ -72,7 +74,8 @@ public class ConsumableService {
             SessionBookingRepository bookings,
             ConsumableSupplierRepository suppliers,
             ConsumablePurchaseOrderRepository purchaseOrders,
-            TimeService timeService
+            TimeService timeService,
+            GlobalConsumablesFeatureService consumablesFeatureService
     ) {
         this.companies = companies;
         this.locations = locations;
@@ -87,6 +90,7 @@ public class ConsumableService {
         this.suppliers = suppliers;
         this.purchaseOrders = purchaseOrders;
         this.timeService = timeService;
+        this.consumablesFeatureService = consumablesFeatureService;
     }
 
     @Transactional(readOnly = true)
@@ -391,50 +395,76 @@ public class ConsumableService {
 
     @Transactional
     public List<SessionConsumable> ensureSessionDefaultsForBookings(List<SessionBooking> saved, Long companyId) {
+        return ensureSessionDefaultsForBookings(null, saved, companyId);
+    }
+
+    /**
+     * Keeps automatic appointment consumables in sync with the selected service while preserving
+     * SessionConsumable ids. Preserving ids is important because stock movements use the
+     * session-consumable id as their immutable reconciliation source id.
+     */
+    @Transactional
+    public List<SessionConsumable> ensureSessionDefaultsForBookings(User actor, List<SessionBooking> saved, Long companyId) {
+        if (!consumablesFeatureService.isEnabledForCompany(companyId)) return List.of();
         if (saved == null || saved.isEmpty()) return List.of();
         var representative = saved.stream().filter(Objects::nonNull).min(Comparator.comparing(SessionBooking::getId)).orElse(null);
         if (representative == null || representative.getType() == null) return List.of();
-        String groupKey = groupKey(representative);
-        if (groupKey == null || groupKey.isBlank()) return List.of();
-        int participants = (int) saved.stream().filter(b -> b.getClient() != null).count();
-        if (sessionConsumables.existsByCompanyIdAndBookingGroupKey(companyId, groupKey)) {
-            var existing = sessionConsumables.findByCompanyIdAndBookingGroupKey(companyId, groupKey);
-            boolean manuallyChanged = existing.stream().anyMatch(SessionConsumable::isManuallyChanged);
-            if (manuallyChanged) return existing;
-            sessionConsumables.deleteByCompanyIdAndBookingGroupKey(companyId, groupKey);
+        String key = groupKey(representative);
+        if (key == null || key.isBlank()) return List.of();
+
+        List<SessionConsumable> existing = sessionConsumables.findByCompanyIdAndBookingGroupKey(companyId, key);
+        if (saved.stream().filter(Objects::nonNull).anyMatch(SessionBooking::isSessionConsumablesOverridden)
+                || existing.stream().anyMatch(SessionConsumable::isManuallyChanged)) {
+            return existing;
         }
-        return copyDefaultsToSession(companyId, representative, Math.max(1, participants));
+        return syncDefaultsToSession(actor, companyId, representative, existing);
     }
 
     @Transactional
     public List<SessionConsumable> resetSessionDefaults(User actor, Long bookingId) {
+        consumablesFeatureService.assertEnabledForUser(actor);
         Long companyId = actor.getCompany().getId();
         var booking = bookings.findByIdAndCompanyId(bookingId, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        String groupKey = groupKey(booking);
-        var rows = bookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(groupKey, companyId);
+        String key = groupKey(booking);
+        var rows = bookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(key, companyId);
         if (rows == null || rows.isEmpty()) rows = List.of(booking);
-        sessionConsumables.deleteByCompanyIdAndBookingGroupKey(companyId, groupKey);
-        int participants = (int) rows.stream().filter(b -> b.getClient() != null).count();
-        return copyDefaultsToSession(companyId, rows.get(0), Math.max(1, participants));
+        rows.forEach(row -> row.setSessionConsumablesOverridden(false));
+        bookings.saveAll(rows);
+        List<SessionConsumable> existing = sessionConsumables.findByCompanyIdAndBookingGroupKey(companyId, key);
+        List<SessionConsumable> result = syncDefaultsToSession(actor, companyId, rows.get(0), existing);
+        if (isCheckedOut(rows)) reconcileCheckedOutUsage(actor, companyId, rows.get(0), rows, result);
+        return result;
     }
 
-    private List<SessionConsumable> copyDefaultsToSession(Long companyId, SessionBooking representative, int participants) {
+    private List<SessionConsumable> syncDefaultsToSession(
+            User actor,
+            Long companyId,
+            SessionBooking representative,
+            List<SessionConsumable> existing
+    ) {
         var defaults = serviceTypeConsumables.findByCompanyIdAndSessionTypeId(companyId, representative.getType().getId());
         Location location = requireBookingLocation(representative);
-        List<SessionConsumable> saved = new ArrayList<>();
+        String key = groupKey(representative);
+        Map<Long, SessionConsumable> byConsumable = (existing == null ? List.<SessionConsumable>of() : existing).stream()
+                .filter(row -> row.getConsumable() != null && row.getConsumable().getId() != null)
+                .collect(Collectors.toMap(row -> row.getConsumable().getId(), row -> row, (a, b) -> a, LinkedHashMap::new));
+        java.util.Set<Long> retainedConsumableIds = new java.util.HashSet<>();
+        List<SessionConsumable> result = new ArrayList<>();
+
         for (var def : defaults) {
             var item = def.getConsumable();
-            var row = new SessionConsumable();
-            row.setCompany(representative.getCompany());
-            row.setSessionBooking(representative);
-            row.setBookingGroupKey(groupKey(representative));
-            row.setServiceType(representative.getType());
-            row.setConsumable(item);
-            BigDecimal qty = positive(def.getDefaultQuantity(), BigDecimal.ONE);
-            if (def.getQuantityMode() == QuantityMode.PER_PARTICIPANT) {
-                qty = qty.multiply(BigDecimal.valueOf(Math.max(1, participants)));
+            retainedConsumableIds.add(item.getId());
+            var row = byConsumable.get(item.getId());
+            if (row == null) {
+                row = new SessionConsumable();
+                row.setCompany(representative.getCompany());
+                row.setBookingGroupKey(key);
+                row.setConsumable(item);
             }
+            row.setSessionBooking(representative);
+            row.setServiceType(representative.getType());
+            BigDecimal qty = positive(def.getDefaultQuantity(), BigDecimal.ONE);
             row.setQuantity(qty.setScale(4, RoundingMode.HALF_UP));
             row.setUnit(defaultString(item.getUnit(), "kos"));
             row.setQuantityMode(def.getQuantityMode() != null ? def.getQuantityMode() : QuantityMode.PER_SESSION);
@@ -444,9 +474,16 @@ public class ConsumableService {
             row.setSource("SERVICE_TYPE_DEFAULT");
             row.setManuallyChanged(false);
             row.setNotes(def.getNotes());
-            saved.add(sessionConsumables.save(row));
+            result.add(sessionConsumables.save(row));
         }
-        return saved;
+
+        for (SessionConsumable old : (existing == null ? List.<SessionConsumable>of() : existing)) {
+            if (old.getConsumable() == null || retainedConsumableIds.contains(old.getConsumable().getId())) continue;
+            reconcileUsageForRow(actor, companyId, old, null, BigDecimal.ZERO, "Service consumable removed: " + key);
+            sessionConsumables.delete(old);
+        }
+        sessionConsumables.flush();
+        return result;
     }
 
     @Transactional(readOnly = true)
@@ -459,24 +496,40 @@ public class ConsumableService {
 
     @Transactional
     public List<SessionConsumable> replaceSessionConsumables(User me, Long bookingId, List<ConsumableController.SessionConsumableRequest> rows) {
+        consumablesFeatureService.assertEnabledForUser(me);
         Long companyId = me.getCompany().getId();
         var booking = bookings.findByIdAndCompanyId(bookingId, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         Location location = requireBookingLocation(booking);
         String key = groupKey(booking);
-        sessionConsumables.deleteByCompanyIdAndBookingGroupKey(companyId, key);
+        List<SessionBooking> bookingRows = bookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(key, companyId);
+        if (bookingRows == null || bookingRows.isEmpty()) bookingRows = List.of(booking);
+        bookingRows.forEach(row -> row.setSessionConsumablesOverridden(true));
+        bookings.saveAll(bookingRows);
+        List<SessionConsumable> groupBookingsConsumables = sessionConsumables.findByCompanyIdAndBookingGroupKey(companyId, key);
+        Map<Long, SessionConsumable> existing = groupBookingsConsumables.stream()
+                .filter(row -> row.getConsumable() != null && row.getConsumable().getId() != null)
+                .collect(Collectors.toMap(row -> row.getConsumable().getId(), row -> row, (a, b) -> a, LinkedHashMap::new));
+        java.util.Set<Long> requested = new java.util.HashSet<>();
         List<SessionConsumable> saved = new ArrayList<>();
+
         if (rows != null) {
             for (var req : rows) {
                 if (req == null || req.consumableId() == null || req.consumableId() <= 0) continue;
+                if (!requested.add(req.consumableId())) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The same consumable can only be added once per appointment.");
+                }
                 var item = consumables.findByIdAndCompanyId(req.consumableId(), companyId)
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Consumable not found."));
-                var row = new SessionConsumable();
-                row.setCompany(booking.getCompany());
+                var row = existing.get(item.getId());
+                if (row == null) {
+                    row = new SessionConsumable();
+                    row.setCompany(booking.getCompany());
+                    row.setBookingGroupKey(key);
+                    row.setConsumable(item);
+                }
                 row.setSessionBooking(booking);
-                row.setBookingGroupKey(key);
                 row.setServiceType(booking.getType());
-                row.setConsumable(item);
                 row.setQuantity(nonNegative(req.quantity()));
                 row.setUnit(defaultString(req.unit(), item.getUnit()));
                 row.setQuantityMode(req.quantityMode() != null ? req.quantityMode() : QuantityMode.PER_SESSION);
@@ -489,33 +542,47 @@ public class ConsumableService {
                 saved.add(sessionConsumables.save(row));
             }
         }
+
+        for (SessionConsumable old : groupBookingsConsumables) {
+            if (old.getConsumable() != null && requested.contains(old.getConsumable().getId())) continue;
+            reconcileUsageForRow(me, companyId, old, null, BigDecimal.ZERO, "Session consumable removed: " + key);
+            sessionConsumables.delete(old);
+        }
+        sessionConsumables.flush();
+
+        if (isCheckedOut(bookingRows)) reconcileCheckedOutUsage(me, companyId, booking, bookingRows, saved);
         return saved;
     }
 
+    /**
+     * Reconciles posted inventory to the desired state every time a checked-out session is saved.
+     * This makes checkout idempotent and correctly handles later quantity, participant and
+     * location changes instead of only reacting to the first CHECKED_OUT transition.
+     */
     @Transactional
     public void applySessionUsageIfCheckedOut(User actor, List<SessionBooking> rows, Map<Long, String> previousStatuses) {
         if (rows == null || rows.isEmpty()) return;
         var representative = rows.stream().filter(Objects::nonNull).min(Comparator.comparing(SessionBooking::getId)).orElse(null);
         if (representative == null) return;
         Long companyId = representative.getCompany().getId();
-        Location location = requireBookingLocation(representative);
         String key = groupKey(representative);
-        boolean checkedOut = rows.stream().anyMatch(row -> SessionBookingStatus.CHECKED_OUT.equals(SessionBookingStatus.normalizeStored(row.getBookingStatus())));
+        boolean checkedOut = isCheckedOut(rows);
         boolean previouslyCheckedOut = previousStatuses != null && previousStatuses.values().stream()
                 .anyMatch(s -> SessionBookingStatus.CHECKED_OUT.equals(SessionBookingStatus.normalizeStored(s)));
-        if (checkedOut && !previouslyCheckedOut) {
-            ensureSessionDefaultsForBookings(rows, companyId);
-            var sessionRows = sessionConsumables.findByCompanyIdAndBookingGroupKey(companyId, key);
-            for (var sc : sessionRows) {
-                if (sc.getConsumable().isTrackStock() && nz(sc.getQuantity()).compareTo(BigDecimal.ZERO) > 0) {
-                    if (!movements.existsByCompanyIdAndLocationIdAndMovementTypeAndSourceTypeAndSourceId(
-                            companyId, location.getId(), StockMovementType.SESSION_USAGE, StockMovementSourceType.SESSION, sc.getId())) {
-                        createMovement(actor, sc.getConsumable(), location, StockMovementType.SESSION_USAGE,
-                                StockMovementSourceType.SESSION, sc.getId(), nz(sc.getQuantity()).negate(), "Session usage: " + key);
-                    }
-                }
+
+        // Turning the module off stops new consumption, but must never strand historical stock usage.
+        // If a previously checked-out appointment is reopened/cancelled, always reverse what was posted.
+        if (!consumablesFeatureService.isEnabledForCompany(companyId)) {
+            if (!checkedOut && previouslyCheckedOut) {
+                reverseSessionUsage(actor, companyId, key);
             }
-        } else if (!checkedOut && previouslyCheckedOut) {
+            return;
+        }
+
+        if (checkedOut) {
+            List<SessionConsumable> sessionRows = sessionConsumables.findByCompanyIdAndBookingGroupKey(companyId, key);
+            reconcileCheckedOutUsage(actor, companyId, representative, rows, sessionRows);
+        } else if (previouslyCheckedOut) {
             reverseSessionUsage(actor, companyId, key);
         }
     }
@@ -524,19 +591,83 @@ public class ConsumableService {
     public void reverseSessionUsage(User actor, Long companyId, String groupKey) {
         var sessionRows = sessionConsumables.findByCompanyIdAndBookingGroupKey(companyId, groupKey);
         for (var sc : sessionRows) {
-            // A session consumable can only have one usage movement per location. Read the immutable
-            // movement location so reversal cannot be redirected by later booking/configuration edits.
-            List<ConsumableStockMovement> usedMovements = movements
-                    .findByCompanyIdAndMovementTypeAndSourceTypeAndSourceId(
-                            companyId, StockMovementType.SESSION_USAGE, StockMovementSourceType.SESSION, sc.getId());
-            for (var used : usedMovements) {
-                BigDecimal reverse = nz(used.getQuantityDelta()).negate();
-                if (reverse.compareTo(BigDecimal.ZERO) != 0) {
-                    createMovement(actor, used.getConsumable(), used.getLocation(), StockMovementType.RETURN,
-                            StockMovementSourceType.SESSION, sc.getId(), reverse, "Reverse session usage: " + groupKey);
-                }
-            }
+            reconcileUsageForRow(actor, companyId, sc, null, BigDecimal.ZERO, "Reverse session usage: " + groupKey);
         }
+    }
+
+    private void reconcileCheckedOutUsage(
+            User actor,
+            Long companyId,
+            SessionBooking representative,
+            List<SessionBooking> bookingRows,
+            List<SessionConsumable> rows
+    ) {
+        Location desiredLocation = requireBookingLocation(representative);
+        String key = groupKey(representative);
+        int participants = activeParticipantCount(bookingRows);
+        for (var sc : rows) {
+            BigDecimal desired = nonNegative(sc.getQuantity());
+            if (sc.getQuantityMode() == QuantityMode.PER_PARTICIPANT) {
+                desired = desired.multiply(BigDecimal.valueOf(Math.max(0, participants)));
+            }
+            if (!sc.getConsumable().isTrackStock()) desired = BigDecimal.ZERO;
+            reconcileUsageForRow(actor, companyId, sc, desiredLocation, desired, "Session usage reconciliation: " + key);
+        }
+    }
+
+    private void reconcileUsageForRow(
+            User actor,
+            Long companyId,
+            SessionConsumable sc,
+            Location desiredLocation,
+            BigDecimal desiredConsumedQuantity,
+            String note
+    ) {
+        if (sc == null || sc.getId() == null || sc.getConsumable() == null) return;
+        BigDecimal desired = sc.getConsumable().isTrackStock() ? nonNegative(desiredConsumedQuantity) : BigDecimal.ZERO;
+        Map<Long, BigDecimal> postedByLocation = new LinkedHashMap<>();
+        Map<Long, Location> locationsById = new LinkedHashMap<>();
+        for (var movement : movements.findByCompanyIdAndSourceTypeAndSourceId(companyId, StockMovementSourceType.SESSION, sc.getId())) {
+            if (movement.getMovementType() != StockMovementType.SESSION_USAGE && movement.getMovementType() != StockMovementType.RETURN) continue;
+            if (movement.getLocation() == null || movement.getLocation().getId() == null) continue;
+            Long locationId = movement.getLocation().getId();
+            locationsById.put(locationId, movement.getLocation());
+            postedByLocation.merge(locationId, nz(movement.getQuantityDelta()), BigDecimal::add);
+        }
+        if (desiredLocation != null && desiredLocation.getId() != null) {
+            locationsById.put(desiredLocation.getId(), desiredLocation);
+            postedByLocation.putIfAbsent(desiredLocation.getId(), BigDecimal.ZERO);
+        }
+
+        for (var entry : locationsById.entrySet()) {
+            Long locationId = entry.getKey();
+            Location location = entry.getValue();
+            BigDecimal targetNet = desiredLocation != null && Objects.equals(desiredLocation.getId(), locationId)
+                    ? desired.negate()
+                    : BigDecimal.ZERO;
+            BigDecimal currentNet = postedByLocation.getOrDefault(locationId, BigDecimal.ZERO).setScale(4, RoundingMode.HALF_UP);
+            BigDecimal needed = targetNet.subtract(currentNet).setScale(4, RoundingMode.HALF_UP);
+            if (needed.compareTo(BigDecimal.ZERO) == 0) continue;
+            StockMovementType movementType = needed.compareTo(BigDecimal.ZERO) < 0
+                    ? StockMovementType.SESSION_USAGE
+                    : StockMovementType.RETURN;
+            createMovement(actor, sc.getConsumable(), location, movementType, StockMovementSourceType.SESSION, sc.getId(), needed, note);
+        }
+    }
+
+    private static int activeParticipantCount(List<SessionBooking> rows) {
+        if (rows == null) return 0;
+        return (int) rows.stream()
+                .filter(Objects::nonNull)
+                .filter(row -> row.getClient() != null)
+                .filter(row -> !SessionBookingStatus.CANCELLED.equals(
+                        SessionBookingStatus.normalizeStored(row.getBookingStatus())))
+                .count();
+    }
+
+    private static boolean isCheckedOut(List<SessionBooking> rows) {
+        return rows != null && rows.stream().anyMatch(row -> row != null
+                && SessionBookingStatus.CHECKED_OUT.equals(SessionBookingStatus.normalizeStored(row.getBookingStatus())));
     }
 
     @Transactional(readOnly = true)

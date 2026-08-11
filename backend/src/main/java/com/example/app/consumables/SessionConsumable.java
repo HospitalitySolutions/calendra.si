@@ -45,6 +45,7 @@ public class SessionConsumable extends BaseEntity {
     @JoinColumn(name = "consumable_id", nullable = false)
     private Consumable consumable;
 
+    /** Base quantity. PER_PARTICIPANT rows are multiplied by the current active participant count when stock is reconciled. */
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal quantity = BigDecimal.ZERO;
 

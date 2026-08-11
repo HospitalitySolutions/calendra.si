@@ -15,6 +15,7 @@ export type ModulesDraft = {
   SERVICE_GROUPS_ENABLED: string;
   ENTITLEMENTS_ENABLED: string;
   COURSES_ENABLED: string;
+  CONSUMABLES_ENABLED: string;
   BOOKABLE_ENABLED: string;
   NO_SHOW_ENABLED: string;
   WAITLIST_ENABLED: string;
@@ -101,6 +102,7 @@ const MODULE_VISIBILITY_KEYS = new Set<string>([
   "SERVICE_GROUPS_ENABLED",
   "ENTITLEMENTS_ENABLED",
   "COURSES_ENABLED",
+  "CONSUMABLES_ENABLED",
   "BOOKABLE_ENABLED",
   "NO_SHOW_ENABLED",
   "WAITLIST_ENABLED",
@@ -183,6 +185,7 @@ const defaultModuleVisibilityPackage = (
     case "INBOX_ENABLED":
     case "AI_BOOKING_ENABLED":
     case "COURSES_ENABLED":
+    case "CONSUMABLES_ENABLED":
       return "PREMIUM";
     case "LOCATIONS_ENABLED":
     case "BILLING_ENABLED":
@@ -300,6 +303,7 @@ export const buildModulesDraftFromCommitted = (
   ),
   ENTITLEMENTS_ENABLED: modulesStringSetting(s, "ENTITLEMENTS_ENABLED", true),
   COURSES_ENABLED: modulesStringSetting(s, "COURSES_ENABLED", true),
+  CONSUMABLES_ENABLED: modulesStringSetting(s, "CONSUMABLES_ENABLED", false),
   BOOKABLE_ENABLED: s.BOOKABLE_ENABLED === "true" ? "true" : "false",
   NO_SHOW_ENABLED: modulesStringSetting(s, "NO_SHOW_ENABLED", false),
   WAITLIST_ENABLED: modulesStringSetting(s, "WAITLIST_ENABLED", false),
@@ -576,6 +580,10 @@ export const normalizeModulesDraftDependencies = (
     draft.COURSES_ENABLED === "true"
       ? "true"
       : "false",
+  CONSUMABLES_ENABLED:
+    draft.TYPES_ENABLED === "true" && draft.CONSUMABLES_ENABLED === "true"
+      ? "true"
+      : "false",
   multipleServicesEnabled:
     draft.TYPES_ENABLED === "true" && draft.multipleServicesEnabled === true,
   MULTIPLE_SESSIONS_PER_SPACE_ENABLED:
@@ -629,6 +637,7 @@ export const modulesDraftToSettingsPatch = (
   SERVICE_GROUPS_ENABLED: draft.SERVICE_GROUPS_ENABLED,
   ENTITLEMENTS_ENABLED: draft.ENTITLEMENTS_ENABLED,
   COURSES_ENABLED: draft.COURSES_ENABLED,
+  CONSUMABLES_ENABLED: draft.CONSUMABLES_ENABLED,
   BOOKABLE_ENABLED: draft.BOOKABLE_ENABLED,
   NO_SHOW_ENABLED: draft.NO_SHOW_ENABLED,
   WAITLIST_ENABLED: draft.WAITLIST_ENABLED,

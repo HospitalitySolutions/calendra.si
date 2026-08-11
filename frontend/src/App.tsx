@@ -165,7 +165,7 @@ export default function App() {
   const [inboxModuleEnabled, setInboxModuleEnabled] = useState(true)
   const [scannerModuleEnabled, setScannerModuleEnabled] = useState(true)
   const [waitlistModuleEnabled, setWaitlistModuleEnabled] = useState(false)
-  const [consumablesModuleEnabled, setConsumablesModuleEnabled] = useState(true)
+  const [consumablesModuleEnabled, setConsumablesModuleEnabled] = useState(false)
   const activeQueryUnitId = user?.activeUnitId ?? user?.companyId ?? null
   const appSettingsQuery = useQuery({
     ...settingsQueryOptions(activeQueryUnitId),
@@ -338,13 +338,13 @@ export default function App() {
 
   useEffect(() => {
     if (!user) {
-      setConsumablesModuleEnabled(true)
+      setConsumablesModuleEnabled(false)
       return
     }
     if (moduleCapabilitiesQuery.data) {
       setConsumablesModuleEnabled(moduleCapabilitiesQuery.data.consumablesEnabled !== false)
     } else if (moduleCapabilitiesQuery.isError) {
-      setConsumablesModuleEnabled(true)
+      setConsumablesModuleEnabled(false)
     }
   }, [moduleCapabilitiesQuery.data, moduleCapabilitiesQuery.isError, user])
 

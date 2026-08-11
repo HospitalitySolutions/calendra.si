@@ -62,6 +62,7 @@ public class SettingsController {
             SettingKey.TYPES_ENABLED.name(),
             SettingKey.ENTITLEMENTS_ENABLED.name(),
             SettingKey.COURSES_ENABLED.name(),
+            SettingKey.CONSUMABLES_ENABLED.name(),
             SettingKey.BOOKABLE_ENABLED.name(),
             SettingKey.NO_SHOW_ENABLED.name(),
             SettingKey.ONLINE_SESSION_BOOKING_ENABLED.name(),
@@ -492,6 +493,17 @@ public class SettingsController {
             }
         }
 
+        String typesKey = SettingKey.TYPES_ENABLED.name();
+        String consumablesKey = SettingKey.CONSUMABLES_ENABLED.name();
+        if (normalized.containsKey(typesKey) || normalized.containsKey(consumablesKey)) {
+            boolean typesEnabled = "true".equalsIgnoreCase(
+                    String.valueOf(payloadOrStored(companyId, normalized, SettingKey.TYPES_ENABLED)).trim()
+            );
+            if (!typesEnabled) {
+                normalized.put(consumablesKey, "false");
+            }
+        }
+
         String billingKey = SettingKey.BILLING_ENABLED.name();
         String multipleCompaniesKey = SettingKey.MULTIPLE_COMPANIES_ENABLED.name();
         if (normalized.containsKey(billingKey) || normalized.containsKey(multipleCompaniesKey)) {
@@ -518,6 +530,12 @@ public class SettingsController {
         );
         if (!entitlementsEnabled) {
             values.put(SettingKey.COURSES_ENABLED.name(), "false");
+        }
+        boolean typesEnabled = "true".equalsIgnoreCase(
+                String.valueOf(values.getOrDefault(SettingKey.TYPES_ENABLED.name(), "false")).trim()
+        );
+        if (!typesEnabled) {
+            values.put(SettingKey.CONSUMABLES_ENABLED.name(), "false");
         }
         boolean billingEnabled = "true".equalsIgnoreCase(
                 String.valueOf(values.getOrDefault(SettingKey.BILLING_ENABLED.name(), "false")).trim()
@@ -872,7 +890,7 @@ public class SettingsController {
 
     private static String defaultModuleVisibilityPackage(String moduleKey) {
         return switch (moduleKey) {
-            case "LOCATIONS_ENABLED", "WAITLIST_ENABLED", "CUSTOM_FIELDS_ENABLED" -> "PREMIUM";
+            case "LOCATIONS_ENABLED", "WAITLIST_ENABLED", "CUSTOM_FIELDS_ENABLED", "CONSUMABLES_ENABLED" -> "PREMIUM";
             case "BILLING_ENABLED",
                     "MULTIPLE_COMPANIES_ENABLED",
                     "BILLING_INVOICES_ENABLED",

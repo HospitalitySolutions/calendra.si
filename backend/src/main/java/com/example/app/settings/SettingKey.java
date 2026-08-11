@@ -9,6 +9,8 @@ public enum SettingKey {
     ENTITLEMENTS_ENABLED,
     /** Enables course catalog and course-access entitlements. Depends on ENTITLEMENTS_ENABLED. */
     COURSES_ENABLED,
+    /** Enables consumable-material configuration, appointment usage and the inventory module for this tenant. */
+    CONSUMABLES_ENABLED,
     BOOKABLE_ENABLED,
     NO_SHOW_ENABLED,
     ONLINE_SESSION_BOOKING_ENABLED,

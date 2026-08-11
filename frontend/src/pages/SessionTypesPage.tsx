@@ -62,6 +62,7 @@ import {
   billingServicesQueryOptions,
   clientOptionsQueryOptions,
   locationsQueryOptions,
+  moduleCapabilitiesQueryOptions,
   settingsQueryOptions,
 } from "../queries/sharedQueryOptions";
 import {
@@ -107,6 +108,22 @@ function normalizeServiceTypeColorForUi(raw?: string | null): string {
 }
 
 type TypeServiceLine = { transactionServiceId: number; price: string; locationPrice?: string };
+
+type ConsumableCatalogItem = {
+  id: number;
+  name: string;
+  unit?: string | null;
+  billable?: boolean;
+  active?: boolean;
+};
+
+type TypeConsumableLine = {
+  consumableId: number;
+  defaultQuantity: string;
+  quantityMode: "PER_SESSION" | "PER_PARTICIPANT";
+  billableOverride: boolean | null;
+  notes?: string;
+};
 
 type ServiceTypeModalTab = "basic" | "services" | "booking" | "group";
 type LinkedEntityModalTab = "existing" | "create";
@@ -308,6 +325,7 @@ type TypeFormState = {
   availableAllLocations: boolean;
   locationIds: number[];
   serviceLines: TypeServiceLine[];
+  consumableLines: TypeConsumableLine[];
 };
 
 function typeFormsEqual(a: TypeFormState, b: TypeFormState): boolean {
@@ -353,6 +371,16 @@ function typeFormsEqual(a: TypeFormState, b: TypeFormState): boolean {
       return false;
     if ((a.serviceLines[i].locationPrice || "").trim() !== (b.serviceLines[i].locationPrice || "").trim())
       return false;
+  }
+  if (a.consumableLines.length !== b.consumableLines.length) return false;
+  for (let i = 0; i < a.consumableLines.length; i++) {
+    const left = a.consumableLines[i];
+    const right = b.consumableLines[i];
+    if (left.consumableId !== right.consumableId) return false;
+    if (left.defaultQuantity.trim() !== right.defaultQuantity.trim()) return false;
+    if (left.quantityMode !== right.quantityMode) return false;
+    if (left.billableOverride !== right.billableOverride) return false;
+    if ((left.notes || "").trim() !== (right.notes || "").trim()) return false;
   }
   return true;
 }
@@ -841,6 +869,12 @@ export function SessionTypesPage() {
   const [editingLinkedServiceIndex, setEditingLinkedServiceIndex] =
     useState<number | null>(null);
   const [servicePickerQuery, setServicePickerQuery] = useState("");
+  const [consumablesCapabilityEnabled, setConsumablesCapabilityEnabled] = useState(false);
+  const [consumableItems, setConsumableItems] = useState<ConsumableCatalogItem[]>([]);
+  const [consumableEditorMode, setConsumableEditorMode] = useState<"existing" | "create" | null>(null);
+  const [selectedConsumableId, setSelectedConsumableId] = useState<string>("");
+  const [newConsumableName, setNewConsumableName] = useState("");
+  const [newConsumableUnit, setNewConsumableUnit] = useState("kos");
   const [serviceForm, setServiceForm] = useState<ServiceFormState>({
     description: "",
     taxRate: "VAT_22",
@@ -872,6 +906,7 @@ export function SessionTypesPage() {
     availableAllLocations: true,
     locationIds: [],
     serviceLines: [],
+    consumableLines: [],
   });
   /** Snapshot when the type modal opens; used to detect edits (footer only when dirty). */
   const [typeFormSnapshot, setTypeFormSnapshot] =
@@ -1251,19 +1286,40 @@ export function SessionTypesPage() {
         queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all, refetchType: "none" }),
       ]);
     }
-    const [nextSettings, nextTypes, nextGroups, nextServices, nextLocations] = await Promise.all([
+    const [nextSettings, nextTypes, nextGroups, nextServices, nextLocations, nextCapabilities] = await Promise.all([
       queryClient.fetchQuery(settingsQueryOptions(activeUnitId)).catch(() => ({} as Record<string, string>)),
       queryClient.fetchQuery(calendarTypesQueryOptions<SessionTypeT>(activeUnitId)).catch(() => [] as SessionTypeT[]),
       queryClient.fetchQuery(serviceGroupsQueryOptions<ServiceGroup>(activeUnitId)).catch(() => [] as ServiceGroup[]),
       queryClient.fetchQuery(billingServicesQueryOptions<BillingService>(activeUnitId)).catch(() => [] as BillingService[]),
       queryClient.fetchQuery(locationsQueryOptions(activeUnitId)).catch(() => [] as LocationT[]),
+      queryClient.fetchQuery(moduleCapabilitiesQueryOptions(activeUnitId)).catch(() => ({ consumablesEnabled: false })),
     ]);
     const groupsEnabled = nextSettings.SERVICE_GROUPS_ENABLED !== "false";
     setSettings(nextSettings);
     setTypes(nextTypes);
     setGroups(groupsEnabled ? nextGroups : []);
     setServices(nextServices);
-    setLocations(nextLocations.filter((location) => location.active !== false));
+    const activeLocations = nextLocations.filter((location) => location.active !== false);
+    setLocations(activeLocations);
+    const consumablesEnabled = nextCapabilities.consumablesEnabled === true && nextSettings.CONSUMABLES_ENABLED === "true";
+    setConsumablesCapabilityEnabled(consumablesEnabled);
+    if (consumablesEnabled) {
+      try {
+        const inventoryLocationId = selectedLocationId ?? activeLocations[0]?.id;
+        const response = await api.get("/consumables/items", {
+          params: inventoryLocationId != null ? { locationId: inventoryLocationId } : undefined,
+        });
+        const unique = new Map<number, ConsumableCatalogItem>();
+        (Array.isArray(response.data) ? response.data : []).forEach((item: ConsumableCatalogItem) => {
+          if (item?.id != null && item.active !== false) unique.set(Number(item.id), item);
+        });
+        setConsumableItems(Array.from(unique.values()).sort((a, b) => String(a.name).localeCompare(String(b.name))));
+      } catch {
+        setConsumableItems([]);
+      }
+    } else {
+      setConsumableItems([]);
+    }
   };
 
   const loadGuestAppClients = useCallback(async () => {
@@ -1828,6 +1884,17 @@ export function SessionTypesPage() {
           { params: { locationId: selectedLocationId } },
         );
       }
+      if (consumablesCapabilityEnabled && Number.isFinite(savedTypeId)) {
+        await api.put(`/consumables/service-types/${savedTypeId}/defaults`,
+          typeForm.consumableLines.map((line) => ({
+            consumableId: line.consumableId,
+            defaultQuantity: Number(line.defaultQuantity || 0),
+            quantityMode: line.quantityMode,
+            billableOverride: line.billableOverride,
+            notes: line.notes?.trim() || null,
+          })),
+        );
+      }
       setEditingType(null);
       setTypeForm({
         name: "",
@@ -1850,6 +1917,7 @@ export function SessionTypesPage() {
         availableAllLocations: true,
         locationIds: [],
         serviceLines: [],
+        consumableLines: [],
       });
       setTypeFormSnapshot(null);
       setGuestLimitPickerOpen(false);
@@ -2359,6 +2427,7 @@ export function SessionTypesPage() {
                 })()
               : "",
       })),
+      consumableLines: [],
     };
     if (selectedLocationId != null) {
       try {
@@ -2379,10 +2448,25 @@ export function SessionTypesPage() {
         next.serviceLines = next.serviceLines.map((line) => ({ ...line, locationPrice: "" }));
       }
     }
+    if (consumablesCapabilityEnabled) {
+      try {
+        const response = await api.get(`/consumables/service-types/${type.id}/defaults`);
+        next.consumableLines = (Array.isArray(response.data) ? response.data : []).map((row: any) => ({
+          consumableId: Number(row.consumableId),
+          defaultQuantity: String(row.defaultQuantity ?? 1),
+          quantityMode: row.quantityMode === "PER_PARTICIPANT" ? "PER_PARTICIPANT" : "PER_SESSION",
+          billableOverride: row.billableOverride == null ? null : Boolean(row.billableOverride),
+          notes: row.notes || "",
+        }));
+      } catch {
+        next.consumableLines = [];
+      }
+    }
     setTypeForm(next);
     setTypeFormSnapshot({
       ...next,
       serviceLines: next.serviceLines.map((l) => ({ ...l })),
+      consumableLines: next.consumableLines.map((l) => ({ ...l })),
     });
     setTypeModalActiveTab("basic");
     setGuestLimitPickerOpen(false);
@@ -3089,6 +3173,66 @@ export function SessionTypesPage() {
       </div>
     );
 
+  const addConsumableToType = (item: ConsumableCatalogItem) => {
+    if (typeForm.consumableLines.some((line) => line.consumableId === item.id)) {
+      setConsumableEditorMode(null);
+      setSelectedConsumableId("");
+      return;
+    }
+    setTypeForm((current) => ({
+      ...current,
+      consumableLines: [
+        ...current.consumableLines,
+        {
+          consumableId: item.id,
+          defaultQuantity: "1",
+          quantityMode: "PER_SESSION",
+          billableOverride: item.billable === true,
+          notes: "",
+        },
+      ],
+    }));
+    setConsumableEditorMode(null);
+    setSelectedConsumableId("");
+  };
+
+  const addSelectedConsumableToType = () => {
+    const item = consumableItems.find((candidate) => String(candidate.id) === selectedConsumableId);
+    if (item) addConsumableToType(item);
+  };
+
+  const createConsumableForType = async () => {
+    const name = newConsumableName.trim();
+    if (!name) return;
+    const locationId = selectedLocationId ?? locations[0]?.id;
+    if (locationId == null) {
+      window.alert(locale === "sl" ? "Najprej ustvarite poslovalnico." : "Create a location first.");
+      return;
+    }
+    try {
+      const response = await api.post("/consumables/items", {
+        name,
+        unit: newConsumableUnit.trim() || "kos",
+        locationId,
+        currentStock: 0,
+        minimumStock: 0,
+        costPrice: 0,
+        trackStock: true,
+        billable: false,
+        active: true,
+      });
+      const item = response.data as ConsumableCatalogItem;
+      setConsumableItems((current) =>
+        [...current.filter((row) => row.id !== item.id), item].sort((a, b) => String(a.name).localeCompare(String(b.name))),
+      );
+      addConsumableToType(item);
+      setNewConsumableName("");
+      setNewConsumableUnit("kos");
+    } catch (err: any) {
+      window.alert(err?.response?.data?.message || (locale === "sl" ? "Artikla ni bilo mogoče ustvariti." : "Could not create the consumable."));
+    }
+  };
+
   const openNewTypeModal = () => {
     setEditingType(null);
     const empty: TypeFormState = {
@@ -3112,9 +3256,10 @@ export function SessionTypesPage() {
       availableAllLocations: true,
       locationIds: [],
       serviceLines: [],
+      consumableLines: [],
     };
     setTypeForm(empty);
-    setTypeFormSnapshot({ ...empty, serviceLines: [] });
+    setTypeFormSnapshot({ ...empty, serviceLines: [], consumableLines: [] });
     setTypeModalActiveTab("basic");
     setGuestLimitPickerOpen(false);
     setGuestLimitClientQuery("");
@@ -4620,6 +4765,109 @@ export function SessionTypesPage() {
                     </div>
                   )}
                 </div>
+
+                {consumablesCapabilityEnabled ? (
+                  <div className="session-type-config-unified-card session-type-config-unified-card--consumables">
+                    <div className="session-type-config-unified-card-header">
+                      <div className="session-type-config-section-title">
+                        <span className="session-type-config-section-icon session-type-config-section-icon--consumables" aria-hidden>
+                          <ServiceConfigTabIcon name="services" />
+                        </span>
+                        <div>
+                          <h3>{locale === "sl" ? "Porabni materiali" : "Consumables"}</h3>
+                          <p>
+                            {locale === "sl"
+                              ? "Povežite porabni material, ki se privzeto uporabi pri izvedbi te storitve."
+                              : "Link the consumables used by default when this service is delivered."}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="session-type-config-unified-actions">
+                        <button type="button" className="secondary small-btn" onClick={() => setConsumableEditorMode("existing")}>
+                          <ServiceConfigTabIcon name="plus" />
+                          {locale === "sl" ? "Dodaj obstoječe" : "Add existing"}
+                        </button>
+                        <button type="button" className="secondary small-btn" onClick={() => setConsumableEditorMode("create")}>
+                          <ServiceConfigTabIcon name="plus" />
+                          {locale === "sl" ? "Ustvari novo" : "Create new"}
+                        </button>
+                      </div>
+                    </div>
+
+                    {consumableEditorMode ? (
+                      <div className="session-type-consumable-add-panel">
+                        {consumableEditorMode === "existing" ? (
+                          <>
+                            <select value={selectedConsumableId} onChange={(event) => setSelectedConsumableId(event.target.value)}>
+                              <option value="">{locale === "sl" ? "Izberite artikel …" : "Select an item…"}</option>
+                              {consumableItems
+                                .filter((item) => !typeForm.consumableLines.some((line) => line.consumableId === item.id))
+                                .map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                            </select>
+                            <button type="button" className="primary small-btn" disabled={!selectedConsumableId} onClick={addSelectedConsumableToType}>
+                              {locale === "sl" ? "Dodaj artikel" : "Add item"}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <input value={newConsumableName} onChange={(event) => setNewConsumableName(event.target.value)} placeholder={locale === "sl" ? "Ime artikla" : "Item name"} />
+                            <input value={newConsumableUnit} onChange={(event) => setNewConsumableUnit(event.target.value)} placeholder={locale === "sl" ? "Enota (npr. kos, ml)" : "Unit (e.g. pcs, ml)"} />
+                            <button type="button" className="primary small-btn" disabled={!newConsumableName.trim()} onClick={createConsumableForType}>
+                              {locale === "sl" ? "Ustvari in dodaj" : "Create and add"}
+                            </button>
+                          </>
+                        )}
+                        <button type="button" className="secondary small-btn" onClick={() => setConsumableEditorMode(null)}>
+                          {locale === "sl" ? "Prekliči" : "Cancel"}
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {typeForm.consumableLines.length === 0 ? (
+                      <div className="session-type-linked-empty">
+                        {locale === "sl" ? "Ni povezanih porabnih materialov." : "No consumables are linked."}
+                      </div>
+                    ) : (
+                      <div className="session-type-consumables-list">
+                        <div className="session-type-consumables-head" aria-hidden>
+                          <span>{locale === "sl" ? "Artikel" : "Item"}</span>
+                          <span>{locale === "sl" ? "Količina" : "Quantity"}</span>
+                          <span>{locale === "sl" ? "Obračun" : "Calculation"}</span>
+                          <span>{locale === "sl" ? "Zaračunaj" : "Bill"}</span>
+                          <span>{locale === "sl" ? "Dejanja" : "Actions"}</span>
+                        </div>
+                        {typeForm.consumableLines.map((line, idx) => {
+                          const item = consumableItems.find((candidate) => candidate.id === line.consumableId);
+                          return (
+                            <div key={`${line.consumableId}-${idx}`} className="session-type-consumable-row">
+                              <span className="session-type-linked-card-copy">
+                                <strong>{item?.name || `#${line.consumableId}`}</strong>
+                                <span>{item?.unit || "kos"}</span>
+                              </span>
+                              <div className="session-type-consumable-quantity">
+                                <input type="number" min="0" step="0.01" value={line.defaultQuantity} onChange={(event) => setTypeForm((current) => ({ ...current, consumableLines: current.consumableLines.map((row, rowIndex) => rowIndex === idx ? { ...row, defaultQuantity: event.target.value } : row) }))} />
+                                <span>{item?.unit || "kos"}</span>
+                              </div>
+                              <select value={line.quantityMode} onChange={(event) => setTypeForm((current) => ({ ...current, consumableLines: current.consumableLines.map((row, rowIndex) => rowIndex === idx ? { ...row, quantityMode: event.target.value as TypeConsumableLine["quantityMode"] } : row) }))}>
+                                <option value="PER_SESSION">{locale === "sl" ? "Na termin" : "Per appointment"}</option>
+                                <option value="PER_PARTICIPANT">{locale === "sl" ? "Na udeleženca" : "Per participant"}</option>
+                              </select>
+                              <label className="switch session-type-consumable-switch">
+                                <input type="checkbox" checked={line.billableOverride === true} onChange={(event) => setTypeForm((current) => ({ ...current, consumableLines: current.consumableLines.map((row, rowIndex) => rowIndex === idx ? { ...row, billableOverride: event.target.checked } : row) }))} />
+                                <span className="slider" />
+                              </label>
+                              <div className="session-type-linked-card-actions">
+                                <button type="button" className="danger secondary slim-btn" onClick={() => setTypeForm((current) => ({ ...current, consumableLines: current.consumableLines.filter((_, rowIndex) => rowIndex !== idx) }))}>
+                                  {locale === "sl" ? "Odstrani" : "Remove"}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
 
                 {locations.length > 1 ? (
                   <div className="session-type-config-unified-card session-type-config-location-section">

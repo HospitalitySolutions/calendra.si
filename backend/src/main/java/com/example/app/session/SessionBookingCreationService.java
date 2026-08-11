@@ -38,6 +38,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -451,7 +452,7 @@ public class SessionBookingCreationService {
             }
         }
         if (consumableService != null) {
-            consumableService.ensureSessionDefaultsForBookings(saved, companyId);
+            applyRequestedConsumables(me, req, saved, companyId);
             consumableService.applySessionUsageIfCheckedOut(me, saved, java.util.Map.of());
         }
         SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(saved, locationPrices == null ? null : locationPrices::effectiveNet);
@@ -599,6 +600,7 @@ public class SessionBookingCreationService {
                 if (req.maxParticipantsOverride() == null) {
                     row.setMaxParticipantsOverride(representative.getMaxParticipantsOverride());
                 }
+                row.setSessionConsumablesOverridden(representative.isSessionConsumablesOverridden());
                 created = true;
             } else {
                 previouslyBlockedAvailability = SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus());
@@ -674,7 +676,7 @@ public class SessionBookingCreationService {
             openBillSyncService.removeSessionRowsFromOpenBills(companyId, cancelledUnbilledSessionIds);
         }
         if (consumableService != null) {
-            consumableService.ensureSessionDefaultsForBookings(saved, companyId);
+            applyRequestedConsumables(me, req, saved, companyId);
             consumableService.applySessionUsageIfCheckedOut(me, saved, previouslyStoredStatusById);
         }
         openBillSyncService.syncSessionGroup(companyId, groupKey);
@@ -801,7 +803,7 @@ public class SessionBookingCreationService {
         // a second persistence/query path that the public cancellation flow never uses.
         SessionBooking placeholderForResponse = null;
         for (SessionBooking target : targets) {
-            GroupParticipantCancellationResult cancellation = cancelGroupParticipantBooking(target, "STAFF");
+            GroupParticipantCancellationResult cancellation = cancelGroupParticipantBooking(target, "STAFF", me);
             if (cancellation.placeholder() != null) {
                 placeholderForResponse = cancellation.placeholder();
             }
@@ -962,7 +964,8 @@ public class SessionBookingCreationService {
                 before.totalBreakMinutes(),
                 before.totalGross(),
                 before.location(),
-                before.maxParticipantsOverride()
+                before.maxParticipantsOverride(),
+                placeholder != null ? placeholder.isSessionConsumablesOverridden() : before.sessionConsumablesOverridden()
         );
     }
 
@@ -979,6 +982,15 @@ public class SessionBookingCreationService {
             SessionBooking participant,
             String origin
     ) {
+        return cancelGroupParticipantBooking(participant, origin, null);
+    }
+
+    @Transactional
+    public GroupParticipantCancellationResult cancelGroupParticipantBooking(
+            SessionBooking participant,
+            String origin,
+            User actor
+    ) {
         if (participant == null || participant.getCompany() == null || participant.getCompany().getId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking is required.");
         }
@@ -989,6 +1001,7 @@ public class SessionBookingCreationService {
         Long companyId = participant.getCompany().getId();
         String effectiveOrigin = origin == null || origin.isBlank() ? "STAFF" : origin.trim();
         String groupKey = SessionBookingController.groupKey(participant);
+        String previousParticipantStatus = participant.getBookingStatus();
 
         // This ordering deliberately mirrors the previously-working public manage
         // cancellation path: mark cancelled, ensure an empty occurrence exists,
@@ -1028,6 +1041,25 @@ public class SessionBookingCreationService {
                 effectiveOrigin,
                 null
         );
+
+        // A group participant can be removed after checkout (staff or public manage link).
+        // Recalculate automatic PER_PARTICIPANT defaults and reconcile the immutable
+        // stock ledger to the quantity that the remaining checked-out occurrence needs.
+        if (consumableService != null) {
+            List<SessionBooking> refreshed = repo.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(groupKey, companyId);
+            if (refreshed == null) refreshed = List.of();
+            List<SessionBooking> activeRows = refreshed.stream()
+                    .filter(row -> !SessionBookingStatus.CANCELLED.equals(
+                            SessionBookingStatus.normalizeStored(row.getBookingStatus())))
+                    .toList();
+            if (activeRows.isEmpty() && placeholder != null) activeRows = List.of(placeholder);
+            if (!activeRows.isEmpty()) {
+                consumableService.ensureSessionDefaultsForBookings(actor, activeRows, companyId);
+                Map<Long, String> previousStatuses = new HashMap<>();
+                if (participant.getId() != null) previousStatuses.put(participant.getId(), previousParticipantStatus);
+                consumableService.applySessionUsageIfCheckedOut(actor, activeRows, previousStatuses);
+            }
+        }
         return new GroupParticipantCancellationResult(participant, placeholder, groupKey);
     }
 
@@ -1091,6 +1123,7 @@ public class SessionBookingCreationService {
         placeholder.setSessionGroupEmailOverride(participant.getSessionGroupEmailOverride());
         placeholder.setSessionGroupBillingCompany(participant.getSessionGroupBillingCompany());
         placeholder.setMaxParticipantsOverride(participant.getMaxParticipantsOverride());
+        placeholder.setSessionConsumablesOverridden(participant.isSessionConsumablesOverridden());
         placeholder = repo.save(placeholder);
 
         // Public cancellation flushes here before continuing with participant
@@ -1358,7 +1391,7 @@ public class SessionBookingCreationService {
             booking = sendBookingConfirmationWhenReady(booking);
         }
         if (consumableService != null) {
-            consumableService.ensureSessionDefaultsForBookings(java.util.List.of(booking), companyId);
+            consumableService.ensureSessionDefaultsForBookings(actor, java.util.List.of(booking), companyId);
             consumableService.applySessionUsageIfCheckedOut(actor, java.util.List.of(booking), java.util.Map.of());
         }
         bookingChangePublisher.publish(
@@ -1476,6 +1509,7 @@ public class SessionBookingCreationService {
         joined.setSessionGroupEmailOverride(representative.getSessionGroupEmailOverride());
         joined.setSessionGroupBillingCompany(representative.getSessionGroupBillingCompany());
         joined.setMaxParticipantsOverride(representative.getMaxParticipantsOverride());
+        joined.setSessionConsumablesOverridden(representative.isSessionConsumablesOverridden());
         if ("COMPANY".equalsIgnoreCase(String.valueOf(representative.getPayeeType()))
                 && representative.getPayeeCompany() != null) {
             joined.setPayeeType("COMPANY");
@@ -1489,7 +1523,8 @@ public class SessionBookingCreationService {
         if (consumableService != null) {
             var refreshedForConsumables = new java.util.ArrayList<>(loadGroupedRows(representative, companyId));
             refreshedForConsumables.add(joined);
-            consumableService.ensureSessionDefaultsForBookings(refreshedForConsumables, companyId);
+            consumableService.ensureSessionDefaultsForBookings(actor, refreshedForConsumables, companyId);
+            consumableService.applySessionUsageIfCheckedOut(actor, refreshedForConsumables, java.util.Map.of());
         }
         bookingChangePublisher.publish(
                 companyId,
@@ -1502,6 +1537,25 @@ public class SessionBookingCreationService {
         openBillSyncService.syncSessionGroup(companyId, SessionBookingController.groupKey(representative));
         openBillSyncService.enqueueBookingsSync(companyId, java.util.List.of(representative, joined));
         return joined;
+    }
+
+    private void applyRequestedConsumables(
+            User actor,
+            SessionBookingController.BookingRequest request,
+            List<SessionBooking> saved,
+            Long companyId
+    ) {
+        if (consumableService == null || saved == null || saved.isEmpty()) return;
+        var representative = saved.stream().filter(Objects::nonNull)
+                .min(java.util.Comparator.comparing(SessionBooking::getId)).orElse(null);
+        if (representative == null || representative.getId() == null) return;
+        if (Boolean.TRUE.equals(request.resetSessionConsumablesToDefaults())) {
+            consumableService.resetSessionDefaults(actor, representative.getId());
+        } else if (request.sessionConsumables() != null) {
+            consumableService.replaceSessionConsumables(actor, representative.getId(), request.sessionConsumables());
+        } else {
+            consumableService.ensureSessionDefaultsForBookings(actor, saved, companyId);
+        }
     }
 
     SessionServicePlanService.Plan planExistingBookingEdit(
@@ -2761,6 +2815,7 @@ public class SessionBookingCreationService {
             if (req.maxParticipantsOverride() == null) {
                 keep.setMaxParticipantsOverride(sourceRepresentative.getMaxParticipantsOverride());
             }
+            keep.setSessionConsumablesOverridden(sourceRepresentative.isSessionConsumablesOverridden());
         }
         applySharedFields(keep, req, me, start, end, companyId, meetingLink, bookingStatus);
         synchronizeServicePlan(keep, servicePlan);

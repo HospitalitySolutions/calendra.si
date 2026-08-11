@@ -52,6 +52,8 @@ export type ConfirmNonBookableEditPayload = {
   recurrenceSeriesKey?: string | null
   bookingStatus?: StoredBookingStatus
   maxParticipantsOverride?: number | null
+  sessionConsumables?: Array<{ consumableId: number; quantity: number; unit: string; quantityMode: 'PER_SESSION' | 'PER_PARTICIPANT'; billable: boolean; notes?: string | null }> | null
+  resetSessionConsumablesToDefaults?: boolean
   payees?: Array<{ clientId: number; payeeType: 'PERSON' | 'COMPANY' | string; companyId?: number | null; customData?: boolean; firstName?: string | null; lastName?: string | null; email?: string | null; companyName?: string | null; address?: string | null; city?: string | null; postalCode?: string | null; vatId?: string | null; companyEmail?: string | null }>
 }
 

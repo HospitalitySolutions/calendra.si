@@ -325,7 +325,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const [billingModuleEnabled, setBillingModuleEnabled] = useState(true)
   const [inboxModuleEnabled, setInboxModuleEnabled] = useState(true)
   const [waitlistModuleEnabled, setWaitlistModuleEnabled] = useState(false)
-  const [consumablesModuleEnabled, setConsumablesModuleEnabled] = useState(true)
+  const [consumablesModuleEnabled, setConsumablesModuleEnabled] = useState(false)
   const canViewCalendar = hasEmployeePermission(user, 'CALENDAR_BOOKINGS_VIEW')
   const canViewClients = hasEmployeePermission(user, 'CLIENTS_VIEW')
   const canViewAppointments = canViewCalendar || canViewClients
@@ -488,7 +488,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
     if (shellModuleCapabilitiesQuery.data) {
       setConsumablesModuleEnabled(shellModuleCapabilitiesQuery.data.consumablesEnabled !== false)
     } else if (shellModuleCapabilitiesQuery.isError) {
-      setConsumablesModuleEnabled(true)
+      setConsumablesModuleEnabled(false)
     }
   }, [shellModuleCapabilitiesQuery.data, shellModuleCapabilitiesQuery.isError])
 
