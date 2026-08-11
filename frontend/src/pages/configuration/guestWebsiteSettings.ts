@@ -120,7 +120,8 @@ export type TenantConfigType =
   | "gym"
   | "therapy"
   | "spa"
-  | "personal_training";
+  | "personal_training"
+  | "other";
 
 export const TENANT_CONFIG_TYPE_OPTIONS: Array<{
   id: TenantConfigType;
@@ -131,6 +132,7 @@ export const TENANT_CONFIG_TYPE_OPTIONS: Array<{
   { id: "gym", labelEn: "Gym", labelSl: "Fitnes" },
   { id: "therapy", labelEn: "Therapy", labelSl: "Terapija" },
   { id: "spa", labelEn: "Spa", labelSl: "Spa" },
+  { id: "other", labelEn: "Other", labelSl: "Ostalo" },
   {
     id: "personal_training",
     labelEn: "Personal Training",

@@ -2288,21 +2288,6 @@ export function ConfigurationPage() {
     [me.firstName, me.lastName].filter(Boolean).join(" ").trim() ||
     "Sašo Admin";
 
-  const exportCompanyProfile = () => {
-    const payload = JSON.stringify(
-      selectedCompanyProfile || companyProfileFromSettings(settings),
-      null,
-      2,
-    );
-    const blob = new Blob([payload], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${(selectedCompanyProfile?.name || "company-profile").replace(/\s+/g, "-").toLowerCase()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const changeCurrentCycleUserAdd = (delta: number) => {
     const next = Math.max(
       minimumCurrentCycleUserAdd,
@@ -7404,6 +7389,9 @@ export function ConfigurationPage() {
               gap: 16px;
               margin-top: 28px;
             }
+            .account-company-footer--actions-only {
+              justify-content: flex-end;
+            }
             .account-company-footer-actions {
               display: flex;
               align-items: center;
@@ -8629,11 +8617,8 @@ export function ConfigurationPage() {
                                   ) : null}
                                 </div>
                                 <div className="account-overview-kv">
-                                  <small>ID podjetja</small>
-                                  <strong>
-                                    {selectedCompanyProfile?.id ||
-                                      "550e8400-e29b-41d4-a716-4466555440000"}
-                                  </strong>
+                                  <small>Koda podjetja</small>
+                                  <strong>{me.tenantCode || "—"}</strong>
                                 </div>
                               </div>
                             </div>
@@ -8806,7 +8791,7 @@ export function ConfigurationPage() {
                               <GuestUploadDropzone
                                 title="Povlecite logotip sem ali kliknite za izbiro"
                                 subtitle="PNG, JPG ali WebP · Priporočeno 512×512"
-                                hint="Lokacije lahko v zavihku Poslovni prostori nastavijo svoj javni logotip ali uporabijo tega."
+                                hint=""
                                 currentUrl={settings.COMPANY_LOGO_URL}
                                 previewAlt="Logotip podjetja"
                                 previewShape="round"
@@ -8900,11 +8885,6 @@ export function ConfigurationPage() {
                             <div className="account-form-card-header">
                               <div>
                                 <h3>Davčno potrjevanje</h3>
-                                <p className="account-form-card-subtitle">
-                                  {locale === "sl"
-                                    ? "Nastavitve ostanejo shranjene v ozadju. Prikaz tega bloka lahko vklopite ali skrijete preko menija na kartici profila podjetja."
-                                    : "These settings remain saved in the background. You can show or hide this block from the company profile menu."}
-                                </p>
                               </div>
                             </div>
 
@@ -8922,6 +8902,28 @@ export function ConfigurationPage() {
                             <div className="account-form-grid">
                               <label className="account-field">
                                 <span className="account-field-label">
+                                  Fiskalno okolje
+                                </span>
+                                <select
+                                  className="account-field-control"
+                                  value={settings.FISCAL_ENVIRONMENT || "TEST"}
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      FISCAL_ENVIRONMENT: e.target.value,
+                                    })
+                                  }
+                                >
+                                  <option value="TEST">
+                                    {locale === "sl" ? "Testno" : "Test"}
+                                  </option>
+                                  <option value="PROD">
+                                    {locale === "sl" ? "Produkcijsko" : "Production"}
+                                  </option>
+                                </select>
+                              </label>
+                              <label className="account-field">
+                                <span className="account-field-label">
                                   Davčna številka
                                 </span>
                                 <input
@@ -8937,32 +8939,11 @@ export function ConfigurationPage() {
                               </label>
                               <label className="account-field">
                                 <span className="account-field-label">
-                                  Davčna številka dobavitelja
-                                </span>
-                                <input
-                                  className="account-field-control"
-                                  value={
-                                    settings.FISCAL_SOFTWARE_SUPPLIER_TAX_NUMBER ||
-                                    ""
-                                  }
-                                  onChange={(e) =>
-                                    setSettings({
-                                      ...settings,
-                                      FISCAL_SOFTWARE_SUPPLIER_TAX_NUMBER:
-                                        e.target.value,
-                                    })
-                                  }
-                                />
-                              </label>
-                              <label className="account-field">
-                                <span className="account-field-label">
                                   Katastrska občina
                                 </span>
                                 <input
                                   className="account-field-control"
-                                  value={
-                                    settings.FISCAL_CADASTRAL_NUMBER || ""
-                                  }
+                                  value={settings.FISCAL_CADASTRAL_NUMBER || ""}
                                   onChange={(e) =>
                                     setSettings({
                                       ...settings,
@@ -8992,15 +8973,11 @@ export function ConfigurationPage() {
                                 </span>
                                 <input
                                   className="account-field-control"
-                                  value={
-                                    settings.FISCAL_BUILDING_SECTION_NUMBER ||
-                                    ""
-                                  }
+                                  value={settings.FISCAL_BUILDING_SECTION_NUMBER || ""}
                                   onChange={(e) =>
                                     setSettings({
                                       ...settings,
-                                      FISCAL_BUILDING_SECTION_NUMBER:
-                                        e.target.value,
+                                      FISCAL_BUILDING_SECTION_NUMBER: e.target.value,
                                     })
                                   }
                                 />
@@ -9026,15 +9003,11 @@ export function ConfigurationPage() {
                                 </span>
                                 <input
                                   className="account-field-control"
-                                  value={
-                                    settings.FISCAL_HOUSE_NUMBER_ADDITIONAL ||
-                                    ""
-                                  }
+                                  value={settings.FISCAL_HOUSE_NUMBER_ADDITIONAL || ""}
                                   onChange={(e) =>
                                     setSettings({
                                       ...settings,
-                                      FISCAL_HOUSE_NUMBER_ADDITIONAL:
-                                        e.target.value,
+                                      FISCAL_HOUSE_NUMBER_ADDITIONAL: e.target.value,
                                     })
                                   }
                                 />
@@ -9046,37 +9019,14 @@ export function ConfigurationPage() {
                                 <input
                                   className="account-field-control"
                                   type="password"
-                                  value={
-                                    settings.FISCAL_CERTIFICATE_PASSWORD || ""
-                                  }
+                                  value={settings.FISCAL_CERTIFICATE_PASSWORD || ""}
                                   onChange={(e) =>
                                     setSettings({
                                       ...settings,
-                                      FISCAL_CERTIFICATE_PASSWORD:
-                                        e.target.value,
+                                      FISCAL_CERTIFICATE_PASSWORD: e.target.value,
                                     })
                                   }
                                 />
-                              </label>
-                              <label className="account-field">
-                                <span className="account-field-label">
-                                  Fiskalno okolje
-                                </span>
-                                <select
-                                  className="account-field-control"
-                                  value={
-                                    settings.FISCAL_ENVIRONMENT || "TEST"
-                                  }
-                                  onChange={(e) =>
-                                    setSettings({
-                                      ...settings,
-                                      FISCAL_ENVIRONMENT: e.target.value,
-                                    })
-                                  }
-                                >
-                                  <option value="TEST">TEST</option>
-                                  <option value="PROD">PROD</option>
-                                </select>
                               </label>
                               <div className="account-field account-field-wide">
                                 <span className="account-field-label">
@@ -9088,9 +9038,7 @@ export function ConfigurationPage() {
                                       type="file"
                                       accept=".p12,.pfx,application/x-pkcs12"
                                       onChange={(e) =>
-                                        setCertificateFile(
-                                          e.target.files?.[0] || null,
-                                        )
+                                        setCertificateFile(e.target.files?.[0] || null)
                                       }
                                     />
                                     <BillingUploadIcon />
@@ -9111,8 +9059,7 @@ export function ConfigurationPage() {
                                     <div className="account-fiscal-certificate-main">
                                       <strong>
                                         {certificateMeta?.uploaded
-                                          ? certificateMeta.fileName ||
-                                            "fiskalni_certifikat.p12"
+                                          ? certificateMeta.fileName || "fiskalni_certifikat.p12"
                                           : locale === "sl"
                                             ? "Fiskalni certifikat ni naložen"
                                             : "No fiscal certificate uploaded"}
@@ -9134,10 +9081,7 @@ export function ConfigurationPage() {
                                         type="button"
                                         className="account-button"
                                         onClick={uploadCertificate}
-                                        disabled={
-                                          uploadingCertificate ||
-                                          !certificateFile
-                                        }
+                                        disabled={uploadingCertificate || !certificateFile}
                                       >
                                         <BillingUploadIcon />
                                         {uploadingCertificate
@@ -9152,48 +9096,38 @@ export function ConfigurationPage() {
                                         type="button"
                                         className="account-button-ghost account-fiscal-remove-button"
                                         onClick={removeCertificate}
-                                        disabled={
-                                          !certificateMeta?.uploaded ||
-                                          uploadingCertificate
-                                        }
+                                        disabled={!certificateMeta?.uploaded || uploadingCertificate}
                                       >
                                         <BillingTrashIcon />
-                                        {locale === "sl"
-                                          ? "Odstrani"
-                                          : "Remove"}
+                                        {locale === "sl" ? "Odstrani" : "Remove"}
                                       </button>
                                     </div>
                                   </div>
                                 </div>
                               </div>
+                              <label className="account-field account-field-wide">
+                                <span className="account-field-label">
+                                  {locale === "sl"
+                                    ? "Davčna številka dobavitelja (opcijsko)"
+                                    : "Supplier tax number (optional)"}
+                                </span>
+                                <input
+                                  className="account-field-control"
+                                  value={settings.FISCAL_SOFTWARE_SUPPLIER_TAX_NUMBER || ""}
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      FISCAL_SOFTWARE_SUPPLIER_TAX_NUMBER: e.target.value,
+                                    })
+                                  }
+                                />
+                              </label>
                             </div>
                           </section>
                         ) : null}
                       </div>
 
-                      <div className="account-company-footer">
-                        <button
-                          type="button"
-                          className="account-button-ghost"
-                          onClick={exportCompanyProfile}
-                        >
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden
-                          >
-                            <path d="M12 3v12" />
-                            <path d="m7 10 5 5 5-5" />
-                            <path d="M5 21h14" />
-                          </svg>
-                          Izvozi podatke
-                        </button>
+                      <div className="account-company-footer account-company-footer--actions-only">
                         <div className="account-company-footer-actions">
                           <button
                             type="button"
@@ -9215,9 +9149,7 @@ export function ConfigurationPage() {
                       locationsEnabled={locationsEnabledCommitted}
                       spacesEnabled={spacesEnabledCommitted}
                       issuerOptions={locationIssuerOptions}
-                      companyLogoUrl={
-                        settings.COMPANY_LOGO_URL
-                      }
+                      companyLogoUrl={settings.COMPANY_LOGO_URL}
                       onChanged={load}
                     />
                   ) : accountSubtab === "receivedInvoices" ? (
@@ -10650,9 +10582,7 @@ export function ConfigurationPage() {
                     locationsEnabled={locationsEnabledCommitted}
                     spacesEnabled={spacesEnabledCommitted}
                     issuerOptions={locationIssuerOptions}
-                    companyLogoUrl={
-                      settings.COMPANY_LOGO_URL
-                    }
+                    companyLogoUrl={settings.COMPANY_LOGO_URL}
                     onChanged={load}
                   />
                 </div>

@@ -25,7 +25,6 @@ type OperatingLocation = {
   guestAppDiscoverable: boolean
   websitePresentationEnabled: boolean
   googlePlaceId?: string | null
-  publicBookingEnabled: boolean
   defaultLocation: boolean
   active: boolean
   fiscalBusinessPremiseCode?: string | null
@@ -62,7 +61,6 @@ type LocationDraft = {
   guestAppDiscoverable: boolean
   websitePresentationEnabled: boolean
   googlePlaceId: string
-  publicBookingEnabled: boolean
   defaultLocation: boolean
   active: boolean
   fiscalBusinessPremiseCode: string
@@ -131,7 +129,6 @@ const blankDraft = (issuerId: number | null): LocationDraft => ({
   guestAppDiscoverable: false,
   websitePresentationEnabled: true,
   googlePlaceId: '',
-  publicBookingEnabled: true,
   defaultLocation: false,
   active: true,
   fiscalBusinessPremiseCode: '',
@@ -159,7 +156,6 @@ const draftFromLocation = (location: OperatingLocation): LocationDraft => ({
   guestAppDiscoverable: location.guestAppDiscoverable === true,
   websitePresentationEnabled: location.websitePresentationEnabled !== false,
   googlePlaceId: location.googlePlaceId || '',
-  publicBookingEnabled: location.publicBookingEnabled !== false,
   defaultLocation: location.defaultLocation === true,
   active: location.active !== false,
   fiscalBusinessPremiseCode: location.fiscalBusinessPremiseCode || '',
@@ -200,7 +196,6 @@ export function OperatingUnitsPanel({
   const [saving, setSaving] = useState(false)
   const [premiseBusy, setPremiseBusy] = useState(false)
   const [publicLogoBusy, setPublicLogoBusy] = useState(false)
-  const [bannerVisible, setBannerVisible] = useState(true)
   const [newSpaceName, setNewSpaceName] = useState('')
   const [addingSpace, setAddingSpace] = useState(false)
   const [editingSpaceId, setEditingSpaceId] = useState<number | null>(null)
@@ -304,16 +299,6 @@ export function OperatingUnitsPanel({
     setEditingSpaceId(null)
   }
 
-  const cancelLocationChanges = () => {
-    if (selectedLocationId === 'new') {
-      const fallback = locations.find((location) => location.defaultLocation) ?? locations[0] ?? null
-      if (fallback) selectLocation(fallback)
-      else setDraft(blankDraft(defaultIssuer?.id ?? null))
-      return
-    }
-    if (selectedLocation) selectLocation(selectedLocation)
-  }
-
   const saveLocation = async () => {
     if (!selectedLocation && !locationsEnabled) {
       showToast('error', sl ? 'Dodajanje dodatnih lokacij ni omogočeno.' : 'Adding additional locations is not enabled.')
@@ -327,6 +312,7 @@ export function OperatingUnitsPanel({
     try {
       const payload = {
         ...draft,
+        publicBookingEnabled: true,
         name: draft.name.trim(),
         defaultLegalEntityId: draft.defaultLegalEntityId ?? defaultIssuer?.id ?? null,
       }
@@ -483,21 +469,9 @@ export function OperatingUnitsPanel({
 
   return (
     <section className="operating-units-panel">
-      <header className="operating-units-head">
-        <div>
-          <h2>{sl ? 'Poslovni prostori' : 'Business units'}</h2>
-          <p>{sl ? 'Upravljajte lokacije in poslovne prostore. Naslov podjetja se odslej določa na lokaciji.' : 'Manage locations and rooms. The company physical address is now defined by its location.'}</p>
-        </div>
+      <header className="operating-units-head operating-units-head--actions-only">
         {locationsEnabled ? <button type="button" className="ou-primary-button" onClick={beginNewLocation}>{icon('plus')}{sl ? 'Nova lokacija' : 'New location'}</button> : null}
       </header>
-
-      {bannerVisible ? (
-        <div className="ou-info-banner">
-          <span>{icon('info')}</span>
-          <p>{sl ? 'Fizični naslov podjetja se upravlja preko lokacije. Polj za fizični naslov v zavihku Podjetje ni več treba izpolnjevati.' : 'The company physical address is managed through a location. Separate physical-address fields are no longer needed in the Company tab.'}</p>
-          <button type="button" onClick={() => setBannerVisible(false)} aria-label={sl ? 'Zapri obvestilo' : 'Close notice'}>×</button>
-        </div>
-      ) : null}
 
       <div className="ou-workspace">
         <aside className="ou-location-sidebar">
@@ -565,20 +539,20 @@ export function OperatingUnitsPanel({
               </section>
 
               <section className="ou-form-section ou-fiscal-section">
-                <h3>{sl ? 'Fiskalne / računovodske nastavitve lokacije' : 'Fiscal / accounting settings'}</h3>
+                <h3>{sl ? 'Računovodske / Davčne nastavitve' : 'Accounting / Tax settings'}</h3>
                 <div className="ou-counter-note">{icon('info')}<span>{sl ? 'Vsaka lokacija ima svoje številčenje računov.' : 'Each location has its own invoice counter.'}</span></div>
-                <div className="ou-field">
+                <label className="ou-field">
                   <span>{sl ? 'Oznaka poslovnega prostora' : 'Business premise code'}</span>
                   <input value={draft.fiscalBusinessPremiseCode} onChange={(event) => setDraft((current) => ({ ...current, fiscalBusinessPremiseCode: event.target.value }))} placeholder="REC123" />
                   <small>{sl ? 'Vsi računi, izdani na tej lokaciji, uporabijo to oznako kot predpono.' : 'All invoices issued at this location use this code as their prefix.'}</small>
-                  <div className="ou-inline-actions">
-                    <button type="button" className="ou-inline-button" onClick={() => void registerPremise()} disabled={premiseBusy || !selectedLocation || !draft.defaultLegalEntityId}>{premiseBusy ? (sl ? 'Registracija…' : 'Registering…') : (sl ? 'Registriraj poslovni prostor' : 'Register business premise')}</button>
-                  </div>
+                </label>
+                <div className="ou-premise-register-cell">
+                  <button type="button" className="ou-inline-button" onClick={() => void registerPremise()} disabled={premiseBusy || !selectedLocation || !draft.defaultLegalEntityId}>{premiseBusy ? (sl ? 'Registracija…' : 'Registering…') : (sl ? 'Registriraj poslovni prostor' : 'Register business premise')}</button>
                 </div>
+                <label className="ou-field"><span>{sl ? 'Oznaka elektronske naprave' : 'Electronic device ID'}</span><input value={draft.invoiceElectronicDeviceId} onChange={(event) => setDraft((current) => ({ ...current, invoiceElectronicDeviceId: event.target.value }))} /><small>{sl ? 'Oznaka tiskalnika ali POS naprave za izdajanje računov.' : 'Printer or POS device identifier used for invoices.'}</small></label>
                 <label className="ou-field"><span>{sl ? 'Naslednja številka' : 'Next number'}</span><input value={draft.invoiceNextNumber} onChange={(event) => setDraft((current) => ({ ...current, invoiceNextNumber: event.target.value }))} /></label>
                 <label className="ou-field"><span>{sl ? 'Začetna številka ob ponastavitvi' : 'Initial number on reset'}</span><input value={draft.invoiceInitialNumber} onChange={(event) => setDraft((current) => ({ ...current, invoiceInitialNumber: event.target.value }))} /></label>
                 <label className="ou-field"><span>{sl ? 'Ponastavitev' : 'Reset'}</span><select value={draft.invoiceResetPolicy} onChange={(event) => setDraft((current) => ({ ...current, invoiceResetPolicy: event.target.value === 'YEARLY' ? 'YEARLY' : 'NONE' }))}><option value="NONE">{sl ? 'Brez' : 'None'}</option><option value="YEARLY">{sl ? 'Letno' : 'Yearly'}</option></select></label>
-                <label className="ou-field"><span>{sl ? 'Oznaka elektronske naprave' : 'Electronic device ID'}</span><input value={draft.invoiceElectronicDeviceId} onChange={(event) => setDraft((current) => ({ ...current, invoiceElectronicDeviceId: event.target.value }))} /><small>{sl ? 'Oznaka tiskalnika ali POS naprave za izdajanje računov.' : 'Printer or POS device identifier used for invoices.'}</small></label>
               </section>
             </div>
 
@@ -634,18 +608,7 @@ export function OperatingUnitsPanel({
                 </label>
               </div>
 
-              <div className="ou-public-logo-section">
-                <div className="ou-public-logo-copy">
-                  <strong>{sl ? 'Logotip lokacije' : 'Location logo'}</strong>
-                  <p>{sl ? 'Po želji nastavite logotip samo za to lokacijo. Če ga ne nastavite, se uporabi logotip podjetja.' : 'Optionally set a logo for this location. If none is set, the company logo is used.'}</p>
-                  {selectedLocation?.publicLogoS3Key ? (
-                    <span className="ou-logo-source-badge">{sl ? 'Uporabljen je logotip lokacije' : 'Using location logo'}</span>
-                  ) : companyLogoUrl ? (
-                    <span className="ou-logo-source-badge is-fallback">{sl ? 'Uporabljen je logotip podjetja' : 'Using company logo'}</span>
-                  ) : (
-                    <span className="ou-logo-source-badge is-fallback">{sl ? 'Logotip ni nastavljen' : 'No logo set'}</span>
-                  )}
-                </div>
+              <div className="ou-public-logo-section ou-public-logo-section--control-only">
                 <div className="ou-public-logo-control">
                   {selectedLocation ? (
                     <>
@@ -704,13 +667,12 @@ export function OperatingUnitsPanel({
             <div className="ou-check-row">
               <label><input type="checkbox" checked={draft.active} disabled={draft.defaultLocation} onChange={(event) => setDraft((current) => ({ ...current, active: event.target.checked }))} /><span><strong>{sl ? 'Aktivna lokacija' : 'Active location'}</strong><small>{sl ? 'Lokacija je vidna in uporabna v aplikaciji.' : 'The location is visible and usable in the app.'}</small></span></label>
               <label><input type="checkbox" checked={draft.defaultLocation} disabled={Boolean(selectedLocation?.defaultLocation)} onChange={(event) => setDraft((current) => ({ ...current, defaultLocation: event.target.checked, active: event.target.checked ? true : current.active }))} /><span><strong>{sl ? 'Privzeta lokacija' : 'Default location'}</strong><small>{sl ? 'Predizpolni se pri novih rezervacijah in računih.' : 'Preselected for new bookings and invoices.'}</small></span></label>
-              <label><input type="checkbox" checked={draft.publicBookingEnabled} onChange={(event) => setDraft((current) => ({ ...current, publicBookingEnabled: event.target.checked }))} /><span><strong>{sl ? 'Spletno naročanje' : 'Online booking'}</strong><small>{sl ? 'Lokacija je na voljo na javnih rezervacijskih straneh.' : 'The location is available on public booking pages.'}</small></span></label>
             </div>
           </div>
 
           {spacesEnabled && selectedLocation ? (
             <section className="ou-spaces-section">
-              <div className="ou-spaces-head"><div><h3>{sl ? 'Prostori (poslovni prostori) na tej lokaciji' : 'Rooms at this location'}</h3><span>{locationSpaces.length}</span></div><button type="button" onClick={() => setAddingSpace(true)}>{icon('plus')}{sl ? 'Nov prostor' : 'New room'}</button></div>
+              <div className="ou-spaces-head"><div><h3>{sl ? 'Prostori' : 'Rooms'}</h3><span>{locationSpaces.length}</span></div><button type="button" onClick={() => setAddingSpace(true)}>{icon('plus')}{sl ? 'Nov prostor' : 'New room'}</button></div>
               <div className="ou-space-grid">
                 {addingSpace ? (
                   <article className="ou-space-card is-editing"><span className="ou-space-icon">{icon('room')}</span><input autoFocus value={newSpaceName} onChange={(event) => setNewSpaceName(event.target.value)} placeholder={sl ? 'Ime prostora' : 'Room name'} /><div className="ou-space-actions"><button type="button" className="primary" onClick={() => void createSpace()}>{sl ? 'Shrani' : 'Save'}</button><button type="button" onClick={() => { setAddingSpace(false); setNewSpaceName('') }}>{sl ? 'Prekliči' : 'Cancel'}</button></div></article>
@@ -728,7 +690,7 @@ export function OperatingUnitsPanel({
 
           <footer className="ou-footer">
             <div>{selectedLocation && !selectedLocation.defaultLocation ? <button type="button" className="ou-delete-button" onClick={() => void deleteLocation()}>{icon('trash')}{sl ? 'Izbriši lokacijo' : 'Delete location'}</button> : null}</div>
-            <div><button type="button" className="ou-cancel-button" onClick={cancelLocationChanges}>{sl ? 'Prekliči' : 'Cancel'}</button><button type="button" className="ou-primary-button" disabled={saving} onClick={() => void saveLocation()}>{saving ? (sl ? 'Shranjujem…' : 'Saving…') : (sl ? 'Shrani spremembe' : 'Save changes')}</button></div>
+            <div><button type="button" className="ou-primary-button" disabled={saving} onClick={() => void saveLocation()}>{saving ? (sl ? 'Shranjujem…' : 'Saving…') : (sl ? 'Shrani spremembe' : 'Save changes')}</button></div>
           </footer>
         </main>
       </div>

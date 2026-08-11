@@ -474,7 +474,7 @@ const moduleMinPackageAllowed = (
 type ModulesPresetRule = {
   key: ModulesStringKey;
   minPackage: ModulesPresetPackage;
-  values: Record<TenantConfigType, ModulesPresetValue>;
+  values: Partial<Record<TenantConfigType, ModulesPresetValue>>;
 };
 
 const MODULE_CONFIG_PRESET_RULES: ModulesPresetRule[] = [
@@ -615,6 +615,9 @@ export const applyModuleConfigPreset = (
 ): ModulesDraft => {
   const configType = normalizeTenantConfigType(rawConfigType);
   const next: ModulesDraft = { ...draft, MODULE_CONFIG_TYPE: configType };
+  // "Other" is a neutral classification: keep the tenant's current module choices
+  // instead of applying a preset that could unexpectedly disable features.
+  if (configType === "other") return normalizeModulesDraftDependencies(next);
   MODULE_CONFIG_PRESET_RULES.forEach((rule) => {
     const presetValue = rule.values[configType] || "off";
     next[rule.key] =
