@@ -11685,3 +11685,119 @@
     display: block !important;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Desktop invoice editor – final approved layout adjustments
+   Applies only to larger desktop viewports. Mobile/tablet layout remains intact.
+   -------------------------------------------------------------------------- */
+@media (min-width: 1280px) {
+  .billing-create-panel--open.billing-bill-modal.modal.large-modal.booking-side-panel,
+  .billing-open-detail-panel--invoice-editor.billing-bill-modal.modal.large-modal.booking-side-panel {
+    width: min(1420px, calc(100vw - 48px)) !important;
+    max-width: min(1420px, calc(100vw - 48px)) !important;
+  }
+
+  /* Give the payments/totals column enough real width so no control is clipped. */
+  .billing-create-panel--open .billing-invoice-workspace-card,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-workspace-card {
+    grid-template-columns: minmax(0, 1fr) 330px !important;
+    gap: 16px !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-payment-row,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-payment-row {
+    grid-template-columns: 24px minmax(82px, 1fr) 82px 30px 30px !important;
+    gap: 6px !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-payment-row select,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-payment-row select,
+  .billing-create-panel--open .billing-invoice-payment-amount-input,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-payment-amount-input {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Keep the remove-payment action as the right-most control and always visible. */
+  .billing-create-panel--open .billing-invoice-payment-row .billing-invoice-delete-mini,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-payment-row .billing-invoice-delete-mini {
+    display: inline-flex !important;
+    grid-column: 5 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  /* Correct range appearance: gray remainder + continuous blue trail to the thumb. */
+  .billing-create-panel--open .billing-invoice-discount-slider-wrap,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-slider-wrap {
+    isolation: isolate;
+  }
+
+  .billing-create-panel--open .billing-invoice-discount-range-fill,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range-fill {
+    z-index: 2 !important;
+    height: 4px !important;
+    background: #1769ff !important;
+    border-radius: 999px !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-discount-range,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range {
+    z-index: 3 !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-discount-range::-webkit-slider-runnable-track,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range::-webkit-slider-runnable-track,
+  .billing-create-panel--open .billing-invoice-discount-range::-moz-range-track,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range::-moz-range-track {
+    background: #dbe4ef !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-discount-range::-webkit-slider-thumb,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range::-webkit-slider-thumb,
+  .billing-create-panel--open .billing-invoice-discount-range::-moz-range-thumb,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range::-moz-range-thumb {
+    background: #1769ff !important;
+  }
+
+  /* New invoice: only the two creation actions live on the right. */
+  .billing-create-panel--open .billing-bill-modal-save-btn--create-open-anchor {
+    display: none !important;
+  }
+
+  .billing-create-panel--open .billing-bill-modal-footer {
+    justify-content: flex-end !important;
+  }
+
+  .billing-create-panel--open .billing-bill-modal-footer-actions--desktop-create-open {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 10px !important;
+    margin-left: auto !important;
+  }
+
+  /* Edit invoice: desktop uses only Preview + Close & print + Close invoice.
+     Never surface the mobile-only Print / Save changes actions on desktop. */
+  .billing-open-detail-panel--invoice-editor .billing-bill-modal-footer-actions--mobile-open-edit,
+  .billing-create-panel--open .billing-bill-modal-footer-actions--mobile-open-create {
+    display: none !important;
+  }
+
+  .billing-open-detail-panel--invoice-editor .billing-bill-modal-footer {
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  .billing-open-detail-panel--invoice-editor .billing-preview-choice-anchor {
+    margin-right: auto !important;
+  }
+
+  .billing-open-detail-panel--invoice-editor .billing-bill-modal-footer-actions--desktop-open-edit {
+    margin-left: auto !important;
+  }
+}

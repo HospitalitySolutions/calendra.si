@@ -10749,7 +10749,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         <span className="billing-bill-modal-save-btn__icon" aria-hidden>{renderPrintActionIcon()}</span>
                         <span>{isCreateAdvanceBill
                           ? (locale === 'sl' ? 'Ustvari in natisni' : 'Create and print')
-                          : (locale === 'sl' ? 'Zaključi in natisni' : 'Close and print')}</span>
+                          : (locale === 'sl' ? 'Ustvari in natisni' : 'Create and print')}</span>
                       </>
                     )}
                   </button>
@@ -10763,7 +10763,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     {creatingBill ? billingCopy.creating : (
                       <>
                         <span className="billing-bill-modal-primary-icon" aria-hidden>{renderPlainFolioPdfIcon()}</span>
-                        {isCreateAdvanceBill ? (locale === 'sl' ? 'Ustvari predplačilo' : 'Create advance') : (locale === 'sl' ? 'Zaključi račun' : 'Close invoice')}
+                        {isCreateAdvanceBill ? (locale === 'sl' ? 'Ustvari predplačilo' : 'Create advance') : (locale === 'sl' ? 'Ustvari račun' : 'Create invoice')}
                       </>
                     )}
                   </button>
