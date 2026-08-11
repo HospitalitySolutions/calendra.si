@@ -103,6 +103,7 @@ consumables/ConsumableController.java|@PostMapping("/categories")|createCategory
 consumables/ConsumableController.java|@PostMapping("/items")|createItem
 consumables/ConsumableController.java|@PostMapping("/items/{id}/adjust")|adjustStock
 consumables/ConsumableController.java|@PostMapping("/purchase-orders")|createPurchaseOrder
+consumables/ConsumableController.java|@PostMapping("/purchase-orders/{id}/receive")|receivePurchaseOrder
 consumables/ConsumableController.java|@PostMapping("/suppliers")|createSupplier
 consumables/ConsumableController.java|@PutMapping("/bookings/{bookingId}/session-consumables")|replaceSessionConsumables
 consumables/ConsumableController.java|@PutMapping("/categories/{id}")|updateCategory

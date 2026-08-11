@@ -813,7 +813,7 @@ export function ConsumablesPage() {
           <div className="consumables-header-actions">
             <button type="button" className="btn secondary" onClick={() => window.print()}>Izvozi</button>
             {activeTab === 'items' && <button type="button" className="btn primary" onClick={openNewItem}>+ Nov artikel</button>}
-            {activeTab === 'procurement' && <button type="button" className="btn primary" onClick={createPurchaseOrder}>+ Nova naročilnica</button>}
+            {activeTab === 'procurement' && <button type="button" className="btn primary" onClick={() => createPurchaseOrder()}>+ Nova naročilnica</button>}
             {activeTab === 'suppliers' && <button type="button" className="btn primary" onClick={openNewSupplier}>+ Nov dobavitelj</button>}
             {activeTab === 'movements' && <button type="button" className="btn primary" onClick={() => setActiveTab('items')}>Nov premik</button>}
             {activeTab === 'inventory' && <button type="button" className="btn primary" onClick={() => showToast('info', 'Inventura uporablja iste podatke zaloge in odstopanja. Podrobna inventurna seja je pripravljena za naslednjo fazo.')}>Začni inventuro</button>}
