@@ -6207,7 +6207,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               : availableMethods
             const displayedAmountGross = isAdvanceSplit ? formatPaymentAmountInput(sumAdvanceSelectionGross(advanceSelections)) : split.amountGross
             return (
-              <div key={split.key} className={`billing-invoice-payment-row billing-invoice-payment-row--split${isEntitlement ? ' billing-invoice-payment-row--entitlement' : ''}`}>
+              <div key={split.key} className={`billing-invoice-payment-row billing-invoice-payment-row--split${isEntitlement ? ' billing-invoice-payment-row--entitlement' : ''}${isEntitlement || isAdvanceSplit ? ' billing-invoice-payment-row--with-summary' : ''}`}>
                 <span className="billing-invoice-payment-icon" aria-hidden>
                   {isEntitlement ? entitlementPaymentIcon() : selectedMethod ? paymentTypeIcon(selectedMethod.paymentType, selectedMethod.name) : paymentTypeIcon(undefined)}
                 </span>
@@ -7007,7 +7007,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       ? currency(discountValueNumber(lineDraft))
       : `${discountValueNumber(lineDraft)}%`
     return (
-      <div key={index} className="billing-invoice-item-row billing-invoice-item-row--advance billing-invoice-item-row--compact-create">
+      <div key={index} className={`billing-invoice-item-row billing-invoice-item-row--compact-create${isCreateAdvanceBill ? ' billing-invoice-item-row--advance' : ''}`}>
         <span className="billing-invoice-drag-handle" aria-hidden>⠿</span>
         <div className="billing-bill-modal-field billing-bill-modal-field--service">
           <select
@@ -7094,7 +7094,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const renderCreateBillPaymentMethods = (totalGross: number) => {
     const splits = getCreateBillPaymentSplits(totalGross)
     return (
-      <section className="billing-invoice-payment-card billing-invoice-payment-card--advance billing-invoice-payment-card--compact-create">
+      <section className={`billing-invoice-payment-card billing-invoice-payment-card--compact-create${isCreateAdvanceBill ? ' billing-invoice-payment-card--advance' : ''}`}>
         <div className="billing-invoice-section-title-row">
           <h3>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</h3>
           <span>{splits.length} {splits.length === 1 ? (locale === 'sl' ? 'način' : 'method') : (locale === 'sl' ? 'načini' : 'methods')}</span>
@@ -7109,7 +7109,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               : createAvailablePaymentMethods
             const displayedAmountGross = isAdvanceSplit ? formatPaymentAmountInput(sumAdvanceSelectionGross(advanceSelections)) : split.amountGross
             return (
-              <div key={split.key} className="billing-invoice-payment-row billing-invoice-payment-row--split">
+              <div key={split.key} className={`billing-invoice-payment-row billing-invoice-payment-row--split${isAdvanceSplit ? ' billing-invoice-payment-row--with-summary' : ''}`}>
                 <span className="billing-invoice-payment-icon" aria-hidden>
                   {selectedMethod ? paymentTypeIcon(selectedMethod.paymentType, selectedMethod.name) : paymentTypeIcon(undefined)}
                 </span>
@@ -10605,7 +10605,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <span>{billForm.items.length} {billForm.items.length === 1 ? (locale === 'sl' ? 'postavka' : 'item') : (locale === 'sl' ? 'postavk' : 'items')}</span>
                     </div>
                     {(!isCreateAdvanceBill || billForm.items.length > 0) && (
-                      <div className="billing-invoice-table-head billing-invoice-table-head--advance billing-invoice-table-head--compact-create" aria-hidden>
+                      <div className={`billing-invoice-table-head billing-invoice-table-head--compact-create${isCreateAdvanceBill ? ' billing-invoice-table-head--advance' : ''}`} aria-hidden>
                         <span />
                         <span>{locale === 'sl' ? 'Storitev' : 'Service'}</span>
                         <span>{locale === 'sl' ? 'Kol.' : 'Qty'}</span>
@@ -10694,22 +10694,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               </div>
 
               <div className={`billing-bill-modal-footer${mobileKeyboardOpen ? ' billing-bill-modal-footer--keyboard-hidden' : ''}`}>
-                {!isCreateAdvanceBill && (
-                  <section className="billing-invoice-totals-card billing-invoice-totals-card--open-footer billing-invoice-totals-card--create-open-footer" aria-label={locale === 'sl' ? 'Povzetek odprtega računa' : 'Open bill summary'}>
-                    <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(createSubtotalGross)}</strong></div>
-                    {createVatRows.map((row) => (
-                      <div key={row.key} className="billing-bill-modal-summary-line">
-                        <span>{row.label}</span>
-                        <strong>{currency(row.taxTotal)}</strong>
-                      </div>
-                    ))}
-                    {createBillDiscountGross > 0.005 && (
-                      <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'}</span><strong>- {currency(createBillDiscountGross)}</strong></div>
-                    )}
-                    <div className="billing-bill-modal-summary-divider" />
-                    <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(createGross)}</strong></div>
-                  </section>
-                )}
                 {isCreateAdvanceBill && (
                   <section className="billing-invoice-totals-card billing-invoice-totals-card--advance-footer" aria-label={locale === 'sl' ? 'Povzetek predplačila' : 'Advance summary'}>
                     <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(createSubtotalGross)}</strong></div>
