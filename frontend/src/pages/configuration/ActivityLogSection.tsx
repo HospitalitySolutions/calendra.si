@@ -224,6 +224,7 @@ export function ActivityLogSection({ locale }: { locale: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     setItems([]);
@@ -271,46 +272,60 @@ export function ActivityLogSection({ locale }: { locale: string }) {
 
   return (
     <section className="activity-log-shell">
-      <div className="activity-log-heading">
-        <div>
-          <h2>{sl ? "Dnevnik aktivnosti" : "Activity log"}</h2>
-          <p>{sl ? "Pregled pomembnih dejanj uporabnikov v vseh delih aplikacije." : "Review important user actions across the application."}</p>
-        </div>
+      <div className="activity-log-heading activity-log-heading--count-only">
         <span className="activity-log-count">{totalElements.toLocaleString(locale)}</span>
       </div>
 
       <div className="activity-log-filters">
-        <label className="activity-log-search">
-          <span aria-hidden>⌕</span>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder={sl ? "Išči po stranki, računu, uporabniku ..." : "Search client, invoice, user ..."} />
-        </label>
-        <select value={module} onChange={e => setModule(e.target.value)} aria-label={sl ? "Področje" : "Area"}>
-          <option value="">{sl ? "Vsa področja" : "All areas"}</option>
-          {MODULES.map(m => <option key={m} value={m}>{moduleLabel(m, sl)}</option>)}
-        </select>
-        <select value={action} onChange={e => setAction(e.target.value)} aria-label={sl ? "Dejanje" : "Action"}>
-          <option value="">{sl ? "Vsa dejanja" : "All actions"}</option>
-          {ACTIVITY_ACTIONS.map(a => <option key={a} value={a}>{actionLabel(a, sl)}</option>)}
-        </select>
-        <select value={actorType} onChange={e => { setActorType(e.target.value); if (e.target.value !== "USER") setActorUserId(""); }} aria-label={sl ? "Vrsta izvajalca" : "Actor type"}>
-          <option value="">{sl ? "Vsi izvajalci" : "All actors"}</option>
-          <option value="USER">{sl ? "Uporabniki" : "Users"}</option>
-          <option value="SYSTEM">{sl ? "Sistem" : "System"}</option>
-          <option value="WEBSITE_WIDGET">Website widget</option>
-          <option value="GUEST_APP">Guest app</option>
-          <option value="GUEST">{sl ? "Gost" : "Guest"}</option>
-          <option value="INTEGRATION">{sl ? "Integracija" : "Integration"}</option>
-        </select>
-        <select value={actorUserId} onChange={e => { setActorUserId(e.target.value); if (e.target.value) setActorType("USER"); }} aria-label={sl ? "Uporabnik" : "User"}>
-          <option value="">{sl ? "Vsi uporabniki" : "All users"}</option>
-          {users.map(u => <option key={u.id} value={u.id}>{`${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email || `#${u.id}`}</option>)}
-        </select>
-        <select value={locationId} onChange={e => setLocationId(e.target.value)} aria-label={sl ? "Lokacija" : "Location"}>
-          <option value="">{sl ? "Vse lokacije" : "All locations"}</option>
-          {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-        </select>
-        <input type="date" value={from} onChange={e => setFrom(e.target.value)} aria-label={sl ? "Od" : "From"} />
-        <input type="date" value={to} onChange={e => setTo(e.target.value)} aria-label={sl ? "Do" : "To"} />
+        <div className="activity-log-filter-bar">
+          <label className="activity-log-search">
+            <span aria-hidden>⌕</span>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={sl ? "Išči po stranki, računu, uporabniku ..." : "Search client, invoice, user ..."} />
+          </label>
+          <button
+            type="button"
+            className={`activity-log-filter-toggle${filtersOpen ? " is-open" : ""}`}
+            onClick={() => setFiltersOpen(open => !open)}
+            aria-expanded={filtersOpen}
+            aria-controls="activity-log-filter-fields"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M4 5h16" />
+              <path d="M7 12h10" />
+              <path d="M10 19h4" />
+            </svg>
+            <span>{sl ? "Filtri" : "Filters"}</span>
+          </button>
+        </div>
+        <div id="activity-log-filter-fields" className={`activity-log-filter-fields${filtersOpen ? " is-open" : ""}`}>
+          <select value={module} onChange={e => setModule(e.target.value)} aria-label={sl ? "Področje" : "Area"}>
+            <option value="">{sl ? "Vsa področja" : "All areas"}</option>
+            {MODULES.map(m => <option key={m} value={m}>{moduleLabel(m, sl)}</option>)}
+          </select>
+          <select value={action} onChange={e => setAction(e.target.value)} aria-label={sl ? "Dejanje" : "Action"}>
+            <option value="">{sl ? "Vsa dejanja" : "All actions"}</option>
+            {ACTIVITY_ACTIONS.map(a => <option key={a} value={a}>{actionLabel(a, sl)}</option>)}
+          </select>
+          <select value={actorType} onChange={e => { setActorType(e.target.value); if (e.target.value !== "USER") setActorUserId(""); }} aria-label={sl ? "Vrsta izvajalca" : "Actor type"}>
+            <option value="">{sl ? "Vsi izvajalci" : "All actors"}</option>
+            <option value="USER">{sl ? "Uporabniki" : "Users"}</option>
+            <option value="SYSTEM">{sl ? "Sistem" : "System"}</option>
+            <option value="WEBSITE_WIDGET">Website widget</option>
+            <option value="GUEST_APP">Guest app</option>
+            <option value="GUEST">{sl ? "Gost" : "Guest"}</option>
+            <option value="INTEGRATION">{sl ? "Integracija" : "Integration"}</option>
+          </select>
+          <select value={actorUserId} onChange={e => { setActorUserId(e.target.value); if (e.target.value) setActorType("USER"); }} aria-label={sl ? "Uporabnik" : "User"}>
+            <option value="">{sl ? "Vsi uporabniki" : "All users"}</option>
+            {users.map(u => <option key={u.id} value={u.id}>{`${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email || `#${u.id}`}</option>)}
+          </select>
+          <select value={locationId} onChange={e => setLocationId(e.target.value)} aria-label={sl ? "Lokacija" : "Location"}>
+            <option value="">{sl ? "Vse lokacije" : "All locations"}</option>
+            {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)} aria-label={sl ? "Od" : "From"} />
+          <input type="date" value={to} onChange={e => setTo(e.target.value)} aria-label={sl ? "Do" : "To"} />
+        </div>
       </div>
 
       <div className="activity-log-list">

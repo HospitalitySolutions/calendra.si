@@ -6751,7 +6751,8 @@ export function ConfigurationPage() {
               tab === "website" ||
               tab === "notifications" ||
               tab === "customFields" ||
-              tab === "modules" ? null : (
+              tab === "modules" ||
+              tab === "activityLog" ? null : (
                 <div className="config-detail-bar">
                   <button
                     type="button"
@@ -11947,9 +11948,6 @@ export function ConfigurationPage() {
                         <div className="billing-card billing-table-card">
                           <div className="billing-card-header">
                             <div className="billing-card-header-main">
-                              <span className="billing-section-icon">
-                                <BillingPaymentTypeIcon type="CARD" />
-                              </span>
                               <span>
                                 <h3 className="billing-section-title">
                                   {locale === "sl"

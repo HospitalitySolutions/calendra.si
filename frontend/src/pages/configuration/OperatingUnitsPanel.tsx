@@ -83,7 +83,6 @@ type OperatingUnitsPanelProps = {
 const PUBLIC_NAME_MAX_LENGTH = 255
 const PUBLIC_ADDRESS_MAX_LENGTH = 512
 const PUBLIC_DESCRIPTION_MAX_LENGTH = 500
-const GOOGLE_PLACE_ID_MAX_LENGTH = 255
 
 const FALLBACK_TIMEZONES = [
   'Europe/Ljubljana',
@@ -541,13 +540,13 @@ export function OperatingUnitsPanel({
               <section className="ou-form-section ou-fiscal-section">
                 <h3>{sl ? 'Računovodske / Davčne nastavitve' : 'Accounting / Tax settings'}</h3>
                 <div className="ou-counter-note">{icon('info')}<span>{sl ? 'Vsaka lokacija ima svoje številčenje računov.' : 'Each location has its own invoice counter.'}</span></div>
-                <label className="ou-field">
+                <div className="ou-field ou-field-wide ou-premise-field">
                   <span>{sl ? 'Oznaka poslovnega prostora' : 'Business premise code'}</span>
-                  <input value={draft.fiscalBusinessPremiseCode} onChange={(event) => setDraft((current) => ({ ...current, fiscalBusinessPremiseCode: event.target.value }))} placeholder="REC123" />
+                  <div className="ou-premise-input-row">
+                    <input value={draft.fiscalBusinessPremiseCode} onChange={(event) => setDraft((current) => ({ ...current, fiscalBusinessPremiseCode: event.target.value }))} placeholder="REC123" />
+                    <button type="button" className="ou-inline-button" onClick={() => void registerPremise()} disabled={premiseBusy || !selectedLocation || !draft.defaultLegalEntityId}>{premiseBusy ? (sl ? 'Registracija…' : 'Registering…') : (sl ? 'Registriraj poslovni prostor' : 'Register business premise')}</button>
+                  </div>
                   <small>{sl ? 'Vsi računi, izdani na tej lokaciji, uporabijo to oznako kot predpono.' : 'All invoices issued at this location use this code as their prefix.'}</small>
-                </label>
-                <div className="ou-premise-register-cell">
-                  <button type="button" className="ou-inline-button" onClick={() => void registerPremise()} disabled={premiseBusy || !selectedLocation || !draft.defaultLegalEntityId}>{premiseBusy ? (sl ? 'Registracija…' : 'Registering…') : (sl ? 'Registriraj poslovni prostor' : 'Register business premise')}</button>
                 </div>
                 <label className="ou-field"><span>{sl ? 'Oznaka elektronske naprave' : 'Electronic device ID'}</span><input value={draft.invoiceElectronicDeviceId} onChange={(event) => setDraft((current) => ({ ...current, invoiceElectronicDeviceId: event.target.value }))} /><small>{sl ? 'Oznaka tiskalnika ali POS naprave za izdajanje računov.' : 'Printer or POS device identifier used for invoices.'}</small></label>
                 <label className="ou-field"><span>{sl ? 'Naslednja številka' : 'Next number'}</span><input value={draft.invoiceNextNumber} onChange={(event) => setDraft((current) => ({ ...current, invoiceNextNumber: event.target.value }))} /></label>
@@ -595,16 +594,6 @@ export function OperatingUnitsPanel({
                     placeholder={sl ? 'Na kratko predstavite lokacijo in storitve.' : 'Briefly introduce this location and its services.'}
                   />
                   <small className="ou-character-count">{draft.publicDescription.length} / {PUBLIC_DESCRIPTION_MAX_LENGTH}</small>
-                </label>
-                <label className="ou-field ou-field-wide">
-                  <span>Google Place ID</span>
-                  <input
-                    maxLength={GOOGLE_PLACE_ID_MAX_LENGTH}
-                    value={draft.googlePlaceId}
-                    onChange={(event) => setDraft((current) => ({ ...current, googlePlaceId: event.target.value.slice(0, GOOGLE_PLACE_ID_MAX_LENGTH) }))}
-                    placeholder="ChIJ…"
-                  />
-                  <small>{sl ? 'Neobvezno. Omogoča pravilno Google oceno za to fizično lokacijo.' : 'Optional. Used to resolve the correct Google rating for this physical location.'}</small>
                 </label>
               </div>
 

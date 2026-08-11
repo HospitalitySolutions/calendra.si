@@ -2838,6 +2838,7 @@ a.config-nav-item {
 }
 .activity-log-heading h2 { margin: 0; color: #102451; font-size: 28px; letter-spacing: -.025em; }
 .activity-log-heading p { margin: 6px 0 0; color: #6b7890; font-size: 14px; }
+.activity-log-heading--count-only { justify-content: flex-end; }
 .activity-log-count { min-width: 44px; padding: 7px 11px; border-radius: 999px; background: #eef4ff; color: #245fcb; text-align: center; font-weight: 800; }
 .activity-log-filters {
     display: grid;
@@ -2848,6 +2849,8 @@ a.config-nav-item {
     border-radius: 14px;
     background: #fff;
 }
+.activity-log-filter-bar, .activity-log-filter-fields { display: contents; }
+.activity-log-filter-toggle { display: none; }
 .activity-log-filters input, .activity-log-filters select {
     width: 100%; min-height: 42px; border: 1px solid #dbe3ee; border-radius: 10px; background: #fff; color: #20304d; padding: 0 11px; font: inherit; outline: none;
 }
@@ -2886,11 +2889,19 @@ a.config-nav-item {
     .activity-log-row-main { grid-template-columns: 10px 130px minmax(0, 1fr) 22px; }
     .activity-log-details { padding-left: 172px; }
 }
+@media (max-width: 1024px) {
+    .activity-log-filters { display: block; padding: 10px; }
+    .activity-log-filter-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 9px; }
+    .activity-log-filter-fields { display: none; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+    .activity-log-filter-fields.is-open { display: grid; }
+    .activity-log-filter-toggle { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 13px; border: 1px solid #dbe3ee; border-radius: 10px; background: #fff; color: #245fcb; font: inherit; font-size: 13px; font-weight: 750; cursor: pointer; }
+    .activity-log-filter-toggle:hover, .activity-log-filter-toggle:focus-visible, .activity-log-filter-toggle.is-open { border-color: #9dbcf5; background: #f4f8ff; outline: none; }
+    .activity-log-search { min-width: 0; }
+}
 @media (max-width: 760px) {
     .activity-log-shell { gap: 14px; }
     .activity-log-heading h2 { font-size: 22px; }
-    .activity-log-filters { grid-template-columns: 1fr 1fr; padding: 10px; }
-    .activity-log-search { grid-column: 1 / -1; }
+    .activity-log-filter-fields { grid-template-columns: 1fr 1fr; }
     .activity-log-row-main { grid-template-columns: 9px minmax(0, 1fr) 20px; gap: 10px; padding: 14px 12px; }
     .activity-log-time { grid-column: 2; grid-row: 2; font-size: 11.5px; }
     .activity-log-copy { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: 2px; }
@@ -2898,6 +2909,11 @@ a.config-nav-item {
     .activity-log-chevron { grid-column: 3; grid-row: 1 / 3; }
     .activity-log-details { padding: 0 12px 14px 31px; }
     .activity-log-details dl { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) {
+    .activity-log-filter-toggle > span { display: none; }
+    .activity-log-filter-toggle { width: 42px; padding: 0; }
+    .activity-log-filter-fields { grid-template-columns: 1fr; }
 }
 .activity-log-change { display: flex; align-items: center; gap: 8px; }
 .activity-log-change > span { min-width: 0; }
