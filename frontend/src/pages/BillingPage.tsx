@@ -7007,7 +7007,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       ? currency(discountValueNumber(lineDraft))
       : `${discountValueNumber(lineDraft)}%`
     return (
-      <div key={index} className={`billing-invoice-item-row billing-invoice-item-row--compact-create${isCreateAdvanceBill ? ' billing-invoice-item-row--advance' : ''}`}>
+      <div key={index} className={`billing-invoice-item-row billing-invoice-item-row--compact-create${billForm.billType === 'ADVANCE' ? ' billing-invoice-item-row--advance' : ''}`}>
         <span className="billing-invoice-drag-handle" aria-hidden>⠿</span>
         <div className="billing-bill-modal-field billing-bill-modal-field--service">
           <select
@@ -7094,7 +7094,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const renderCreateBillPaymentMethods = (totalGross: number) => {
     const splits = getCreateBillPaymentSplits(totalGross)
     return (
-      <section className={`billing-invoice-payment-card billing-invoice-payment-card--compact-create${isCreateAdvanceBill ? ' billing-invoice-payment-card--advance' : ''}`}>
+      <section className={`billing-invoice-payment-card billing-invoice-payment-card--compact-create${billForm.billType === 'ADVANCE' ? ' billing-invoice-payment-card--advance' : ''}`}>
         <div className="billing-invoice-section-title-row">
           <h3>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</h3>
           <span>{splits.length} {splits.length === 1 ? (locale === 'sl' ? 'način' : 'method') : (locale === 'sl' ? 'načini' : 'methods')}</span>
