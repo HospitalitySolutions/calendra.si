@@ -273,3 +273,39 @@
   .inventory-actions > div { margin-right: 0; }
   .inventory-actions .btn { width: 100%; }
 }
+
+/* Atomic stock-transfer workflow */
+.icon-btn.transfer { color: #0f8a72; font-weight: 900; }
+.stock-transfer-modal { width: min(860px, 100%); }
+.stock-transfer-preview {
+  margin: 0 20px 18px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  border: 1px solid #dceaff;
+  background: #f8fbff;
+  border-radius: 12px;
+}
+.stock-transfer-preview > div:not(.stock-transfer-arrow) {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid rgba(20,38,71,.08);
+}
+.stock-transfer-preview small { color: #72809a; font-size: 11px; font-weight: 700; }
+.stock-transfer-preview strong { color: #17233f; font-size: 17px; }
+.stock-transfer-preview span { color: #63718a; font-size: 12px; }
+.stock-transfer-arrow { display: grid; justify-items: center; gap: 5px; color: #0b75ff; font-size: 30px; font-weight: 800; }
+.stock-transfer-arrow small { color: #53637f; white-space: nowrap; }
+.stock-transfer-history-table { min-width: 980px; }
+.stock-transfer-history-action { display: flex; justify-content: flex-end; padding: 12px 14px; border-top: 1px solid rgba(20,38,71,.08); background: #fbfcfe; }
+
+@media (max-width: 680px) {
+  .stock-transfer-preview { grid-template-columns: 1fr; }
+  .stock-transfer-arrow { transform: rotate(90deg); }
+  .stock-transfer-arrow small { transform: rotate(-90deg); }
+}

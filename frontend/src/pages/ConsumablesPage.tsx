@@ -47,14 +47,33 @@ type Movement = {
   locationName?: string | null
   movementType: string
   sourceType?: string | null
+  sourceId?: number | null
   quantityDelta: number
   stockBefore: number
   stockAfter: number
   valueDelta?: number | null
   unit?: string | null
+  note?: string | null
   userName?: string | null
   createdAt: string
 }
+type StockTransfer = {
+  id: number
+  consumableId: number
+  itemName: string
+  unit: string
+  fromLocationId: number
+  fromLocationName: string
+  toLocationId: number
+  toLocationName: string
+  quantity: number
+  unitCostSnapshot: number
+  valueAmount: number
+  note?: string | null
+  userName?: string | null
+  createdAt: string
+}
+
 type Overview = {
   totalItems: number
   lowStockItems: number
@@ -197,6 +216,14 @@ type StockMovementFormState = {
   note: string
 }
 
+type TransferFormState = {
+  consumableId: string
+  fromLocationId: string
+  toLocationId: string
+  quantity: string
+  note: string
+}
+
 type CategoryFormState = {
   id: number | null
   name: string
@@ -301,7 +328,7 @@ function statusText(status: string) {
   return ({ DRAFT: 'Osnutek', ORDERED: 'Naročeno', PARTIALLY_RECEIVED: 'Delno prejeto', COMPLETED: 'Zaključeno', CANCELLED: 'Preklicano' } as Record<string, string>)[status] || status
 }
 function movementText(type: string) {
-  return ({ PURCHASE: 'Prejem', SESSION_USAGE: 'Poraba', MANUAL_ADJUSTMENT: 'Ročni popravek', RETURN: 'Vračilo', WASTE: 'Odpis', CORRECTION: 'Korekcija', INVENTORY_COUNT: 'Inventura' } as Record<string, string>)[type] || type
+  return ({ PURCHASE: 'Prejem', SESSION_USAGE: 'Poraba', MANUAL_ADJUSTMENT: 'Ročni popravek', RETURN: 'Vračilo', WASTE: 'Odpis', CORRECTION: 'Korekcija', INVENTORY_COUNT: 'Inventura', TRANSFER_OUT: 'Prenos iz', TRANSFER_IN: 'Prenos v' } as Record<string, string>)[type] || type
 }
 function vatText(rate?: Item['vatRate']) {
   return ({ VAT_22: '22 %', VAT_9_5: '9,5 %', VAT_0: '0 %', NO_VAT: 'Brez DDV' } as Record<string, string>)[rate || 'NO_VAT'] || 'Brez DDV'
@@ -324,8 +351,10 @@ export function ConsumablesPage() {
   const [loading, setLoading] = useState(true)
   const [overview, setOverview] = useState<Overview>(emptyOverview)
   const [items, setItems] = useState<Item[]>([])
+  const [allLocationItems, setAllLocationItems] = useState<Item[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [movements, setMovements] = useState<Movement[]>([])
+  const [transfers, setTransfers] = useState<StockTransfer[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
   const [operationalLocations, setOperationalLocations] = useState<Location[]>([])
@@ -343,6 +372,10 @@ export function ConsumablesPage() {
   const [stockMovementItem, setStockMovementItem] = useState<Item | null>(null)
   const [savingMovement, setSavingMovement] = useState(false)
   const [stockMovementForm, setStockMovementForm] = useState<StockMovementFormState>({ movementType: 'MANUAL_ADJUSTMENT', quantity: '1', direction: 'INCREASE', note: '' })
+
+  const [transferModalOpen, setTransferModalOpen] = useState(false)
+  const [savingTransfer, setSavingTransfer] = useState(false)
+  const [transferForm, setTransferForm] = useState<TransferFormState>({ consumableId: '', fromLocationId: '', toLocationId: '', quantity: '1', note: '' })
 
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
   const [savingCategory, setSavingCategory] = useState(false)
@@ -384,8 +417,10 @@ export function ConsumablesPage() {
       const locationsPromise = queryClient.fetchQuery(locationsQueryOptions(activeUnitId)).catch(() => [] as Location[])
       const tasks: Promise<void>[] = []
       const loadItems = () => queryClient.fetchQuery(consumablesItemsQueryOptions<Item>(activeUnitId, selectedLocationId)).then(setItems).catch(() => setItems([]))
+      const loadAllLocationItems = () => api.get<Item[]>('/consumables/items').then(({ data }) => setAllLocationItems(data || [])).catch(() => setAllLocationItems([]))
       const loadCategories = () => queryClient.fetchQuery(consumablesCategoriesQueryOptions<Category>(activeUnitId)).then(setCategories).catch(() => setCategories([]))
       const loadMovements = () => queryClient.fetchQuery(consumablesMovementsQueryOptions<Movement>(activeUnitId, selectedLocationId)).then(setMovements).catch(() => setMovements([]))
+      const loadTransfers = () => api.get<StockTransfer[]>('/consumables/transfers', { params: { locationId: selectedLocationId ?? undefined } }).then(({ data }) => setTransfers(data || [])).catch(() => setTransfers([]))
 
       if (activeTab === 'overview') {
         tasks.push(
@@ -395,7 +430,7 @@ export function ConsumablesPage() {
           loadMovements(),
         )
       } else if (activeTab === 'items') {
-        tasks.push(loadItems(), loadCategories())
+        tasks.push(loadItems(), loadAllLocationItems(), loadCategories())
       } else if (activeTab === 'procurement') {
         tasks.push(
           loadItems(),
@@ -405,7 +440,7 @@ export function ConsumablesPage() {
       } else if (activeTab === 'suppliers') {
         tasks.push(queryClient.fetchQuery(consumablesSuppliersQueryOptions<Supplier>(activeUnitId)).then(setSuppliers).catch(() => setSuppliers([])))
       } else if (activeTab === 'movements') {
-        tasks.push(loadMovements())
+        tasks.push(loadMovements(), loadAllLocationItems(), loadTransfers())
       } else if (activeTab === 'inventory') {
         tasks.push((async () => {
           try {
@@ -440,7 +475,9 @@ export function ConsumablesPage() {
   useEffect(() => {
     setOverview(emptyOverview)
     setItems([])
+    setAllLocationItems([])
     setMovements([])
+    setTransfers([])
     setPurchaseOrders([])
     setInventorySessions([])
     setInventoryDetail(null)
@@ -460,6 +497,11 @@ export function ConsumablesPage() {
     if (selectedLocationId != null && activeInventoryLocations.some((location) => location.id === selectedLocationId)) return selectedLocationId
     return activeInventoryLocations.length === 1 ? activeInventoryLocations[0].id : null
   }, [activeInventoryLocations, selectedLocationId])
+
+  const transferInventoryRows = useMemo(() => allLocationItems.length ? allLocationItems : items, [allLocationItems, items])
+  const transferCatalogItems = useMemo(() => Array.from(new Map(
+    transferInventoryRows.filter((item) => item.active && item.trackStock).map((item) => [item.id, item]),
+  ).values()).sort((a, b) => a.name.localeCompare(b.name, 'sl')), [transferInventoryRows])
 
   const closeItemModal = () => {
     setItemModalOpen(false)
@@ -585,6 +627,78 @@ export function ConsumablesPage() {
       })
       .catch((e) => showToast('error', e?.response?.data?.message || 'Premika zaloge ni bilo mogoče shraniti.'))
       .finally(() => setSavingMovement(false))
+  }
+
+
+  const openStockTransfer = (item?: Item) => {
+    const sourceLocationId = item?.locationId
+      ?? (selectedLocationId != null && activeInventoryLocations.some((location) => location.id === selectedLocationId) ? selectedLocationId : null)
+      ?? activeInventoryLocations[0]?.id
+      ?? null
+    if (sourceLocationId == null || activeInventoryLocations.length < 2) {
+      showToast('error', 'Za prenos zaloge potrebujete vsaj dve aktivni poslovalnici.')
+      return
+    }
+    const destinationLocationId = activeInventoryLocations.find((location) => location.id !== sourceLocationId)?.id ?? null
+    const sourceItem = item
+      ?? transferInventoryRows.find((candidate) => candidate.locationId === sourceLocationId && candidate.active && candidate.trackStock && Number(candidate.currentStock || 0) > 0)
+      ?? transferInventoryRows.find((candidate) => candidate.locationId === sourceLocationId && candidate.active && candidate.trackStock)
+      ?? transferCatalogItems[0]
+      ?? null
+    setTransferForm({
+      consumableId: sourceItem ? String(sourceItem.id) : '',
+      fromLocationId: String(sourceLocationId),
+      toLocationId: destinationLocationId != null ? String(destinationLocationId) : '',
+      quantity: '1',
+      note: '',
+    })
+    setTransferModalOpen(true)
+    if (!allLocationItems.length) {
+      void api.get<Item[]>('/consumables/items').then(({ data }) => setAllLocationItems(data || [])).catch(() => undefined)
+    }
+  }
+
+  const saveStockTransfer = (event: FormEvent) => {
+    event.preventDefault()
+    const quantity = Number(String(transferForm.quantity || '').replace(',', '.'))
+    const consumableId = Number(transferForm.consumableId)
+    const fromLocationId = Number(transferForm.fromLocationId)
+    const toLocationId = Number(transferForm.toLocationId)
+    if (!consumableId || !fromLocationId || !toLocationId) {
+      showToast('error', 'Izberite artikel, izvorno in ciljno poslovalnico.')
+      return
+    }
+    if (fromLocationId === toLocationId) {
+      showToast('error', 'Izvorna in ciljna poslovalnica morata biti različni.')
+      return
+    }
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      showToast('error', 'Vnesite veljavno količino, večjo od 0.')
+      return
+    }
+    const sourceRow = transferInventoryRows.find((row) => row.id === consumableId && row.locationId === fromLocationId)
+    if (sourceRow?.trackStock && quantity > Number(sourceRow.currentStock || 0)) {
+      showToast('error', `Na izvorni poslovalnici je na voljo samo ${n(sourceRow.currentStock, 2)} ${sourceRow.unit}.`)
+      return
+    }
+    setSavingTransfer(true)
+    const idempotencyKey = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    api.post<StockTransfer>('/consumables/transfers', {
+      idempotencyKey,
+      consumableId,
+      fromLocationId,
+      toLocationId,
+      quantity,
+      note: transferForm.note.trim() || null,
+    })
+      .then(({ data }) => {
+        showToast('success', `${data?.itemName || 'Artikel'} je prenesen med poslovalnicama.`)
+        setTransferModalOpen(false)
+        void queryClient.invalidateQueries({ queryKey: queryKeys.consumables.all, refetchType: 'none' })
+        void load()
+      })
+      .catch((e) => showToast('error', e?.response?.data?.message || 'Prenosa zaloge ni bilo mogoče izvesti.'))
+      .finally(() => setSavingTransfer(false))
   }
 
   const openCategoryManager = () => {
@@ -963,6 +1077,12 @@ export function ConsumablesPage() {
   const stockPreviewDelta = movementSignedQuantity(stockMovementForm)
   const stockPreviewAfter = stockMovementItem ? Number(stockMovementItem.currentStock || 0) + stockPreviewDelta : 0
   const manualDirectionVisible = ['MANUAL_ADJUSTMENT', 'CORRECTION'].includes(stockMovementForm.movementType)
+  const transferSelectedItem = transferCatalogItems.find((item) => item.id === Number(transferForm.consumableId)) || null
+  const transferSourceRow = transferInventoryRows.find((item) => item.id === Number(transferForm.consumableId) && item.locationId === Number(transferForm.fromLocationId)) || null
+  const transferDestinationRow = transferInventoryRows.find((item) => item.id === Number(transferForm.consumableId) && item.locationId === Number(transferForm.toLocationId)) || null
+  const transferQuantity = Math.max(0, Number(String(transferForm.quantity || '0').replace(',', '.')) || 0)
+  const transferSourceAfter = Number(transferSourceRow?.currentStock || 0) - transferQuantity
+  const transferDestinationAfter = Number(transferDestinationRow?.currentStock || 0) + transferQuantity
 
   const purchaseOrderHasReceipts = purchaseOrderForm.lines.some((line) => Number(line.receivedQuantity || 0) > 0)
   const purchaseOrderTerminal = ['COMPLETED', 'CANCELLED'].includes(purchaseOrderForm.status)
@@ -985,7 +1105,7 @@ export function ConsumablesPage() {
             {activeTab === 'items' && <button type="button" className="btn primary" onClick={openNewItem}>+ Nov artikel</button>}
             {activeTab === 'procurement' && <button type="button" className="btn primary" onClick={() => createPurchaseOrder()}>+ Nova naročilnica</button>}
             {activeTab === 'suppliers' && <button type="button" className="btn primary" onClick={openNewSupplier}>+ Nov dobavitelj</button>}
-            {activeTab === 'movements' && <button type="button" className="btn primary" onClick={() => setActiveTab('items')}>Nov premik</button>}
+            {activeTab === 'movements' && <><button type="button" className="btn secondary" onClick={() => setActiveTab('items')}>Nov premik</button><button type="button" className="btn primary" onClick={() => openStockTransfer()}>⇄ Prenos zaloge</button></>}
             {activeTab === 'inventory' && <button type="button" className="btn primary" onClick={openStartInventory}>+ Začni inventuro</button>}
           </div>
         </div>
@@ -995,10 +1115,10 @@ export function ConsumablesPage() {
         </div>
 
         {activeTab === 'overview' && <OverviewTab overview={overview} items={items} lowStockItems={lowStockItems} movements={movements} query={query} setQuery={setQuery} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} locationFilter={locationFilter} setLocationFilter={setLocationFilter} showOnlyLow={showOnlyLow} setShowOnlyLow={setShowOnlyLow} categories={categories} locations={stockLocationNames} createPurchaseOrder={createPurchaseOrder} loading={loading} />}
-        {activeTab === 'items' && <ItemsTab items={filteredItems} categories={categories} locations={stockLocationNames} query={query} setQuery={setQuery} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} locationFilter={locationFilter} setLocationFilter={setLocationFilter} statusFilter={statusFilter} setStatusFilter={setStatusFilter} lowStockItems={lowStockItems} billableCount={billableCount} outOfStockCount={outOfStockCount} openCategoryManager={openCategoryManager} onEditItem={openEditItem} onAdjustStock={openStockMovement} />}
+        {activeTab === 'items' && <ItemsTab items={filteredItems} categories={categories} locations={stockLocationNames} query={query} setQuery={setQuery} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} locationFilter={locationFilter} setLocationFilter={setLocationFilter} statusFilter={statusFilter} setStatusFilter={setStatusFilter} lowStockItems={lowStockItems} billableCount={billableCount} outOfStockCount={outOfStockCount} openCategoryManager={openCategoryManager} onEditItem={openEditItem} onAdjustStock={openStockMovement} onTransferStock={openStockTransfer} />}
         {activeTab === 'procurement' && <ProcurementTab orders={purchaseOrders} items={items} suppliers={suppliers} createPurchaseOrder={createPurchaseOrder} openPurchaseOrder={openExistingPurchaseOrder} createSuggestedOrder={openNewPurchaseOrder} />}
         {activeTab === 'suppliers' && <SuppliersTab suppliers={suppliers} openSupplier={openEditSupplier} createSupplier={openNewSupplier} />}
-        {activeTab === 'movements' && <MovementsTab movements={movements} />}
+        {activeTab === 'movements' && <MovementsTab movements={movements} transfers={transfers} onCreateTransfer={() => openStockTransfer()} />}
         {activeTab === 'inventory' && <InventoryTab sessions={inventorySessions} detail={inventoryDetail} draft={inventoryCountDraft} setDraft={setInventoryCountDraft} query={inventoryQuery} setQuery={setInventoryQuery} categoryFilter={inventoryCategoryFilter} setCategoryFilter={setInventoryCategoryFilter} countStatusFilter={inventoryCountStatusFilter} setCountStatusFilter={setInventoryCountStatusFilter} loading={loading || loadingInventoryDetail} saving={savingInventory} onOpenSession={openInventorySession} onSave={() => { void saveInventoryCounts().catch(() => undefined) }} onFinalize={() => { void finalizeInventory() }} />}
       </section>
 
@@ -1072,6 +1192,31 @@ export function ConsumablesPage() {
               <button type="button" className="btn secondary" onClick={() => setStockMovementItem(null)}>Prekliči</button>
               <button type="submit" className="btn primary" disabled={savingMovement || stockPreviewAfter < 0}>{savingMovement ? 'Shranjujem…' : 'Shrani premik'}</button>
             </footer>
+          </form>
+        </div>
+      )}
+
+      {transferModalOpen && (
+        <div className="consumables-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setTransferModalOpen(false) }}>
+          <form className="consumables-modal consumables-modal-wide stock-transfer-modal" onSubmit={saveStockTransfer}>
+            <header>
+              <div><h2>Prenos zaloge</h2><p>Prenesite artikel med poslovalnicama z enim atomarnim premikom. Oba premika ostaneta povezana v zgodovini.</p></div>
+              <button type="button" onClick={() => setTransferModalOpen(false)} aria-label="Zapri">×</button>
+            </header>
+            <div className="consumables-modal-grid">
+              <label className="full">Artikel<select autoFocus value={transferForm.consumableId} onChange={(e) => setTransferForm((form) => ({ ...form, consumableId: e.target.value }))}><option value="">Izberite artikel</option>{transferCatalogItems.map((item) => <option key={item.id} value={item.id}>{item.name}{item.sku ? ` · ${item.sku}` : ''}</option>)}</select></label>
+              <label>Iz poslovalnice<select value={transferForm.fromLocationId} onChange={(e) => { const fromLocationId = e.target.value; const nextDestination = transferForm.toLocationId === fromLocationId ? String(activeInventoryLocations.find((location) => String(location.id) !== fromLocationId)?.id || '') : transferForm.toLocationId; setTransferForm((form) => ({ ...form, fromLocationId, toLocationId: nextDestination })) }}><option value="">Izberite</option>{activeInventoryLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+              <label>V poslovalnico<select value={transferForm.toLocationId} onChange={(e) => setTransferForm((form) => ({ ...form, toLocationId: e.target.value }))}><option value="">Izberite</option>{activeInventoryLocations.filter((location) => String(location.id) !== transferForm.fromLocationId).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+              <label>Količina ({transferSelectedItem?.unit || 'enota'})<input type="number" min="0.0001" step="0.0001" max={transferSourceRow?.trackStock ? Math.max(0, Number(transferSourceRow.currentStock || 0)) : undefined} value={transferForm.quantity} onChange={(e) => setTransferForm((form) => ({ ...form, quantity: e.target.value }))} /></label>
+              <label className="full">Opomba<textarea value={transferForm.note} onChange={(e) => setTransferForm((form) => ({ ...form, note: e.target.value }))} placeholder="Npr. dopolnitev zaloge druge poslovalnice ..." /></label>
+            </div>
+            <div className="stock-transfer-preview">
+              <div><small>Izvorna zaloga</small><strong>{n(transferSourceRow?.currentStock, 2)} {transferSelectedItem?.unit || ''}</strong><span className={transferSourceAfter < 0 ? 'danger' : ''}>Po prenosu: {n(transferSourceAfter, 2)}</span></div>
+              <div className="stock-transfer-arrow">→<small>{transferQuantity > 0 ? `${n(transferQuantity, 2)} ${transferSelectedItem?.unit || ''}` : 'količina'}</small></div>
+              <div><small>Ciljna zaloga</small><strong>{n(transferDestinationRow?.currentStock, 2)} {transferSelectedItem?.unit || ''}</strong><span>Po prenosu: {n(transferDestinationAfter, 2)}</span></div>
+            </div>
+            <div className="procurement-info-note">Prenos zmanjša zalogo na izvorni poslovalnici in jo v isti transakciji poveča na ciljni. Ciljna nabavna cena se preračuna uteženo z nabavno ceno prenesene zaloge. Če katerikoli del ne uspe, se ne zapiše noben premik.</div>
+            <footer><button type="button" className="btn secondary" onClick={() => setTransferModalOpen(false)}>Prekliči</button><button type="submit" className="btn primary" disabled={savingTransfer || !transferSelectedItem || transferQuantity <= 0 || transferSourceAfter < 0}>{savingTransfer ? 'Prenašam…' : 'Potrdi prenos'}</button></footer>
           </form>
         </div>
       )}
@@ -1225,14 +1370,14 @@ function OverviewTab(props: { overview: Overview; items: Item[]; lowStockItems: 
   </>
 }
 
-function ItemsTab(props: { items: Item[]; categories: Category[]; locations: string[]; query: string; setQuery: (v: string) => void; categoryFilter: string; setCategoryFilter: (v: string) => void; locationFilter: string; setLocationFilter: (v: string) => void; statusFilter: string; setStatusFilter: (v: string) => void; lowStockItems: Item[]; billableCount: number; outOfStockCount: number; openCategoryManager: () => void; onEditItem: (item: Item) => void; onAdjustStock: (item: Item) => void }) {
+function ItemsTab(props: { items: Item[]; categories: Category[]; locations: string[]; query: string; setQuery: (v: string) => void; categoryFilter: string; setCategoryFilter: (v: string) => void; locationFilter: string; setLocationFilter: (v: string) => void; statusFilter: string; setStatusFilter: (v: string) => void; lowStockItems: Item[]; billableCount: number; outOfStockCount: number; openCategoryManager: () => void; onEditItem: (item: Item) => void; onAdjustStock: (item: Item) => void; onTransferStock: (item: Item) => void }) {
   const catalogCount = distinctItemCount(props.items)
   const tableTitle = catalogCount === props.items.length ? `Prikazujem ${catalogCount} artiklov` : `Prikazujem ${catalogCount} artiklov · ${props.items.length} lokacijskih zalog`
   return <div className="consumables-main-with-side">
     <div>
       <Filters {...props} extra={<label>Status<select value={props.statusFilter} onChange={(e) => props.setStatusFilter(e.target.value)}><option value="">Vsi statusi</option><option value="active">Aktivni</option><option value="inactive">Neaktivni</option><option value="ok">Zaloga OK</option><option value="low">Nizka zaloga</option><option value="out">Brez zaloge</option></select></label>} />
       <div className="consumables-chip-row"><button type="button" className={!props.categoryFilter ? 'active' : ''} onClick={() => props.setCategoryFilter('')}>Vse kategorije <span>{catalogCount}</span></button>{props.categories.filter((c) => c.active).map((c) => <button type="button" className={props.categoryFilter === String(c.id) ? 'active' : ''} key={c.id} onClick={() => props.setCategoryFilter(String(c.id))}>{c.name}</button>)}<button type="button" className="manage" onClick={props.openCategoryManager}>Uredi kategorije</button></div>
-      <TableCard title={tableTitle}><ItemRows items={props.items} onEditItem={props.onEditItem} onAdjustStock={props.onAdjustStock} /></TableCard>
+      <TableCard title={tableTitle}><ItemRows items={props.items} onEditItem={props.onEditItem} onAdjustStock={props.onAdjustStock} onTransferStock={props.onTransferStock} /></TableCard>
     </div>
     <aside className="consumables-side-stack"><SideLowStock items={props.lowStockItems} /><CategoryDistribution items={props.items} /><QuickStats total={catalogCount} value={props.items.reduce((s, i) => s + Number(i.currentStock || 0) * Number(i.costPrice || 0), 0)} low={props.lowStockItems.length} out={props.outOfStockCount} billable={props.billableCount} /></aside>
   </div>
@@ -1304,15 +1449,49 @@ function SuppliersTab({ suppliers, createSupplier, openSupplier }: { suppliers: 
   </>
 }
 
-function MovementsTab({ movements }: { movements: Movement[] }) {
-  const today = movements.slice(0, 20)
-  const totalDelta = today.reduce((s, m) => s + Number(m.quantityDelta || 0), 0)
-  const value = today.reduce((s, m) => s + Math.abs(Number(m.valueDelta || 0)), 0)
+function MovementsTab({ movements, transfers, onCreateTransfer }: { movements: Movement[]; transfers: StockTransfer[]; onCreateTransfer: () => void }) {
+  const [movementTypeFilter, setMovementTypeFilter] = useState('')
+  const [movementLocationFilter, setMovementLocationFilter] = useState('')
+  const [movementSearch, setMovementSearch] = useState('')
+  const locationOptions = useMemo(() => Array.from(new Map([
+    ...movements.filter((movement) => movement.locationId != null).map((movement) => [String(movement.locationId), movement.locationName || `#${movement.locationId}`] as const),
+    ...transfers.flatMap((transfer) => [
+      [String(transfer.fromLocationId), transfer.fromLocationName] as const,
+      [String(transfer.toLocationId), transfer.toLocationName] as const,
+    ]),
+  ])).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'sl')), [movements, transfers])
+  const filteredMovements = useMemo(() => {
+    const q = movementSearch.trim().toLowerCase()
+    return movements.filter((movement) => {
+      if (movementTypeFilter && movement.movementType !== movementTypeFilter) return false
+      if (movementLocationFilter && String(movement.locationId || '') !== movementLocationFilter) return false
+      if (q && ![movement.itemName, movement.categoryName, movement.locationName, movement.note, movement.userName, movementText(movement.movementType)].some((value) => String(value || '').toLowerCase().includes(q))) return false
+      return true
+    })
+  }, [movements, movementTypeFilter, movementLocationFilter, movementSearch])
+  const filteredTransfers = useMemo(() => {
+    const q = movementSearch.trim().toLowerCase()
+    return transfers.filter((transfer) => {
+      if (movementLocationFilter && String(transfer.fromLocationId) !== movementLocationFilter && String(transfer.toLocationId) !== movementLocationFilter) return false
+      if (movementTypeFilter && !['TRANSFER_OUT', 'TRANSFER_IN'].includes(movementTypeFilter)) return false
+      if (q && ![transfer.itemName, transfer.fromLocationName, transfer.toLocationName, transfer.note, transfer.userName].some((value) => String(value || '').toLowerCase().includes(q))) return false
+      return true
+    })
+  }, [transfers, movementTypeFilter, movementLocationFilter, movementSearch])
+  const now = new Date()
+  const today = movements.filter((movement) => {
+    const value = new Date(movement.createdAt)
+    return value.getFullYear() === now.getFullYear() && value.getMonth() === now.getMonth() && value.getDate() === now.getDate()
+  })
+  const totalDelta = today.reduce((sum, movement) => sum + Number(movement.quantityDelta || 0), 0)
+  const value = today.reduce((sum, movement) => sum + Math.abs(Number(movement.valueDelta || 0)), 0)
+  const reset = () => { setMovementTypeFilter(''); setMovementLocationFilter(''); setMovementSearch('') }
   return <div className="consumables-main-with-side">
     <div>
-      <div className="consumables-kpi-grid compact"><KpiCard tone="blue" title="Današnji premiki" value={today.length} note="vseh premikov" /><KpiCard tone="green" title="Sprememba količine" value={`${totalDelta > 0 ? '+' : ''}${n(totalDelta, 2)}`} note="neto sprememba" /><KpiCard tone="purple" title="Vrednost premikov" value={eur(value)} note="skupna vrednost" /><KpiCard tone="orange" title="Ročne korekcije" value={movements.filter((m) => ['CORRECTION', 'MANUAL_ADJUSTMENT'].includes(m.movementType)).length} note="premikov" /></div>
-      <div className="consumables-filter-row"><label>Datum<input value="28.05.2026 – 28.05.2026" readOnly /></label><label>Vrsta premika<select><option>Vse</option></select></label><label>Kategorija<select><option>Vse kategorije</option></select></label><input placeholder="Išči po artiklu, kodi, seriji, lokaciji…" /><button className="btn secondary">Ponastavi filtre</button></div>
-      <TableCard title="Zgodovina premikov zaloge"><table><thead><tr><th>Datum in čas</th><th>Vrsta premika</th><th>Artikel</th><th>Kategorija</th><th>Poslovalnica</th><th>Količina</th><th>Enota</th><th>Vrednost</th><th>Status</th><th>Uporabnik</th></tr></thead><tbody>{movements.map((m) => <tr key={m.id}><td>{dateTime(m.createdAt)}</td><td><Badge tone={m.quantityDelta < 0 ? 'danger' : m.movementType.includes('CORRECTION') ? 'warning' : 'success'}>{movementText(m.movementType)}</Badge></td><td>{m.itemName}</td><td>{m.categoryName || '—'}</td><td>{m.locationName || '—'}</td><td className={m.quantityDelta < 0 ? 'danger' : 'success'}>{m.quantityDelta > 0 ? '+' : ''}{n(m.quantityDelta, 2)}</td><td>{m.unit || 'kos'}</td><td>{eur(Math.abs(Number(m.valueDelta || 0)))}</td><td><Badge tone="success">Zaključeno</Badge></td><td>{m.userName || '—'}</td></tr>)}</tbody></table><Empty visible={movements.length === 0} text="Premikov zaloge še ni. Prvi premiki nastanejo ob prilagoditvi zaloge ali zaključku termina." /></TableCard>
+      <div className="consumables-kpi-grid compact"><KpiCard tone="blue" title="Današnji premiki" value={today.length} note="vseh premikov" /><KpiCard tone="green" title="Sprememba količine" value={`${totalDelta > 0 ? '+' : ''}${n(totalDelta, 2)}`} note="neto sprememba" /><KpiCard tone="purple" title="Vrednost premikov" value={eur(value)} note="skupna vrednost" /><KpiCard tone="orange" title="Prenosi" value={transfers.length} note="med poslovalnicami" /></div>
+      <div className="consumables-filter-row"><label>Vrsta premika<select value={movementTypeFilter} onChange={(e) => setMovementTypeFilter(e.target.value)}><option value="">Vse vrste</option><option value="PURCHASE">Prejem</option><option value="SESSION_USAGE">Poraba</option><option value="MANUAL_ADJUSTMENT">Ročni popravek</option><option value="RETURN">Vračilo</option><option value="WASTE">Odpis</option><option value="CORRECTION">Korekcija</option><option value="INVENTORY_COUNT">Inventura</option><option value="TRANSFER_OUT">Prenos iz</option><option value="TRANSFER_IN">Prenos v</option></select></label><label>Poslovalnica<select value={movementLocationFilter} onChange={(e) => setMovementLocationFilter(e.target.value)}><option value="">Vse poslovalnice</option>{locationOptions.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label><input value={movementSearch} onChange={(e) => setMovementSearch(e.target.value)} placeholder="Išči po artiklu, lokaciji, opombi ali uporabniku…" /><button type="button" className="btn secondary" onClick={reset}>Ponastavi filtre</button></div>
+      <TableCard title={`Zgodovina premikov zaloge · ${filteredMovements.length}`}><table><thead><tr><th>Datum in čas</th><th>Vrsta premika</th><th>Artikel</th><th>Kategorija</th><th>Poslovalnica</th><th>Količina</th><th>Enota</th><th>Vrednost</th><th>Opomba</th><th>Uporabnik</th></tr></thead><tbody>{filteredMovements.map((movement) => <tr key={movement.id}><td>{dateTime(movement.createdAt)}</td><td><Badge tone={movement.movementType.startsWith('TRANSFER_') ? 'info' : movement.quantityDelta < 0 ? 'danger' : movement.movementType.includes('CORRECTION') ? 'warning' : 'success'}>{movementText(movement.movementType)}</Badge></td><td>{movement.itemName}</td><td>{movement.categoryName || '—'}</td><td>{movement.locationName || '—'}</td><td className={movement.quantityDelta < 0 ? 'danger' : 'success'}>{movement.quantityDelta > 0 ? '+' : ''}{n(movement.quantityDelta, 2)}</td><td>{movement.unit || 'kos'}</td><td>{eur(Math.abs(Number(movement.valueDelta || 0)))}</td><td>{movement.note || '—'}</td><td>{movement.userName || '—'}</td></tr>)}</tbody></table><Empty visible={filteredMovements.length === 0} text="Ni premikov, ki ustrezajo izbranim filtrom." /></TableCard>
+      <TableCard title={`Prenosi med poslovalnicami · ${filteredTransfers.length}`}><table className="stock-transfer-history-table"><thead><tr><th>Datum</th><th>Prenos</th><th>Artikel</th><th>Iz</th><th>V</th><th>Količina</th><th>Nabavna cena</th><th>Vrednost</th><th>Opomba</th><th>Uporabnik</th></tr></thead><tbody>{filteredTransfers.map((transfer) => <tr key={transfer.id}><td>{dateTime(transfer.createdAt)}</td><td><strong>#{transfer.id}</strong></td><td>{transfer.itemName}</td><td>{transfer.fromLocationName}</td><td>{transfer.toLocationName}</td><td><strong>{n(transfer.quantity, 2)} {transfer.unit}</strong></td><td>{eur(transfer.unitCostSnapshot)}</td><td>{eur(transfer.valueAmount)}</td><td>{transfer.note || '—'}</td><td>{transfer.userName || '—'}</td></tr>)}</tbody></table><Empty visible={filteredTransfers.length === 0} text="Prenosov med poslovalnicami še ni oziroma ne ustrezajo filtrom." /><div className="stock-transfer-history-action"><button type="button" className="btn secondary" onClick={onCreateTransfer}>⇄ Nov prenos zaloge</button></div></TableCard>
     </div>
     <aside className="consumables-side-stack"><BarsCard title="Najpogosteje uporabljeni artikli" data={groupMovements(movements)} /><FakeLineChart /></aside>
   </div>
@@ -1437,8 +1616,8 @@ function TableCard({ title, action, children }: { title: string; action?: string
 }
 function Empty({ visible, text }: { visible: boolean; text: string }) { return visible ? <div className="consumables-empty">{text}</div> : null }
 function Badge({ tone, children }: { tone: string; children: ReactNode }) { return <span className={`consumables-badge ${tone}`}>{children}</span> }
-function ItemRows({ items, compact, onEditItem, onAdjustStock }: { items: Item[]; compact?: boolean; onEditItem?: (item: Item) => void; onAdjustStock?: (item: Item) => void }) {
-  return <><table><thead><tr><th>Artikel</th>{!compact && <th>SKU / črtna koda</th>}<th>Kategorija</th><th>Lokacija</th><th>Na zalogi</th><th>Min. zaloga</th><th>Enota</th><th>Vrednost</th>{!compact && <th>Prodajna cena / DDV</th>}{!compact && <th>Zaračunljivo</th>}<th>Aktivnost</th><th>Zaloga</th>{!compact && <th>Akcije</th>}</tr></thead><tbody>{items.map((item) => <tr key={`${item.id}:${item.locationId}`}><td><strong>{item.name}</strong>{item.description && <><br /><small>{item.description}</small></>}</td>{!compact && <td>{item.sku || '—'}{item.barcode && <><br /><small>{item.barcode}</small></>}</td>}<td>{item.category?.name || '—'}</td><td>{item.location || '—'}</td><td className={item.lowStock ? 'danger' : ''}>{n(item.currentStock, 2)}</td><td>{n(item.minimumStock, 2)}</td><td>{item.unit}</td><td>{eur(Number(item.currentStock || 0) * Number(item.costPrice || 0))}</td>{!compact && <td>{eur(item.salePrice)}<br /><small>{vatText(item.vatRate)}</small></td>}{!compact && <td><span className={`toggle-dot ${item.billable ? 'on' : ''}`} /></td>}<td><Badge tone={item.active ? 'success' : 'muted'}>{item.active ? 'Aktiven' : 'Neaktiven'}</Badge></td><td><Badge tone={!item.trackStock ? 'muted' : item.currentStock <= 0 ? 'danger' : item.lowStock ? 'warning' : 'success'}>{!item.trackStock ? 'Brez sledenja' : item.currentStock <= 0 ? 'Brez zaloge' : item.lowStock ? 'Nizko' : 'OK'}</Badge></td>{!compact && <td><div className="consumables-row-actions"><button type="button" className="icon-btn edit" onClick={() => onEditItem?.(item)} title="Uredi artikel" aria-label={`Uredi ${item.name}`}>✎</button><button type="button" className="icon-btn movement" onClick={() => onAdjustStock?.(item)} title="Premik zaloge" aria-label={`Premik zaloge ${item.name}`}>±</button></div></td>}</tr>)}</tbody></table><Empty visible={items.length === 0} text="Ni artiklov za prikaz." /></>
+function ItemRows({ items, compact, onEditItem, onAdjustStock, onTransferStock }: { items: Item[]; compact?: boolean; onEditItem?: (item: Item) => void; onAdjustStock?: (item: Item) => void; onTransferStock?: (item: Item) => void }) {
+  return <><table><thead><tr><th>Artikel</th>{!compact && <th>SKU / črtna koda</th>}<th>Kategorija</th><th>Lokacija</th><th>Na zalogi</th><th>Min. zaloga</th><th>Enota</th><th>Vrednost</th>{!compact && <th>Prodajna cena / DDV</th>}{!compact && <th>Zaračunljivo</th>}<th>Aktivnost</th><th>Zaloga</th>{!compact && <th>Akcije</th>}</tr></thead><tbody>{items.map((item) => <tr key={`${item.id}:${item.locationId}`}><td><strong>{item.name}</strong>{item.description && <><br /><small>{item.description}</small></>}</td>{!compact && <td>{item.sku || '—'}{item.barcode && <><br /><small>{item.barcode}</small></>}</td>}<td>{item.category?.name || '—'}</td><td>{item.location || '—'}</td><td className={item.lowStock ? 'danger' : ''}>{n(item.currentStock, 2)}</td><td>{n(item.minimumStock, 2)}</td><td>{item.unit}</td><td>{eur(Number(item.currentStock || 0) * Number(item.costPrice || 0))}</td>{!compact && <td>{eur(item.salePrice)}<br /><small>{vatText(item.vatRate)}</small></td>}{!compact && <td><span className={`toggle-dot ${item.billable ? 'on' : ''}`} /></td>}<td><Badge tone={item.active ? 'success' : 'muted'}>{item.active ? 'Aktiven' : 'Neaktiven'}</Badge></td><td><Badge tone={!item.trackStock ? 'muted' : item.currentStock <= 0 ? 'danger' : item.lowStock ? 'warning' : 'success'}>{!item.trackStock ? 'Brez sledenja' : item.currentStock <= 0 ? 'Brez zaloge' : item.lowStock ? 'Nizko' : 'OK'}</Badge></td>{!compact && <td><div className="consumables-row-actions"><button type="button" className="icon-btn edit" onClick={() => onEditItem?.(item)} title="Uredi artikel" aria-label={`Uredi ${item.name}`}>✎</button><button type="button" className="icon-btn movement" onClick={() => onAdjustStock?.(item)} title="Premik zaloge" aria-label={`Premik zaloge ${item.name}`}>±</button>{item.trackStock && <button type="button" className="icon-btn transfer" onClick={() => onTransferStock?.(item)} title="Prenos med poslovalnicami" aria-label={`Prenos zaloge ${item.name}`}>⇄</button>}</div></td>}</tr>)}</tbody></table><Empty visible={items.length === 0} text="Ni artiklov za prikaz." /></>
 }
 function SideLowStock({ items, title = 'Nizka zaloga' }: { items: Item[]; title?: string }) { return <TableCard title={title} action="Prikaži vse"><table><tbody>{items.slice(0, 5).map((item) => <tr key={`${item.id}:${item.locationId}`}><td>{item.name}<br /><small>{item.location || '—'}</small></td><td className="danger">{n(item.currentStock, 2)} {item.unit}</td></tr>)}</tbody></table><Empty visible={items.length === 0} text="Ni artiklov z nizko zalogo." /></TableCard> }
 function CategoryDistribution({ items }: { items: Item[] }) {
@@ -1459,7 +1638,7 @@ function toInventoryDraft(detail: InventoryDetail | null | undefined): Inventory
 }
 function suggestedOrderQuantity(item: Item) { return Math.max(Number(item.minimumStock || 0) * 2 - Number(item.currentStock || 0), Number(item.minimumStock || 0), 0) }
 function vatMultiplier(rate?: PurchaseOrderLineForm['vatRate'] | Item['vatRate'] | null) { return rate === 'VAT_22' ? 0.22 : rate === 'VAT_9_5' ? 0.095 : 0 }
-function groupMovements(movements: Movement[]) { const m: Record<string, number> = {}; movements.forEach((x) => { if (x.quantityDelta < 0) m[x.itemName] = (m[x.itemName] || 0) + Math.abs(x.quantityDelta) }); return Object.entries(m).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value) }
+function groupMovements(movements: Movement[]) { const m: Record<string, number> = {}; movements.forEach((x) => { if (x.quantityDelta < 0 && x.movementType !== 'TRANSFER_OUT') m[x.itemName] = (m[x.itemName] || 0) + Math.abs(x.quantityDelta) }); return Object.entries(m).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value) }
 function distinctItemCount(items: Item[]) { return new Set(items.map((item) => item.id)).size }
 function groupByLocation(items: Item[]) { const result: Record<string, number> = {}; items.forEach((i) => { const k = i.location || 'Brez lokacije'; result[k] = (result[k] || 0) + 1 }); return result }
 function groupBy<T>(items: T[], key: (item: T) => string): Record<string, T[]> { return items.reduce((acc, item) => { const k = key(item); (acc[k] ||= []).push(item); return acc }, {} as Record<string, T[]>) }

@@ -588,6 +588,7 @@ public class PlatformTenancyDeletionService {
         exec("DELETE FROM consumable_inventory_session WHERE company_id = ?", companyId);
         exec("DELETE FROM session_consumable WHERE company_id = ?", companyId);
         exec("DELETE FROM service_type_consumable WHERE company_id = ?", companyId);
+        exec("DELETE FROM consumable_stock_transfer WHERE company_id = ?", companyId);
         exec("DELETE FROM consumable_location_stock WHERE company_id = ?", companyId);
         exec("DELETE FROM consumable_stock_movement WHERE company_id = ?", companyId);
         exec("DELETE FROM consumable_purchase_order WHERE company_id = ?", companyId);

@@ -148,4 +148,18 @@ class ConsumableServiceStockAdjustmentTest {
         assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
         assertEquals("This movement type cannot be created manually.", error.getReason());
     }
+    @Test
+    void transferMovementCannotBeCreatedThroughManualAdjustmentEndpoint() {
+        when(locations.findByIdAndCompanyId(7L, 1L)).thenReturn(Optional.of(location));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class, () -> service.adjustStock(
+                me,
+                5L,
+                new ConsumableController.StockAdjustmentRequest(7L, new BigDecimal("-1"), StockMovementType.TRANSFER_OUT, "manual misuse")
+        ));
+
+        assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
+        assertEquals("This movement type cannot be created manually.", error.getReason());
+    }
+
 }

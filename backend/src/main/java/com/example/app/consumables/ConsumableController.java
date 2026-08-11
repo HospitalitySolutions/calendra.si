@@ -34,6 +34,7 @@ public class ConsumableController {
     private final GlobalConsumablesFeatureService consumablesFeatureService;
     private final OpenBillSyncService openBillSyncService;
     private final ConsumableInventoryService inventoryService;
+    private final ConsumableTransferService transferService;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ActivityLogService activityLogs;
@@ -42,12 +43,14 @@ public class ConsumableController {
             ConsumableService service,
             GlobalConsumablesFeatureService consumablesFeatureService,
             OpenBillSyncService openBillSyncService,
-            ConsumableInventoryService inventoryService
+            ConsumableInventoryService inventoryService,
+            ConsumableTransferService transferService
     ) {
         this.service = service;
         this.consumablesFeatureService = consumablesFeatureService;
         this.openBillSyncService = openBillSyncService;
         this.inventoryService = inventoryService;
+        this.transferService = transferService;
     }
 
     public record CategoryRequest(String name, String color, Boolean active) {}
@@ -304,6 +307,33 @@ public class ConsumableController {
 
     public record InventoryDetailResponse(InventorySessionResponse session, List<InventoryLineResponse> lines, List<MovementResponse> movements) {}
 
+    public record StockTransferRequest(
+            String idempotencyKey,
+            Long consumableId,
+            Long fromLocationId,
+            Long toLocationId,
+            BigDecimal quantity,
+            String note
+    ) {}
+
+    public record StockTransferResponse(
+            Long id,
+            Long consumableId,
+            String itemName,
+            String unit,
+            Long fromLocationId,
+            String fromLocationName,
+            Long toLocationId,
+            String toLocationName,
+            BigDecimal quantity,
+            BigDecimal unitCostSnapshot,
+            BigDecimal valueAmount,
+            String note,
+            String userName,
+            Instant createdAt
+    ) {}
+
+
     private Long enabledCompanyId(User me) {
         consumablesFeatureService.assertEnabledForUser(me);
         return me.getCompany().getId();
@@ -391,6 +421,32 @@ public class ConsumableController {
             @AuthenticationPrincipal User me
     ) {
         return service.listMovements(enabledCompanyId(me), locationId).stream().map(ConsumableController::toMovementResponse).toList();
+    }
+
+    @GetMapping("/transfers")
+    public List<StockTransferResponse> transfers(
+            @RequestParam(required = false) Long locationId,
+            @AuthenticationPrincipal User me
+    ) {
+        return transferService.list(enabledCompanyId(me), locationId).stream()
+                .map(ConsumableController::toStockTransferResponse).toList();
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/transfers")
+    public StockTransferResponse createTransfer(@RequestBody StockTransferRequest req, @AuthenticationPrincipal User me) {
+        assertConsumablesEnabled(me);
+        StockTransferResponse result = toStockTransferResponse(transferService.transfer(me, req));
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CONSUMABLES, ActivityAction.CONSUMABLE_STOCK_TRANSFERRED,
+                    "CONSUMABLE_TRANSFER", result.id(), result.itemName(), "Transferred consumable stock",
+                    result.fromLocationId(), null,
+                    ActivityDetails.of("consumableId", result.consumableId(), "quantity", result.quantity(),
+                            "fromLocationId", result.fromLocationId(), "fromLocation", result.fromLocationName(),
+                            "toLocationId", result.toLocationId(), "toLocation", result.toLocationName(),
+                            "valueAmount", result.valueAmount(), "targetPath", "/consumables"));
+        }
+        return result;
     }
 
     @GetMapping("/service-types/{typeId}/defaults")
@@ -720,6 +776,26 @@ public class ConsumableController {
                 m.getNote(),
                 userName == null || userName.isBlank() ? null : userName,
                 m.getCreatedAt()
+        );
+    }
+
+    public static StockTransferResponse toStockTransferResponse(ConsumableStockTransfer transfer) {
+        if (transfer == null) return null;
+        return new StockTransferResponse(
+                transfer.getId(),
+                transfer.getConsumable().getId(),
+                transfer.getItemNameSnapshot(),
+                transfer.getUnitSnapshot(),
+                transfer.getFromLocation().getId(),
+                transfer.getFromLocation().getName(),
+                transfer.getToLocation().getId(),
+                transfer.getToLocation().getName(),
+                transfer.getQuantity(),
+                transfer.getUnitCostSnapshot(),
+                transfer.getValueAmount(),
+                transfer.getNote(),
+                userName(transfer.getCreatedBy()),
+                transfer.getCreatedAt()
         );
     }
 

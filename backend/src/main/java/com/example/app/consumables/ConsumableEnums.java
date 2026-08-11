@@ -15,14 +15,17 @@ public final class ConsumableEnums {
         RETURN,
         WASTE,
         CORRECTION,
-        INVENTORY_COUNT
+        INVENTORY_COUNT,
+        TRANSFER_OUT,
+        TRANSFER_IN
     }
 
     public enum StockMovementSourceType {
         MANUAL,
         PURCHASE_ORDER,
         SESSION,
-        INVENTORY_COUNT
+        INVENTORY_COUNT,
+        TRANSFER
     }
 
     public enum PurchaseOrderStatus {

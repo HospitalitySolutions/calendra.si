@@ -24,13 +24,14 @@ class ConsumableControllerFeatureGateTest {
     @Mock private GlobalConsumablesFeatureService feature;
     @Mock private OpenBillSyncService openBillSyncService;
     @Mock private ConsumableInventoryService inventoryService;
+    @Mock private ConsumableTransferService transferService;
 
     private ConsumableController controller;
     private User me;
 
     @BeforeEach
     void setUp() {
-        controller = new ConsumableController(service, feature, openBillSyncService, inventoryService);
+        controller = new ConsumableController(service, feature, openBillSyncService, inventoryService, transferService);
         Company company = new Company();
         company.setId(11L);
         me = new User();
@@ -76,6 +77,21 @@ class ConsumableControllerFeatureGateTest {
 
         assertEquals(HttpStatus.FORBIDDEN, error.getStatusCode());
         verifyNoInteractions(inventoryService);
+    }
+
+    @Test
+    void transferWriteIsBlockedWhenConsumablesFeatureIsOff() {
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Consumables disabled"))
+                .when(feature).assertEnabledForUser(me);
+
+        ResponseStatusException error = assertThrows(
+                ResponseStatusException.class,
+                () -> controller.createTransfer(new ConsumableController.StockTransferRequest(
+                        "transfer-1", 1L, 2L, 3L, java.math.BigDecimal.ONE, null), me)
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, error.getStatusCode());
+        verifyNoInteractions(transferService);
     }
 
 }

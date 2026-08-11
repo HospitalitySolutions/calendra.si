@@ -266,7 +266,8 @@ public class ConsumableService {
 
 
     private static void validateManualMovement(StockMovementType type, BigDecimal delta) {
-        if (type == StockMovementType.SESSION_USAGE || type == StockMovementType.INVENTORY_COUNT) {
+        if (type == StockMovementType.SESSION_USAGE || type == StockMovementType.INVENTORY_COUNT
+                || type == StockMovementType.TRANSFER_OUT || type == StockMovementType.TRANSFER_IN) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "This movement type cannot be created manually.");
         }
@@ -354,10 +355,12 @@ public class ConsumableService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal usedQty = recent.stream()
                 .filter(m -> m.getQuantityDelta().compareTo(BigDecimal.ZERO) < 0)
+                .filter(m -> m.getMovementType() != StockMovementType.TRANSFER_OUT)
                 .map(m -> m.getQuantityDelta().abs())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         var categoryUsage = recent.stream()
                 .filter(m -> m.getQuantityDelta().compareTo(BigDecimal.ZERO) < 0)
+                .filter(m -> m.getMovementType() != StockMovementType.TRANSFER_OUT)
                 .collect(Collectors.groupingBy(
                         m -> m.getConsumable().getCategory() != null ? m.getConsumable().getCategory().getName() : "Ostalo",
                         LinkedHashMap::new,
@@ -365,6 +368,7 @@ public class ConsumableService {
                 ));
         var mostUsed = recent.stream()
                 .filter(m -> m.getQuantityDelta().compareTo(BigDecimal.ZERO) < 0)
+                .filter(m -> m.getMovementType() != StockMovementType.TRANSFER_OUT)
                 .collect(Collectors.groupingBy(m -> m.getConsumable().getName(), Collectors.reducing(BigDecimal.ZERO, m -> m.getQuantityDelta().abs(), BigDecimal::add)))
                 .entrySet().stream().sorted(Map.Entry.<String, BigDecimal>comparingByValue().reversed())
                 .limit(8)
