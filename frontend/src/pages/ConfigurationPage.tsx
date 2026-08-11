@@ -6713,7 +6713,7 @@ export function ConfigurationPage() {
         : filteredSpaces;
 
   return (
-    <div className="stack gap-lg">
+    <div className={`stack gap-lg${tab === "activityLog" ? " config-page--activity-log" : ""}`}>
       <div
         className={configShellClassName}
         data-onboarding-panel="configuration"

@@ -249,19 +249,40 @@ function buildAreaEntity(item: ActivityLogItem, sl: boolean): string {
 }
 
 function buildDetailsLocation(item: ActivityLogItem, locationNames: Map<number, string>, locale: string, sl: boolean): string {
-  const detailCandidates = [
-    item.summary,
-    typeof item.details?.locationName === "string" ? item.details.locationName : "",
-    typeof item.details?.serviceName === "string" ? item.details.serviceName : "",
-    typeof item.details?.clientName === "string" ? item.details.clientName : "",
-    typeof item.details?.invoiceNumber === "string" ? item.details.invoiceNumber : "",
-    typeof item.details?.targetLabel === "string" ? item.details.targetLabel : "",
-    typeof item.details?.email === "string" ? `${sl ? "E-pošta" : "Email"}: ${item.details.email}` : "",
-    typeof item.details?.amount === "number" ? `${sl ? "Znesek" : "Amount"}: ${formatValue(item.details.amount, locale)}` : "",
+  const details = item.details || {};
+  const locationName = item.locationId != null ? locationNames.get(item.locationId) : undefined;
+
+  const startTime = typeof details.startTime === "string" ? details.startTime : "";
+  if (startTime) {
+    const parsed = new Date(startTime);
+    if (!Number.isNaN(parsed.getTime())) {
+      return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(parsed);
+    }
+  }
+
+  if (typeof details.email === "string" && details.email.trim()) {
+    return `${sl ? "E-pošta" : "Email"}: ${details.email}`;
+  }
+  if (typeof details.amount === "number") {
+    return `${sl ? "Znesek" : "Amount"}: ${formatValue(details.amount, locale)}`;
+  }
+
+  const directCandidates = [
+    typeof details.locationName === "string" ? details.locationName : "",
+    typeof details.location === "string" ? details.location : "",
+    typeof details.serviceName === "string" ? details.serviceName : "",
+    typeof details.type === "string" ? details.type : "",
+    typeof details.clientName === "string" ? details.clientName : "",
+    typeof details.invoiceNumber === "string" ? details.invoiceNumber : "",
+    typeof details.targetLabel === "string" ? details.targetLabel : "",
+    item.secondaryEntityLabel || "",
+    locationName || "",
+    item.entityLabel || "",
   ].filter(value => typeof value === "string" && value.trim() !== "") as string[];
 
-  const locationName = item.locationId != null ? locationNames.get(item.locationId) : undefined;
-  return detailCandidates[0] || locationName || item.source || "—";
+  if (directCandidates.length > 0) return directCandidates[0];
+  if (!sl && item.summary) return item.summary;
+  return actionLabel(item.action, sl);
 }
 
 export function ActivityLogSection({ locale }: { locale: string }) {
@@ -362,8 +383,8 @@ export function ActivityLogSection({ locale }: { locale: string }) {
 
   return (
     <section className="activity-log-shell activity-log-shell--table">
-      <div className="activity-log-heading activity-log-heading--count-only">
-        <span className="activity-log-count">{totalElements.toLocaleString(locale)}</span>
+      <div className="activity-log-heading">
+        <h2>{sl ? "Dnevnik aktivnosti" : "Activity log"}</h2>
       </div>
 
       <div className="activity-log-filters-card">
