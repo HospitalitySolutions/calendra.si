@@ -6126,6 +6126,72 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
 
+  const discountIconSvg = () => (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M20.6 13.2 13.2 20.6a2.1 2.1 0 0 1-3 0L3.4 13.8a2.1 2.1 0 0 1-.6-1.5V5.1A2.1 2.1 0 0 1 4.9 3h7.2c.56 0 1.1.22 1.5.62l7 7a2.1 2.1 0 0 1 0 2.98Z" />
+      <path d="M7.5 7.5h.01" />
+      <path d="M9 16l6-6" />
+      <path d="M9.2 10.1h.01" />
+      <path d="M14.8 15.9h.01" />
+    </svg>
+  )
+
+  const renderItemDiscountPopover = (
+    draft: LineItemDiscountDraft,
+    onPatch: (patch: Partial<LineItemDiscountDraft>) => void,
+    onClose: () => void,
+  ) => {
+    const type = normalizeDiscountType(draft.type)
+    const suffix = type === 'PERCENT' ? '%' : '€'
+    return (
+      <div className="billing-line-discount-popover" role="dialog" aria-label={locale === 'sl' ? 'Popust postavke' : 'Line-item discount'} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
+        <div className="billing-line-discount-popover-head">
+          <div>
+            <strong>{locale === 'sl' ? 'Popust postavke' : 'Line-item discount'}</strong>
+          </div>
+          <button type="button" onClick={onClose} aria-label={locale === 'sl' ? 'Zapri popust postavke' : 'Close line discount'}>×</button>
+        </div>
+        <div className="billing-line-discount-segmented" role="group" aria-label={locale === 'sl' ? 'Vrsta popusta postavke' : 'Line discount type'}>
+          <button type="button" className={type === 'PERCENT' ? 'is-active' : ''} aria-pressed={type === 'PERCENT'} onClick={() => onPatch({ type: 'PERCENT', value: draft.value })}>%</button>
+          <button type="button" className={type === 'AMOUNT' ? 'is-active' : ''} aria-pressed={type === 'AMOUNT'} onClick={() => onPatch({ type: 'AMOUNT', value: draft.value })}>€</button>
+        </div>
+        <label className="billing-line-discount-input-wrap">
+          <span className="sr-only">{locale === 'sl' ? 'Vrednost popusta postavke' : 'Line discount value'}</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={draft.value}
+            onChange={(event) => onPatch({ type, value: sanitizeDiscountValueInput(event.target.value) })}
+            onBlur={() => onPatch({ type, value: String(discountValueNumber(draft)) })}
+            placeholder="0"
+          />
+          <em>{suffix}</em>
+        </label>
+        <div className="billing-line-discount-footer">
+          <p>
+            <span className="billing-line-discount-note-icon" aria-hidden>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3 4.5 6v5.2c0 4.7 3.1 8.8 7.5 9.8 4.4-1 7.5-5.1 7.5-9.8V6L12 3Z" />
+                <path d="m8.8 12 2.1 2.1 4.4-4.5" />
+              </svg>
+            </span>
+            <span>{locale === 'sl' ? 'Popust se uporabi samo na izbrano postavko.' : 'The discount is applied only to the selected item.'}</span>
+          </p>
+          <button type="button" className="billing-line-discount-save" onClick={onClose}>
+            {locale === 'sl' ? 'Shrani' : 'Save'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const clampDiscountIndexAfterRemoval = (currentIndex: number | undefined, removedIndex: number, nextLength: number) => {
+    if (currentIndex == null) return undefined
+    if (currentIndex === removedIndex) return undefined
+    const shifted = currentIndex > removedIndex ? currentIndex - 1 : currentIndex
+    return nextLength > 0 ? Math.min(shifted, nextLength - 1) : undefined
+  }
+
   const renderOpenBillEditorPaymentMethods = (ob: OpenBill, totalGross: number) => {
     const splits = getOpenBillPaymentSplits(ob, totalGross)
     const effectiveType = resolveOpenBillEffectiveType(ob)
