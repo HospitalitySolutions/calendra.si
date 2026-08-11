@@ -58,6 +58,37 @@
     flex: 0 0 auto;
 }
 
+/* Desktop employee list follows the same card, filter and table rhythm as Clients. */
+.employees-modern-card .employees-page-tabs-shell {
+    margin: 0;
+}
+
+.employees-modern-card .employee-page-tabs.clients-session-tabs.clients-entity-tabs {
+    margin-bottom: 10px;
+}
+
+.employees-toolbar-primary {
+    gap: 12px;
+}
+
+.employees-toolbar-primary .clients-search-wrap {
+    flex: 0 1 360px;
+}
+
+.employees-role-filter .clients-owner-filter__button {
+    min-width: 205px;
+}
+
+.employees-table th:last-child,
+.employees-table td:last-child {
+    min-width: 180px;
+    text-align: center;
+}
+
+.employees-table .service-config-actions.account-table-actions {
+    justify-content: center;
+}
+
 .employee-roles-page {
     display: flex;
     flex-direction: column;
@@ -1234,6 +1265,16 @@
     font-size: 0.72rem;
     line-height: 1;
     font-weight: 800;
+}
+
+.employees-modern-card .employees-tab-count {
+    background: #eef2f6;
+    color: #475467;
+}
+
+.employees-modern-card .employee-page-tab.active .employees-tab-count {
+    background: #dbe9ff;
+    color: var(--color-primary);
 }
 
 @media (max-width: 760px) {

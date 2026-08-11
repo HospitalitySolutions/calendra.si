@@ -6,14 +6,21 @@ import {
   useMemo,
   useState,
   type FormEvent,
-  type ReactNode,
 } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { getStoredUser } from "../auth";
 import type { BillingService, Location as LocationT, SessionType as SessionTypeT } from "../lib/types";
 import { GuestConfigSaveIcon } from "../components/GuestConfigSaveIcon";
-import { ServiceConfigDeleteButton, ServiceConfigEditButton, ServiceConfigTableFooter } from "../components/ServiceConfigTableUi";
+import {
+  ServiceConfigDeleteButton,
+  ServiceConfigEditButton,
+  ServiceConfigSortableTableHeader,
+  ServiceConfigTableFooter,
+  nextServiceConfigSortState,
+  sortServiceConfigRows,
+  type ServiceConfigSortState,
+} from "../components/ServiceConfigTableUi";
 import { EmptyState, Field } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { currency } from "../lib/format";
@@ -27,6 +34,14 @@ export type GuestAdminProductType =
   | "MEMBERSHIP"
   | "GIFT_CARD"
   | "COURSE";
+
+export type GuestAdminProductServiceFilter =
+  | "all"
+  | "all-services"
+  | "selected-services"
+  | "service-groups";
+
+type GuestAdminProductSortKey = "name" | "type" | "service" | "price" | "validity" | "status";
 
 type VoucherRedemptionMode = "SERVICE" | "VALUE";
 type VoucherServiceScope = "ALL_SERVICES" | "SELECTED_SERVICES";
@@ -544,17 +559,6 @@ function CardsMembershipNameCell({
   );
 }
 
-function CardsMembershipSortableHeader({ children }: { children: ReactNode }) {
-  return (
-    <span className="service-config-sortable-header">
-      {children}
-      <span className="service-config-sort-icon" aria-hidden>
-        ↕
-      </span>
-    </span>
-  );
-}
-
 function CardsProductModalIcon() {
   return (
     <svg
@@ -665,6 +669,7 @@ export type CardsMembershipsSectionProps = {
   searchQuery: string;
   activeFilter: "active" | "inactive";
   typeFilter: "all" | GuestAdminProductType;
+  serviceFilter: GuestAdminProductServiceFilter;
   onFilteredCountChange?: (filteredCount: number) => void;
 };
 
@@ -679,6 +684,7 @@ export const CardsMembershipsSection = forwardRef<
     searchQuery,
     activeFilter,
     typeFilter,
+    serviceFilter,
     onFilteredCountChange,
   },
   ref,
@@ -717,6 +723,10 @@ export const CardsMembershipsSection = forwardRef<
   const [activatingGuestProductId, setActivatingGuestProductId] = useState<
     number | null
   >(null);
+  const [productSort, setProductSort] = useState<ServiceConfigSortState<GuestAdminProductSortKey>>({
+    key: null,
+    direction: "asc",
+  });
   const [showGuestProductModal, setShowGuestProductModal] = useState(false);
   const [editingGuestProductId, setEditingGuestProductId] = useState<
     number | null
@@ -1477,9 +1487,23 @@ export const CardsMembershipsSection = forwardRef<
       typeFilter === "all"
         ? byStatus
         : byStatus.filter((product) => product.productType === typeFilter);
+    const byService = byType.filter((product) => {
+      if (serviceFilter === "all") return true;
+      if (serviceFilter === "service-groups") return product.serviceGroupId != null;
+
+      const hasSelectedServices =
+        product.sessionTypeId != null ||
+        (product.sessionTypeIds?.length ?? 0) > 0 ||
+        (product.sessionTypeNames?.length ?? 0) > 0 ||
+        (product.voucherSessionTypeIds?.length ?? 0) > 0 ||
+        (product.voucherSessionTypeNames?.length ?? 0) > 0;
+      if (serviceFilter === "selected-services") {
+        return product.serviceGroupId == null && hasSelectedServices;
+      }
+      return product.serviceGroupId == null && !hasSelectedServices;
+    });
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return byType;
-    return byType.filter((p) => {
+    const matched = !q ? byService : byService.filter((p) => {
       const vis = p.guestVisible ? "visible" : "hidden";
       const st = p.active ? "active" : "archived";
       const validityLabel =
@@ -1503,14 +1527,29 @@ export const CardsMembershipsSection = forwardRef<
         .toLowerCase();
       return hay.includes(q);
     });
+    return sortServiceConfigRows(
+      matched,
+      productSort,
+      (product, key) => {
+        if (key === "name") return product.name;
+        if (key === "type") return productDisplayTypeLabel(product, locale);
+        if (key === "service") return includedCoursesLabel(product, locale);
+        if (key === "price") return product.priceGross;
+        if (key === "validity") return product.validityDays;
+        return product.active === false ? 0 : 1;
+      },
+      locale,
+    );
   }, [
     guestProducts,
     searchQuery,
     activeFilter,
     typeFilter,
+    serviceFilter,
     coursesEnabled,
     giftCardsEnabled,
     locale,
+    productSort,
   ]);
 
   useEffect(() => {
@@ -1669,36 +1708,12 @@ export const CardsMembershipsSection = forwardRef<
             <table className="clients-table session-types-table service-config-table">
               <thead>
                 <tr>
-                  <th>
-                    <CardsMembershipSortableHeader>
-                      {locale === "sl" ? "Naziv" : "Name"}
-                    </CardsMembershipSortableHeader>
-                  </th>
-                  <th>
-                    <CardsMembershipSortableHeader>
-                      {t("sessionTypesCardsColType")}
-                    </CardsMembershipSortableHeader>
-                  </th>
-                  <th>
-                    <CardsMembershipSortableHeader>
-                      {t("sessionTypesCardsColServiceType")}
-                    </CardsMembershipSortableHeader>
-                  </th>
-                  <th>
-                    <CardsMembershipSortableHeader>
-                      {t("sessionTypesCardsColPrice")}
-                    </CardsMembershipSortableHeader>
-                  </th>
-                  <th>
-                    <CardsMembershipSortableHeader>
-                      {t("sessionTypesCardsColValidity")}
-                    </CardsMembershipSortableHeader>
-                  </th>
-                  <th>
-                    <CardsMembershipSortableHeader>
-                      {t("sessionTypesCardsColStatus")}
-                    </CardsMembershipSortableHeader>
-                  </th>
+                  <ServiceConfigSortableTableHeader label={locale === "sl" ? "Naziv" : "Name"} sortKey="name" sortState={productSort} onSort={(key) => setProductSort((current) => nextServiceConfigSortState(current, key))} />
+                  <ServiceConfigSortableTableHeader label={t("sessionTypesCardsColType")} sortKey="type" sortState={productSort} onSort={(key) => setProductSort((current) => nextServiceConfigSortState(current, key))} />
+                  <ServiceConfigSortableTableHeader label={t("sessionTypesCardsColServiceType")} sortKey="service" sortState={productSort} onSort={(key) => setProductSort((current) => nextServiceConfigSortState(current, key))} />
+                  <ServiceConfigSortableTableHeader label={t("sessionTypesCardsColPrice")} sortKey="price" sortState={productSort} onSort={(key) => setProductSort((current) => nextServiceConfigSortState(current, key))} />
+                  <ServiceConfigSortableTableHeader label={t("sessionTypesCardsColValidity")} sortKey="validity" sortState={productSort} onSort={(key) => setProductSort((current) => nextServiceConfigSortState(current, key))} />
+                  <ServiceConfigSortableTableHeader label={t("sessionTypesCardsColStatus")} sortKey="status" sortState={productSort} onSort={(key) => setProductSort((current) => nextServiceConfigSortState(current, key))} />
                   <th>{locale === "sl" ? "Dejanja" : "Actions"}</th>
                 </tr>
               </thead>
