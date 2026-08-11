@@ -315,3 +315,84 @@
 .low-stock-alert-banner>div{display:flex;flex-direction:column;gap:3px}.low-stock-alert-banner strong{color:#9a3412}.low-stock-alert-banner span{color:#7c2d12;font-size:13px}
 .consumables-card tr.highlighted-low-stock td{background:#fff7ed}
 @media(max-width:720px){.low-stock-alert-banner{align-items:stretch;flex-direction:column}.low-stock-alert-banner .btn{width:100%}}
+
+/* Barcode / scanner workflows */
+.barcode-action { white-space: nowrap; }
+.barcode-field-row { display: flex; align-items: stretch; gap: 8px; width: 100%; }
+.barcode-field-row > input,
+.barcode-field-row > select { flex: 1 1 auto; min-width: 0; }
+.barcode-field-button { flex: 0 0 auto; padding-inline: 12px; }
+.procurement-section-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.barcode-workflow-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  margin: 0 20px; padding: 12px 14px; border-radius: 11px; border: 1px solid #d7e8ff; background: #f7fbff;
+}
+.barcode-workflow-banner > div { display: grid; gap: 3px; }
+.barcode-workflow-banner strong { color: #23334f; font-size: 12.5px; }
+.barcode-workflow-banner span { color: #687892; font-size: 11.5px; line-height: 1.4; }
+
+.consumables-barcode-backdrop {
+  position: fixed; inset: 0; z-index: 10120; display: grid; place-items: center; padding: 20px;
+  background: rgba(15, 23, 42, .58); backdrop-filter: blur(2px);
+}
+.consumables-barcode-modal {
+  width: min(640px, 100%); max-height: min(760px, calc(100vh - 32px)); overflow: auto;
+  border-radius: 18px; background: #fff; border: 1px solid rgba(20, 38, 71, .10);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .28);
+}
+.consumables-barcode-modal > header {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px 14px;
+  border-bottom: 1px solid rgba(20, 38, 71, .08);
+}
+.consumables-barcode-modal > header h2 { margin: 0; color: #17233f; font-size: 19px; }
+.consumables-barcode-modal > header p { margin: 4px 0 0; color: #6b7893; font-size: 12px; line-height: 1.45; }
+.consumables-barcode-modal > header > button {
+  width: 34px; height: 34px; flex: 0 0 34px; border: 1px solid #e1e7f0; border-radius: 9px; background: #fff;
+  color: #65738c; font-size: 20px; cursor: pointer;
+}
+.consumables-barcode-camera {
+  position: relative; margin: 18px 20px 14px; min-height: 280px; overflow: hidden; border-radius: 14px;
+  background: #0f172a; border: 1px solid #1e293b;
+}
+.consumables-barcode-camera video { display: block; width: 100%; min-height: 280px; max-height: 360px; object-fit: cover; background: #0f172a; }
+.consumables-barcode-frame { position: absolute; inset: 20% 12% 25%; pointer-events: none; }
+.consumables-barcode-frame span { position: absolute; width: 46px; height: 46px; border-color: #60a5fa; border-style: solid; filter: drop-shadow(0 0 6px rgba(96,165,250,.35)); }
+.consumables-barcode-frame span:nth-child(1) { left: 0; top: 0; border-width: 3px 0 0 3px; border-radius: 9px 0 0 0; }
+.consumables-barcode-frame span:nth-child(2) { right: 0; top: 0; border-width: 3px 3px 0 0; border-radius: 0 9px 0 0; }
+.consumables-barcode-frame span:nth-child(3) { left: 0; bottom: 0; border-width: 0 0 3px 3px; border-radius: 0 0 0 9px; }
+.consumables-barcode-frame span:nth-child(4) { right: 0; bottom: 0; border-width: 0 3px 3px 0; border-radius: 0 0 9px 0; }
+.consumables-barcode-camera-state {
+  position: absolute; left: 12px; right: 12px; bottom: 10px; padding: 8px 10px; border-radius: 9px;
+  background: rgba(15,23,42,.78); color: #e2e8f0; font-size: 11px; text-align: center; backdrop-filter: blur(4px);
+}
+.consumables-barcode-camera-state.error { background: rgba(127,29,29,.84); color: #fee2e2; }
+.consumables-barcode-camera-state.active { background: rgba(6,78,59,.82); color: #d1fae5; }
+.consumables-barcode-manual { display: grid; gap: 6px; padding: 0 20px 14px; }
+.consumables-barcode-manual label { display: grid; gap: 6px; color: #51607d; font-size: 12px; font-weight: 750; }
+.consumables-barcode-manual label > div { display: flex; gap: 8px; }
+.consumables-barcode-manual input { min-width: 0; flex: 1; height: 40px; }
+.consumables-barcode-manual small { color: #7b879d; font-size: 10.5px; }
+.consumables-barcode-feedback { margin: 0 20px 14px; padding: 10px 12px; border-radius: 10px; font-size: 12px; font-weight: 700; }
+.consumables-barcode-feedback.success { color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; }
+.consumables-barcode-feedback.error { color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; }
+.consumables-barcode-modal > footer {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px 18px;
+  border-top: 1px solid rgba(20,38,71,.08); background: #fbfcfe;
+}
+.consumables-barcode-modal > footer > span { color: #71809a; font-size: 10.5px; }
+.consumables-barcode-modal > footer > div { display: flex; gap: 8px; }
+
+@media (max-width: 680px) {
+  .barcode-field-row { align-items: stretch; flex-direction: column; }
+  .barcode-field-button { width: 100%; }
+  .barcode-workflow-banner { align-items: stretch; flex-direction: column; }
+  .barcode-workflow-banner .btn { width: 100%; }
+  .consumables-barcode-backdrop { padding: 8px; }
+  .consumables-barcode-camera { margin: 12px; min-height: 230px; }
+  .consumables-barcode-camera video { min-height: 230px; }
+  .consumables-barcode-manual { padding-inline: 12px; }
+  .consumables-barcode-feedback { margin-inline: 12px; }
+  .consumables-barcode-modal > footer { align-items: stretch; flex-direction: column; }
+  .consumables-barcode-modal > footer > div { width: 100%; }
+  .consumables-barcode-modal > footer .btn { flex: 1; }
+}

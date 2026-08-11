@@ -18,4 +18,6 @@ public interface ConsumableRepository extends JpaRepository<Consumable, Long> {
 
     boolean existsByCompanyIdAndSkuIgnoreCase(Long companyId, String sku);
     boolean existsByCompanyIdAndSkuIgnoreCaseAndIdNot(Long companyId, String sku, Long id);
+    boolean existsByCompanyIdAndBarcodeIgnoreCase(Long companyId, String barcode);
+    boolean existsByCompanyIdAndBarcodeIgnoreCaseAndIdNot(Long companyId, String barcode, Long id);
 }

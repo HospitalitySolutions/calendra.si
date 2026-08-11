@@ -192,7 +192,16 @@ public class ConsumableService {
             }
         }
         item.setSku(sku);
-        item.setBarcode(blankToNull(req.barcode()));
+        String barcode = blankToNull(req.barcode());
+        if (barcode != null) {
+            boolean duplicateBarcode = item.getId() == null
+                    ? consumables.existsByCompanyIdAndBarcodeIgnoreCase(companyId, barcode)
+                    : consumables.existsByCompanyIdAndBarcodeIgnoreCaseAndIdNot(companyId, barcode, item.getId());
+            if (duplicateBarcode) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "An article with this barcode already exists.");
+            }
+        }
+        item.setBarcode(barcode);
         item.setUnit(defaultString(req.unit(), "kos"));
         item.setSalePrice(req.salePrice() != null ? nonNegative(req.salePrice()) : null);
         item.setVatRateId(req.vatRateId());

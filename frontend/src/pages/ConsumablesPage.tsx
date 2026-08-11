@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 import { useAuthenticatedUser } from '../authUserContext'
 import { useToast } from '../components/Toast'
+import { BarcodeScannerModal, type BarcodeScanResult } from '../components/BarcodeScannerModal'
 import { useSelectedLocationId } from '../lib/locationContext'
 import type { Location } from '../lib/types'
 import { locationsQueryOptions } from '../queries/sharedQueryOptions'
@@ -190,6 +191,8 @@ type PurchaseOrderFormState = {
 
 type TabKey = 'overview' | 'items' | 'procurement' | 'suppliers' | 'movements' | 'inventory'
 type ManualMovementType = 'PURCHASE' | 'MANUAL_ADJUSTMENT' | 'RETURN' | 'WASTE' | 'CORRECTION'
+type BarcodeScannerMode = 'FIND_ITEM' | 'ITEM_BARCODE' | 'MOVEMENT_ITEM' | 'TRANSFER_ITEM' | 'PURCHASE_ORDER_ITEM' | 'RECEIVE_ITEM' | 'INVENTORY_ITEM'
+type BarcodeScannerState = { mode: BarcodeScannerMode; title: string; subtitle: string; continuous?: boolean }
 
 type ItemFormState = {
   name: string
@@ -427,6 +430,8 @@ export function ConsumablesPage() {
   const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState('')
   const [inventoryCountStatusFilter, setInventoryCountStatusFilter] = useState('')
 
+  const [barcodeScanner, setBarcodeScanner] = useState<BarcodeScannerState | null>(null)
+
   const load = useCallback(async (force = true) => {
     setLoading(true)
     try {
@@ -454,6 +459,7 @@ export function ConsumablesPage() {
       } else if (activeTab === 'procurement') {
         tasks.push(
           loadItems(),
+          loadAllLocationItems(),
           queryClient.fetchQuery(consumablesPurchaseOrdersQueryOptions<PurchaseOrder>(activeUnitId, selectedLocationId)).then(setPurchaseOrders).catch(() => setPurchaseOrders([])),
           queryClient.fetchQuery(consumablesSuppliersQueryOptions<Supplier>(activeUnitId)).then(setSuppliers).catch(() => setSuppliers([])),
         )
@@ -462,7 +468,7 @@ export function ConsumablesPage() {
       } else if (activeTab === 'movements') {
         tasks.push(loadMovements(), loadAllLocationItems(), loadTransfers())
       } else if (activeTab === 'inventory') {
-        tasks.push((async () => {
+        tasks.push(loadAllLocationItems(), (async () => {
           try {
             const response = await api.get<InventorySession[]>('/consumables/inventory-sessions', { params: { locationId: selectedLocationId ?? undefined } })
             const rows = response.data || []
@@ -519,6 +525,7 @@ export function ConsumablesPage() {
   }, [activeInventoryLocations, selectedLocationId])
 
   const transferInventoryRows = useMemo(() => allLocationItems.length ? allLocationItems : items, [allLocationItems, items])
+  const procurementInventoryRows = useMemo(() => allLocationItems.length ? allLocationItems : items, [allLocationItems, items])
   const transferCatalogItems = useMemo(() => Array.from(new Map(
     transferInventoryRows.filter((item) => item.active && item.trackStock).map((item) => [item.id, item]),
   ).values()).sort((a, b) => a.name.localeCompare(b.name, 'sl')), [transferInventoryRows])
@@ -866,13 +873,13 @@ export function ConsumablesPage() {
     setPurchaseOrderForm(emptyPurchaseOrderForm(defaultWriteLocationId))
   }
 
-  const addPurchaseOrderLine = (item?: Item) => {
-    const firstAvailable = item || items.find((candidate) => candidate.locationId === Number(purchaseOrderForm.locationId) && !purchaseOrderForm.lines.some((line) => Number(line.consumableId) === candidate.id))
+  const addPurchaseOrderLine = (item?: Item, initialQuantity?: number) => {
+    const firstAvailable = item || procurementInventoryRows.find((candidate) => candidate.locationId === Number(purchaseOrderForm.locationId) && !purchaseOrderForm.lines.some((line) => Number(line.consumableId) === candidate.id))
     setPurchaseOrderForm((form) => ({
       ...form,
       lines: [...form.lines, {
         consumableId: firstAvailable ? String(firstAvailable.id) : '',
-        orderedQuantity: firstAvailable ? String(Math.max(1, suggestedOrderQuantity(firstAvailable))) : '1',
+        orderedQuantity: firstAvailable ? String(initialQuantity ?? Math.max(1, suggestedOrderQuantity(firstAvailable))) : '1',
         receivedQuantity: 0,
         unitPrice: firstAvailable ? String(Number(firstAvailable.costPrice || 0)) : '0',
         vatRate: firstAvailable?.vatRate || 'NO_VAT',
@@ -885,7 +892,7 @@ export function ConsumablesPage() {
   }
 
   const selectPurchaseOrderItem = (index: number, consumableId: string) => {
-    const item = items.find((candidate) => candidate.id === Number(consumableId) && candidate.locationId === Number(purchaseOrderForm.locationId))
+    const item = procurementInventoryRows.find((candidate) => candidate.id === Number(consumableId) && candidate.locationId === Number(purchaseOrderForm.locationId))
     updatePurchaseOrderLine(index, {
       consumableId,
       unitPrice: item ? String(Number(item.costPrice || 0)) : '0',
@@ -943,12 +950,18 @@ export function ConsumablesPage() {
 
   const openReceivePurchaseOrder = () => {
     const quantities: Record<number, string> = {}
+    purchaseOrderForm.lines.forEach((line) => { if (line.lineId) quantities[line.lineId] = '0' })
+    setReceiveQuantities(quantities)
+    setReceiveNote('')
+    setReceiveModalOpen(true)
+  }
+
+  const fillAllRemainingReceiveQuantities = () => {
+    const quantities: Record<number, string> = {}
     purchaseOrderForm.lines.forEach((line) => {
       if (line.lineId) quantities[line.lineId] = String(Math.max(0, Number(line.orderedQuantity || 0) - Number(line.receivedQuantity || 0)))
     })
     setReceiveQuantities(quantities)
-    setReceiveNote('')
-    setReceiveModalOpen(true)
   }
 
   const saveReceipt = (event: FormEvent) => {
@@ -1091,6 +1104,118 @@ export function ConsumablesPage() {
     }
   }
 
+  const normalizeBarcode = (value: string | null | undefined) => String(value || '').trim().toLowerCase()
+  const barcodeCatalog = useMemo(() => {
+    const source = allLocationItems.length ? allLocationItems : items
+    const byId = new Map<number, Item>()
+    source.forEach((item) => { if (item.barcode && !byId.has(item.id)) byId.set(item.id, item) })
+    return Array.from(byId.values())
+  }, [allLocationItems, items])
+
+  const resolveBarcodeItem = (code: string): { item?: Item; error?: string } => {
+    const normalized = normalizeBarcode(code)
+    const matches = barcodeCatalog.filter((item) => normalizeBarcode(item.barcode) === normalized)
+    if (matches.length === 0) return { error: `Črtna koda ${code} ni povezana z nobenim artiklom.` }
+    const uniqueIds = new Set(matches.map((item) => item.id))
+    if (uniqueIds.size > 1) return { error: `Črtna koda ${code} je povezana z več artikli. Uredite podvojene kode.` }
+    return { item: matches[0] }
+  }
+
+  const rowForLocation = (consumableId: number, locationId?: number | null) => {
+    const source = allLocationItems.length ? allLocationItems : items
+    return source.find((item) => item.id === consumableId && (locationId == null || item.locationId === locationId))
+      || source.find((item) => item.id === consumableId)
+      || null
+  }
+
+  const openBarcodeScanner = (mode: BarcodeScannerMode) => {
+    const config: Record<BarcodeScannerMode, Omit<BarcodeScannerState, 'mode'>> = {
+      FIND_ITEM: { title: 'Skeniraj artikel', subtitle: 'Skenirajte črtno kodo za hitro iskanje artikla.' },
+      ITEM_BARCODE: { title: 'Nastavi črtno kodo', subtitle: 'Skenirana koda se bo zapisala v artikel.' },
+      MOVEMENT_ITEM: { title: 'Skeniraj artikel za premik', subtitle: 'Po skenu se odpre ročni premik zaloge za izbrano poslovalnico.' },
+      TRANSFER_ITEM: { title: 'Skeniraj artikel za prenos', subtitle: 'Po skenu bo artikel izbran v prenosu med poslovalnicama.' },
+      PURCHASE_ORDER_ITEM: { title: 'Dodaj artikel s skenom', subtitle: 'Skenirajte artikel, ki ga želite dodati na naročilnico.' },
+      RECEIVE_ITEM: { title: 'Skeniraj prejem blaga', subtitle: 'Vsak uspešen sken poveča količino »Prejmi zdaj« za 1 enoto.', continuous: true },
+      INVENTORY_ITEM: { title: 'Skeniraj inventuro', subtitle: 'Vsak uspešen sken poveča prešteto količino artikla za 1 enoto.', continuous: true },
+    }
+    if ((mode === 'FIND_ITEM' || mode === 'MOVEMENT_ITEM' || mode === 'TRANSFER_ITEM' || mode === 'INVENTORY_ITEM') && !allLocationItems.length) {
+      void api.get<Item[]>('/consumables/items').then(({ data }) => setAllLocationItems(data || [])).catch(() => undefined)
+    }
+    setBarcodeScanner({ mode, ...config[mode] })
+  }
+
+  const handleBarcodeScan = (code: string): BarcodeScanResult => {
+    if (!barcodeScanner) return { accepted: false, message: 'Skener ni več aktiven.' }
+    if (barcodeScanner.mode === 'ITEM_BARCODE') {
+      setItemForm((form) => ({ ...form, barcode: code }))
+      return { accepted: true, message: `Koda ${code} je vpisana v artikel.`, close: true }
+    }
+
+    const resolved = resolveBarcodeItem(code)
+    if (!resolved.item) return { accepted: false, message: resolved.error || 'Artikla ni bilo mogoče najti.' }
+    const catalogItem = resolved.item
+
+    if (barcodeScanner.mode === 'FIND_ITEM') {
+      setActiveTab('items')
+      setQuery(code)
+      setCategoryFilter('')
+      setLocationFilter('')
+      setStatusFilter('')
+      return { accepted: true, message: `Najden artikel: ${catalogItem.name}.`, close: true }
+    }
+
+    if (barcodeScanner.mode === 'MOVEMENT_ITEM') {
+      const preferredLocationId = selectedLocationId ?? defaultWriteLocationId
+      const row = rowForLocation(catalogItem.id, preferredLocationId)
+      if (!row) return { accepted: false, message: 'Artikel nima zalogovne vrstice v izbrani poslovalnici.' }
+      openStockMovement(row)
+      return { accepted: true, message: `Odpiram premik za ${catalogItem.name}.`, close: true }
+    }
+
+    if (barcodeScanner.mode === 'TRANSFER_ITEM') {
+      if (!catalogItem.trackStock) return { accepted: false, message: `${catalogItem.name} nima vklopljenega spremljanja zaloge.` }
+      setTransferForm((form) => ({ ...form, consumableId: String(catalogItem.id) }))
+      return { accepted: true, message: `Izbran artikel: ${catalogItem.name}.`, close: true }
+    }
+
+    if (barcodeScanner.mode === 'PURCHASE_ORDER_ITEM') {
+      if (purchaseOrderHasReceipts || purchaseOrderTerminal) return { accepted: false, message: 'Artiklov na tej naročilnici ni več mogoče spreminjati.' }
+      const locationId = Number(purchaseOrderForm.locationId)
+      if (!locationId) return { accepted: false, message: 'Najprej izberite poslovalnico prejema.' }
+      const item = procurementInventoryRows.find((candidate) => candidate.id === catalogItem.id && candidate.locationId === locationId)
+      if (!item) return { accepted: false, message: `${catalogItem.name} ni na voljo v izbrani poslovalnici.` }
+      if (purchaseOrderForm.lines.some((line) => Number(line.consumableId) === item.id)) return { accepted: false, message: `${item.name} je že na naročilnici.` }
+      addPurchaseOrderLine(item, 1)
+      return { accepted: true, message: `${item.name} je dodan na naročilnico.`, close: true }
+    }
+
+    if (barcodeScanner.mode === 'RECEIVE_ITEM') {
+      const line = purchaseOrderForm.lines.find((candidate) => candidate.lineId && Number(candidate.consumableId) === catalogItem.id)
+      if (!line?.lineId) return { accepted: false, message: `${catalogItem.name} ni na tej naročilnici.` }
+      const remaining = Math.max(0, Number(line.orderedQuantity || 0) - Number(line.receivedQuantity || 0))
+      const current = Math.max(0, Number(String(receiveQuantities[line.lineId] || '0').replace(',', '.')) || 0)
+      if (remaining <= 0 || current >= remaining) return { accepted: false, message: `${catalogItem.name}: vsa naročena količina je že zajeta v prejemu.` }
+      const next = Math.min(remaining, current + 1)
+      setReceiveQuantities((values) => ({ ...values, [line.lineId as number]: String(next) }))
+      const row = procurementInventoryRows.find((candidate) => candidate.id === catalogItem.id && candidate.locationId === Number(purchaseOrderForm.locationId))
+      return { accepted: true, message: `${catalogItem.name}: ${n(next, 2)} ${row?.unit || catalogItem.unit} za prejem.`, close: false }
+    }
+
+    if (barcodeScanner.mode === 'INVENTORY_ITEM') {
+      if (!inventoryDetail || inventoryDetail.session.status !== 'IN_PROGRESS') return { accepted: false, message: 'Odprite inventuro, ki je še v teku.' }
+      const line = inventoryDetail.lines.find((candidate) => candidate.consumableId === catalogItem.id)
+      if (!line) return { accepted: false, message: `${catalogItem.name} ni del te inventure.` }
+      const raw = inventoryCountDraft[line.id]?.countedQuantity ?? (line.countedQuantity == null ? '' : String(line.countedQuantity))
+      const current = Math.max(0, Number(String(raw || '0').replace(',', '.')) || 0)
+      const next = current + 1
+      setInventoryCountDraft((draft) => ({ ...draft, [line.id]: { countedQuantity: String(next), notes: draft[line.id]?.notes || line.notes || '' } }))
+      setInventoryQuery(catalogItem.name)
+      return { accepted: true, message: `${catalogItem.name}: prešteto ${n(next, 2)} ${line.unit}.`, close: false }
+    }
+
+    return { accepted: false, message: 'Ta način skeniranja ni podprt.' }
+  }
+
   const createPurchaseOrder = (suggestedItems: Item[] = []) => openNewPurchaseOrder(suggestedItems)
 
 
@@ -1122,11 +1247,11 @@ export function ConsumablesPage() {
           <div><h1>Porabni material</h1></div>
           <div className="consumables-header-actions">
             <button type="button" className="btn secondary" onClick={() => window.print()}>Izvozi</button>
-            {activeTab === 'items' && <button type="button" className="btn primary" onClick={openNewItem}>+ Nov artikel</button>}
+            {activeTab === 'items' && <><button type="button" className="btn secondary barcode-action" onClick={() => openBarcodeScanner('FIND_ITEM')}>▦ Skeniraj</button><button type="button" className="btn primary" onClick={openNewItem}>+ Nov artikel</button></>}
             {activeTab === 'procurement' && <button type="button" className="btn primary" onClick={() => createPurchaseOrder()}>+ Nova naročilnica</button>}
             {activeTab === 'suppliers' && <button type="button" className="btn primary" onClick={openNewSupplier}>+ Nov dobavitelj</button>}
-            {activeTab === 'movements' && <><button type="button" className="btn secondary" onClick={() => setActiveTab('items')}>Nov premik</button><button type="button" className="btn primary" onClick={() => openStockTransfer()}>⇄ Prenos zaloge</button></>}
-            {activeTab === 'inventory' && <button type="button" className="btn primary" onClick={openStartInventory}>+ Začni inventuro</button>}
+            {activeTab === 'movements' && <><button type="button" className="btn secondary barcode-action" onClick={() => openBarcodeScanner('MOVEMENT_ITEM')}>▦ Skeniraj za premik</button><button type="button" className="btn secondary" onClick={() => setActiveTab('items')}>Nov premik</button><button type="button" className="btn primary" onClick={() => openStockTransfer()}>⇄ Prenos zaloge</button></>}
+            {activeTab === 'inventory' && <><button type="button" className="btn secondary barcode-action" disabled={inventoryDetail?.session.status !== 'IN_PROGRESS'} onClick={() => openBarcodeScanner('INVENTORY_ITEM')}>▦ Skeniraj štetje</button><button type="button" className="btn primary" onClick={openStartInventory}>+ Začni inventuro</button></>}
           </div>
         </div>
 
@@ -1139,7 +1264,7 @@ export function ConsumablesPage() {
         {activeTab === 'procurement' && <ProcurementTab orders={purchaseOrders} items={items} suppliers={suppliers} createPurchaseOrder={createPurchaseOrder} openPurchaseOrder={openExistingPurchaseOrder} createSuggestedOrder={openNewPurchaseOrder} highlightItemId={notificationLowStockItemId} />}
         {activeTab === 'suppliers' && <SuppliersTab suppliers={suppliers} openSupplier={openEditSupplier} createSupplier={openNewSupplier} />}
         {activeTab === 'movements' && <MovementsTab movements={movements} transfers={transfers} onCreateTransfer={() => openStockTransfer()} />}
-        {activeTab === 'inventory' && <InventoryTab sessions={inventorySessions} detail={inventoryDetail} draft={inventoryCountDraft} setDraft={setInventoryCountDraft} query={inventoryQuery} setQuery={setInventoryQuery} categoryFilter={inventoryCategoryFilter} setCategoryFilter={setInventoryCategoryFilter} countStatusFilter={inventoryCountStatusFilter} setCountStatusFilter={setInventoryCountStatusFilter} loading={loading || loadingInventoryDetail} saving={savingInventory} onOpenSession={openInventorySession} onSave={() => { void saveInventoryCounts().catch(() => undefined) }} onFinalize={() => { void finalizeInventory() }} />}
+        {activeTab === 'inventory' && <InventoryTab sessions={inventorySessions} detail={inventoryDetail} draft={inventoryCountDraft} setDraft={setInventoryCountDraft} query={inventoryQuery} setQuery={setInventoryQuery} categoryFilter={inventoryCategoryFilter} setCategoryFilter={setInventoryCategoryFilter} countStatusFilter={inventoryCountStatusFilter} setCountStatusFilter={setInventoryCountStatusFilter} loading={loading || loadingInventoryDetail} saving={savingInventory} onOpenSession={openInventorySession} onSave={() => { void saveInventoryCounts().catch(() => undefined) }} onFinalize={() => { void finalizeInventory() }} onScan={() => openBarcodeScanner('INVENTORY_ITEM')} />}
       </section>
 
       {inventoryStartModalOpen && (
@@ -1167,7 +1292,7 @@ export function ConsumablesPage() {
               <label>Naziv *<input autoFocus value={itemForm.name} onChange={(e) => setItemForm((f) => ({ ...f, name: e.target.value }))} /></label>
               <label>SKU<input value={itemForm.sku} onChange={(e) => setItemForm((f) => ({ ...f, sku: e.target.value }))} placeholder="npr. OLJE-500" /></label>
               <label className="full">Opis<textarea value={itemForm.description} onChange={(e) => setItemForm((f) => ({ ...f, description: e.target.value }))} placeholder="Interni opis artikla" /></label>
-              <label>Črtna koda<input value={itemForm.barcode} onChange={(e) => setItemForm((f) => ({ ...f, barcode: e.target.value }))} placeholder="EAN / druga koda" /></label>
+              <label>Črtna koda<div className="barcode-field-row"><input value={itemForm.barcode} onChange={(e) => setItemForm((f) => ({ ...f, barcode: e.target.value }))} placeholder="EAN / UPC / Code 128 / druga koda" /><button type="button" className="btn secondary barcode-field-button" onClick={() => openBarcodeScanner('ITEM_BARCODE')}>▦ Skeniraj</button></div><small>Koda mora biti unikatna znotraj podjetja.</small></label>
               <label>Kategorija<select value={itemForm.categoryId} onChange={(e) => setItemForm((f) => ({ ...f, categoryId: e.target.value }))}><option value="">Brez kategorije</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}{c.active ? '' : ' (neaktivna)'}</option>)}</select></label>
               <label>Poslovalnica<select disabled={Boolean(editingItem)} value={itemForm.locationId} onChange={(e) => setItemForm((f) => ({ ...f, locationId: e.target.value }))}><option value="">Izberite poslovalnico</option>{writableInventoryLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}{editingItem && !writableInventoryLocations.some((location) => location.id === editingItem.locationId) && <option value={editingItem.locationId}>{editingItem.location || `#${editingItem.locationId}`}</option>}</select></label>
               <label>Enota *<input value={itemForm.unit} onChange={(e) => setItemForm((f) => ({ ...f, unit: e.target.value }))} placeholder="kos, ml, g ..." /></label>
@@ -1224,7 +1349,7 @@ export function ConsumablesPage() {
               <button type="button" onClick={() => setTransferModalOpen(false)} aria-label="Zapri">×</button>
             </header>
             <div className="consumables-modal-grid">
-              <label className="full">Artikel<select autoFocus value={transferForm.consumableId} onChange={(e) => setTransferForm((form) => ({ ...form, consumableId: e.target.value }))}><option value="">Izberite artikel</option>{transferCatalogItems.map((item) => <option key={item.id} value={item.id}>{item.name}{item.sku ? ` · ${item.sku}` : ''}</option>)}</select></label>
+              <label className="full">Artikel<div className="barcode-field-row"><select autoFocus value={transferForm.consumableId} onChange={(e) => setTransferForm((form) => ({ ...form, consumableId: e.target.value }))}><option value="">Izberite artikel</option>{transferCatalogItems.map((item) => <option key={item.id} value={item.id}>{item.name}{item.sku ? ` · ${item.sku}` : ''}</option>)}</select><button type="button" className="btn secondary barcode-field-button" onClick={() => openBarcodeScanner('TRANSFER_ITEM')}>▦ Skeniraj</button></div></label>
               <label>Iz poslovalnice<select value={transferForm.fromLocationId} onChange={(e) => { const fromLocationId = e.target.value; const nextDestination = transferForm.toLocationId === fromLocationId ? String(activeInventoryLocations.find((location) => String(location.id) !== fromLocationId)?.id || '') : transferForm.toLocationId; setTransferForm((form) => ({ ...form, fromLocationId, toLocationId: nextDestination })) }}><option value="">Izberite</option>{activeInventoryLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
               <label>V poslovalnico<select value={transferForm.toLocationId} onChange={(e) => setTransferForm((form) => ({ ...form, toLocationId: e.target.value }))}><option value="">Izberite</option>{activeInventoryLocations.filter((location) => String(location.id) !== transferForm.fromLocationId).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
               <label>Količina ({transferSelectedItem?.unit || 'enota'})<input type="number" min="0.0001" step="0.0001" max={transferSourceRow?.trackStock ? Math.max(0, Number(transferSourceRow.currentStock || 0)) : undefined} value={transferForm.quantity} onChange={(e) => setTransferForm((form) => ({ ...form, quantity: e.target.value }))} /></label>
@@ -1309,14 +1434,14 @@ export function ConsumablesPage() {
               </div>
 
               <section className="procurement-lines-section">
-                <div className="procurement-section-header"><div><h3>Artikli</h3><p>Nabavna cena je neto cena na enoto. DDV in bruto vrednost se izračunata samodejno.</p></div>{!purchaseOrderTerminal && !purchaseOrderHasReceipts && <button type="button" className="btn secondary" onClick={() => addPurchaseOrderLine()}>+ Dodaj artikel</button>}</div>
+                <div className="procurement-section-header"><div><h3>Artikli</h3><p>Nabavna cena je neto cena na enoto. DDV in bruto vrednost se izračunata samodejno.</p></div>{!purchaseOrderTerminal && !purchaseOrderHasReceipts && <div className="procurement-section-actions"><button type="button" className="btn secondary barcode-action" onClick={() => openBarcodeScanner('PURCHASE_ORDER_ITEM')}>▦ Skeniraj artikel</button><button type="button" className="btn secondary" onClick={() => addPurchaseOrderLine()}>+ Dodaj artikel</button></div>}</div>
                 <div className="procurement-lines-table-wrap"><table className="procurement-lines-table"><thead><tr><th>Artikel</th><th>Naročeno</th><th>Prejeto</th><th>Nabavna cena</th><th>DDV</th><th>Neto</th><th>Bruto</th>{!purchaseOrderTerminal && !purchaseOrderHasReceipts && <th />}</tr></thead><tbody>{purchaseOrderForm.lines.map((line, index) => {
-                  const item = items.find((candidate) => candidate.id === Number(line.consumableId) && candidate.locationId === Number(purchaseOrderForm.locationId))
+                  const item = procurementInventoryRows.find((candidate) => candidate.id === Number(line.consumableId) && candidate.locationId === Number(purchaseOrderForm.locationId))
                   const qty = Number(String(line.orderedQuantity || '0').replace(',', '.')) || 0
                   const unitPrice = Number(String(line.unitPrice || '0').replace(',', '.')) || 0
                   const net = qty * unitPrice
                   const gross = net * (1 + vatMultiplier(line.vatRate))
-                  return <tr key={line.lineId || `new-${index}`}><td><select value={line.consumableId} disabled={purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => selectPurchaseOrderItem(index, e.target.value)}><option value="">Izberite artikel</option>{items.filter((candidate) => candidate.locationId === Number(purchaseOrderForm.locationId) && (candidate.id === Number(line.consumableId) || !purchaseOrderForm.lines.some((other, otherIndex) => otherIndex !== index && Number(other.consumableId) === candidate.id))).map((candidate) => <option key={`${candidate.id}:${candidate.locationId}`} value={candidate.id}>{candidate.name}{candidate.sku ? ` · ${candidate.sku}` : ''}</option>)}</select><small>{item ? `${item.location || ''} · ${item.unit}` : ''}</small></td><td><div className="quantity-with-unit"><input type="number" min="0.0001" step="0.0001" value={line.orderedQuantity} disabled={purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { orderedQuantity: e.target.value })} /><span>{item?.unit || 'enota'}</span></div></td><td><strong>{n(line.receivedQuantity, 2)}</strong><br /><small>{n(Math.max(0, qty - Number(line.receivedQuantity || 0)), 2)} preostalo</small></td><td><div className="money-input"><span>€</span><input type="number" min="0" step="0.0001" value={line.unitPrice} disabled={purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { unitPrice: e.target.value })} /></div></td><td><select value={line.vatRate} disabled={purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { vatRate: e.target.value as PurchaseOrderLineForm['vatRate'] })}><option value="VAT_22">22 %</option><option value="VAT_9_5">9,5 %</option><option value="VAT_0">0 %</option><option value="NO_VAT">Brez DDV</option></select></td><td>{eur(net)}</td><td><strong>{eur(gross)}</strong></td>{!purchaseOrderTerminal && !purchaseOrderHasReceipts && <td><button type="button" className="icon-btn danger" onClick={() => removePurchaseOrderLine(index)} title="Odstrani">×</button></td>}</tr>
+                  return <tr key={line.lineId || `new-${index}`}><td><select value={line.consumableId} disabled={purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => selectPurchaseOrderItem(index, e.target.value)}><option value="">Izberite artikel</option>{procurementInventoryRows.filter((candidate) => candidate.locationId === Number(purchaseOrderForm.locationId) && (candidate.id === Number(line.consumableId) || !purchaseOrderForm.lines.some((other, otherIndex) => otherIndex !== index && Number(other.consumableId) === candidate.id))).map((candidate) => <option key={`${candidate.id}:${candidate.locationId}`} value={candidate.id}>{candidate.name}{candidate.sku ? ` · ${candidate.sku}` : ''}</option>)}</select><small>{item ? `${item.location || ''} · ${item.unit}` : ''}</small></td><td><div className="quantity-with-unit"><input type="number" min="0.0001" step="0.0001" value={line.orderedQuantity} disabled={purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { orderedQuantity: e.target.value })} /><span>{item?.unit || 'enota'}</span></div></td><td><strong>{n(line.receivedQuantity, 2)}</strong><br /><small>{n(Math.max(0, qty - Number(line.receivedQuantity || 0)), 2)} preostalo</small></td><td><div className="money-input"><span>€</span><input type="number" min="0" step="0.0001" value={line.unitPrice} disabled={purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { unitPrice: e.target.value })} /></div></td><td><select value={line.vatRate} disabled={purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { vatRate: e.target.value as PurchaseOrderLineForm['vatRate'] })}><option value="VAT_22">22 %</option><option value="VAT_9_5">9,5 %</option><option value="VAT_0">0 %</option><option value="NO_VAT">Brez DDV</option></select></td><td>{eur(net)}</td><td><strong>{eur(gross)}</strong></td>{!purchaseOrderTerminal && !purchaseOrderHasReceipts && <td><button type="button" className="icon-btn danger" onClick={() => removePurchaseOrderLine(index)} title="Odstrani">×</button></td>}</tr>
                 })}</tbody></table></div>
                 <Empty visible={purchaseOrderForm.lines.length === 0} text="Dodajte vsaj en artikel ali ustvarite naročilnico iz predlogov za naročilo." />
                 <div className="procurement-totals"><span>Neto<strong>{eur(purchaseOrderTotals.net)}</strong></span><span>DDV<strong>{eur(purchaseOrderTotals.vat)}</strong></span><span>Skupaj<strong>{eur(purchaseOrderTotals.gross)}</strong></span></div>
@@ -1337,11 +1462,21 @@ export function ConsumablesPage() {
         <div className="consumables-modal-backdrop procurement-receive-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setReceiveModalOpen(false) }}>
           <form className="consumables-modal consumables-modal-wide" onSubmit={saveReceipt}>
             <header><div><h2>Prejmi blago</h2><p>{purchaseOrderForm.orderNumber} · količine povečajo zalogo v izbrani poslovalnici.</p></div><button type="button" onClick={() => setReceiveModalOpen(false)} aria-label="Zapri">×</button></header>
-            <div className="procurement-receive-list"><table><thead><tr><th>Artikel</th><th>Naročeno</th><th>Že prejeto</th><th>Preostalo</th><th>Prejmi zdaj</th></tr></thead><tbody>{purchaseOrderForm.lines.filter((line) => line.lineId).map((line) => { const remaining = Math.max(0, Number(line.orderedQuantity || 0) - Number(line.receivedQuantity || 0)); const item = items.find((candidate) => candidate.id === Number(line.consumableId) && candidate.locationId === Number(purchaseOrderForm.locationId)); return <tr key={line.lineId}><td><strong>{item?.name || 'Artikel'}</strong></td><td>{n(Number(line.orderedQuantity || 0), 2)} {item?.unit || ''}</td><td>{n(line.receivedQuantity, 2)} {item?.unit || ''}</td><td>{n(remaining, 2)} {item?.unit || ''}</td><td><input type="number" min="0" max={remaining} step="0.0001" value={receiveQuantities[line.lineId as number] || '0'} onChange={(e) => setReceiveQuantities((values) => ({ ...values, [line.lineId as number]: e.target.value }))} disabled={remaining <= 0} /></td></tr> })}</tbody></table><label className="procurement-receive-note">Opomba<textarea value={receiveNote} onChange={(e) => setReceiveNote(e.target.value)} placeholder="Npr. delna dobava, dobavnica št. ..." /></label><div className="procurement-info-note">Prejem je idempotenten: ponovljen isti zahtevek ne more dvakrat povečati zaloge. Nabavna cena se shrani na premik, lokacijska povprečna nabavna cena pa se preračuna uteženo.</div></div>
+            <div className="barcode-workflow-banner"><div><strong>Skeniranje prejema</strong><span>Sken artikla doda 1 enoto v stolpec »Prejmi zdaj«. Količine lahko nato ročno popravite.</span></div><div className="procurement-section-actions"><button type="button" className="btn secondary" onClick={fillAllRemainingReceiveQuantities}>Prejmi vse preostalo</button><button type="button" className="btn secondary barcode-action" onClick={() => openBarcodeScanner('RECEIVE_ITEM')}>▦ Skeniraj prejem</button></div></div>
+            <div className="procurement-receive-list"><table><thead><tr><th>Artikel</th><th>Naročeno</th><th>Že prejeto</th><th>Preostalo</th><th>Prejmi zdaj</th></tr></thead><tbody>{purchaseOrderForm.lines.filter((line) => line.lineId).map((line) => { const remaining = Math.max(0, Number(line.orderedQuantity || 0) - Number(line.receivedQuantity || 0)); const item = procurementInventoryRows.find((candidate) => candidate.id === Number(line.consumableId) && candidate.locationId === Number(purchaseOrderForm.locationId)); return <tr key={line.lineId}><td><strong>{item?.name || 'Artikel'}</strong></td><td>{n(Number(line.orderedQuantity || 0), 2)} {item?.unit || ''}</td><td>{n(line.receivedQuantity, 2)} {item?.unit || ''}</td><td>{n(remaining, 2)} {item?.unit || ''}</td><td><input type="number" min="0" max={remaining} step="0.0001" value={receiveQuantities[line.lineId as number] || '0'} onChange={(e) => setReceiveQuantities((values) => ({ ...values, [line.lineId as number]: e.target.value }))} disabled={remaining <= 0} /></td></tr> })}</tbody></table><label className="procurement-receive-note">Opomba<textarea value={receiveNote} onChange={(e) => setReceiveNote(e.target.value)} placeholder="Npr. delna dobava, dobavnica št. ..." /></label><div className="procurement-info-note">Prejem je idempotenten: ponovljen isti zahtevek ne more dvakrat povečati zaloge. Nabavna cena se shrani na premik, lokacijska povprečna nabavna cena pa se preračuna uteženo.</div></div>
             <footer><button type="button" className="btn secondary" onClick={() => setReceiveModalOpen(false)}>Prekliči</button><button type="submit" className="btn primary" disabled={savingReceipt}>{savingReceipt ? 'Shranjujem…' : 'Potrdi prejem'}</button></footer>
           </form>
         </div>
       )}
+
+      <BarcodeScannerModal
+        open={Boolean(barcodeScanner)}
+        title={barcodeScanner?.title || 'Skeniraj črtno kodo'}
+        subtitle={barcodeScanner?.subtitle}
+        continuous={Boolean(barcodeScanner?.continuous)}
+        onClose={() => setBarcodeScanner(null)}
+        onScan={handleBarcodeScan}
+      />
     </div>
   )
 }
@@ -1520,7 +1655,7 @@ function MovementsTab({ movements, transfers, onCreateTransfer }: { movements: M
   </div>
 }
 
-function InventoryTab({ sessions, detail, draft, setDraft, query, setQuery, categoryFilter, setCategoryFilter, countStatusFilter, setCountStatusFilter, loading, saving, onOpenSession, onSave, onFinalize }: {
+function InventoryTab({ sessions, detail, draft, setDraft, query, setQuery, categoryFilter, setCategoryFilter, countStatusFilter, setCountStatusFilter, loading, saving, onOpenSession, onSave, onFinalize, onScan }: {
   sessions: InventorySession[]
   detail: InventoryDetail | null
   draft: InventoryCountDraft
@@ -1536,6 +1671,7 @@ function InventoryTab({ sessions, detail, draft, setDraft, query, setQuery, cate
   onOpenSession: (id: number) => void
   onSave: () => void
   onFinalize: () => void
+  onScan: () => void
 }) {
   const session = detail?.session || null
   const editable = session?.status === 'IN_PROGRESS'
@@ -1595,6 +1731,7 @@ function InventoryTab({ sessions, detail, draft, setDraft, query, setQuery, cate
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Išči po artiklu ali kategoriji…" />
         <label>Kategorija<select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}><option value="">Vse kategorije</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
         <label>Status štetja<select value={countStatusFilter} onChange={(e) => setCountStatusFilter(e.target.value)}><option value="">Vsi statusi</option><option value="UNCOUNTED">Ni prešteto</option><option value="COUNTED">Prešteto</option><option value="DISCREPANCY">Odstopanje</option><option value="MATCH">Ujema se</option></select></label>
+        {editable && <button type="button" className="btn secondary barcode-action" onClick={onScan}>▦ Skeniraj štetje</button>}
         <button type="button" className="btn secondary" onClick={() => { setQuery(''); setCategoryFilter(''); setCountStatusFilter('') }}>Ponastavi filtre</button>
       </div>
 

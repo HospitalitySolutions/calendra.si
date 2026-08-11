@@ -164,4 +164,22 @@ class ConsumableServiceStockAdjustmentTest {
         assertEquals("This movement type cannot be created manually.", error.getReason());
     }
 
+    @Test
+    void updateRejectsDuplicateBarcodeWithinTenant() {
+        when(locations.findByIdAndCompanyId(7L, 1L)).thenReturn(Optional.of(location));
+        when(consumables.existsByCompanyIdAndBarcodeIgnoreCaseAndIdNot(1L, "3830001234567", 5L)).thenReturn(true);
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class, () -> service.updateItem(
+                me,
+                5L,
+                new ConsumableController.ItemRequest(
+                        "Brisača", null, null, null, "3830001234567", "kos", 7L,
+                        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                        null, null, true, false, true)
+        ));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatusCode());
+        assertEquals("An article with this barcode already exists.", error.getReason());
+    }
+
 }
