@@ -725,7 +725,7 @@ public class SessionBookingCreationService {
                 SessionBookingStatus.RESERVED,
                 true,
                 BookingSource.MANUAL
-        ), false, false);
+        ), false, false, me);
         List<SessionBooking> refreshed = loadGroupedRows(joined, companyId);
         SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(refreshed, locationPrices == null ? null : locationPrices::effectiveNet);
         String clientLabel = clientActivityLabel(joined.getClient());
@@ -1408,7 +1408,7 @@ public class SessionBookingCreationService {
 
     @Transactional
     public SessionBooking joinClientToGroupSession(GroupJoinRequest request) {
-        SessionBooking joined = joinClientToGroupSession(request, true, true);
+        SessionBooking joined = joinClientToGroupSession(request, true, true, null);
         recordExternalBookingActivity(joined, request == null ? null : request.bookingSource(),
                 request == null ? null : request.sourceChannel(), ActivityAction.SESSION_PARTICIPANT_ADDED,
                 clientActivityLabel(joined == null ? null : joined.getClient()));
@@ -1418,7 +1418,8 @@ public class SessionBookingCreationService {
     private SessionBooking joinClientToGroupSession(
             GroupJoinRequest request,
             boolean requireFutureSession,
-            boolean enforceGuestEligibility
+            boolean enforceGuestEligibility,
+            User actor
     ) {
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Group join request is required.");
