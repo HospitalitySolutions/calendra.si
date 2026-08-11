@@ -1,5 +1,6 @@
 package com.example.app.consumables;
 
+import com.example.app.billing.TaxRate;
 import com.example.app.common.BaseEntity;
 import com.example.app.company.Company;
 import com.example.app.consumables.ConsumableEnums.QuantityMode;
@@ -45,6 +46,10 @@ public class SessionConsumable extends BaseEntity {
     @JoinColumn(name = "consumable_id", nullable = false)
     private Consumable consumable;
 
+    /** Immutable article-name snapshot used for historical billing. */
+    @Column(name = "item_name_snapshot", nullable = false, length = 160)
+    private String itemNameSnapshot;
+
     /** Base quantity. PER_PARTICIPANT rows are multiplied by the current active participant count when stock is reconciled. */
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal quantity = BigDecimal.ZERO;
@@ -61,6 +66,11 @@ public class SessionConsumable extends BaseEntity {
 
     @Column(precision = 19, scale = 4)
     private BigDecimal salePriceSnapshot;
+
+    /** VAT captured with the appointment so later catalogue changes cannot rewrite billing history. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "vat_rate_snapshot", nullable = false, length = 32)
+    private TaxRate vatRateSnapshot = TaxRate.NO_VAT;
 
     @Column(nullable = false)
     private boolean billable = false;

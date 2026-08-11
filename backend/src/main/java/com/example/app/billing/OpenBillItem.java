@@ -36,6 +36,10 @@ public class OpenBillItem extends BaseEntity {
     @Column(name = "source_session_booking_id")
     private Long sourceSessionBookingId;
 
+    /** Stable provenance for auto-generated consumable lines. */
+    @Column(name = "source_session_consumable_id")
+    private Long sourceSessionConsumableId;
+
     @Column(name = "source_advance_bill_id")
     private Long sourceAdvanceBillId;
 }

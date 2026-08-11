@@ -222,6 +222,8 @@ type SessionConsumableDraft = {
   quantity: number
   quantityMode: 'PER_SESSION' | 'PER_PARTICIPANT'
   billable: boolean
+  salePriceSnapshot?: number | null
+  vatRateSnapshot?: 'VAT_22' | 'VAT_9_5' | 'VAT_0' | 'NO_VAT' | string | null
   notes?: string | null
 }
 
@@ -230,6 +232,8 @@ type ConsumableCatalogItem = {
   name: string
   unit?: string | null
   billable?: boolean
+  salePrice?: number | null
+  vatRate?: 'VAT_22' | 'VAT_9_5' | 'VAT_0' | 'NO_VAT' | string | null
   active?: boolean
 }
 
@@ -333,7 +337,7 @@ export function CalendarServiceChainEditor({
         api.get(`/consumables/service-types/${primaryTypeId}/defaults`),
         loadConsumableCatalog(),
       ])
-      const catalogById = new Map(catalog.map((item) => [Number(item.id), item]))
+      const catalogById = new Map<number, ConsumableCatalogItem>(catalog.map((item: ConsumableCatalogItem) => [Number(item.id), item] as [number, ConsumableCatalogItem]))
       return (Array.isArray(defaultsResponse.data) ? defaultsResponse.data : []).map((row: any) => {
         const item = catalogById.get(Number(row.consumableId))
         const baseQuantity = Math.max(0, Number(row.defaultQuantity ?? 0) || 0)
@@ -345,6 +349,8 @@ export function CalendarServiceChainEditor({
           quantity: baseQuantity,
           quantityMode,
           billable: row.billableOverride == null ? item?.billable === true : row.billableOverride === true,
+          salePriceSnapshot: item?.salePrice ?? null,
+          vatRateSnapshot: item?.vatRate ?? 'NO_VAT',
           notes: row.notes || null,
         } satisfies SessionConsumableDraft
       })
@@ -373,6 +379,8 @@ export function CalendarServiceChainEditor({
           quantity: Math.max(0, Number(row.quantity ?? 0) || 0),
           quantityMode: row.quantityMode === 'PER_PARTICIPANT' ? 'PER_PARTICIPANT' : 'PER_SESSION',
           billable: row.billable === true,
+          salePriceSnapshot: row.salePriceSnapshot == null ? null : Number(row.salePriceSnapshot),
+          vatRateSnapshot: row.vatRateSnapshot ?? 'NO_VAT',
           notes: row.notes || null,
         }))
         // Older appointments may predate material snapshots. Show their service defaults unless
@@ -829,14 +837,14 @@ export function CalendarServiceChainEditor({
                 <button type="button" className="secondary slim-btn" disabled={!consumableToAdd} onClick={() => {
                   const item = consumableCatalog.find((entry) => String(entry.id) === consumableToAdd)
                   if (!item) return
-                  mutateWorkingConsumables([...workingConsumables, { consumableId: item.id, itemName: item.name, unit: item.unit || 'kos', quantity: 1, quantityMode: 'PER_SESSION', billable: item.billable === true, notes: null }])
+                  mutateWorkingConsumables([...workingConsumables, { consumableId: item.id, itemName: item.name, unit: item.unit || 'kos', quantity: 1, quantityMode: 'PER_SESSION', billable: item.billable === true, salePriceSnapshot: item.salePrice ?? null, vatRateSnapshot: item.vatRate ?? 'NO_VAT', notes: null }])
                   setConsumableToAdd('')
                 }}>{locale === 'sl' ? 'Dodaj artikel' : 'Add item'}</button>
               </div>
               <button type="button" className="calendar-consumables-editor__reset" onClick={resetWorkingConsumables}>↻ {locale === 'sl' ? 'Ponastavi na privzeto' : 'Reset to defaults'}</button>
             </div>
             <div className="calendar-consumables-editor__head" aria-hidden>
-              <span>{locale === 'sl' ? 'Artikel' : 'Item'}</span><span>{locale === 'sl' ? 'Količina' : 'Quantity'}</span><span>{locale === 'sl' ? 'Obračun' : 'Calculation'}</span><span>{locale === 'sl' ? 'Zaračunaj' : 'Bill'}</span><span />
+              <span>{locale === 'sl' ? 'Artikel' : 'Item'}</span><span>{locale === 'sl' ? 'Količina' : 'Quantity'}</span><span>{locale === 'sl' ? 'Obračun' : 'Calculation'}</span><span>{locale === 'sl' ? 'Zaračunaj' : 'Bill'}</span><span>{locale === 'sl' ? 'Cena' : 'Price'}</span><span />
             </div>
             <div className="calendar-consumables-editor__rows">
               {workingConsumables.map((row, index) => (
@@ -848,6 +856,7 @@ export function CalendarServiceChainEditor({
                     <option value="PER_PARTICIPANT">{locale === 'sl' ? 'Na udeleženca' : 'Per participant'}</option>
                   </select>
                   <label className="switch calendar-consumables-editor__switch"><input type="checkbox" checked={row.billable} onChange={(event) => mutateWorkingConsumables(workingConsumables.map((item, rowIndex) => rowIndex === index ? { ...item, billable: event.target.checked } : item))} /><span className="slider" /></label>
+                  <span className="calendar-consumables-editor__price">{row.billable ? currency(Number(row.salePriceSnapshot ?? 0)) : '—'}</span>
                   <button type="button" className="calendar-consumables-editor__remove" aria-label={locale === 'sl' ? 'Odstrani' : 'Remove'} onClick={() => mutateWorkingConsumables(workingConsumables.filter((_, rowIndex) => rowIndex !== index))}><TrashIcon /></button>
                 </div>
               ))}

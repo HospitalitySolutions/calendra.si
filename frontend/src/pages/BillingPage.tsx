@@ -259,6 +259,7 @@ type OpenBillEditItem = {
   netPrice: string
   grossPrice: string
   sourceSessionBookingId?: number | null
+  sourceSessionConsumableId?: number | null
   sourceAdvanceBillId?: number | null
 }
 
@@ -2769,6 +2770,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       netPrice: String(i.netPrice),
       grossPrice: grossPrice.toFixed(2),
       sourceSessionBookingId: i.sourceSessionBookingId ?? null,
+      sourceSessionConsumableId: i.sourceSessionConsumableId ?? null,
       sourceAdvanceBillId: i.sourceAdvanceBillId ?? null,
     }
   }
@@ -2840,6 +2842,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           netPrice: Number(i.netPrice),
           grossPrice: Number(i.grossPrice),
           sourceSessionBookingId: i.sourceSessionBookingId ?? null,
+          sourceSessionConsumableId: i.sourceSessionConsumableId ?? null,
           sourceAdvanceBillId: null,
         })),
     }
@@ -5687,7 +5690,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
 
   const taxRateByServiceId = (serviceId: number): VatBreakdownKey => {
+    // Generated consumable VAT carriers are intentionally excluded from /billing/services.
+    // Resolve their tax rate from the open-bill payload so local VAT totals stay correct.
     const tax = services.find((s) => s.id === serviceId)?.taxRate
+      ?? openBills.flatMap((bill) => bill.items ?? []).find((item) => Number(item.transactionService?.id) === Number(serviceId))?.transactionService?.taxRate
+      ?? (detailOpenBill?.items ?? []).find((item) => Number(item.transactionService?.id) === Number(serviceId))?.transactionService?.taxRate
     if (tax === 'VAT_22' || tax === 'VAT_9_5' || tax === 'VAT_0' || tax === 'NO_VAT') return tax
     return 'NO_VAT'
   }
@@ -6814,8 +6821,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     options?: { showClientColumn?: boolean; clientLabel?: string; selectable?: boolean },
   ) => {
     const item = getOpenBillItems(rowBill)[idx]
-    const billServices = selectableServicesForOpenBill(rowBill)
     if (!item) return null
+    const baseBillServices = selectableServicesForOpenBill(rowBill)
+    // System VAT-carrier services used by generated consumable lines are intentionally hidden
+    // from the normal service catalogue. Keep the current persisted service as an option so
+    // the open-bill editor still renders the material name instead of a blank select.
+    const persistedItem = rowBill.items.find((serverItem) => Number(serverItem.id) === Number(item.openBillItemId)) ?? rowBill.items[idx]
+    const persistedService = persistedItem?.transactionService
+    const billServices = persistedService && !baseBillServices.some((entry) => Number(entry.id) === Number(persistedService.id))
+      ? [...baseBillServices, persistedService]
+      : baseBillServices
     const lineKey = openBillEditorLineKey(rowBill, idx, item)
     const selectable = options?.selectable !== false
     const selected = Boolean(selectedOpenBillLines[lineKey])

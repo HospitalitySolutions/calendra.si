@@ -38,4 +38,14 @@ public class TransactionService extends BaseEntity {
 
     @Column(nullable = false)
     private boolean active = true;
+
+    /** Hidden carrier rows used by system-generated billing lines (for example consumables). */
+    @Column(name = "system_generated", nullable = false)
+    private boolean systemGenerated = false;
+
+    @Column(name = "system_source", length = 32)
+    private String systemSource;
+
+    @Column(name = "system_source_key", length = 80)
+    private String systemSourceKey;
 }

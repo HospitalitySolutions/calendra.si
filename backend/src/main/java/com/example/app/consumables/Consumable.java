@@ -1,9 +1,12 @@
 package com.example.app.consumables;
 
+import com.example.app.billing.TaxRate;
 import com.example.app.common.BaseEntity;
 import com.example.app.company.Company;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -47,8 +50,13 @@ public class Consumable extends BaseEntity {
     @Column(precision = 19, scale = 4)
     private BigDecimal salePrice;
 
+    /** Legacy placeholder retained for backward compatibility with older API payloads. */
     @Column(name = "vat_rate_id")
     private Long vatRateId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "vat_rate", nullable = false, length = 32)
+    private TaxRate vatRate = TaxRate.NO_VAT;
 
     @Column(nullable = false)
     private boolean trackStock = true;

@@ -10299,7 +10299,7 @@
 .calendar-consumables-editor__head,
 .calendar-consumables-editor__row {
     display: grid;
-    grid-template-columns: minmax(155px, 1fr) minmax(120px, .7fr) minmax(150px, .85fr) 90px 36px;
+    grid-template-columns: minmax(145px, 1fr) minmax(110px, .7fr) minmax(140px, .85fr) 82px 84px 36px;
     gap: 10px;
     align-items: center;
 }
@@ -10322,6 +10322,14 @@
 .calendar-consumables-editor__row {
     min-height: 61px;
     border-bottom: 1px solid rgba(148, 163, 184, .16);
+}
+
+.calendar-consumables-editor__price {
+    color: #334155;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: right;
+    white-space: nowrap;
 }
 
 .calendar-consumables-editor__row > strong {
@@ -10437,6 +10445,10 @@
 
     .calendar-consumables-editor__switch {
         justify-self: start;
+    }
+
+    .calendar-consumables-editor__price {
+        justify-self: end;
     }
 
     .calendar-consumables-editor__remove {

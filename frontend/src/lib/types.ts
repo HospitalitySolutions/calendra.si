@@ -508,6 +508,7 @@ export type BillItem = {
   netPrice: number
   grossPrice: number
   sourceSessionBookingId?: number | null
+  sourceSessionConsumableId?: number | null
 }
 
 export type Bill = {
@@ -573,6 +574,7 @@ export type OpenBillItem = {
   /** Gross unit price is the Billing source of truth; netPrice is derived from it for VAT/base. */
   grossPrice: number
   sourceSessionBookingId?: number | null
+  sourceSessionConsumableId?: number | null
   sourceAdvanceBillId?: number | null
 }
 

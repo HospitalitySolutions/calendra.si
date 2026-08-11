@@ -36,6 +36,10 @@ public class BillItem extends BaseEntity {
     @Column(name = "source_session_booking_id")
     private Long sourceSessionBookingId;
 
+    /** Historical provenance for a billable session consumable. */
+    @Column(name = "source_session_consumable_id")
+    private Long sourceSessionConsumableId;
+
     /** Historical service-group snapshot for service-group revenue analytics. */
     @Column(name = "service_group_id_snapshot")
     private Long serviceGroupIdSnapshot;

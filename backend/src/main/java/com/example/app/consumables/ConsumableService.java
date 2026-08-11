@@ -1,5 +1,6 @@
 package com.example.app.consumables;
 
+import com.example.app.billing.TaxRate;
 import com.example.app.common.TimeService;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
@@ -171,6 +172,7 @@ public class ConsumableService {
         item.setUnit(defaultString(req.unit(), "kos"));
         item.setSalePrice(req.salePrice() != null ? nonNegative(req.salePrice()) : null);
         item.setVatRateId(req.vatRateId());
+        item.setVatRate(req.vatRate() != null ? req.vatRate() : (item.getVatRate() != null ? item.getVatRate() : TaxRate.NO_VAT));
         item.setTrackStock(req.trackStock() == null || Boolean.TRUE.equals(req.trackStock()));
         item.setBillable(Boolean.TRUE.equals(req.billable()));
         item.setActive(req.active() == null || Boolean.TRUE.equals(req.active()));
@@ -456,20 +458,21 @@ public class ConsumableService {
             var item = def.getConsumable();
             retainedConsumableIds.add(item.getId());
             var row = byConsumable.get(item.getId());
-            if (row == null) {
+            boolean newSnapshot = row == null;
+            if (newSnapshot) {
                 row = new SessionConsumable();
                 row.setCompany(representative.getCompany());
                 row.setBookingGroupKey(key);
                 row.setConsumable(item);
+                captureBillingSnapshot(row, item);
             }
             row.setSessionBooking(representative);
             row.setServiceType(representative.getType());
             BigDecimal qty = positive(def.getDefaultQuantity(), BigDecimal.ONE);
             row.setQuantity(qty.setScale(4, RoundingMode.HALF_UP));
-            row.setUnit(defaultString(item.getUnit(), "kos"));
+            if (newSnapshot) row.setUnit(defaultString(item.getUnit(), "kos"));
             row.setQuantityMode(def.getQuantityMode() != null ? def.getQuantityMode() : QuantityMode.PER_SESSION);
             row.setCostPriceSnapshot(costPriceAtLocation(companyId, item, location));
-            row.setSalePriceSnapshot(item.getSalePrice());
             row.setBillable(def.getBillableOverride() != null ? def.getBillableOverride() : item.isBillable());
             row.setSource("SERVICE_TYPE_DEFAULT");
             row.setManuallyChanged(false);
@@ -492,6 +495,14 @@ public class ConsumableService {
         var booking = bookings.findByIdAndCompanyId(bookingId, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         return sessionConsumables.findByCompanyIdAndBookingGroupKey(companyId, groupKey(booking));
+    }
+
+    @Transactional(readOnly = true)
+    public String bookingGroupKey(User me, Long bookingId) {
+        Long companyId = me.getCompany().getId();
+        var booking = bookings.findByIdAndCompanyId(bookingId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return groupKey(booking);
     }
 
     @Transactional
@@ -527,6 +538,7 @@ public class ConsumableService {
                     row.setCompany(booking.getCompany());
                     row.setBookingGroupKey(key);
                     row.setConsumable(item);
+                    captureBillingSnapshot(row, item);
                 }
                 row.setSessionBooking(booking);
                 row.setServiceType(booking.getType());
@@ -534,7 +546,6 @@ public class ConsumableService {
                 row.setUnit(defaultString(req.unit(), item.getUnit()));
                 row.setQuantityMode(req.quantityMode() != null ? req.quantityMode() : QuantityMode.PER_SESSION);
                 row.setCostPriceSnapshot(costPriceAtLocation(companyId, item, location));
-                row.setSalePriceSnapshot(item.getSalePrice());
                 row.setBillable(req.billable() != null ? Boolean.TRUE.equals(req.billable()) : item.isBillable());
                 row.setSource("MANUAL");
                 row.setManuallyChanged(true);
@@ -653,6 +664,12 @@ public class ConsumableService {
                     : StockMovementType.RETURN;
             createMovement(actor, sc.getConsumable(), location, movementType, StockMovementSourceType.SESSION, sc.getId(), needed, note);
         }
+    }
+
+    private static void captureBillingSnapshot(SessionConsumable row, Consumable item) {
+        row.setItemNameSnapshot(defaultString(item == null ? null : item.getName(), "Porabni material"));
+        row.setSalePriceSnapshot(item == null ? null : item.getSalePrice());
+        row.setVatRateSnapshot(item != null && item.getVatRate() != null ? item.getVatRate() : TaxRate.NO_VAT);
     }
 
     private static int activeParticipantCount(List<SessionBooking> rows) {

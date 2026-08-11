@@ -366,8 +366,13 @@ public class BillingController {
             Integer quantity,
             BigDecimal netPrice,
             BigDecimal grossPrice,
-            Long sourceSessionBookingId
-    ) {}
+            Long sourceSessionBookingId,
+            Long sourceSessionConsumableId
+    ) {
+        public BillItemResponse(Long id, ServiceSummary transactionService, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId) {
+            this(id, transactionService, quantity, netPrice, grossPrice, sourceSessionBookingId, null);
+        }
+    }
     public record BillResponse(
             Long id,
             String billNumber,
@@ -424,9 +429,23 @@ public class BillingController {
             Long sessionBookingId
     ) {}
 
-    public record OpenBillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId, Long sourceAdvanceBillId) {}
+    public record OpenBillItemRequest(
+            Long transactionServiceId, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice,
+            Long sourceSessionBookingId, Long sourceSessionConsumableId, Long sourceAdvanceBillId
+    ) {
+        public OpenBillItemRequest(Long transactionServiceId, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId, Long sourceAdvanceBillId) {
+            this(transactionServiceId, quantity, netPrice, grossPrice, sourceSessionBookingId, null, sourceAdvanceBillId);
+        }
+    }
     public record ItemDiscountRequest(Integer itemIndex, String discountType, BigDecimal discountValue) {}
-    public record OpenBillItemResponse(Long id, ServiceSummary transactionService, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId, Long sourceAdvanceBillId) {}
+    public record OpenBillItemResponse(
+            Long id, ServiceSummary transactionService, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice,
+            Long sourceSessionBookingId, Long sourceSessionConsumableId, Long sourceAdvanceBillId
+    ) {
+        public OpenBillItemResponse(Long id, ServiceSummary transactionService, Integer quantity, BigDecimal netPrice, BigDecimal grossPrice, Long sourceSessionBookingId, Long sourceAdvanceBillId) {
+            this(id, transactionService, quantity, netPrice, grossPrice, sourceSessionBookingId, null, sourceAdvanceBillId);
+        }
+    }
     public record OpenBillSessionSummary(
             Long sessionId,
             String sessionDisplayId,
@@ -627,7 +646,7 @@ public class BillingController {
 
     @GetMapping("/services")
     public List<TransactionService> services(@AuthenticationPrincipal User me) {
-        return txRepo.findAllByCompanyId(me.getCompany().getId());
+        return txRepo.findAllByCompanyIdAndSystemGeneratedFalse(me.getCompany().getId());
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -644,6 +663,9 @@ public class BillingController {
         s.setCompany(me.getCompany());
         s.setCode(normalizedCode);
         s.setDescription(description);
+        s.setSystemGenerated(false);
+        s.setSystemSource(null);
+        s.setSystemSourceKey(null);
         s.setActive(s.isActive());
         TransactionService saved = txRepo.save(s);
         if (activityLogs != null) {
@@ -661,6 +683,9 @@ public class BillingController {
         var companyId = me.getCompany().getId();
         var existing = txRepo.findByIdAndCompanyId(id, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (existing.isSystemGenerated()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
         String validatedCode = normalizeTransactionServiceCode(s.getCode());
         if (validatedCode == null) {
             validatedCode = existing.getCode();
@@ -696,6 +721,9 @@ public class BillingController {
         var companyId = me.getCompany().getId();
         var existing = txRepo.findByIdAndCompanyId(id, companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (existing.isSystemGenerated()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
         if (sessionBookings.existsUpcomingOrOngoingForTransactionService(companyId, id, timeService.localDateTime())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
@@ -2223,7 +2251,10 @@ public class BillingController {
                 obi.setUnitGrossPrice(resolveUnitGrossPrice(tx, item.netPrice(), item.grossPrice()));
                 var fallbackItem = idx < existingItems.size() ? existingItems.get(idx) : null;
                 Long fallbackSourceSessionId = fallbackItem != null ? fallbackItem.getSourceSessionBookingId() : null;
+                Long fallbackSourceConsumableId = fallbackItem != null ? fallbackItem.getSourceSessionConsumableId() : null;
                 obi.setSourceSessionBookingId(item.sourceSessionBookingId() != null ? item.sourceSessionBookingId() : fallbackSourceSessionId);
+                obi.setSourceSessionConsumableId(item.sourceSessionConsumableId() != null ? item.sourceSessionConsumableId() : fallbackSourceConsumableId);
+                obi.setInvoiceLineDescription(fallbackItem == null ? null : fallbackItem.getInvoiceLineDescription());
                 obi.setSourceAdvanceBillId(null);
                 open.getItems().add(obi);
                 idx++;
@@ -2748,6 +2779,7 @@ public class BillingController {
             item.setQuantity(obi.getQuantity());
             item.setNetPrice(obi.getNetPrice());
             item.setSourceSessionBookingId(resolveInvoiceLineSourceSessionId(obi.getSourceSessionBookingId(), linkedSessionId));
+            item.setSourceSessionConsumableId(obi.getSourceSessionConsumableId());
             item.setSourceAdvanceBillId(null);
             item.setInvoiceLineDescription(obi.getInvoiceLineDescription());
             item.setGrossPrice(resolveOpenBillLineGross(obi));
@@ -2882,6 +2914,11 @@ public class BillingController {
                 );
                 if (fallback != null) {
                     item.setInvoiceLineDescription(fallback.getInvoiceLineDescription());
+                    item.setSourceSessionConsumableId(requested.sourceSessionConsumableId() != null
+                            ? requested.sourceSessionConsumableId()
+                            : fallback.getSourceSessionConsumableId());
+                } else {
+                    item.setSourceSessionConsumableId(requested.sourceSessionConsumableId());
                 }
                 totalNet = totalNet.add(item.getNetPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
                 totalGross = totalGross.add(item.getGrossPrice());
@@ -2910,6 +2947,7 @@ public class BillingController {
                         null
                 );
                 item.setInvoiceLineDescription(openItem.getInvoiceLineDescription());
+                item.setSourceSessionConsumableId(openItem.getSourceSessionConsumableId());
                 totalNet = totalNet.add(item.getNetPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
                 totalGross = totalGross.add(item.getGrossPrice());
                 bill.getItems().add(item);
@@ -3801,7 +3839,9 @@ public class BillingController {
         var paymentMethodSummary = toPaymentMethodSummary(o.getPaymentMethod());
         var items = o.getItems().stream().map(obi -> {
             var tx = obi.getTransactionService();
-            String description = tx.getDescription() == null ? "" : tx.getDescription();
+            String description = obi.getInvoiceLineDescription() != null && !obi.getInvoiceLineDescription().isBlank()
+                    ? obi.getInvoiceLineDescription().trim()
+                    : (tx.getDescription() == null ? "" : tx.getDescription());
             Long advId = obi.getSourceAdvanceBillId();
             if (advId != null) {
                 String billNo = advanceBillNumbersById.get(advId);
@@ -3817,6 +3857,7 @@ public class BillingController {
                     obi.getNetPrice(),
                     resolveOpenBillUnitGrossPrice(obi),
                     obi.getSourceSessionBookingId(),
+                    obi.getSourceSessionConsumableId(),
                     obi.getSourceAdvanceBillId());
         }).toList();
 
@@ -4268,7 +4309,9 @@ public class BillingController {
             refundItem.setNetPrice(safeMoney(originalItem.getNetPrice()).negate());
             refundItem.setGrossPrice(safeMoney(originalItem.getGrossPrice()).negate());
             refundItem.setSourceSessionBookingId(originalItem.getSourceSessionBookingId());
+            refundItem.setSourceSessionConsumableId(originalItem.getSourceSessionConsumableId());
             refundItem.setSourceAdvanceBillId(originalItem.getSourceAdvanceBillId());
+            refundItem.setInvoiceLineDescription(originalItem.getInvoiceLineDescription());
             totalNet = totalNet.add(refundItem.getNetPrice().multiply(BigDecimal.valueOf(refundItem.getQuantity() == null ? 1 : refundItem.getQuantity())));
             totalGross = totalGross.add(refundItem.getGrossPrice());
             refund.getItems().add(refundItem);
@@ -5045,8 +5088,12 @@ public class BillingController {
 
         var items = bill.getItems().stream().map(item -> {
             var tx = item.getTransactionService();
-            var serviceSummary = new ServiceSummary(tx.getId(), tx.getCode(), tx.getDescription(), tx.getTaxRate(), tx.getNetPrice());
-            return new BillItemResponse(item.getId(), serviceSummary, item.getQuantity(), item.getNetPrice(), item.getGrossPrice(), item.getSourceSessionBookingId());
+            String description = item.getInvoiceLineDescription() != null && !item.getInvoiceLineDescription().isBlank()
+                    ? item.getInvoiceLineDescription().trim()
+                    : tx.getDescription();
+            var serviceSummary = new ServiceSummary(tx.getId(), tx.getCode(), description, tx.getTaxRate(), tx.getNetPrice());
+            return new BillItemResponse(item.getId(), serviceSummary, item.getQuantity(), item.getNetPrice(), item.getGrossPrice(),
+                    item.getSourceSessionBookingId(), item.getSourceSessionConsumableId());
         }).toList();
 
         return new BillResponse(

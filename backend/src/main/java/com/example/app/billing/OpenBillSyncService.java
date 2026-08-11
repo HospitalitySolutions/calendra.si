@@ -5,6 +5,9 @@ import com.example.app.common.TimeService;
 import com.example.app.company.ClientCompany;
 import com.example.app.company.ClientCompanyRepository;
 import com.example.app.commerce.CommerceLocationScopeService;
+import com.example.app.consumables.ConsumableEnums.QuantityMode;
+import com.example.app.consumables.SessionConsumable;
+import com.example.app.consumables.SessionConsumableRepository;
 import com.example.app.location.Location;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBillingSupport;
@@ -13,6 +16,7 @@ import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionPriceCalculationMode;
 import com.example.app.settings.AppSettingRepository;
+import com.example.app.settings.GlobalConsumablesFeatureService;
 import com.example.app.settings.SettingKey;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
@@ -27,6 +31,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -65,6 +70,12 @@ public class OpenBillSyncService {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private SessionTypeLocationPriceService locationPrices;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private SessionConsumableRepository sessionConsumables;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private GlobalConsumablesFeatureService consumablesFeatureService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -393,7 +404,13 @@ public class OpenBillSyncService {
             return;
         }
         var type = sb.getType();
-        if (!isNoShowSession(sb) && !SessionBillingSupport.hasTransactionServices(sb, locationPrices == null ? null : locationPrices::effectiveNet)) {
+        boolean hasServiceCharges = SessionBillingSupport.hasTransactionServices(sb, locationPrices == null ? null : locationPrices::effectiveNet);
+        boolean hasConsumableCharges = hasBillableSessionConsumables(sb, companyId);
+        boolean hasExistingOpenBill = openBillRepo.findBySessionBookingIdAndCompanyId(sb.getId(), companyId).isPresent()
+                || openBillRepo.findContainingSession(companyId, sb.getId()).isPresent();
+        // Keep processing an existing mutable open bill even after the last material is made
+        // non-billable/removed, otherwise the old generated consumable line would remain stale.
+        if (!isNoShowSession(sb) && !hasServiceCharges && !hasConsumableCharges && !hasExistingOpenBill) {
             return;
         }
         if (isTotalPriceCalculation(sb) && !Objects.equals(billingSourceSessionForPriceMode(sb, companyId).getId(), sb.getId())) {
@@ -425,6 +442,7 @@ public class OpenBillSyncService {
         if (containingOpen != null && isSharedSessionGroupOpenBill(containingOpen)) {
             boolean changed = false;
             changed |= ensureSessionServiceLines(containingOpen, sb, companyId);
+            changed |= ensureSessionConsumableLines(containingOpen, sb, companyId);
             changed |= ensureAdvanceOffsetLines(containingOpen, sb, companyId);
             if (changed) {
                 openBillRepo.save(containingOpen);
@@ -445,6 +463,7 @@ public class OpenBillSyncService {
         }
 
         changed |= ensureSessionServiceLines(open, sb, companyId);
+        changed |= ensureSessionConsumableLines(open, sb, companyId);
         changed |= ensureAdvanceOffsetLines(open, sb, companyId);
 
         if (changed || open.getId() == null) {
@@ -461,7 +480,10 @@ public class OpenBillSyncService {
             if (SessionBookingStatus.CANCELLED.equals(SessionBookingStatus.normalizeStored(row.getBookingStatus()))) {
                 continue;
             }
-            if (!isNoShowSession(row) && !SessionBillingSupport.hasTransactionServices(row, locationPrices == null ? null : locationPrices::effectiveNet)) {
+            if (!isNoShowSession(row)
+                    && !SessionBillingSupport.hasTransactionServices(row, locationPrices == null ? null : locationPrices::effectiveNet)
+                    && !hasBillableSessionConsumables(row, companyId)
+                    && !hasExistingOpenBillForSession(companyId, row.getId())) {
                 continue;
             }
             SessionBooking billable = billingSourceSessionForPriceMode(row, companyId);
@@ -471,12 +493,21 @@ public class OpenBillSyncService {
             if (SessionBookingStatus.CANCELLED.equals(SessionBookingStatus.normalizeStored(billable.getBookingStatus()))) {
                 continue;
             }
-            if (!isNoShowSession(billable) && !SessionBillingSupport.hasTransactionServices(billable, locationPrices == null ? null : locationPrices::effectiveNet)) {
+            if (!isNoShowSession(billable)
+                    && !SessionBillingSupport.hasTransactionServices(billable, locationPrices == null ? null : locationPrices::effectiveNet)
+                    && !hasBillableSessionConsumables(billable, companyId)
+                    && !hasExistingOpenBillForSession(companyId, billable.getId())) {
                 continue;
             }
             billableById.putIfAbsent(billable.getId(), billable);
         }
         return new ArrayList<>(billableById.values());
+    }
+
+    private boolean hasExistingOpenBillForSession(Long companyId, Long sessionId) {
+        if (companyId == null || sessionId == null) return false;
+        return openBillRepo.findBySessionBookingIdAndCompanyId(sessionId, companyId).isPresent()
+                || openBillRepo.findContainingSession(companyId, sessionId).isPresent();
     }
 
     private List<OpenBill> findOpenBillsContainingAnySession(Long companyId, Set<Long> sessionIds) {
@@ -694,6 +725,7 @@ public class OpenBillSyncService {
         boolean changed = false;
         for (SessionBooking row : billableRows) {
             changed |= ensureSessionServiceLines(target, row, companyId);
+            changed |= ensureSessionConsumableLines(target, row, companyId);
             changed |= ensureAdvanceOffsetLines(target, row, companyId);
         }
         if (changed || target.getId() == null) {
@@ -1015,6 +1047,7 @@ public class OpenBillSyncService {
             OpenBillItem item = staleIterator.next();
             if (!Objects.equals(item.getSourceSessionBookingId(), sourceSessionId)
                     || item.getSourceAdvanceBillId() != null
+                    || item.getSourceSessionConsumableId() != null
                     || item.getTransactionService() == null
                     || item.getTransactionService().getId() == null) {
                 continue;
@@ -1038,6 +1071,7 @@ public class OpenBillSyncService {
                 OpenBillItem item = iterator.next();
                 if (!Objects.equals(item.getSourceSessionBookingId(), sourceSessionId)
                         || item.getSourceAdvanceBillId() != null
+                        || item.getSourceSessionConsumableId() != null
                         || item.getTransactionService() == null
                         || item.getTransactionService().getId() == null
                         || !key.equals(chargeKey(item.getTransactionService().getId(), item.getNetPrice()))) {
@@ -1077,6 +1111,261 @@ public class OpenBillSyncService {
         return changed;
     }
 
+    /**
+     * Synchronizes billable appointment consumables into the mutable open bill. Finalized invoices
+     * are never touched because billed sessions are filtered by isDueForGeneratedOpenBill().
+     *
+     * PER_PARTICIPANT rows are allocated to each participant for per-person pricing. For TOTAL
+     * group pricing, the whole group quantity is allocated to the primary billing row so the group
+     * still produces one bill. PER_SESSION rows are always charged once per booking group.
+     */
+    private boolean ensureSessionConsumableLines(OpenBill open, SessionBooking session, Long companyId) {
+        if (open == null || session == null || session.getId() == null || sessionConsumables == null
+                || consumablesFeatureService == null || !consumablesFeatureService.isEnabledForCompany(companyId)) {
+            return false;
+        }
+        Long sourceSessionId = session.getId();
+        String groupKey = bookingGroupKey(session);
+        List<SessionBooking> groupRows = sessionBookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(groupKey, companyId);
+        List<SessionBooking> activeParticipants = (groupRows == null ? List.<SessionBooking>of() : groupRows).stream()
+                .filter(Objects::nonNull)
+                .filter(row -> row.getClient() != null)
+                .filter(row -> !SessionBookingStatus.CANCELLED.equals(SessionBookingStatus.normalizeStored(row.getBookingStatus())))
+                .sorted(Comparator.comparing(SessionBooking::getId))
+                .toList();
+        SessionBooking primary = activeParticipants.isEmpty() ? null : activeParticipants.getFirst();
+        boolean sourceIsActiveParticipant = activeParticipants.stream().anyMatch(row -> Objects.equals(row.getId(), sourceSessionId));
+        boolean sourceIsPrimary = primary != null && Objects.equals(primary.getId(), sourceSessionId);
+        boolean totalPricing = isTotalPriceCalculation(session);
+        boolean noShow = isNoShowSession(session);
+
+        List<SessionConsumable> configured = sessionConsumables.findByCompanyIdAndBookingGroupKey(companyId, groupKey);
+        Map<Long, ConsumableBillingLine> expected = new LinkedHashMap<>();
+        if (!noShow && sourceIsActiveParticipant) {
+            for (SessionConsumable sc : configured) {
+                if (sc == null || sc.getId() == null || !sc.isBillable()) continue;
+                BigDecimal baseQuantity = nonNegativeQuantity(sc.getQuantity());
+                if (baseQuantity.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+                BigDecimal allocatedQuantity;
+                if (totalPricing) {
+                    if (!sourceIsPrimary) continue;
+                    allocatedQuantity = sc.getQuantityMode() == QuantityMode.PER_PARTICIPANT
+                            ? baseQuantity.multiply(BigDecimal.valueOf(activeParticipants.size()))
+                            : baseQuantity;
+                } else if (sc.getQuantityMode() == QuantityMode.PER_PARTICIPANT) {
+                    allocatedQuantity = baseQuantity;
+                } else {
+                    if (!sourceIsPrimary) continue;
+                    allocatedQuantity = baseQuantity;
+                }
+                if (allocatedQuantity.compareTo(BigDecimal.ZERO) <= 0) continue;
+                expected.put(sc.getId(), buildConsumableBillingLine(companyId, sc, allocatedQuantity));
+            }
+        }
+
+        boolean changed = false;
+        Set<Long> expectedIds = expected.keySet();
+        var stale = open.getItems().iterator();
+        while (stale.hasNext()) {
+            OpenBillItem item = stale.next();
+            if (!Objects.equals(item.getSourceSessionBookingId(), sourceSessionId)
+                    || item.getSourceSessionConsumableId() == null) {
+                continue;
+            }
+            if (!expectedIds.contains(item.getSourceSessionConsumableId())) {
+                stale.remove();
+                changed = true;
+            }
+        }
+
+        for (ConsumableBillingLine expectedLine : expected.values()) {
+            OpenBillItem kept = null;
+            var iterator = open.getItems().iterator();
+            while (iterator.hasNext()) {
+                OpenBillItem item = iterator.next();
+                if (!Objects.equals(item.getSourceSessionBookingId(), sourceSessionId)
+                        || !Objects.equals(item.getSourceSessionConsumableId(), expectedLine.sessionConsumableId())) {
+                    continue;
+                }
+                if (kept == null) {
+                    kept = item;
+                    changed |= applyConsumableBillingLine(kept, expectedLine, sourceSessionId);
+                } else {
+                    iterator.remove();
+                    changed = true;
+                }
+            }
+            if (kept == null) {
+                OpenBillItem item = new OpenBillItem();
+                item.setOpenBill(open);
+                applyConsumableBillingLine(item, expectedLine, sourceSessionId);
+                open.getItems().add(item);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    private boolean hasBillableSessionConsumables(SessionBooking session, Long companyId) {
+        if (session == null || session.getId() == null || companyId == null || sessionConsumables == null
+                || consumablesFeatureService == null || !consumablesFeatureService.isEnabledForCompany(companyId)
+                || isNoShowSession(session)) {
+            return false;
+        }
+        String groupKey = bookingGroupKey(session);
+        if (groupKey == null || groupKey.isBlank()) return false;
+
+        List<SessionConsumable> configured = sessionConsumables.findByCompanyIdAndBookingGroupKey(companyId, groupKey).stream()
+                .filter(Objects::nonNull)
+                .filter(SessionConsumable::isBillable)
+                .filter(row -> nonNegativeQuantity(row.getQuantity()).compareTo(BigDecimal.ZERO) > 0)
+                .toList();
+        if (configured.isEmpty()) return false;
+
+        List<SessionBooking> activeParticipants = sessionBookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(groupKey, companyId).stream()
+                .filter(Objects::nonNull)
+                .filter(row -> row.getClient() != null)
+                .filter(row -> !SessionBookingStatus.CANCELLED.equals(SessionBookingStatus.normalizeStored(row.getBookingStatus())))
+                .sorted(Comparator.comparing(SessionBooking::getId))
+                .toList();
+        if (activeParticipants.isEmpty()) return false;
+        boolean sourceIsActive = activeParticipants.stream().anyMatch(row -> Objects.equals(row.getId(), session.getId()));
+        if (!sourceIsActive) return false;
+        boolean sourceIsPrimary = Objects.equals(activeParticipants.getFirst().getId(), session.getId());
+
+        if (isTotalPriceCalculation(session)) {
+            return sourceIsPrimary;
+        }
+        if (sourceIsPrimary) {
+            return true;
+        }
+        // For per-person group billing, PER_SESSION material is charged only once on the
+        // primary participant. Secondary participants only get PER_PARTICIPANT material.
+        return configured.stream().anyMatch(row -> row.getQuantityMode() == QuantityMode.PER_PARTICIPANT);
+    }
+
+    private record ConsumableBillingLine(
+            Long sessionConsumableId,
+            TransactionService carrierService,
+            int lineQuantity,
+            BigDecimal unitNet,
+            BigDecimal unitGross,
+            String description
+    ) {}
+
+    private ConsumableBillingLine buildConsumableBillingLine(Long companyId, SessionConsumable sc, BigDecimal allocatedQuantity) {
+        TaxRate taxRate = sc.getVatRateSnapshot() != null ? sc.getVatRateSnapshot() : TaxRate.NO_VAT;
+        TransactionService carrier = resolveConsumableCarrierService(companyId, taxRate);
+        BigDecimal saleGross = sc.getSalePriceSnapshot() == null ? BigDecimal.ZERO : sc.getSalePriceSnapshot();
+        saleGross = saleGross.max(BigDecimal.ZERO).setScale(4, RoundingMode.HALF_UP);
+        BigDecimal qty = nonNegativeQuantity(allocatedQuantity);
+
+        int lineQuantity;
+        BigDecimal unitGross;
+        String description = consumableLineDescription(sc, qty, false);
+        try {
+            BigDecimal normalized = qty.stripTrailingZeros();
+            if (normalized.scale() <= 0 && normalized.compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) <= 0) {
+                lineQuantity = normalized.intValueExact();
+                unitGross = saleGross.setScale(2, RoundingMode.HALF_UP);
+                description = consumableLineDescription(sc, qty, true);
+            } else {
+                lineQuantity = 1;
+                unitGross = saleGross.multiply(qty).setScale(2, RoundingMode.HALF_UP);
+            }
+        } catch (ArithmeticException ex) {
+            lineQuantity = 1;
+            unitGross = saleGross.multiply(qty).setScale(2, RoundingMode.HALF_UP);
+        }
+        if (lineQuantity <= 0) lineQuantity = 1;
+        BigDecimal unitNet = PriceMath.netFromGross(unitGross, taxRate).setScale(4, RoundingMode.HALF_UP);
+        return new ConsumableBillingLine(sc.getId(), carrier, lineQuantity, unitNet, unitGross, description);
+    }
+
+    private boolean applyConsumableBillingLine(OpenBillItem item, ConsumableBillingLine expected, Long sourceSessionId) {
+        boolean changed = false;
+        if (item.getTransactionService() == null
+                || !Objects.equals(item.getTransactionService().getId(), expected.carrierService().getId())) {
+            item.setTransactionService(entityManager.getReference(TransactionService.class, expected.carrierService().getId()));
+            changed = true;
+        }
+        if (!Objects.equals(item.getQuantity(), expected.lineQuantity())) {
+            item.setQuantity(expected.lineQuantity());
+            changed = true;
+        }
+        if (!sameMoney(item.getNetPrice(), expected.unitNet())) {
+            item.setNetPrice(expected.unitNet());
+            changed = true;
+        }
+        if (!sameMoney(item.getUnitGrossPrice(), expected.unitGross())) {
+            item.setUnitGrossPrice(expected.unitGross());
+            changed = true;
+        }
+        if (!Objects.equals(item.getInvoiceLineDescription(), expected.description())) {
+            item.setInvoiceLineDescription(expected.description());
+            changed = true;
+        }
+        if (!Objects.equals(item.getSourceSessionBookingId(), sourceSessionId)) {
+            item.setSourceSessionBookingId(sourceSessionId);
+            changed = true;
+        }
+        if (!Objects.equals(item.getSourceSessionConsumableId(), expected.sessionConsumableId())) {
+            item.setSourceSessionConsumableId(expected.sessionConsumableId());
+            changed = true;
+        }
+        if (item.getSourceAdvanceBillId() != null) {
+            item.setSourceAdvanceBillId(null);
+            changed = true;
+        }
+        return changed;
+    }
+
+    private TransactionService resolveConsumableCarrierService(Long companyId, TaxRate taxRate) {
+        TaxRate safe = taxRate == null ? TaxRate.NO_VAT : taxRate;
+        String source = "CONSUMABLE";
+        String sourceKey = safe.name();
+        var existing = txRepo.findByCompanyIdAndSystemGeneratedTrueAndSystemSourceAndSystemSourceKey(companyId, source, sourceKey);
+        if (existing.isPresent()) return existing.get();
+
+        String code = switch (safe) {
+            case VAT_22 -> "_CNSM22";
+            case VAT_9_5 -> "_CNSM95";
+            case VAT_0 -> "_CNSM0";
+            case NO_VAT -> "_CNSMNV";
+        };
+        txRepo.ensureSystemGeneratedService(
+                companyId,
+                code,
+                "Porabni material " + safe.label,
+                safe.name(),
+                source,
+                sourceKey
+        );
+        return txRepo.findByCompanyIdAndSystemGeneratedTrueAndSystemSourceAndSystemSourceKey(companyId, source, sourceKey)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Could not prepare the billing VAT carrier for consumables."));
+    }
+
+    private static BigDecimal nonNegativeQuantity(BigDecimal value) {
+        if (value == null || value.compareTo(BigDecimal.ZERO) < 0) return BigDecimal.ZERO;
+        return value.setScale(4, RoundingMode.HALF_UP);
+    }
+
+    private static String consumableLineDescription(SessionConsumable sc, BigDecimal quantity, boolean quantityRepresentedByBillLine) {
+        String name = sc.getItemNameSnapshot();
+        if (name == null || name.isBlank()) {
+            name = sc.getConsumable() != null && sc.getConsumable().getName() != null
+                    ? sc.getConsumable().getName()
+                    : "Porabni material";
+        }
+        String unit = sc.getUnit() == null ? "" : sc.getUnit().trim();
+        if (unit.isBlank()) return name;
+        if (quantityRepresentedByBillLine) return name + " (" + unit + ")";
+        String qty = quantity == null ? "0" : quantity.stripTrailingZeros().toPlainString();
+        return name + " (" + qty + " " + unit + ")";
+    }
+
     private List<SessionBillingSupport.Charge> sessionChargesForBilling(SessionBooking session, Long companyId) {
         return SessionBillingSupport.charges(session, resolveAdvanceDeductionServiceIds(companyId), locationPrices == null ? null : locationPrices::effectiveNet);
     }
@@ -1103,6 +1392,7 @@ public class OpenBillSyncService {
         int before = open.getItems().size();
         open.getItems().removeIf(item -> Objects.equals(item.getSourceSessionBookingId(), sourceSessionId)
                 && item.getSourceAdvanceBillId() == null
+                && item.getSourceSessionConsumableId() == null
                 && item.getTransactionService() != null
                 && transactionServiceIds.contains(item.getTransactionService().getId()));
         return open.getItems().size() != before;
@@ -1129,6 +1419,7 @@ public class OpenBillSyncService {
         open.getItems().removeIf(item -> item.getSourceSessionBookingId() != null
                 && nonPrimarySessionIds.contains(item.getSourceSessionBookingId())
                 && item.getSourceAdvanceBillId() == null
+                && item.getSourceSessionConsumableId() == null
                 && item.getTransactionService() != null
                 && transactionServiceIds.contains(item.getTransactionService().getId()));
         return open.getItems().size() != before;

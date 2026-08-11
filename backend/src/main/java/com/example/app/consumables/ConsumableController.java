@@ -4,6 +4,8 @@ import com.example.app.activitylog.ActivityAction;
 import com.example.app.activitylog.ActivityDetails;
 import com.example.app.activitylog.ActivityLogService;
 import com.example.app.activitylog.ActivityModule;
+import com.example.app.billing.OpenBillSyncService;
+import com.example.app.billing.TaxRate;
 import com.example.app.consumables.ConsumableEnums.PurchaseOrderStatus;
 import com.example.app.consumables.ConsumableEnums.QuantityMode;
 import com.example.app.consumables.ConsumableEnums.StockMovementType;
@@ -30,13 +32,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class ConsumableController {
     private final ConsumableService service;
     private final GlobalConsumablesFeatureService consumablesFeatureService;
+    private final OpenBillSyncService openBillSyncService;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ActivityLogService activityLogs;
 
-    public ConsumableController(ConsumableService service, GlobalConsumablesFeatureService consumablesFeatureService) {
+    public ConsumableController(
+            ConsumableService service,
+            GlobalConsumablesFeatureService consumablesFeatureService,
+            OpenBillSyncService openBillSyncService
+    ) {
         this.service = service;
         this.consumablesFeatureService = consumablesFeatureService;
+        this.openBillSyncService = openBillSyncService;
     }
 
     public record CategoryRequest(String name, String color, Boolean active) {}
@@ -55,6 +63,7 @@ public class ConsumableController {
             BigDecimal costPrice,
             BigDecimal salePrice,
             Long vatRateId,
+            TaxRate vatRate,
             Boolean trackStock,
             Boolean billable,
             Boolean active
@@ -75,6 +84,7 @@ public class ConsumableController {
             BigDecimal costPrice,
             BigDecimal salePrice,
             Long vatRateId,
+            TaxRate vatRate,
             boolean trackStock,
             boolean billable,
             boolean active,
@@ -153,6 +163,7 @@ public class ConsumableController {
             QuantityMode quantityMode,
             BigDecimal costPriceSnapshot,
             BigDecimal salePriceSnapshot,
+            TaxRate vatRateSnapshot,
             boolean billable,
             String source,
             boolean manuallyChanged,
@@ -337,6 +348,7 @@ public class ConsumableController {
     ) {
         assertConsumablesEnabled(me);
         List<SessionConsumableResponse> result = service.replaceSessionConsumables(me, bookingId, req).stream().map(ConsumableController::toSessionConsumableResponse).toList();
+        openBillSyncService.syncSessionGroup(me.getCompany().getId(), service.bookingGroupKey(me, bookingId));
         recordSessionConsumables(me, bookingId, result, "Updated session consumables");
         return result;
     }
@@ -346,6 +358,7 @@ public class ConsumableController {
     public List<SessionConsumableResponse> resetSessionConsumables(@PathVariable Long bookingId, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
         List<SessionConsumableResponse> result = service.resetSessionDefaults(me, bookingId).stream().map(ConsumableController::toSessionConsumableResponse).toList();
+        openBillSyncService.syncSessionGroup(me.getCompany().getId(), service.bookingGroupKey(me, bookingId));
         recordSessionConsumables(me, bookingId, result, "Reset session consumables to defaults");
         return result;
     }
@@ -449,7 +462,7 @@ public class ConsumableController {
         return new ItemResponse(
                 c.getId(), c.getName(), c.getDescription(), toCategoryResponse(c.getCategory()), c.getSku(), c.getBarcode(), c.getUnit(),
                 view.location().getId(), view.location().getName(), view.currentStock(), view.minimumStock(), view.costPrice(),
-                c.getSalePrice(), c.getVatRateId(), c.isTrackStock(), c.isBillable(), c.isActive(), low
+                c.getSalePrice(), c.getVatRateId(), c.getVatRate(), c.isTrackStock(), c.isBillable(), c.isActive(), low
         );
     }
 
@@ -492,8 +505,8 @@ public class ConsumableController {
 
     public static SessionConsumableResponse toSessionConsumableResponse(SessionConsumable sc) {
         return new SessionConsumableResponse(
-                sc.getId(), sc.getConsumable().getId(), sc.getConsumable().getName(), sc.getUnit(), sc.getQuantity(), sc.getQuantityMode(),
-                sc.getCostPriceSnapshot(), sc.getSalePriceSnapshot(), sc.isBillable(), sc.getSource(), sc.isManuallyChanged(), sc.getNotes()
+                sc.getId(), sc.getConsumable().getId(), sc.getItemNameSnapshot(), sc.getUnit(), sc.getQuantity(), sc.getQuantityMode(),
+                sc.getCostPriceSnapshot(), sc.getSalePriceSnapshot(), sc.getVatRateSnapshot(), sc.isBillable(), sc.getSource(), sc.isManuallyChanged(), sc.getNotes()
         );
     }
 

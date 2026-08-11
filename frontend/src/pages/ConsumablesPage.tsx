@@ -31,6 +31,7 @@ type Item = {
   minimumStock: number
   costPrice: number
   salePrice?: number | null
+  vatRate?: 'VAT_22' | 'VAT_9_5' | 'VAT_0' | 'NO_VAT' | null
   trackStock: boolean
   billable: boolean
   active: boolean
@@ -101,6 +102,8 @@ type ItemFormState = {
   currentStock: string
   minimumStock: string
   costPrice: string
+  salePrice: string
+  vatRate: 'VAT_22' | 'VAT_9_5' | 'VAT_0' | 'NO_VAT'
   billable: boolean
   trackStock: boolean
 }
@@ -173,7 +176,7 @@ export function ConsumablesPage() {
   const [itemModalOpen, setItemModalOpen] = useState(false)
   const [savingItem, setSavingItem] = useState(false)
   const [itemForm, setItemForm] = useState<ItemFormState>({
-    name: '', sku: '', categoryId: '', locationId: '', unit: 'kos', currentStock: '0', minimumStock: '0', costPrice: '0', billable: false, trackStock: true,
+    name: '', sku: '', categoryId: '', locationId: '', unit: 'kos', currentStock: '0', minimumStock: '0', costPrice: '0', salePrice: '0', vatRate: 'NO_VAT', billable: false, trackStock: true,
   })
 
   const load = useCallback(async (force = true) => {
@@ -251,7 +254,7 @@ export function ConsumablesPage() {
     return activeInventoryLocations.length === 1 ? activeInventoryLocations[0].id : null
   }, [activeInventoryLocations, selectedLocationId])
   const resetItemForm = useCallback(() => {
-    setItemForm({ name: '', sku: '', categoryId: '', locationId: defaultWriteLocationId != null ? String(defaultWriteLocationId) : '', unit: 'kos', currentStock: '0', minimumStock: '0', costPrice: '0', billable: false, trackStock: true })
+    setItemForm({ name: '', sku: '', categoryId: '', locationId: defaultWriteLocationId != null ? String(defaultWriteLocationId) : '', unit: 'kos', currentStock: '0', minimumStock: '0', costPrice: '0', salePrice: '0', vatRate: 'NO_VAT', billable: false, trackStock: true })
   }, [defaultWriteLocationId])
   const openItemModal = () => {
     resetItemForm()
@@ -294,6 +297,8 @@ export function ConsumablesPage() {
       currentStock: Number(itemForm.currentStock || 0),
       minimumStock: Number(itemForm.minimumStock || 0),
       costPrice: Number(itemForm.costPrice || 0),
+      salePrice: Number(itemForm.salePrice || 0),
+      vatRate: itemForm.vatRate,
       billable: itemForm.billable,
       trackStock: itemForm.trackStock,
       active: true,
@@ -398,7 +403,9 @@ export function ConsumablesPage() {
               <label>Enota<input value={itemForm.unit} onChange={(e) => setItemForm((f) => ({ ...f, unit: e.target.value }))} /></label>
               <label>Trenutna zaloga<input type="number" step="0.01" value={itemForm.currentStock} onChange={(e) => setItemForm((f) => ({ ...f, currentStock: e.target.value }))} /></label>
               <label>Min. zaloga<input type="number" step="0.01" value={itemForm.minimumStock} onChange={(e) => setItemForm((f) => ({ ...f, minimumStock: e.target.value }))} /></label>
-              <label>Nabavna cena<input type="number" step="0.01" value={itemForm.costPrice} onChange={(e) => setItemForm((f) => ({ ...f, costPrice: e.target.value }))} /></label>
+              <label>Nabavna cena<input type="number" step="0.01" min="0" value={itemForm.costPrice} onChange={(e) => setItemForm((f) => ({ ...f, costPrice: e.target.value }))} /></label>
+              <label>Prodajna cena<input type="number" step="0.01" min="0" value={itemForm.salePrice} onChange={(e) => setItemForm((f) => ({ ...f, salePrice: e.target.value }))} /></label>
+              <label>DDV<select value={itemForm.vatRate} onChange={(e) => setItemForm((f) => ({ ...f, vatRate: e.target.value as ItemFormState['vatRate'] }))}><option value="VAT_22">22 %</option><option value="VAT_9_5">9,5 %</option><option value="VAT_0">0 %</option><option value="NO_VAT">Brez DDV</option></select></label>
             </div>
             <div className="consumables-modal-switches">
               <label><input type="checkbox" checked={itemForm.trackStock} onChange={(e) => setItemForm((f) => ({ ...f, trackStock: e.target.checked }))} /> Spremljaj zalogo</label>
