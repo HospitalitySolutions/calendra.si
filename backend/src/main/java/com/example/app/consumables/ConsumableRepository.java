@@ -15,4 +15,7 @@ public interface ConsumableRepository extends JpaRepository<Consumable, Long> {
 
     @Query("SELECT c FROM Consumable c LEFT JOIN FETCH c.category WHERE c.id = :id AND c.company.id = :companyId")
     Optional<Consumable> findByIdAndCompanyId(@Param("id") Long id, @Param("companyId") Long companyId);
+
+    boolean existsByCompanyIdAndSkuIgnoreCase(Long companyId, String sku);
+    boolean existsByCompanyIdAndSkuIgnoreCaseAndIdNot(Long companyId, String sku, Long id);
 }

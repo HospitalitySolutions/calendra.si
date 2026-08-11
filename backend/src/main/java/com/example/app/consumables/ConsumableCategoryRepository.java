@@ -7,4 +7,6 @@ import java.util.Optional;
 public interface ConsumableCategoryRepository extends JpaRepository<ConsumableCategory, Long> {
     List<ConsumableCategory> findByCompanyIdOrderByNameAsc(Long companyId);
     Optional<ConsumableCategory> findByIdAndCompanyId(Long id, Long companyId);
+    boolean existsByCompanyIdAndNameIgnoreCase(Long companyId, String name);
+    boolean existsByCompanyIdAndNameIgnoreCaseAndIdNot(Long companyId, String name, Long id);
 }

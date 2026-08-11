@@ -131,3 +131,44 @@
   .consumables-card { overflow-x: auto; }
   .consumables-modal-grid { grid-template-columns: 1fr; }
 }
+
+/* Article-management workflow */
+.consumables-modal-wide { width: min(920px, 100%); }
+.consumables-modal header > div { min-width: 0; }
+.consumables-modal header p { margin: 4px 0 0; color: #6b7893; font-size: 12px; font-weight: 600; }
+.consumables-modal textarea {
+  width: 100%; min-height: 86px; resize: vertical; border: 1px solid rgba(20, 38, 71, 0.12); border-radius: 9px; background: #fff; padding: 10px 13px; color: #17233f; outline: none; font: inherit; box-sizing: border-box;
+}
+.consumables-modal-grid label.full { grid-column: 1 / -1; }
+.consumables-modal-grid label small { color: #7b879d; font-weight: 600; line-height: 1.35; }
+.consumables-modal input:disabled,
+.consumables-modal select:disabled { background: #f6f8fb; color: #7a879e; cursor: not-allowed; }
+.consumables-modal-switches.three { justify-content: flex-start; flex-wrap: wrap; }
+.consumables-row-actions { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.icon-btn.edit { color: #0b75ff; font-weight: 900; }
+.icon-btn.movement { color: #5b50d6; font-weight: 900; }
+.consumables-chip-row button.manage { margin-left: auto; color: #0b75ff; border-style: dashed; }
+.consumables-stock-preview { margin: 0 20px 18px; padding: 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; background: #f8fbff; border: 1px solid #dceaff; border-radius: 11px; }
+.consumables-stock-preview span { display: grid; gap: 4px; color: #6b7893; font-size: 11px; font-weight: 700; }
+.consumables-stock-preview strong { color: #17233f; font-size: 15px; }
+.consumables-inline-form { padding: 18px 20px; display: grid; grid-template-columns: minmax(220px, 1fr) 120px auto auto auto; gap: 12px; align-items: end; border-bottom: 1px solid rgba(20,38,71,0.08); }
+.consumables-inline-form label { display: grid; gap: 6px; color: #51607d; font-size: 12px; font-weight: 750; }
+.consumables-inline-form label.check { display: flex; align-items: center; height: 40px; gap: 7px; white-space: nowrap; }
+.consumables-inline-form label.check input { width: 18px; min-width: 18px; height: 18px; }
+.consumables-inline-form input[type="color"] { min-width: 90px; padding: 5px; }
+.consumables-manager-list { max-height: 380px; overflow: auto; padding: 0 20px 20px; }
+.consumables-manager-list table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.consumables-manager-list th,
+.consumables-manager-list td { padding: 11px 10px; border-bottom: 1px solid rgba(20,38,71,0.08); text-align: left; }
+.consumables-manager-list th { color: #52607a; font-size: 11px; background: #fbfcfe; }
+.category-color-dot { width: 14px; height: 14px; border-radius: 4px; display: inline-block; vertical-align: -2px; margin-right: 5px; border: 1px solid rgba(15,23,42,.10); }
+.consumables-filter-row .btn { align-self: end; }
+.consumables-card td > .consumables-row-actions { vertical-align: middle; }
+
+@media (max-width: 760px) {
+  .consumables-modal-wide { width: 100%; }
+  .consumables-stock-preview { grid-template-columns: 1fr; }
+  .consumables-inline-form { grid-template-columns: 1fr; align-items: stretch; }
+  .consumables-inline-form label.check { height: auto; padding: 4px 0; }
+  .consumables-chip-row button.manage { margin-left: 0; }
+}

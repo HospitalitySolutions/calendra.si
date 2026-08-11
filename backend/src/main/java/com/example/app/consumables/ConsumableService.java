@@ -167,7 +167,16 @@ public class ConsumableService {
         if (name == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name is required.");
         item.setName(name);
         item.setDescription(trim(req.description()));
-        item.setSku(blankToNull(req.sku()));
+        String sku = blankToNull(req.sku());
+        if (sku != null) {
+            boolean duplicateSku = item.getId() == null
+                    ? consumables.existsByCompanyIdAndSkuIgnoreCase(companyId, sku)
+                    : consumables.existsByCompanyIdAndSkuIgnoreCaseAndIdNot(companyId, sku, item.getId());
+            if (duplicateSku) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "An article with this SKU already exists.");
+            }
+        }
+        item.setSku(sku);
         item.setBarcode(blankToNull(req.barcode()));
         item.setUnit(defaultString(req.unit(), "kos"));
         item.setSalePrice(req.salePrice() != null ? nonNegative(req.salePrice()) : null);
@@ -218,6 +227,12 @@ public class ConsumableService {
         if (id == null) category.setCompany(requireCompany(me.getCompany().getId()));
         String name = trim(req != null ? req.name() : null);
         if (name == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name is required.");
+        boolean duplicateName = id == null
+                ? categories.existsByCompanyIdAndNameIgnoreCase(me.getCompany().getId(), name)
+                : categories.existsByCompanyIdAndNameIgnoreCaseAndIdNot(me.getCompany().getId(), name, id);
+        if (duplicateName) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "A category with this name already exists.");
+        }
         category.setName(name);
         category.setColor(defaultString(req.color(), "#2563eb"));
         category.setActive(req.active() == null || Boolean.TRUE.equals(req.active()));
@@ -235,7 +250,25 @@ public class ConsumableService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Quantity delta must not be zero.");
         }
         StockMovementType type = req != null && req.movementType() != null ? req.movementType() : StockMovementType.CORRECTION;
+        validateManualMovement(type, delta);
         return createMovement(me, item, location, type, StockMovementSourceType.MANUAL, null, delta, req != null ? req.note() : null);
+    }
+
+
+    private static void validateManualMovement(StockMovementType type, BigDecimal delta) {
+        if (type == StockMovementType.SESSION_USAGE || type == StockMovementType.INVENTORY_COUNT) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "This movement type cannot be created manually.");
+        }
+        if ((type == StockMovementType.PURCHASE || type == StockMovementType.RETURN)
+                && delta.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Receipts and returns must increase stock.");
+        }
+        if (type == StockMovementType.WASTE && delta.compareTo(BigDecimal.ZERO) >= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Waste must decrease stock.");
+        }
     }
 
     @Transactional
@@ -701,6 +734,12 @@ public class ConsumableService {
         if (id == null) s.setCompany(requireCompany(me.getCompany().getId()));
         String name = trim(req.name());
         if (name == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name is required.");
+        boolean duplicateName = id == null
+                ? suppliers.existsByCompanyIdAndNameIgnoreCase(me.getCompany().getId(), name)
+                : suppliers.existsByCompanyIdAndNameIgnoreCaseAndIdNot(me.getCompany().getId(), name, id);
+        if (duplicateName) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "A supplier with this name already exists.");
+        }
         s.setName(name);
         s.setContactName(blankToNull(req.contactName()));
         s.setPhone(blankToNull(req.phone()));

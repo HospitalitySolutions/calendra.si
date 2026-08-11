@@ -7,4 +7,6 @@ import java.util.Optional;
 public interface ConsumableSupplierRepository extends JpaRepository<ConsumableSupplier, Long> {
     List<ConsumableSupplier> findByCompanyIdOrderByNameAsc(Long companyId);
     Optional<ConsumableSupplier> findByIdAndCompanyId(Long id, Long companyId);
+    boolean existsByCompanyIdAndNameIgnoreCase(Long companyId, String name);
+    boolean existsByCompanyIdAndNameIgnoreCaseAndIdNot(Long companyId, String name, Long id);
 }
