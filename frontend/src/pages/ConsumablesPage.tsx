@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from 'react'
+import '../styles/main/consumables.css'
 import { useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 import { useAuthenticatedUser } from '../authUserContext'
