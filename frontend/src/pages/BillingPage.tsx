@@ -8279,8 +8279,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   ])
                 }}
               >
-                <strong>+ Add line item</strong>
-                <small>Drag & drop items to reorder</small>
+                <strong>+ {locale === 'sl' ? 'Dodaj postavko' : 'Add line item'}</strong>
+                <small>{locale === 'sl' ? 'Povlecite postavke za spremembo vrstnega reda' : 'Drag & drop items to reorder'}</small>
               </button>
             </div>
           </div>
@@ -8897,17 +8897,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                             <div className="billing-mobile-bill-card__head">
                               <span className="billing-mobile-bill-card__id">{displayId}</span>
                               <strong className="billing-mobile-bill-card__client">{clientLabel}</strong>
-                              <button
-                                type="button"
-                                className="billing-mobile-card-menu"
-                                aria-label={locale === 'sl' ? 'Odpri račun' : 'Open invoice'}
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  openEditInvoicePopup(ob)
-                                }}
-                              >
-                                <span aria-hidden>•••</span>
-                              </button>
                             </div>
                             <div className="billing-mobile-bill-card__details">
                               <div className="billing-mobile-bill-detail">
@@ -10328,26 +10317,33 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <button
                       type="button"
                       className="billing-bill-modal-save-btn"
-                      onClick={() => void printOpenBillInvoicePreview(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
-                      disabled={printingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
+                      onClick={() => void createBillFromOpen(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined, 'print')}
+                      disabled={creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || !detailCanIssueOpenBill}
+                      title={detailCloseDisabledReason}
                     >
-                      {printingOpenBillPreviewId === detailActionOpenBill.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : (locale === 'sl' ? 'Natisni' : 'Print')}
+                      {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (
+                        <>
+                          <span className="billing-bill-modal-save-btn__icon" aria-hidden>{renderPrintActionIcon()}</span>
+                          <span>{locale === 'sl' ? 'Zaključi in natisni' : 'Close and print'}</span>
+                        </>
+                      )}
                     </button>
                   )}
                   <button
                     type="button"
                     className="billing-bill-modal-primary-action"
-                    onClick={() => detailEntitlementSettlement
-                      ? void createBillFromOpen(detailActionOpenBill)
-                      : void saveOpenBillEditorSet(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : detailRelatedOpenBills, detailOnePayeeForAll)}
-                    disabled={detailEntitlementSettlement
-                      ? creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || (!detailEntitlementSettlement && !detailCanIssueOpenBill)
-                      : (!hasUnsavedOpenBillChanges && !detailOnePayeeForAll)}
-                    title={detailEntitlementSettlement ? detailCloseDisabledReason : undefined}
+                    onClick={() => void createBillFromOpen(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
+                    disabled={creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || (!detailEntitlementSettlement && !detailCanIssueOpenBill)}
+                    title={detailCloseDisabledReason}
                   >
-                    {detailEntitlementSettlement
-                      ? (creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (locale === 'sl' ? 'Zaključi z ugodnostjo' : 'Settle with entitlement'))
-                      : (locale === 'sl' ? 'Shrani spremembe' : 'Save changes')}
+                    {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (
+                      <>
+                        <span className="billing-bill-modal-primary-icon" aria-hidden>{detailEntitlementSettlement ? '✓' : renderPlainFolioPdfIcon()}</span>
+                        <span>{detailEntitlementSettlement
+                          ? (locale === 'sl' ? 'Zaključi z ugodnostjo' : 'Settle with entitlement')
+                          : (locale === 'sl' ? 'Zaključi račun' : 'Close invoice')}</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -10776,18 +10772,23 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       {creatingBill ? billingCopy.creating : (
                         <>
                           <span className="billing-bill-modal-save-btn__icon" aria-hidden>{renderPrintActionIcon()}</span>
-                          <span>{locale === 'sl' ? 'Ustvari in natisni' : 'Create and print'}</span>
+                          <span>{locale === 'sl' ? 'Zaključi in natisni' : 'Close and print'}</span>
                         </>
                       )}
                     </button>
                     <button
                       type="button"
                       className="billing-bill-modal-primary-action"
-                      onClick={() => void createManualOpenBillFromCreateBillForm()}
+                      onClick={() => void createAndCloseManualOpenBill()}
                       disabled={creatingManualOpenBill || creatingBill || !billCanSubmit || !canIssueOpenInvoice}
                       title={createCloseTooltip}
                     >
-                      {creatingManualOpenBill ? billingCopy.creating : billingCopy.createOpenBill}
+                      {creatingBill ? billingCopy.creating : (
+                        <>
+                          <span className="billing-bill-modal-primary-icon" aria-hidden>{renderPlainFolioPdfIcon()}</span>
+                          <span>{locale === 'sl' ? 'Zaključi račun' : 'Close invoice'}</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 )}
