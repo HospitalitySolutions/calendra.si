@@ -12771,3 +12771,57 @@
     font-size: .92rem !important;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Nov neizdan račun — mobile/tablet parity with Uredi neizdan račun
+   The create flow intentionally reuses the exact compact visual language of
+   the edit flow below 1025px: recipient card, line items, payments and fixed
+   totals/actions footer. Desktop remains unchanged.
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  /* The approved edit screen has no matched-payment strip or whole-bill
+     discount card in the scrolling body. Keep Nov visually identical. */
+  .billing-create-panel--open .billing-invoice-remaining-strip,
+  .billing-create-panel--open .billing-invoice-discount-card,
+  .billing-create-panel--open .billing-invoice-payment-panel > .billing-invoice-totals-card {
+    display: none !important;
+  }
+
+  /* The create footer now carries the same compact totals block as edit. */
+  .billing-create-panel--open .billing-invoice-totals-card--create-open-footer {
+    display: grid !important;
+  }
+
+  /* Match the edit service cell: clean text/select treatment without an
+     extra boxed field that makes Nov look like a different component. */
+  .billing-create-panel--open .billing-invoice-item-row--compact-create .billing-bill-modal-field--service select {
+    padding-left: 4px !important;
+    border: 0 !important;
+    background: transparent !important;
+    text-align: left !important;
+    font-weight: 760 !important;
+  }
+
+  /* Recipient card should have the same full-width card geometry as edit. */
+  .billing-create-panel--open .billing-invoice-tabs-row--create-open-compact {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+    width: 100% !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-tabs-row--create-open-compact .billing-invoice-bill-tab {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    flex: none !important;
+  }
+
+  /* At tablet widths the old create-only anchor could still appear above the
+     mobile actions. Edit does not have it, so hide it for the full compact range. */
+  .billing-create-panel--open .billing-bill-modal-save-btn--create-open-anchor {
+    display: none !important;
+  }
+}
