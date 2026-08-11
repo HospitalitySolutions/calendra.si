@@ -1766,7 +1766,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }, [activeUnitId, billingTab, selectedLocationId, editorOnlyMode, debouncedOpenPaymentsSearch, openPaymentsSort, openPaymentsPage, debouncedUnusedAdvancesSearch, unusedAdvancesSort, unusedAdvancesPage, debouncedGiftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter, giftCardsSort, giftCardsPage, debouncedHistorySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter, historySortField, historySortDir, historyPage])
 
   const advanceBillingEnabled = settings.BILLING_ADVANCE_ENABLED !== 'false'
-  const isCreateAdvanceBill = billForm.billType === 'ADVANCE'
   const entitlementsEnabled = settings.ENTITLEMENTS_ENABLED !== 'false'
   const giftCardsEnabled =
     entitlementsEnabled && settings.BILLING_GIFT_CARDS_ENABLED === 'true'
@@ -10416,6 +10415,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           ? (selectedRecipientCompany?.name || billingCopy.targetCompany)
           : (selectedClient ? fullName(selectedClient) : billingCopy.targetPerson)
         const createTargetLabel = billForm.billingTarget === 'COMPANY' ? billingCopy.targetCompany : billingCopy.targetPerson
+        const isCreateAdvanceBill = billForm.billType === 'ADVANCE'
         const canIssueCreateBillType = isCreateAdvanceBill ? canIssueAdvanceInvoice : canIssueOpenInvoice
         const createPermissionTooltip = !canIssueCreateBillType
           ? (isCreateAdvanceBill
@@ -10694,6 +10694,22 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               </div>
 
               <div className={`billing-bill-modal-footer${mobileKeyboardOpen ? ' billing-bill-modal-footer--keyboard-hidden' : ''}`}>
+                {!isCreateAdvanceBill && (
+                  <section className="billing-invoice-totals-card billing-invoice-totals-card--open-footer billing-invoice-totals-card--create-footer" aria-label={locale === 'sl' ? 'Povzetek neizdanega računa' : 'Unissued invoice summary'}>
+                    <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(createSubtotalGross)}</strong></div>
+                    {createVatRows.map((row) => (
+                      <div key={row.key} className="billing-bill-modal-summary-line">
+                        <span>{row.label}</span>
+                        <strong>{currency(row.taxTotal)}</strong>
+                      </div>
+                    ))}
+                    {createBillDiscountGross > 0.005 && (
+                      <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'}</span><strong>- {currency(createBillDiscountGross)}</strong></div>
+                    )}
+                    <div className="billing-bill-modal-summary-divider" />
+                    <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(createGross)}</strong></div>
+                  </section>
+                )}
                 {isCreateAdvanceBill && (
                   <section className="billing-invoice-totals-card billing-invoice-totals-card--advance-footer" aria-label={locale === 'sl' ? 'Povzetek predplačila' : 'Advance summary'}>
                     <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(createSubtotalGross)}</strong></div>
