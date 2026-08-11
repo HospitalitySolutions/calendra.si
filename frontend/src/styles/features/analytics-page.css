@@ -2604,3 +2604,100 @@
         gap: 10px;
     }
 }
+
+/* --------------------------------------------------------------------------
+   Mobile/tablet Analytics tabs — identical visual treatment to Pregled strank.
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+    .analytics-tabs-header.clients-page-header {
+        position: sticky;
+        top: calc(62px + env(safe-area-inset-top));
+        z-index: 190;
+        display: block;
+        width: 100%;
+        min-height: 58px;
+        margin: -1px 0 0;
+        padding: 0;
+        gap: 0;
+        border: 0;
+        border-radius: 0;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        box-shadow: 0 -2px 0 #0b71ee, 0 1px 0 rgba(255, 255, 255, 0.14);
+        overflow: visible;
+    }
+
+    .analytics-tabs-header .clients-page-header__entity.clients-entity-tabs-shell {
+        display: block;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: visible;
+    }
+
+    .analytics-tabs-header .clients-session-tabs.clients-entity-tabs {
+        display: flex;
+        width: 100%;
+        min-height: 58px;
+        margin: 0;
+        padding: 0 14px;
+        align-items: stretch;
+        gap: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        box-sizing: border-box;
+        overflow: visible;
+    }
+
+    .analytics-tabs-header .clients-entity-tabs .clients-session-tab {
+        position: relative;
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 58px;
+        height: 58px;
+        margin: 0;
+        padding: 0 4px;
+        gap: 6px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.72);
+        box-shadow: none;
+        font-size: clamp(0.72rem, 3.45vw, 0.91rem);
+        line-height: 1;
+        font-weight: 700;
+        white-space: nowrap;
+        transform: none;
+    }
+
+    .analytics-tabs-header .clients-entity-tabs .clients-session-tab:hover,
+    .analytics-tabs-header .clients-entity-tabs .clients-session-tab:active,
+    .analytics-tabs-header .clients-entity-tabs .clients-session-tab:focus {
+        background: transparent;
+        color: #ffffff;
+        box-shadow: none;
+        transform: none;
+    }
+
+    .analytics-tabs-header .clients-entity-tabs .clients-session-tab::after {
+        content: '';
+        position: absolute;
+        left: 7px;
+        right: 7px;
+        bottom: 0;
+        height: 4px;
+        border-radius: 4px 4px 0 0;
+        background: transparent;
+    }
+
+    .analytics-tabs-header .clients-entity-tabs .clients-session-tab.active {
+        background: transparent;
+        color: #ffffff;
+        box-shadow: none;
+    }
+
+    .analytics-tabs-header .clients-entity-tabs .clients-session-tab.active::after {
+        background: #ffffff;
+    }
+}

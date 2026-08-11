@@ -4350,3 +4350,151 @@
         box-shadow: none;
     }
 }
+
+/* --------------------------------------------------------------------------
+   Mobile/tablet section tabs — match Pregled strank exactly.
+   Keep Billing's extra tabs horizontally scrollable on narrow phones, while
+   using the same blue bar, typography, active underline and count pills.
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+    .billing-modern-header {
+        position: sticky;
+        top: calc(62px + env(safe-area-inset-top));
+        z-index: 190;
+        display: block;
+        margin: -22px -24px 18px;
+        padding: 0;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        box-shadow: 0 -2px 0 #0b71ee, 0 1px 0 rgba(255, 255, 255, 0.14);
+        overflow: visible;
+    }
+
+    .billing-modern-tabs.clients-session-tabs {
+        display: flex;
+        width: 100%;
+        min-height: 58px;
+        align-items: stretch;
+        gap: 0;
+        margin: 0;
+        padding: 0 14px;
+        border: 0;
+        border-radius: 0;
+        background: transparent !important;
+        box-shadow: none;
+        box-sizing: border-box;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        scroll-snap-type: x proximity;
+    }
+
+    .billing-modern-tabs.clients-session-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .billing-modern-tabs .clients-session-tab {
+        position: relative;
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 58px;
+        height: 58px;
+        margin: 0;
+        padding: 0 4px;
+        gap: 6px;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: rgba(255, 255, 255, 0.72) !important;
+        box-shadow: none !important;
+        font-size: clamp(0.72rem, 3.45vw, 0.91rem);
+        line-height: 1;
+        font-weight: 700;
+        white-space: nowrap;
+        transform: none !important;
+        scroll-snap-align: center;
+    }
+
+    .billing-modern-tabs .clients-session-tab:hover,
+    .billing-modern-tabs .clients-session-tab:active,
+    .billing-modern-tabs .clients-session-tab:focus {
+        background: transparent !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    .billing-modern-tabs .clients-session-tab::after {
+        content: '';
+        position: absolute;
+        left: 7px;
+        right: 7px;
+        bottom: 0;
+        height: 4px;
+        border-radius: 4px 4px 0 0;
+        background: transparent;
+    }
+
+    .billing-modern-tabs .clients-session-tab.active {
+        background: transparent !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+        font-weight: 700;
+    }
+
+    .billing-modern-tabs .clients-session-tab.active::after {
+        background: #ffffff;
+    }
+
+    .billing-tab-icon,
+    .billing-tab-icon svg {
+        width: 19px;
+        height: 19px;
+        flex: 0 0 19px;
+    }
+
+    .billing-tab-count,
+    .billing-modern-tabs .clients-session-tab.active .billing-tab-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 23px;
+        height: 23px;
+        padding: 0 6px;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.20);
+        color: #ffffff;
+        font-size: 0.69rem;
+        font-weight: 800;
+        line-height: 1;
+        box-shadow: none;
+    }
+
+    .billing-modern-tabs .clients-session-tab.active .billing-tab-count {
+        background: #ffffff;
+        color: #1672f3;
+    }
+}
+
+@media (max-width: 720px) {
+    .billing-mobile-shell .billing-modern-header {
+        margin: -1px 0 0;
+        padding: 0;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        box-shadow: 0 -2px 0 #0b71ee, 0 1px 0 rgba(255, 255, 255, 0.14);
+    }
+
+    .billing-mobile-shell .billing-modern-tabs.clients-session-tabs {
+        padding: 0 14px;
+        gap: 0;
+        background: transparent !important;
+    }
+}
+
+@media (max-width: 560px) {
+    .billing-modern-tabs .clients-session-tab {
+        flex: 0 0 auto;
+        min-width: 128px;
+        padding-inline: 8px;
+    }
+}

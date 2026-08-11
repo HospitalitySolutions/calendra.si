@@ -1520,3 +1520,142 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Mobile/tablet Employees tabs — identical visual treatment to Pregled strank.
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+    .employees-page-root .employees-page-tabs-shell.clients-entity-tabs-shell {
+        position: sticky;
+        top: calc(62px + env(safe-area-inset-top));
+        z-index: 190;
+        display: block;
+        width: 100%;
+        min-height: 58px;
+        margin: -1px 0 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        box-shadow: 0 -2px 0 #0b71ee, 0 1px 0 rgba(255, 255, 255, 0.14);
+        overflow: visible;
+    }
+
+    .employees-page-root .employee-page-tabs.clients-session-tabs.clients-entity-tabs {
+        display: flex;
+        width: 100%;
+        min-height: 58px;
+        align-items: stretch;
+        gap: 0;
+        margin: 0;
+        padding: 0 14px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        box-sizing: border-box;
+        overflow: visible;
+    }
+
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab {
+        position: relative;
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 58px;
+        height: 58px;
+        margin: 0;
+        padding: 0 4px;
+        gap: 6px;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: rgba(255, 255, 255, 0.72) !important;
+        box-shadow: none !important;
+        font-size: clamp(0.72rem, 3.45vw, 0.91rem);
+        line-height: 1;
+        font-weight: 700;
+        white-space: nowrap;
+        transform: none !important;
+    }
+
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab:hover,
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab:active,
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab:focus {
+        background: transparent !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab::after {
+        content: '';
+        position: absolute;
+        left: 7px;
+        right: 7px;
+        bottom: 0;
+        height: 4px;
+        border-radius: 4px 4px 0 0;
+        background: transparent;
+    }
+
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab.active,
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab.employee-page-tab--active {
+        background: transparent !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+    }
+
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab.active::after,
+    .employees-page-root .employee-page-tabs .employee-page-tab.clients-session-tab.employee-page-tab--active::after {
+        background: #ffffff;
+    }
+
+    .employees-page-root .employee-page-tabs .employee-page-tab svg {
+        width: 19px;
+        height: 19px;
+        flex: 0 0 19px;
+    }
+
+    .employees-page-root .employees-tab-count,
+    .employees-page-root .employee-page-tab.active .employees-tab-count,
+    .employees-page-root .employee-page-tab.employee-page-tab--active .employees-tab-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 23px;
+        height: 23px;
+        padding: 0 6px;
+        margin-left: 0;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.20);
+        color: #ffffff;
+        font-size: 0.69rem;
+        font-weight: 800;
+        line-height: 1;
+        box-shadow: none;
+    }
+
+    .employees-page-root .employee-page-tab.active .employees-tab-count,
+    .employees-page-root .employee-page-tab.employee-page-tab--active .employees-tab-count {
+        background: #ffffff;
+        color: #1672f3;
+    }
+
+    .employees-modern-card .employees-page-tabs-shell.clients-entity-tabs-shell {
+        width: calc(100% + 48px);
+        margin: -22px -24px 18px;
+    }
+}
+
+@media (max-width: 720px) {
+    .employees-page-root .employees-page-tabs-shell.clients-entity-tabs-shell {
+        width: 100%;
+        margin: -1px 0 0;
+    }
+
+    .employees-modern-card.clients-mobile-shell .employees-page-tabs-shell.clients-entity-tabs-shell {
+        width: 100%;
+        margin: 0;
+    }
+}

@@ -999,3 +999,153 @@
         box-shadow: none;
     }
 }
+
+/* --------------------------------------------------------------------------
+   Mobile/tablet Services tabs — identical visual treatment to Pregled strank.
+   This also removes the white active-tab fill that made the active label/icon
+   disappear against the white tab surface on narrow layouts.
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+    .service-config-card .clients-page-header {
+        position: sticky;
+        top: calc(62px + env(safe-area-inset-top));
+        z-index: 190;
+        display: block;
+        width: calc(100% + 48px);
+        min-height: 58px;
+        margin: -22px -24px 18px;
+        padding: 0;
+        gap: 0;
+        border: 0;
+        border-radius: 0;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        box-shadow: 0 -2px 0 #0b71ee, 0 1px 0 rgba(255, 255, 255, 0.14);
+        overflow: visible;
+    }
+
+    .service-config-card .clients-page-header::before,
+    .service-config-card .clients-page-header::after {
+        content: none;
+        display: none;
+    }
+
+    .service-config-card .clients-entity-tabs-shell {
+        display: block;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: visible;
+    }
+
+    .service-config-card .clients-session-tabs.clients-entity-tabs {
+        display: flex;
+        width: 100%;
+        min-width: 0;
+        min-height: 58px;
+        margin: 0;
+        padding: 0 14px;
+        align-items: stretch;
+        gap: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        box-sizing: border-box;
+        overflow: visible;
+    }
+
+    .service-config-card .clients-entity-tabs .clients-session-tab {
+        position: relative;
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 58px;
+        height: 58px;
+        margin: 0;
+        padding: 0 4px;
+        gap: 6px;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: rgba(255, 255, 255, 0.72) !important;
+        box-shadow: none !important;
+        font-size: clamp(0.72rem, 3.45vw, 0.91rem);
+        line-height: 1;
+        font-weight: 700;
+        white-space: nowrap;
+        transform: none !important;
+    }
+
+    .service-config-card .clients-entity-tabs .clients-session-tab:hover,
+    .service-config-card .clients-entity-tabs .clients-session-tab:active,
+    .service-config-card .clients-entity-tabs .clients-session-tab:focus {
+        background: transparent !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    .service-config-card .clients-entity-tabs .clients-session-tab::after {
+        content: '';
+        position: absolute;
+        left: 7px;
+        right: 7px;
+        bottom: 0;
+        height: 4px;
+        border-radius: 4px 4px 0 0;
+        background: transparent;
+    }
+
+    .service-config-card .clients-entity-tabs .clients-session-tab.active {
+        background: transparent !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+    }
+
+    .service-config-card .clients-entity-tabs .clients-session-tab.active::after {
+        background: #ffffff;
+    }
+
+    .service-config-card .clients-entity-tabs .clients-session-tab svg {
+        display: block;
+        width: 19px;
+        height: 19px;
+        flex: 0 0 19px;
+    }
+
+    .service-config-card .service-config-tab-count,
+    .service-config-card .clients-session-tab.active .service-config-tab-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 23px;
+        height: 23px;
+        padding: 0 6px;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.20);
+        color: #ffffff;
+        font-size: 0.69rem;
+        font-weight: 800;
+        line-height: 1;
+        box-shadow: none;
+    }
+
+    .service-config-card .clients-session-tab.active .service-config-tab-count {
+        background: #ffffff;
+        color: #1672f3;
+    }
+}
+
+@media (max-width: 720px) {
+    .clients-modern-page--mobile .service-config-card.clients-modern-card.card {
+        padding-top: 0;
+    }
+
+    .clients-modern-page--mobile .service-config-card .clients-page-header.clients-page-header--sticky-mobile {
+        width: calc(100% + 32px);
+        margin: -1px -16px 20px;
+        top: calc(61px + env(safe-area-inset-top));
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        box-shadow: 0 -2px 0 #0b71ee, 0 1px 0 rgba(255, 255, 255, 0.14);
+    }
+}
