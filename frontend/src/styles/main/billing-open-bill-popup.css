@@ -11372,7 +11372,7 @@
   .billing-create-panel--open .billing-invoice-discount-slider-layout,
   .billing-open-detail-panel--invoice-editor .billing-invoice-discount-slider-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 52px;
+    grid-template-columns: minmax(0, 1fr) 78px;
     gap: 10px;
     align-items: center;
   }
@@ -11386,14 +11386,7 @@
 
   .billing-create-panel--open .billing-invoice-discount-range-fill,
   .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range-fill {
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    height: 4px;
-    border-radius: 999px;
-    background: #2563eb;
-    pointer-events: none;
+    display: none !important;
   }
 
   .billing-create-panel--open .billing-invoice-discount-range,
@@ -11739,10 +11732,7 @@
 
   .billing-create-panel--open .billing-invoice-discount-range-fill,
   .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range-fill {
-    z-index: 2 !important;
-    height: 4px !important;
-    background: #1769ff !important;
-    border-radius: 999px !important;
+    display: none !important;
   }
 
   .billing-create-panel--open .billing-invoice-discount-range,
@@ -11921,10 +11911,7 @@
 
   .billing-create-panel--open .billing-invoice-discount-range-fill,
   .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range-fill {
-    z-index: 2 !important;
-    height: 4px !important;
-    background: #1769ff !important;
-    border-radius: 999px !important;
+    display: none !important;
   }
 
   .billing-create-panel--open .billing-invoice-discount-range,
@@ -11949,5 +11936,29 @@
   .billing-open-detail-panel--invoice-editor .billing-invoice-workspace-card {
     grid-template-columns: minmax(0, 1fr) minmax(380px, 30%) !important;
     gap: 16px !important;
+  }
+}
+
+
+@media (min-width: 1025px) {
+  .billing-create-panel--open .billing-invoice-discount-scale,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-scale,
+  .billing-create-panel--open .billing-invoice-discount-foot,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-foot,
+  .billing-create-panel--open .billing-invoice-discount-range-fill,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range-fill {
+    display: none !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-discount-value-pill,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-value-pill {
+    min-width: 78px !important;
+    padding: 0 10px !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-discount-value-pill input,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-value-pill input {
+    min-width: 0 !important;
+    font-variant-numeric: tabular-nums;
   }
 }

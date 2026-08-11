@@ -6076,10 +6076,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     onValueChange: (value: string) => void,
     items?: { quantity: number; grossPrice: string }[],
   ) => {
-    const realDiscountGross = calculateWholeBillDiscountGross(subtotalGross, draft, items)
     const wholeBillValue = draft.wholeBillPercent ?? '0'
     const sliderValue = Math.max(0, Math.min(100, Number(wholeBillValue || 0) || 0))
-    const sliderStops = ['0%', '25%', '50%', '75%', '100%']
     return (
       <section className="billing-invoice-discount-card billing-invoice-discount-card--whole-bill">
         <div className="billing-invoice-discount-head">
@@ -6100,7 +6098,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               value={sliderValue}
               onChange={(event) => onValueChange(String(Math.max(0, Math.min(100, Number(event.target.value) || 0))))}
             />
-            <span className="billing-invoice-discount-range-fill" style={{ width: `${sliderValue}%` }} aria-hidden />
           </label>
           <label className="billing-invoice-discount-value-pill">
             <span className="sr-only">{locale === 'sl' ? 'Odstotek popusta' : 'Discount percentage'}</span>
@@ -6114,12 +6111,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             />
             <em>%</em>
           </label>
-        </div>
-        <div className="billing-invoice-discount-scale" aria-hidden>
-          {sliderStops.map((stop) => <span key={stop}>{stop}</span>)}
-        </div>
-        <div className="billing-invoice-discount-foot billing-invoice-discount-foot--amount-only">
-          <strong>{realDiscountGross > 0 ? `- ${currency(realDiscountGross)}` : currency(0)}</strong>
         </div>
       </section>
     )
