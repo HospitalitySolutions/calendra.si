@@ -11974,239 +11974,109 @@
   }
 }
 
+
 /* --------------------------------------------------------------------------
-   Word review 2026-08-11 — Nov/Uredi neizdan račun mobile/tablet refinements.
-   Keeps the desktop invoice editor unchanged.
+   Final mobile/tablet polish — approved header positioning + compact-row
+   alignment for Nov/Uredi neizdan račun.
    -------------------------------------------------------------------------- */
 @media (max-width: 1024px) {
-  /* New invoice header: title first, close action on the right. */
-  .billing-create-panel--open .billing-bill-modal-header > div:first-child {
+  /* Keep the close button on the left and the title immediately after it. */
+  .billing-open-detail-panel--invoice-editor .billing-bill-modal-header,
+  .billing-create-panel--open .billing-bill-modal-header {
+    justify-content: flex-start !important;
+    column-gap: 12px !important;
+  }
+
+  .billing-open-detail-panel--invoice-editor .billing-bill-modal-close,
+  .billing-create-panel--open .billing-bill-modal-close {
     order: 1 !important;
   }
 
-  .billing-create-panel--open .billing-bill-modal-close {
+  .billing-open-detail-panel--invoice-editor .billing-bill-modal-header > div:first-child,
+  .billing-create-panel--open .billing-bill-modal-header > div:first-of-type {
     order: 2 !important;
-    margin-left: auto !important;
-  }
-
-  /* Only the requested two close actions are shown in the compact footer. */
-  .billing-create-panel--open .billing-bill-modal-save-btn--create-open-anchor {
-    display: none !important;
-  }
-
-  /* Create and edit use the same compact row typography and alignment. */
-  .billing-create-panel--open .billing-invoice-item-row--compact-create .billing-bill-modal-field select,
-  .billing-create-panel--open .billing-invoice-item-row--compact-create .billing-bill-modal-field input,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-item-row--with-client .billing-bill-modal-field select,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-item-row--with-client .billing-bill-modal-field input,
-  .billing-create-panel--open .billing-invoice-item-row--compact-create .billing-invoice-row-amount,
-  .billing-create-panel--open .billing-invoice-item-row--compact-create .billing-invoice-row-amount strong,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-item-row--with-client .billing-invoice-row-amount,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-item-row--with-client .billing-invoice-row-amount strong {
-    font-size: .72rem !important;
-    line-height: 1.15 !important;
-  }
-
-  /* Keep Skupaj in the same physical row as the other line-item cells. */
-  .billing-create-panel--open .billing-invoice-item-row--compact-create .billing-invoice-row-amount,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-item-row--with-client .billing-invoice-row-amount {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    flex: 0 1 auto !important;
     min-width: 0 !important;
-    overflow: visible !important;
-    white-space: nowrap !important;
-  }
-
-  .billing-create-panel--open .billing-invoice-item-row--compact-create .billing-invoice-row-amount strong,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-item-row--with-client .billing-invoice-row-amount strong {
-    display: inline-block !important;
-    width: auto !important;
-    max-width: 100% !important;
-    white-space: nowrap !important;
-  }
-
-  /* Make Add line item / Dodaj postavko a clear blue primary action. */
-  .billing-create-panel--open .billing-invoice-add-dashed--line,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-add-dashed--line,
-  .billing-create-panel--open .billing-invoice-add-dashed--line:disabled,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-add-dashed--line:disabled {
-    border: 1px solid #0b69e8 !important;
-    background: #0b69e8 !important;
-    color: #ffffff !important;
-    opacity: 1 !important;
-  }
-
-  .billing-create-panel--open .billing-invoice-add-dashed--line strong,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-add-dashed--line strong {
-    color: #ffffff !important;
-  }
-
-  /* Payment controls: shorter method field, wider amount field and protected
-     action columns so match/delete can never overlap. */
-  .billing-create-panel--open,
-  .billing-open-detail-panel--invoice-editor {
-    --billing-open-payment-columns: 34px minmax(112px, 1.28fr) minmax(94px, .95fr) 30px 30px;
-  }
-
-  .billing-create-panel--open .billing-invoice-payment-row,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-payment-row {
-    column-gap: 6px !important;
-    overflow: visible !important;
-  }
-
-  .billing-create-panel--open .billing-invoice-payment-row > select,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-payment-row > select {
-    max-width: 100% !important;
-    padding-left: 2px !important;
-    padding-right: 16px !important;
-    font-size: .72rem !important;
-  }
-
-  /* Payment amount uses the same font size as the line-item Cena input. */
-  .billing-create-panel--open .billing-invoice-payment-amount-input,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-payment-amount-input {
-    font-size: .72rem !important;
-    font-weight: 620 !important;
-    line-height: 1.15 !important;
-    padding-left: 4px !important;
-    padding-right: 5px !important;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .billing-create-panel--open .billing-invoice-payment-row > .billing-invoice-match-mini,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-payment-row > .billing-invoice-match-mini,
-  .billing-create-panel--open .billing-invoice-payment-row > .billing-invoice-delete-mini,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-payment-row > .billing-invoice-delete-mini {
-    position: relative !important;
-    inset: auto !important;
-    transform: none !important;
-    justify-self: center !important;
-    align-self: center !important;
-    width: 28px !important;
-    min-width: 28px !important;
-    height: 32px !important;
-    min-height: 32px !important;
-    margin: 0 !important;
+    margin-right: auto !important;
     padding: 0 !important;
   }
 
-  /* Payment delete matches the delete action used in Postavke računa. */
-  .billing-create-panel--open .billing-invoice-payment-row > .billing-invoice-delete-mini,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-payment-row > .billing-invoice-delete-mini {
-    border: 0 !important;
-    background: transparent !important;
-    color: #ef4444 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    font-size: .82rem !important;
+  .billing-open-detail-panel--invoice-editor .billing-bill-modal-title-row,
+  .billing-create-panel--open .billing-bill-modal-title-row {
+    justify-content: flex-start !important;
+    gap: 0 !important;
   }
 
-  /* The whole-bill discount control is intentionally shown immediately after
-     the "Plačila so usklajena" strip in both create and edit modes. */
-  .billing-create-panel--open .billing-invoice-discount-card,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-card {
-    display: block !important;
-    margin: 0 !important;
-    padding: 12px 0 0 !important;
-    border: 0 !important;
-    border-top: 1px solid #e4ebf3 !important;
-    border-radius: 0 !important;
-    background: transparent !important;
-    box-shadow: none !important;
+  .billing-open-detail-panel--invoice-editor .billing-bill-modal-title-row h2,
+  .billing-create-panel--open .billing-bill-modal-title-row h2 {
+    text-align: left !important;
+    white-space: nowrap !important;
   }
 
-  .billing-create-panel--open .billing-invoice-discount-head,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-head {
-    margin: 0 0 8px !important;
+  .billing-open-detail-panel--invoice-editor .billing-open-detail-actions-menu {
+    order: 3 !important;
+    margin-left: 0 !important;
   }
 
-  .billing-create-panel--open .billing-invoice-discount-title h3,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-title h3 {
-    margin: 0 !important;
-    color: #334155 !important;
-    font-size: .8rem !important;
-    font-weight: 760 !important;
-  }
-
-  .billing-create-panel--open .billing-invoice-discount-slider-layout,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-slider-layout {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) 76px !important;
-    align-items: center !important;
-    gap: 10px !important;
-  }
-
-  .billing-create-panel--open .billing-invoice-discount-slider-wrap,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-slider-wrap {
+  /* Pin the amount/Skupaj cell to the row center so it stays aligned with the
+     neighbouring Service/Price/Discount cells on compact layouts. */
+  .billing-open-detail-panel--invoice-editor .billing-invoice-row-amount,
+  .billing-create-panel--open .billing-invoice-row-amount {
     display: flex !important;
     align-items: center !important;
-    min-width: 0 !important;
-    height: 30px !important;
-  }
-
-  .billing-create-panel--open .billing-invoice-discount-range,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range {
-    width: 100% !important;
-    min-width: 0 !important;
-    height: 24px !important;
+    align-self: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
     margin: 0 !important;
   }
 
-  .billing-create-panel--open .billing-invoice-discount-value-pill,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-value-pill {
-    display: inline-grid !important;
-    grid-template-columns: minmax(0, 1fr) auto !important;
+  .billing-open-detail-panel--invoice-editor .billing-invoice-row-amount strong,
+  .billing-create-panel--open .billing-invoice-row-amount strong {
+    display: inline-flex !important;
     align-items: center !important;
-    min-width: 0 !important;
-    min-height: 34px !important;
-    padding: 0 8px !important;
-    border: 1px solid #d8e2ee !important;
-    border-radius: 9px !important;
-    background: #ffffff !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    margin: 0 !important;
   }
 
-  .billing-create-panel--open .billing-invoice-discount-value-pill input,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-value-pill input {
-    width: 100% !important;
-    min-width: 0 !important;
-    padding: 0 3px !important;
-    border: 0 !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    color: #334155 !important;
-    font-size: .74rem !important;
-    font-weight: 700 !important;
-    text-align: right !important;
+  /* New open bill: keep the table row cells exactly under their headers. */
+  .billing-create-panel--open .billing-invoice-item-row--compact-create {
+    align-items: center !important;
   }
 
-  .billing-create-panel--open .billing-invoice-discount-value-pill em,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-value-pill em {
-    font-size: .74rem !important;
-    font-style: normal !important;
-    font-weight: 700 !important;
-    color: #64748b !important;
+  .billing-create-panel--open .billing-invoice-item-row--compact-create .billing-bill-modal-field--service,
+  .billing-create-panel--open .billing-invoice-item-row--compact-create .billing-bill-modal-field--qty,
+  .billing-create-panel--open .billing-invoice-item-row--compact-create .billing-bill-modal-field--price,
+  .billing-create-panel--open .billing-invoice-item-row--compact-create .billing-invoice-row-amount,
+  .billing-create-panel--open .billing-invoice-item-row--compact-create .billing-invoice-item-discount-cell,
+  .billing-create-panel--open .billing-invoice-item-row--compact-create > .billing-invoice-delete-mini {
+    align-self: center !important;
+    justify-self: stretch !important;
+  }
+
+  /* New open bill payment method rows should use the same compact alignment as
+     the approved edit-open preview: icon, method, amount, match, delete. */
+  .billing-create-panel--open .billing-invoice-payment-row {
+    align-items: center !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-payment-row > .billing-invoice-payment-icon,
+  .billing-create-panel--open .billing-invoice-payment-row > select,
+  .billing-create-panel--open .billing-invoice-payment-row > .billing-invoice-payment-amount-input,
+  .billing-create-panel--open .billing-invoice-payment-row > .billing-invoice-match-mini,
+  .billing-create-panel--open .billing-invoice-payment-row > .billing-invoice-delete-mini {
+    align-self: center !important;
   }
 }
 
 @media (max-width: 540px) {
-  .billing-create-panel--open,
-  .billing-open-detail-panel--invoice-editor {
-    --billing-open-payment-columns: 28px minmax(80px, 1.18fr) minmax(74px, .92fr) 26px 26px;
+  .billing-open-detail-panel--invoice-editor .billing-bill-modal-header,
+  .billing-create-panel--open .billing-bill-modal-header {
+    column-gap: 10px !important;
   }
 
-  .billing-create-panel--open .billing-invoice-payment-row,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-payment-row {
-    column-gap: 4px !important;
-  }
-
-  .billing-create-panel--open .billing-invoice-payment-row > .billing-invoice-match-mini,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-payment-row > .billing-invoice-match-mini,
-  .billing-create-panel--open .billing-invoice-payment-row > .billing-invoice-delete-mini,
-  .billing-open-detail-panel--invoice-editor .billing-invoice-payment-row > .billing-invoice-delete-mini {
-    width: 24px !important;
-    min-width: 24px !important;
-    height: 30px !important;
-    min-height: 30px !important;
+  .billing-open-detail-panel--invoice-editor .billing-bill-modal-title-row h2,
+  .billing-create-panel--open .billing-bill-modal-title-row h2 {
+    font-size: 1.16rem !important;
   }
 }
