@@ -90,6 +90,16 @@ const moduleLabel = (module: ActivityModule, sl: boolean) => ({
   SYSTEM: sl ? "Sistem" : "System",
 }[module]);
 
+const actorTypeLabel = (actorType: ActivityActorType, sl: boolean) => ({
+  USER: sl ? "Konto" : "Account",
+  SYSTEM: sl ? "Sistem" : "System",
+  WEBSITE_WIDGET: "Website widget",
+  GUEST_APP: "Guest app",
+  GUEST: sl ? "Gost" : "Guest",
+  INTEGRATION: sl ? "Integracija" : "Integration",
+  PLATFORM_ADMIN: "Platform admin",
+}[actorType]);
+
 const actionLabel = (action: string, sl: boolean) => {
   const labels: Record<string, [string, string]> = {
     SESSION_CREATED: ["Ustvaril termin", "Created session"],
@@ -155,30 +165,45 @@ const actionLabel = (action: string, sl: boolean) => {
     EMPLOYEE_DELETED: ["Izbrisal zaposlenega", "Deleted employee"],
     EMPLOYEE_DEACTIVATED: ["Deaktiviral zaposlenega", "Deactivated employee"],
     EMPLOYEE_ACTIVATED: ["Aktiviral zaposlenega", "Activated employee"],
-    ROLE_CREATED: ["Ustvaril vlogo", "Created role"], ROLE_UPDATED: ["Posodobil vlogo", "Updated role"],
-    ROLE_DUPLICATED: ["Podvojil vlogo", "Duplicated role"], ROLE_ARCHIVED: ["Arhiviral vlogo", "Archived role"],
+    ROLE_CREATED: ["Ustvaril vlogo", "Created role"],
+    ROLE_UPDATED: ["Posodobil vlogo", "Updated role"],
+    ROLE_DUPLICATED: ["Podvojil vlogo", "Duplicated role"],
+    ROLE_ARCHIVED: ["Arhiviral vlogo", "Archived role"],
     WORKSPACE_UNIT_CREATED: ["Ustvaril poslovno enoto", "Created operating unit"],
-    LOCATION_CREATED: ["Ustvaril lokacijo", "Created location"], LOCATION_UPDATED: ["Posodobil lokacijo", "Updated location"],
-    LOCATION_DELETED: ["Izbrisal lokacijo", "Deleted location"], SPACE_CREATED: ["Ustvaril prostor", "Created space"],
-    SPACE_UPDATED: ["Posodobil prostor", "Updated space"], SPACE_DELETED: ["Izbrisal prostor", "Deleted space"],
+    LOCATION_CREATED: ["Ustvaril lokacijo", "Created location"],
+    LOCATION_UPDATED: ["Posodobil lokacijo", "Updated location"],
+    LOCATION_DELETED: ["Izbrisal lokacijo", "Deleted location"],
+    SPACE_CREATED: ["Ustvaril prostor", "Created space"],
+    SPACE_UPDATED: ["Posodobil prostor", "Updated space"],
+    SPACE_DELETED: ["Izbrisal prostor", "Deleted space"],
     RESERVATION_RULES_UPDATED: ["Posodobil rezervacijska pravila", "Updated reservation rules"],
     WAITLIST_SETTINGS_UPDATED: ["Posodobil pravila čakalne vrste", "Updated waitlist settings"],
     SETTINGS_UPDATED: ["Posodobil nastavitve", "Updated settings"],
     NOTIFICATION_TEMPLATE_UPDATED: ["Posodobil predlogo obvestila", "Updated notification template"],
-    PAYMENT_METHOD_CREATED: ["Dodal način plačila", "Created payment method"], PAYMENT_METHOD_UPDATED: ["Posodobil način plačila", "Updated payment method"],
+    PAYMENT_METHOD_CREATED: ["Dodal način plačila", "Created payment method"],
+    PAYMENT_METHOD_UPDATED: ["Posodobil način plačila", "Updated payment method"],
     PAYMENT_METHOD_DELETED: ["Izbrisal način plačila", "Deleted payment method"],
     PUBLIC_BOOKING_SETTINGS_UPDATED: ["Posodobil javno naročanje", "Updated public booking settings"],
-    CUSTOM_FIELD_CREATED: ["Ustvaril polje po meri", "Created custom field"], CUSTOM_FIELD_UPDATED: ["Posodobil polje po meri", "Updated custom field"],
+    CUSTOM_FIELD_CREATED: ["Ustvaril polje po meri", "Created custom field"],
+    CUSTOM_FIELD_UPDATED: ["Posodobil polje po meri", "Updated custom field"],
     CUSTOM_FIELD_DELETED: ["Izbrisal polje po meri", "Deleted custom field"],
     FISCAL_PREMISE_REGISTERED: ["Registriral poslovni prostor", "Registered fiscal premise"],
-    FISCAL_CERTIFICATE_UPDATED: ["Posodobil davčno potrdilo", "Updated fiscal certificate"], FISCAL_CERTIFICATE_DELETED: ["Izbrisal davčno potrdilo", "Deleted fiscal certificate"],
-    INTEGRATION_CONNECTED: ["Povezal integracijo", "Connected integration"], INTEGRATION_UPDATED: ["Posodobil integracijo", "Updated integration"],
-    INTEGRATION_DISCONNECTED: ["Odklopil integracijo", "Disconnected integration"], INTEGRATION_SYNC_REQUESTED: ["Zahteval sinhronizacijo", "Requested integration sync"],
-    CONSUMABLE_CREATED: ["Ustvaril potrošni material", "Created consumable"], CONSUMABLE_UPDATED: ["Posodobil potrošni material", "Updated consumable"],
-    CONSUMABLE_STOCK_ADJUSTED: ["Prilagodil zalogo", "Adjusted stock"], CONSUMABLE_STOCK_TRANSFERRED: ["Prenesel zalogo", "Transferred stock"], CONSUMABLE_CATEGORY_CREATED: ["Ustvaril kategorijo materiala", "Created consumable category"],
+    FISCAL_CERTIFICATE_UPDATED: ["Posodobil davčno potrdilo", "Updated fiscal certificate"],
+    FISCAL_CERTIFICATE_DELETED: ["Izbrisal davčno potrdilo", "Deleted fiscal certificate"],
+    INTEGRATION_CONNECTED: ["Povezal integracijo", "Connected integration"],
+    INTEGRATION_UPDATED: ["Posodobil integracijo", "Updated integration"],
+    INTEGRATION_DISCONNECTED: ["Odklopil integracijo", "Disconnected integration"],
+    INTEGRATION_SYNC_REQUESTED: ["Zahteval sinhronizacijo", "Requested integration sync"],
+    CONSUMABLE_CREATED: ["Ustvaril potrošni material", "Created consumable"],
+    CONSUMABLE_UPDATED: ["Posodobil potrošni material", "Updated consumable"],
+    CONSUMABLE_STOCK_ADJUSTED: ["Prilagodil zalogo", "Adjusted stock"],
+    CONSUMABLE_STOCK_TRANSFERRED: ["Prenesel zalogo", "Transferred stock"],
+    CONSUMABLE_CATEGORY_CREATED: ["Ustvaril kategorijo materiala", "Created consumable category"],
     CONSUMABLE_CATEGORY_UPDATED: ["Posodobil kategorijo materiala", "Updated consumable category"],
-    CONSUMABLE_SUPPLIER_CREATED: ["Ustvaril dobavitelja", "Created supplier"], CONSUMABLE_SUPPLIER_UPDATED: ["Posodobil dobavitelja", "Updated supplier"],
-    PURCHASE_ORDER_CREATED: ["Ustvaril naročilo dobavitelju", "Created purchase order"], PURCHASE_ORDER_UPDATED: ["Posodobil naročilo dobavitelju", "Updated purchase order"],
+    CONSUMABLE_SUPPLIER_CREATED: ["Ustvaril dobavitelja", "Created supplier"],
+    CONSUMABLE_SUPPLIER_UPDATED: ["Posodobil dobavitelja", "Updated supplier"],
+    PURCHASE_ORDER_CREATED: ["Ustvaril naročilo dobavitelju", "Created purchase order"],
+    PURCHASE_ORDER_UPDATED: ["Posodobil naročilo dobavitelju", "Updated purchase order"],
     SERVICE_CONSUMABLE_DEFAULTS_UPDATED: ["Posodobil privzeti material storitve", "Updated service consumable defaults"],
     SESSION_CONSUMABLES_UPDATED: ["Posodobil material termina", "Updated session consumables"],
     INVENTORY_SESSION_CREATED: ["Začel inventuro", "Started inventory session"],
@@ -201,6 +226,44 @@ const formatValue = (value: unknown, locale: string): string => {
   return String(value);
 };
 
+const humanizeFieldLabel = (key: string) =>
+  key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/_/g, " ")
+    .replace(/^./, c => c.toUpperCase())
+    .trim();
+
+const getInitials = (value: string) => {
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+};
+
+function buildAreaEntity(item: ActivityLogItem, sl: boolean): string {
+  const parts = [moduleLabel(item.module, sl)];
+  if (item.entityLabel) parts.push(item.entityLabel);
+  else if (item.entityType) parts.push(item.entityType);
+  if (item.secondaryEntityLabel) parts.push(item.secondaryEntityLabel);
+  return parts.filter(Boolean).join(" – ");
+}
+
+function buildDetailsLocation(item: ActivityLogItem, locationNames: Map<number, string>, locale: string, sl: boolean): string {
+  const detailCandidates = [
+    item.summary,
+    typeof item.details?.locationName === "string" ? item.details.locationName : "",
+    typeof item.details?.serviceName === "string" ? item.details.serviceName : "",
+    typeof item.details?.clientName === "string" ? item.details.clientName : "",
+    typeof item.details?.invoiceNumber === "string" ? item.details.invoiceNumber : "",
+    typeof item.details?.targetLabel === "string" ? item.details.targetLabel : "",
+    typeof item.details?.email === "string" ? `${sl ? "E-pošta" : "Email"}: ${item.details.email}` : "",
+    typeof item.details?.amount === "number" ? `${sl ? "Znesek" : "Amount"}: ${formatValue(item.details.amount, locale)}` : "",
+  ].filter(value => typeof value === "string" && value.trim() !== "") as string[];
+
+  const locationName = item.locationId != null ? locationNames.get(item.locationId) : undefined;
+  return detailCandidates[0] || locationName || item.source || "—";
+}
+
 export function ActivityLogSection({ locale }: { locale: string }) {
   const navigate = useNavigate();
   const me = useAuthenticatedUser();
@@ -221,6 +284,7 @@ export function ActivityLogSection({ locale }: { locale: string }) {
   const [page, setPage] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -240,7 +304,10 @@ export function ActivityLogSection({ locale }: { locale: string }) {
     });
   }, [activeUnitId, queryClient]);
 
-  useEffect(() => setPage(0), [search, module, action, actorType, actorUserId, locationId, from, to]);
+  useEffect(() => {
+    setPage(0);
+    setExpandedId(null);
+  }, [search, module, action, actorType, actorUserId, locationId, from, to]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -260,6 +327,7 @@ export function ActivityLogSection({ locale }: { locale: string }) {
           setItems(data.content || []);
           setTotalElements(data.totalElements || 0);
           setTotalPages(data.totalPages || 0);
+          setPageSize(data.size || 50);
         })
         .catch(() => setError(sl ? "Dnevnika aktivnosti ni bilo mogoče naložiti." : "Could not load the activity log."))
         .finally(() => setLoading(false));
@@ -267,21 +335,53 @@ export function ActivityLogSection({ locale }: { locale: string }) {
     return () => window.clearTimeout(timer);
   }, [activeUnitId, queryClient, search, module, action, actorType, actorUserId, locationId, from, to, page, sl]);
 
-  const locationNames = useMemo(() => new Map(locations.map(l => [l.id, l.name])), [locations]);
+  const locationNames = useMemo(() => new Map(locations.map(l => [l.id, l.name] as const)), [locations]);
   const dtf = useMemo(() => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }), [locale]);
+  const rangeStart = totalElements === 0 ? 0 : page * pageSize + 1;
+  const rangeEnd = totalElements === 0 ? 0 : Math.min(totalElements, page * pageSize + items.length);
+
+  const resetFilters = () => {
+    setSearch("");
+    setModule("");
+    setAction("");
+    setActorType("");
+    setActorUserId("");
+    setLocationId("");
+    setFrom("");
+    setTo("");
+    setPage(0);
+    setExpandedId(null);
+  };
+
+  const renderEmptyState = () => {
+    if (loading) return <div className="activity-log-state">{sl ? "Nalaganje ..." : "Loading ..."}</div>;
+    if (error) return <div className="activity-log-state is-error">{error}</div>;
+    if (items.length === 0) return <div className="activity-log-state">{sl ? "Za izbrane filtre ni aktivnosti." : "No activity matches these filters."}</div>;
+    return null;
+  };
 
   return (
-    <section className="activity-log-shell">
+    <section className="activity-log-shell activity-log-shell--table">
       <div className="activity-log-heading activity-log-heading--count-only">
         <span className="activity-log-count">{totalElements.toLocaleString(locale)}</span>
       </div>
 
-      <div className="activity-log-filters">
+      <div className="activity-log-filters-card">
         <div className="activity-log-filter-bar">
           <label className="activity-log-search">
-            <span aria-hidden>⌕</span>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={sl ? "Išči po stranki, računu, uporabniku ..." : "Search client, invoice, user ..."} />
+            <span className="activity-log-search-icon" aria-hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" />
+              </svg>
+            </span>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={sl ? "Išči po stranki, računu, uporabniku ..." : "Search client, invoice, user ..."}
+            />
           </label>
+
           <button
             type="button"
             className={`activity-log-filter-toggle${filtersOpen ? " is-open" : ""}`}
@@ -297,6 +397,7 @@ export function ActivityLogSection({ locale }: { locale: string }) {
             <span>{sl ? "Filtri" : "Filters"}</span>
           </button>
         </div>
+
         <div id="activity-log-filter-fields" className={`activity-log-filter-fields${filtersOpen ? " is-open" : ""}`}>
           <select value={module} onChange={e => setModule(e.target.value)} aria-label={sl ? "Področje" : "Area"}>
             <option value="">{sl ? "Vsa področja" : "All areas"}</option>
@@ -305,15 +406,6 @@ export function ActivityLogSection({ locale }: { locale: string }) {
           <select value={action} onChange={e => setAction(e.target.value)} aria-label={sl ? "Dejanje" : "Action"}>
             <option value="">{sl ? "Vsa dejanja" : "All actions"}</option>
             {ACTIVITY_ACTIONS.map(a => <option key={a} value={a}>{actionLabel(a, sl)}</option>)}
-          </select>
-          <select value={actorType} onChange={e => { setActorType(e.target.value); if (e.target.value !== "USER") setActorUserId(""); }} aria-label={sl ? "Vrsta izvajalca" : "Actor type"}>
-            <option value="">{sl ? "Vsi izvajalci" : "All actors"}</option>
-            <option value="USER">{sl ? "Uporabniki" : "Users"}</option>
-            <option value="SYSTEM">{sl ? "Sistem" : "System"}</option>
-            <option value="WEBSITE_WIDGET">Website widget</option>
-            <option value="GUEST_APP">Guest app</option>
-            <option value="GUEST">{sl ? "Gost" : "Guest"}</option>
-            <option value="INTEGRATION">{sl ? "Integracija" : "Integration"}</option>
           </select>
           <select value={actorUserId} onChange={e => { setActorUserId(e.target.value); if (e.target.value) setActorType("USER"); }} aria-label={sl ? "Uporabnik" : "User"}>
             <option value="">{sl ? "Vsi uporabniki" : "All users"}</option>
@@ -325,80 +417,131 @@ export function ActivityLogSection({ locale }: { locale: string }) {
           </select>
           <input type="date" value={from} onChange={e => setFrom(e.target.value)} aria-label={sl ? "Od" : "From"} />
           <input type="date" value={to} onChange={e => setTo(e.target.value)} aria-label={sl ? "Do" : "To"} />
+          <button type="button" className="activity-log-reset" onClick={resetFilters}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M3 12a9 9 0 1 0 3-6.7" />
+              <path d="M3 4v5h5" />
+            </svg>
+            <span>{sl ? "Ponastavi" : "Reset"}</span>
+          </button>
         </div>
       </div>
 
-      <div className="activity-log-list">
-        {loading ? <div className="activity-log-state">{sl ? "Nalaganje ..." : "Loading ..."}</div> : null}
-        {!loading && error ? <div className="activity-log-state is-error">{error}</div> : null}
-        {!loading && !error && items.length === 0 ? <div className="activity-log-state">{sl ? "Za izbrane filtre ni aktivnosti." : "No activity matches these filters."}</div> : null}
-        {!loading && !error && items.map(item => {
-          const expanded = expandedId === item.id;
-          const before = item.details?.before && typeof item.details.before === "object" && !Array.isArray(item.details.before)
-            ? item.details.before as Record<string, unknown> : null;
-          const after = item.details?.after && typeof item.details.after === "object" && !Array.isArray(item.details.after)
-            ? item.details.after as Record<string, unknown> : null;
-          const changeKeys = before && after
-            ? Array.from(new Set([...Object.keys(before), ...Object.keys(after)])).filter(key => JSON.stringify(before[key]) !== JSON.stringify(after[key]))
-            : [];
-          const targetPath = typeof item.details?.targetPath === "string" ? item.details.targetPath : "";
-          const detailEntries = Object.entries(item.details || {}).filter(([key, v]) => key !== "before" && key !== "after" && key !== "targetPath" && v != null && v !== "");
-          return (
-            <article key={item.id} className={`activity-log-row${expanded ? " is-expanded" : ""}`}>
-              <button type="button" className="activity-log-row-main" onClick={() => setExpandedId(expanded ? null : item.id)}>
-                <span className={`activity-log-module-dot module-${item.module.toLowerCase()}`} aria-hidden />
-                <span className="activity-log-time">{dtf.format(new Date(item.occurredAt))}</span>
-                <span className="activity-log-copy">
-                  <strong>{item.actorName || item.actorType}</strong>
-                  <span className="activity-log-action">{actionLabel(item.action, sl)}</span>
-                  <span className="activity-log-context">
-                    {moduleLabel(item.module, sl)}
-                    {item.entityLabel ? ` · ${item.entityLabel}` : ""}
-                    {item.secondaryEntityLabel ? ` · ${item.secondaryEntityLabel}` : ""}
-                    {item.locationId && locationNames.get(item.locationId) ? ` · ${locationNames.get(item.locationId)}` : ""}
-                  </span>
-                </span>
-                <span className="activity-log-chevron" aria-hidden>{expanded ? "⌃" : "›"}</span>
-              </button>
-              {expanded ? (
-                <div className="activity-log-details">
-                  <div className="activity-log-details-head">
-                    <div className="activity-log-summary">{item.summary}</div>
-                    {targetPath ? (
-                      <button type="button" className="activity-log-open-target" onClick={() => navigate(targetPath)}>
-                        {sl ? "Odpri zapis" : "Open record"}
-                      </button>
-                    ) : null}
-                  </div>
-                  <dl>
-                    <div><dt>{sl ? "Področje" : "Area"}</dt><dd>{moduleLabel(item.module, sl)}</dd></div>
-                    <div><dt>{sl ? "Dejanje" : "Action"}</dt><dd>{actionLabel(item.action, sl)}</dd></div>
-                    <div><dt>{sl ? "Vir" : "Source"}</dt><dd>{item.source}</dd></div>
-                    {item.entityId != null ? <div><dt>{sl ? "Zapis" : "Record"}</dt><dd>{item.entityType} #{item.entityId}</dd></div> : null}
-                    {changeKeys.map(key => (
-                      <div key={`change-${key}`}>
-                        <dt>{key.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase())}</dt>
-                        <dd className="activity-log-change"><span>{formatValue(before?.[key], locale)}</span><b aria-hidden>→</b><span>{formatValue(after?.[key], locale)}</span></dd>
+      <div className="activity-log-table-card">
+        {renderEmptyState()}
+
+        {!loading && !error && items.length > 0 ? (
+          <>
+            <div className="activity-log-table-head" role="row">
+              <div className="activity-log-table-head-cell activity-log-table-head-cell--datetime">{sl ? "DATUM / ČAS" : "DATE / TIME"}</div>
+              <div className="activity-log-table-head-cell">{sl ? "UPORABNIK" : "USER"}</div>
+              <div className="activity-log-table-head-cell">{sl ? "DEJANJE" : "ACTION"}</div>
+              <div className="activity-log-table-head-cell">{sl ? "PODROČJE / ENTITETA" : "AREA / ENTITY"}</div>
+              <div className="activity-log-table-head-cell">{sl ? "PODROBNOSTI / LOKACIJA" : "DETAILS / LOCATION"}</div>
+              <div className="activity-log-table-head-cell activity-log-table-head-cell--arrow" aria-hidden />
+            </div>
+
+            <div className="activity-log-table-body">
+              {items.map(item => {
+                const expanded = expandedId === item.id;
+                const before = item.details?.before && typeof item.details.before === "object" && !Array.isArray(item.details.before)
+                  ? item.details.before as Record<string, unknown>
+                  : null;
+                const after = item.details?.after && typeof item.details.after === "object" && !Array.isArray(item.details.after)
+                  ? item.details.after as Record<string, unknown>
+                  : null;
+                const changeKeys = before && after
+                  ? Array.from(new Set([...Object.keys(before), ...Object.keys(after)])).filter(key => JSON.stringify(before[key]) !== JSON.stringify(after[key]))
+                  : [];
+                const targetPath = typeof item.details?.targetPath === "string" ? item.details.targetPath : "";
+                const detailEntries = Object.entries(item.details || {}).filter(([key, value]) => key !== "before" && key !== "after" && key !== "targetPath" && value != null && value !== "");
+
+                return (
+                  <article key={item.id} className={`activity-log-table-row${expanded ? " is-expanded" : ""}`}>
+                    <button type="button" className="activity-log-table-row-main" onClick={() => setExpandedId(expanded ? null : item.id)}>
+                      <span className="activity-log-table-col activity-log-table-col--datetime" data-label={sl ? "Datum / čas" : "Date / time"}>
+                        <span className={`activity-log-module-dot module-${item.module.toLowerCase()}`} aria-hidden />
+                        <span>{dtf.format(new Date(item.occurredAt))}</span>
+                      </span>
+
+                      <span className="activity-log-table-col" data-label={sl ? "Uporabnik" : "User"}>
+                        <span className="activity-log-user-cell">
+                          <span className="activity-log-avatar">{getInitials(item.actorName || item.actorType)}</span>
+                          <span className="activity-log-user-copy">
+                            <strong>{item.actorName || actorTypeLabel(item.actorType, sl)}</strong>
+                            <small>{actorTypeLabel(item.actorType, sl)}</small>
+                          </span>
+                        </span>
+                      </span>
+
+                      <span className="activity-log-table-col activity-log-table-col--action" data-label={sl ? "Dejanje" : "Action"}>
+                        {actionLabel(item.action, sl)}
+                      </span>
+
+                      <span className="activity-log-table-col" data-label={sl ? "Področje / entiteta" : "Area / entity"}>
+                        {buildAreaEntity(item, sl)}
+                      </span>
+
+                      <span className="activity-log-table-col" data-label={sl ? "Podrobnosti / lokacija" : "Details / location"}>
+                        {buildDetailsLocation(item, locationNames, locale, sl)}
+                      </span>
+
+                      <span className="activity-log-table-col activity-log-table-col--arrow" aria-hidden>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d={expanded ? "m18 15-6-6-6 6" : "m9 18 6-6-6-6"} />
+                        </svg>
+                      </span>
+                    </button>
+
+                    {expanded ? (
+                      <div className="activity-log-table-row-details">
+                        <div className="activity-log-details-head">
+                          <div className="activity-log-summary">{item.summary || buildDetailsLocation(item, locationNames, locale, sl)}</div>
+                          {targetPath ? (
+                            <button type="button" className="activity-log-open-target" onClick={() => navigate(targetPath)}>
+                              {sl ? "Odpri zapis" : "Open record"}
+                            </button>
+                          ) : null}
+                        </div>
+
+                        <dl className="activity-log-details-grid">
+                          <div><dt>{sl ? "Področje" : "Area"}</dt><dd>{moduleLabel(item.module, sl)}</dd></div>
+                          <div><dt>{sl ? "Dejanje" : "Action"}</dt><dd>{actionLabel(item.action, sl)}</dd></div>
+                          <div><dt>{sl ? "Vir" : "Source"}</dt><dd>{item.source || "—"}</dd></div>
+                          <div><dt>{sl ? "Lokacija" : "Location"}</dt><dd>{item.locationId != null ? locationNames.get(item.locationId) || "—" : "—"}</dd></div>
+                          {item.entityId != null ? <div><dt>{sl ? "Zapis" : "Record"}</dt><dd>{`${item.entityType} #${item.entityId}`}</dd></div> : null}
+                          {item.secondaryEntityLabel ? <div><dt>{sl ? "Povezano" : "Related"}</dt><dd>{item.secondaryEntityLabel}</dd></div> : null}
+                          {changeKeys.map(key => (
+                            <div key={`change-${key}`}>
+                              <dt>{humanizeFieldLabel(key)}</dt>
+                              <dd className="activity-log-change"><span>{formatValue(before?.[key], locale)}</span><b aria-hidden>→</b><span>{formatValue(after?.[key], locale)}</span></dd>
+                            </div>
+                          ))}
+                          {detailEntries.map(([key, value]) => (
+                            <div key={key}><dt>{humanizeFieldLabel(key)}</dt><dd>{formatValue(value, locale)}</dd></div>
+                          ))}
+                        </dl>
                       </div>
-                    ))}
-                    {detailEntries.map(([key, value]) => (
-                      <div key={key}><dt>{key.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase())}</dt><dd>{formatValue(value, locale)}</dd></div>
-                    ))}
-                  </dl>
-                </div>
-              ) : null}
-            </article>
-          );
-        })}
-      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
 
-      {totalPages > 1 ? (
-        <div className="activity-log-pagination">
-          <button type="button" disabled={page <= 0} onClick={() => setPage(p => Math.max(0, p - 1))}>{sl ? "Prejšnja" : "Previous"}</button>
-          <span>{sl ? "Stran" : "Page"} {page + 1} / {totalPages}</span>
-          <button type="button" disabled={page + 1 >= totalPages} onClick={() => setPage(p => p + 1)}>{sl ? "Naslednja" : "Next"}</button>
-        </div>
-      ) : null}
+            <div className="activity-log-table-footer">
+              <div className="activity-log-table-results">
+                {sl ? `Prikazujem ${rangeStart}–${rangeEnd} od ${totalElements} zapisov` : `Showing ${rangeStart}–${rangeEnd} of ${totalElements} entries`}
+              </div>
+
+              <div className="activity-log-pagination activity-log-pagination--compact">
+                <button type="button" aria-label={sl ? "Prejšnja stran" : "Previous page"} disabled={page <= 0} onClick={() => setPage(current => Math.max(0, current - 1))}>‹</button>
+                <span className="activity-log-pagination-current">{page + 1}</span>
+                <button type="button" aria-label={sl ? "Naslednja stran" : "Next page"} disabled={page + 1 >= Math.max(totalPages, 1)} onClick={() => setPage(current => current + 1)}>›</button>
+              </div>
+            </div>
+          </>
+        ) : null}
+      </div>
     </section>
   );
 }
