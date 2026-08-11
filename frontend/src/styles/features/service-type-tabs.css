@@ -751,7 +751,7 @@
 
     .clients-modern-page--mobile .service-config-card .clients-entity-tabs .clients-session-tab.active {
         color: #fff;
-        background: transparent;
+        background: #ffffff;
         box-shadow: none;
     }
 
@@ -995,7 +995,7 @@
     .service-config-card.clients-modern-card.card {
         border: 0;
         border-radius: 0;
-        background: transparent;
+        background: #ffffff;
         box-shadow: none;
     }
 }

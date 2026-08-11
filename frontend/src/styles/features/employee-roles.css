@@ -1165,7 +1165,7 @@
         padding: 0 14px;
         border: 0;
         border-radius: 0;
-        background: transparent;
+        background: #ffffff;
         box-shadow: none;
         box-sizing: border-box;
         overflow-x: auto;
@@ -1468,5 +1468,17 @@
 
     .employees-modern-card.clients-mobile-shell .employees-mobile-menu-btn:active {
         background: #eef4fb;
+    }
+}
+
+/* Desktop-only seamless Employees shell.
+   Apply the white background shell to the Employees tab on larger resolutions,
+   while keeping Roles & permissions and smaller breakpoints unchanged. */
+@media (min-width: 1280px) {
+    .clients-modern-card.employees-modern-card.card {
+        border: 0;
+        border-radius: 0;
+        background: #ffffff;
+        box-shadow: none;
     }
 }

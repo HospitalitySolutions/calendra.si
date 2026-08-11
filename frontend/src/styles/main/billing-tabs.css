@@ -3386,7 +3386,7 @@
         padding: 0;
         border: 0;
         border-radius: 0;
-        background: transparent;
+        background: #ffffff;
         box-shadow: none;
         overflow-x: auto;
         overflow-y: hidden;
@@ -3928,7 +3928,7 @@
     .billing-mobile-payment-card__action button:hover,
     .billing-mobile-payment-card__action button:active,
     .billing-mobile-payment-card__action button:focus {
-        background: transparent;
+        background: #ffffff;
         box-shadow: none;
         transform: none;
     }
@@ -4346,7 +4346,7 @@
     .billing-modern-card.card {
         border: 0;
         border-radius: 0;
-        background: transparent;
+        background: #ffffff;
         box-shadow: none;
     }
 }
