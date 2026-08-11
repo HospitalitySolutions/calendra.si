@@ -8316,10 +8316,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         </section>
 
         <section className="billing-invoice-compact-summary" aria-label={locale === 'sl' ? 'Povzetek vseh računov' : 'All bills summary'}>
-          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--blue">▣</span><span>{locale === 'sl' ? 'Povzetek vseh računov' : 'All bills summary'}</span><strong>{totalOpenBills} {locale === 'sl' ? (totalOpenBills === 1 ? 'račun' : totalOpenBills === 2 ? 'računa' : totalOpenBills === 3 || totalOpenBills === 4 ? 'računi' : 'računov') : (totalOpenBills === 1 ? 'bill' : 'bills')}</strong></div>
-          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--green">☷</span><span>{locale === 'sl' ? 'Skupaj postavk' : 'Total line items'}</span><strong>{totalLineItems}</strong></div>
-          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--orange">◈</span><span>{locale === 'sl' ? 'Skupaj vsi računi' : 'Total across all bills'}</span><strong>{currency(totalAcrossBills)}</strong></div>
-          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--red">▤</span><span>{locale === 'sl' ? 'Skupaj neplačano' : 'Total unpaid'}</span><strong>{currency(totalUnpaidAcrossBills)}</strong></div>
+          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--blue">▣</span><span>{locale === 'sl' ? 'Povezani računi' : 'Linked bills'}</span><strong>{totalOpenBills} {locale === 'sl' ? (totalOpenBills === 1 ? 'račun' : totalOpenBills === 2 ? 'računa' : totalOpenBills === 3 || totalOpenBills === 4 ? 'računi' : 'računov') : (totalOpenBills === 1 ? 'bill' : 'bills')}</strong></div>
+          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--green">☷</span><span>{locale === 'sl' ? 'Postavke' : 'Line items'}</span><strong>{totalLineItems}</strong></div>
+          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--purple">%</span><span>{locale === 'sl' ? 'Popust' : 'Discount'}</span><strong>{Math.max(0, Number(detailDiscountDraft.wholeBillPercent || 0)).toFixed(0)}%</strong></div>
+          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--purple">€</span><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(totalAcrossBills)}</strong></div>
+          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--red">▤</span><span>{locale === 'sl' ? 'Neplačano' : 'Unpaid'}</span><strong>{currency(totalUnpaidAcrossBills)}</strong></div>
         </section>
         {renderOpenBillPayeeEditorDialog()}
         {renderAddOpenBillDialog()}
@@ -8507,6 +8508,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <path d="M14 2v6h6" />
       <path d="M8 17h8M8 13h8" />
+    </svg>
+  )
+
+  const renderPrintActionIcon = () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M6 9V3h12v6" />
+      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+      <path d="M6 14h12v7H6z" />
     </svg>
   )
 
@@ -10276,7 +10285,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       disabled={creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || (!detailEntitlementSettlement && !detailCanIssueOpenBill)}
                       title={detailCloseDisabledReason}
                     >
-                      {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (locale === 'sl' ? 'Zaključi in natisni' : 'Close and print')}
+                      {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (
+                        <>
+                          <span className="billing-bill-modal-save-btn__icon" aria-hidden>{renderPrintActionIcon()}</span>
+                          <span>{locale === 'sl' ? 'Zaključi in natisni' : 'Close and print'}</span>
+                        </>
+                      )}
                     </button>
                   )}
                   <button
@@ -10664,7 +10678,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <section className="billing-invoice-compact-summary" aria-label={locale === 'sl' ? 'Povzetek računa' : 'Bill summary'}>
                   <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--blue">▣</span><span>{isCreateAdvanceBill ? billingCopy.billTypeAdvance : (locale === 'sl' ? 'Računi' : 'Bills')}</span><strong>1 {isCreateAdvanceBill ? billingCopy.billTypeAdvance.toLowerCase() : (locale === 'sl' ? 'račun' : 'bill')}</strong></div>
                   <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--green">☷</span><span>{locale === 'sl' ? 'Postavke' : 'Line items'}</span><strong>{billForm.items.length}</strong></div>
-                  <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--orange">◈</span><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(createGross)}</strong></div>
+                  <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--purple">%</span><span>{locale === 'sl' ? 'Popust' : 'Discount'}</span><strong>{Math.max(0, Number(createBillDiscountDraft.wholeBillPercent || 0)).toFixed(0)}%</strong></div>
+                  <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--purple">€</span><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(createGross)}</strong></div>
                   <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--red">▤</span><span>{locale === 'sl' ? 'Neplačano' : 'Unpaid'}</span><strong>{currency(createGross)}</strong></div>
                 </section>
                 {renderCreateBillPayeeDialog()}
@@ -10713,9 +10728,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     disabled={creatingBill || creatingManualOpenBill || !billCanSubmit || !canIssueCreateBillType}
                     title={createCloseTooltip}
                   >
-                    {creatingBill ? billingCopy.creating : (isCreateAdvanceBill
-                      ? (locale === 'sl' ? 'Ustvari in natisni' : 'Create and print')
-                      : (locale === 'sl' ? 'Zaključi in natisni' : 'Close and print'))}
+                    {creatingBill ? billingCopy.creating : (
+                      <>
+                        <span className="billing-bill-modal-save-btn__icon" aria-hidden>{renderPrintActionIcon()}</span>
+                        <span>{isCreateAdvanceBill
+                          ? (locale === 'sl' ? 'Ustvari in natisni' : 'Create and print')
+                          : (locale === 'sl' ? 'Zaključi in natisni' : 'Close and print')}</span>
+                      </>
+                    )}
                   </button>
                   <button
                     type="button"
@@ -10741,7 +10761,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       disabled={creatingBill || creatingManualOpenBill || !billCanSubmit || !canIssueOpenInvoice}
                       title={createCloseTooltip}
                     >
-                      {creatingBill ? billingCopy.creating : (locale === 'sl' ? 'Ustvari in natisni' : 'Create and print')}
+                      {creatingBill ? billingCopy.creating : (
+                        <>
+                          <span className="billing-bill-modal-save-btn__icon" aria-hidden>{renderPrintActionIcon()}</span>
+                          <span>{locale === 'sl' ? 'Ustvari in natisni' : 'Create and print'}</span>
+                        </>
+                      )}
                     </button>
                     <button
                       type="button"

@@ -10834,3 +10834,121 @@
     display: none !important;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Approved Nov/Uredi neizdan račun polish
+   - wider desktop popup
+   - five full-width summary info cards
+   - matching footer action button icon rhythm
+   -------------------------------------------------------------------------- */
+.billing-invoice-summary-icon--purple {
+  color: #7c3aed;
+  background: #f3e8ff;
+}
+
+@media (min-width: 1025px) {
+  .billing-create-panel--open.billing-bill-modal.modal.large-modal.booking-side-panel,
+  .billing-open-detail-panel--invoice-editor.billing-bill-modal.modal.large-modal.booking-side-panel {
+    width: min(1380px, calc(100vw - 48px));
+    max-width: min(1380px, calc(100vw - 48px));
+  }
+
+  .billing-create-panel--open .billing-invoice-compact-summary,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-compact-summary {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+    width: 100%;
+    min-height: auto;
+    padding: 0;
+    background: transparent;
+  }
+
+  .billing-create-panel--open .billing-invoice-compact-summary > div,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-compact-summary > div {
+    min-width: 0;
+    min-height: 72px;
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    column-gap: 10px;
+    row-gap: 2px;
+    align-items: center;
+    padding: 12px 14px;
+    border: 1px solid #e5edf7;
+    border-radius: 14px;
+    border-right: 1px solid #e5edf7;
+    box-shadow: none;
+  }
+
+  .billing-create-panel--open .billing-invoice-compact-summary > div:last-child,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-compact-summary > div:last-child {
+    border-right: 1px solid #e5edf7;
+  }
+
+  .billing-create-panel--open .billing-invoice-compact-summary > div:nth-child(1),
+  .billing-open-detail-panel--invoice-editor .billing-invoice-compact-summary > div:nth-child(1) {
+    background: #eff5ff;
+  }
+
+  .billing-create-panel--open .billing-invoice-compact-summary > div:nth-child(2),
+  .billing-open-detail-panel--invoice-editor .billing-invoice-compact-summary > div:nth-child(2) {
+    background: #eefbf3;
+  }
+
+  .billing-create-panel--open .billing-invoice-compact-summary > div:nth-child(3),
+  .billing-open-detail-panel--invoice-editor .billing-invoice-compact-summary > div:nth-child(3),
+  .billing-create-panel--open .billing-invoice-compact-summary > div:nth-child(4),
+  .billing-open-detail-panel--invoice-editor .billing-invoice-compact-summary > div:nth-child(4) {
+    background: #f6f1ff;
+  }
+
+  .billing-create-panel--open .billing-invoice-compact-summary > div:nth-child(5),
+  .billing-open-detail-panel--invoice-editor .billing-invoice-compact-summary > div:nth-child(5) {
+    background: #fff4f4;
+  }
+
+  .billing-create-panel--open .billing-invoice-compact-summary span:not(.billing-invoice-summary-icon),
+  .billing-open-detail-panel--invoice-editor .billing-invoice-compact-summary span:not(.billing-invoice-summary-icon) {
+    color: #64748b;
+    font-size: 0.76rem;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .billing-create-panel--open .billing-invoice-compact-summary strong,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-compact-summary strong {
+    grid-column: 2;
+    color: #0f172a;
+    font-size: 0.92rem;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  .billing-create-panel--open .billing-invoice-summary-icon,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-summary-icon {
+    grid-row: 1 / span 2;
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    font-weight: 900;
+  }
+
+  .billing-create-panel--open .billing-bill-modal-footer-actions,
+  .billing-open-detail-panel--invoice-editor .billing-bill-modal-footer-actions {
+    flex-wrap: nowrap;
+  }
+
+  .billing-create-panel--open .billing-bill-modal-save-btn,
+  .billing-open-detail-panel--invoice-editor .billing-bill-modal-save-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+}
