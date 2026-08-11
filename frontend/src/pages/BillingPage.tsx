@@ -8334,7 +8334,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         <section className="billing-invoice-compact-summary" aria-label={locale === 'sl' ? 'Povzetek vseh računov' : 'All bills summary'}>
           <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--blue">▣</span><span>{locale === 'sl' ? 'Povezani računi' : 'Linked bills'}</span><strong>{totalOpenBills} {locale === 'sl' ? (totalOpenBills === 1 ? 'račun' : totalOpenBills === 2 ? 'računa' : totalOpenBills === 3 || totalOpenBills === 4 ? 'računi' : 'računov') : (totalOpenBills === 1 ? 'bill' : 'bills')}</strong></div>
           <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--green">☷</span><span>{locale === 'sl' ? 'Postavke' : 'Line items'}</span><strong>{totalLineItems}</strong></div>
-          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--purple">%</span><span>{locale === 'sl' ? 'Popust' : 'Discount'}</span><strong>{Math.max(0, Number(detailDiscountDraft.wholeBillPercent || 0)).toFixed(0)}%</strong></div>
           <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--purple">€</span><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(totalAcrossBills)}</strong></div>
           <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--red">▤</span><span>{locale === 'sl' ? 'Neplačano' : 'Unpaid'}</span><strong>{currency(totalUnpaidAcrossBills)}</strong></div>
         </section>
@@ -8524,6 +8523,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <path d="M14 2v6h6" />
       <path d="M8 17h8M8 13h8" />
+    </svg>
+  )
+
+  const renderEyeActionIcon = () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+      <circle cx="12" cy="12" r="2.75" />
     </svg>
   )
 
@@ -10287,7 +10293,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     onClick={() => openOpenBillPreviewChoice(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
                     disabled={Boolean(detailEntitlementSettlement) || previewingOpenBillId === detailActionOpenBill.id || emailingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
                   >
-                    <span className="billing-bill-modal-preview-btn__icon" aria-hidden>{renderPlainFolioPdfIcon()}</span>
+                    <span className="billing-bill-modal-preview-btn__icon" aria-hidden>{renderEyeActionIcon()}</span>
                     <span>{previewingOpenBillId === detailActionOpenBill.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : emailingOpenBillPreviewId === detailActionOpenBill.id ? (locale === 'sl' ? 'Pošiljam…' : 'Sending…') : (locale === 'sl' ? 'Predogled računa' : 'Invoice preview')}</span>
                   </button>
                   {renderOpenBillPreviewChoicePopover(detailActionOpenBill)}
@@ -10694,7 +10700,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <section className="billing-invoice-compact-summary" aria-label={locale === 'sl' ? 'Povzetek računa' : 'Bill summary'}>
                   <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--blue">▣</span><span>{isCreateAdvanceBill ? billingCopy.billTypeAdvance : (locale === 'sl' ? 'Računi' : 'Bills')}</span><strong>1 {isCreateAdvanceBill ? billingCopy.billTypeAdvance.toLowerCase() : (locale === 'sl' ? 'račun' : 'bill')}</strong></div>
                   <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--green">☷</span><span>{locale === 'sl' ? 'Postavke' : 'Line items'}</span><strong>{billForm.items.length}</strong></div>
-                  <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--purple">%</span><span>{locale === 'sl' ? 'Popust' : 'Discount'}</span><strong>{Math.max(0, Number(createBillDiscountDraft.wholeBillPercent || 0)).toFixed(0)}%</strong></div>
                   <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--purple">€</span><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(createGross)}</strong></div>
                   <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--red">▤</span><span>{locale === 'sl' ? 'Neplačano' : 'Unpaid'}</span><strong>{currency(createGross)}</strong></div>
                 </section>

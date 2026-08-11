@@ -11801,3 +11801,153 @@
     margin-left: auto !important;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Nov/Uredi neizdan račun — approved desktop refinements (2026-08-11)
+   - compact payee cards, equal width in create/edit
+   - edit payees flow left-to-right with Add bill immediately after them
+   - payments column remains wider than legacy layout, but slightly narrower
+     than the previous preview
+   - four summary cards (discount summary card removed)
+   - continuous blue slider progress trail with editable percentage field
+   -------------------------------------------------------------------------- */
+@media (min-width: 1025px) {
+  .billing-create-panel--open .billing-invoice-management-card--open-create-compact,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-management-card--open-edit-compact {
+    padding: 12px 14px !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-tabs-row--create-open-compact,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-tabs-row--bookmarks {
+    display: flex !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    gap: 12px !important;
+    width: 100% !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-tabs-row--create-open-compact .billing-invoice-bill-tab,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-tabs-row--bookmarks .billing-invoice-bill-tab--bookmark {
+    flex: 0 0 246px !important;
+    width: 246px !important;
+    min-width: 246px !important;
+    max-width: 246px !important;
+    min-height: 54px !important;
+    height: 54px !important;
+    padding: 6px 10px !important;
+    gap: 10px !important;
+    border-radius: 12px !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-tabs-row--create-open-compact .billing-invoice-tab-icon,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-tabs-row--bookmarks .billing-invoice-tab-icon {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    font-size: 0.94rem !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-tabs-row--create-open-compact .billing-invoice-tab-edit,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-tabs-row--bookmarks .billing-invoice-tab-edit {
+    width: 30px !important;
+    min-width: 30px !important;
+    height: 30px !important;
+  }
+
+  .billing-open-detail-panel--invoice-editor .billing-invoice-add-tab-wrap {
+    display: block !important;
+    flex: 0 0 176px !important;
+    width: 176px !important;
+    min-width: 176px !important;
+  }
+
+  .billing-open-detail-panel--invoice-editor .billing-invoice-add-tab--bookmark {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    min-height: 54px !important;
+    height: 54px !important;
+    padding: 6px 12px !important;
+    border-radius: 12px !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-compact-summary,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-compact-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-compact-summary > div:nth-child(1),
+  .billing-open-detail-panel--invoice-editor .billing-invoice-compact-summary > div:nth-child(1) {
+    background: #f5f8ff !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-compact-summary > div:nth-child(2),
+  .billing-open-detail-panel--invoice-editor .billing-invoice-compact-summary > div:nth-child(2) {
+    background: #f4fbf7 !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-compact-summary > div:nth-child(3),
+  .billing-open-detail-panel--invoice-editor .billing-invoice-compact-summary > div:nth-child(3) {
+    background: #f8f5ff !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-compact-summary > div:nth-child(4),
+  .billing-open-detail-panel--invoice-editor .billing-invoice-compact-summary > div:nth-child(4) {
+    background: #fff6f6 !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-discount-slider-wrap,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-slider-wrap {
+    position: relative !important;
+    isolation: isolate !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-discount-slider-wrap::before,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-slider-wrap::before {
+    content: '';
+    position: absolute;
+    z-index: 1;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 4px;
+    transform: translateY(-50%);
+    border-radius: 999px;
+    background: #dbe4ef;
+    pointer-events: none;
+  }
+
+  .billing-create-panel--open .billing-invoice-discount-range-fill,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range-fill {
+    z-index: 2 !important;
+    height: 4px !important;
+    background: #1769ff !important;
+    border-radius: 999px !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-discount-range,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range {
+    z-index: 3 !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-discount-range::-webkit-slider-runnable-track,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range::-webkit-slider-runnable-track,
+  .billing-create-panel--open .billing-invoice-discount-range::-moz-range-track,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range::-moz-range-track {
+    background: transparent !important;
+  }
+
+  .billing-open-detail-panel--invoice-editor .billing-bill-modal-preview-btn__icon {
+    color: #2563eb !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .billing-create-panel--open .billing-invoice-workspace-card,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-workspace-card {
+    grid-template-columns: minmax(0, 1fr) minmax(380px, 30%) !important;
+    gap: 16px !important;
+  }
+}
