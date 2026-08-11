@@ -30,6 +30,22 @@ public interface ConsumableInventoryLineRepository extends JpaRepository<Consuma
             @Param("sessionIds") java.util.Collection<Long> sessionIds
     );
 
+    @Query("""
+            SELECT l FROM ConsumableInventoryLine l
+            JOIN FETCH l.inventorySession s
+            JOIN FETCH s.location
+            LEFT JOIN FETCH s.completedBy
+            JOIN FETCH l.consumable c
+            LEFT JOIN FETCH c.category
+            WHERE l.company.id = :companyId
+              AND s.status = :status
+            ORDER BY s.completedAt DESC, l.itemNameSnapshot ASC, l.id ASC
+            """)
+    List<ConsumableInventoryLine> findCompletedForReport(
+            @Param("companyId") Long companyId,
+            @Param("status") ConsumableEnums.InventorySessionStatus status
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             SELECT l FROM ConsumableInventoryLine l

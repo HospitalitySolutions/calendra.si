@@ -1547,6 +1547,12 @@ public class SessionBookingCreationService {
             Long companyId
     ) {
         if (consumableService == null || saved == null || saved.isEmpty()) return;
+        boolean explicitConsumableChange = Boolean.TRUE.equals(request.resetSessionConsumablesToDefaults())
+                || request.sessionConsumables() != null;
+        if (explicitConsumableChange && actor != null
+                && !SecurityUtils.hasPermission(actor, SecurityUtils.PERMISSION_CONSUMABLES_EDIT)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Consumables edit permission is required.");
+        }
         var representative = saved.stream().filter(Objects::nonNull)
                 .min(java.util.Comparator.comparing(SessionBooking::getId)).orElse(null);
         if (representative == null || representative.getId() == null) return;

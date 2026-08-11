@@ -343,6 +343,7 @@ public class ConsumableController {
         consumablesFeatureService.assertEnabledForUser(me);
     }
 
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_VIEW')")
     @GetMapping("/overview")
     public OverviewResponse overview(
             @RequestParam(required = false) Long locationId,
@@ -351,6 +352,7 @@ public class ConsumableController {
         return service.overview(enabledCompanyId(me), locationId);
     }
 
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_VIEW')")
     @GetMapping("/items")
     public List<ItemResponse> items(
             @RequestParam(required = false) Long locationId,
@@ -359,7 +361,7 @@ public class ConsumableController {
         return service.listItems(enabledCompanyId(me), locationId).stream().map(ConsumableController::toItemResponse).toList();
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_EDIT')")
     @PostMapping("/items")
     public ItemResponse createItem(@RequestBody ItemRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
@@ -368,7 +370,7 @@ public class ConsumableController {
         return result;
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_EDIT')")
     @PutMapping("/items/{id}")
     public ItemResponse updateItem(@PathVariable Long id, @RequestBody ItemRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
@@ -377,7 +379,7 @@ public class ConsumableController {
         return result;
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_STOCK_ADJUST')")
     @PostMapping("/items/{id}/adjust")
     public MovementResponse adjustStock(@PathVariable Long id, @RequestBody StockAdjustmentRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
@@ -392,12 +394,13 @@ public class ConsumableController {
         return result;
     }
 
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_VIEW')")
     @GetMapping("/categories")
     public List<CategoryResponse> categories(@AuthenticationPrincipal User me) {
         return service.listCategories(enabledCompanyId(me)).stream().map(ConsumableController::toCategoryResponse).toList();
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_EDIT')")
     @PostMapping("/categories")
     public CategoryResponse createCategory(@RequestBody CategoryRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
@@ -406,7 +409,7 @@ public class ConsumableController {
         return result;
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_EDIT')")
     @PutMapping("/categories/{id}")
     public CategoryResponse updateCategory(@PathVariable Long id, @RequestBody CategoryRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
@@ -415,6 +418,7 @@ public class ConsumableController {
         return result;
     }
 
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_VIEW')")
     @GetMapping("/movements")
     public List<MovementResponse> movements(
             @RequestParam(required = false) Long locationId,
@@ -423,6 +427,7 @@ public class ConsumableController {
         return service.listMovements(enabledCompanyId(me), locationId).stream().map(ConsumableController::toMovementResponse).toList();
     }
 
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_VIEW')")
     @GetMapping("/transfers")
     public List<StockTransferResponse> transfers(
             @RequestParam(required = false) Long locationId,
@@ -432,7 +437,7 @@ public class ConsumableController {
                 .map(ConsumableController::toStockTransferResponse).toList();
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_STOCK_ADJUST')")
     @PostMapping("/transfers")
     public StockTransferResponse createTransfer(@RequestBody StockTransferRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
@@ -449,12 +454,13 @@ public class ConsumableController {
         return result;
     }
 
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_VIEW')")
     @GetMapping("/service-types/{typeId}/defaults")
     public List<ServiceTypeConsumableResponse> serviceTypeDefaults(@PathVariable Long typeId, @AuthenticationPrincipal User me) {
         return service.listServiceTypeDefaults(enabledCompanyId(me), typeId).stream().map(ConsumableController::toServiceTypeResponse).toList();
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_EDIT')")
     @PutMapping("/service-types/{typeId}/defaults")
     public List<ServiceTypeConsumableResponse> replaceServiceTypeDefaults(
             @PathVariable Long typeId,
@@ -471,13 +477,14 @@ public class ConsumableController {
         return result;
     }
 
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_VIEW')")
     @GetMapping("/bookings/{bookingId}/session-consumables")
     public List<SessionConsumableResponse> sessionConsumables(@PathVariable Long bookingId, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
         return service.listSessionConsumables(me, bookingId).stream().map(ConsumableController::toSessionConsumableResponse).toList();
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_EDIT')")
     @PutMapping("/bookings/{bookingId}/session-consumables")
     public List<SessionConsumableResponse> replaceSessionConsumables(
             @PathVariable Long bookingId,
@@ -491,7 +498,7 @@ public class ConsumableController {
         return result;
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_EDIT')")
     @PostMapping("/bookings/{bookingId}/session-consumables/reset-defaults")
     public List<SessionConsumableResponse> resetSessionConsumables(@PathVariable Long bookingId, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
@@ -501,12 +508,13 @@ public class ConsumableController {
         return result;
     }
 
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_VIEW')")
     @GetMapping("/suppliers")
     public List<SupplierResponse> suppliers(@AuthenticationPrincipal User me) {
         return service.listSuppliers(enabledCompanyId(me)).stream().map(ConsumableController::toSupplierResponse).toList();
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_PROCUREMENT')")
     @PostMapping("/suppliers")
     public SupplierResponse createSupplier(@RequestBody SupplierRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
@@ -515,7 +523,7 @@ public class ConsumableController {
         return result;
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_PROCUREMENT')")
     @PutMapping("/suppliers/{id}")
     public SupplierResponse updateSupplier(@PathVariable Long id, @RequestBody SupplierRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
@@ -524,6 +532,7 @@ public class ConsumableController {
         return result;
     }
 
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_VIEW')")
     @GetMapping("/purchase-orders")
     public List<PurchaseOrderResponse> purchaseOrders(
             @RequestParam(required = false) Long locationId,
@@ -532,6 +541,7 @@ public class ConsumableController {
         return service.listPurchaseOrders(enabledCompanyId(me), locationId).stream().map(ConsumableController::toPurchaseOrderResponse).toList();
     }
 
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_VIEW')")
     @GetMapping("/purchase-orders/{id}")
     public PurchaseOrderDetailResponse purchaseOrder(@PathVariable Long id, @AuthenticationPrincipal User me) {
         Long companyId = enabledCompanyId(me);
@@ -542,7 +552,7 @@ public class ConsumableController {
         );
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_PROCUREMENT')")
     @PostMapping("/purchase-orders")
     public PurchaseOrderResponse createPurchaseOrder(@RequestBody PurchaseOrderRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
@@ -551,7 +561,7 @@ public class ConsumableController {
         return result;
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_PROCUREMENT')")
     @PutMapping("/purchase-orders/{id}")
     public PurchaseOrderResponse updatePurchaseOrder(@PathVariable Long id, @RequestBody PurchaseOrderRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
@@ -560,7 +570,7 @@ public class ConsumableController {
         return result;
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_PROCUREMENT')")
     @PostMapping("/purchase-orders/{id}/receive")
     public PurchaseOrderDetailResponse receivePurchaseOrder(
             @PathVariable Long id,
@@ -579,6 +589,7 @@ public class ConsumableController {
         );
     }
 
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_VIEW')")
     @GetMapping("/inventory-sessions")
     public List<InventorySessionResponse> inventorySessions(
             @RequestParam(required = false) Long locationId,
@@ -595,13 +606,14 @@ public class ConsumableController {
                 .toList();
     }
 
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_VIEW')")
     @GetMapping("/inventory-sessions/{id}")
     public InventoryDetailResponse inventorySession(@PathVariable Long id, @AuthenticationPrincipal User me) {
         Long companyId = enabledCompanyId(me);
         return toInventoryDetailResponse(companyId, inventoryService.getSession(companyId, id));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_INVENTORY')")
     @PostMapping("/inventory-sessions")
     public InventoryDetailResponse startInventory(@RequestBody InventoryStartRequest req, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);
@@ -611,7 +623,7 @@ public class ConsumableController {
         return result;
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_INVENTORY')")
     @PutMapping("/inventory-sessions/{id}/counts")
     public InventoryDetailResponse saveInventoryCounts(
             @PathVariable Long id,
@@ -625,7 +637,7 @@ public class ConsumableController {
         return result;
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("@permissionGuard.can(authentication, 'CONSUMABLES_INVENTORY')")
     @PostMapping("/inventory-sessions/{id}/finalize")
     public InventoryDetailResponse finalizeInventory(@PathVariable Long id, @AuthenticationPrincipal User me) {
         assertConsumablesEnabled(me);

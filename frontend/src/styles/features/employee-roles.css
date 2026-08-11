@@ -1165,7 +1165,7 @@
         padding: 0 14px;
         border: 0;
         border-radius: 0;
-        background: #ffffff;
+        background: transparent;
         box-shadow: none;
         box-sizing: border-box;
         overflow-x: auto;
@@ -1471,14 +1471,52 @@
     }
 }
 
-/* Desktop-only seamless Employees shell.
-   Apply the white background shell to the Employees tab on larger resolutions,
-   while keeping Roles & permissions and smaller breakpoints unchanged. */
-@media (min-width: 1280px) {
-    .clients-modern-card.employees-modern-card.card {
-        border: 0;
-        border-radius: 0;
-        background: #ffffff;
-        box-shadow: none;
-    }
+/* Fine-grained permissions for modules that do not map cleanly to CRUD columns. */
+.employee-roles-special-permissions {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.employee-roles-special-permissions-head {
+  margin-bottom: 14px;
+}
+
+.employee-roles-special-permissions-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.employee-roles-special-permission {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fafafa;
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.employee-roles-special-permission--disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.employee-roles-group-icon--consumables {
+  background: #eef6ff;
+  color: #2563eb;
+}
+
+@media (max-width: 900px) {
+  .employee-roles-special-permissions-grid {
+    grid-template-columns: 1fr;
+  }
 }

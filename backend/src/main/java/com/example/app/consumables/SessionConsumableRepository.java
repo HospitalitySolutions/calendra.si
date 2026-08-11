@@ -20,6 +20,20 @@ public interface SessionConsumableRepository extends JpaRepository<SessionConsum
     @Query("SELECT sc FROM SessionConsumable sc JOIN FETCH sc.consumable c WHERE sc.company.id = :companyId AND sc.bookingGroupKey IN :groupKeys")
     List<SessionConsumable> findByCompanyIdAndBookingGroupKeyIn(@Param("companyId") Long companyId, @Param("groupKeys") Collection<String> groupKeys);
 
+    @Query("""
+            SELECT sc FROM SessionConsumable sc
+            JOIN FETCH sc.consumable c
+            LEFT JOIN FETCH c.category
+            JOIN FETCH sc.sessionBooking b
+            LEFT JOIN FETCH b.type
+            LEFT JOIN FETCH b.consultant
+            WHERE sc.company.id = :companyId AND sc.id IN :ids
+            """)
+    List<SessionConsumable> findForReportByIds(
+            @Param("companyId") Long companyId,
+            @Param("ids") Collection<Long> ids
+    );
+
     @Modifying(flushAutomatically = true)
     @Query(
             value = """

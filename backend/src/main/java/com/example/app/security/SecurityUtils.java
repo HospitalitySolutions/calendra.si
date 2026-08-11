@@ -17,6 +17,21 @@ public final class SecurityUtils {
     public static final String PERMISSION_BILLING_ADVANCE_INVOICE_ISSUE = "BILLING_ADVANCE_INVOICE_ISSUE";
     public static final String PERMISSION_BILLING_OPEN_INVOICE_ISSUE = "BILLING_OPEN_INVOICE_ISSUE";
     public static final String PERMISSION_BILLING_REFUND_ISSUE = "BILLING_REFUND_ISSUE";
+    public static final String PERMISSION_CONSUMABLES_VIEW = "CONSUMABLES_VIEW";
+    public static final String PERMISSION_CONSUMABLES_EDIT = "CONSUMABLES_EDIT";
+    public static final String PERMISSION_CONSUMABLES_STOCK_ADJUST = "CONSUMABLES_STOCK_ADJUST";
+    public static final String PERMISSION_CONSUMABLES_PROCUREMENT = "CONSUMABLES_PROCUREMENT";
+    public static final String PERMISSION_CONSUMABLES_INVENTORY = "CONSUMABLES_INVENTORY";
+    public static final String PERMISSION_CONSUMABLES_REPORTS = "CONSUMABLES_REPORTS";
+
+    public static final List<String> CONSUMABLE_PERMISSION_KEYS = List.of(
+            PERMISSION_CONSUMABLES_VIEW,
+            PERMISSION_CONSUMABLES_EDIT,
+            PERMISSION_CONSUMABLES_STOCK_ADJUST,
+            PERMISSION_CONSUMABLES_PROCUREMENT,
+            PERMISSION_CONSUMABLES_INVENTORY,
+            PERMISSION_CONSUMABLES_REPORTS
+    );
 
     public static final List<String> PERMISSION_GROUP_KEYS = List.of(
             "CALENDAR_BOOKINGS",
@@ -152,6 +167,13 @@ public final class SecurityUtils {
         for (String group : LEGACY_PERMISSION_GROUP_KEYS) {
             removeActionsWithoutView(permissions, group);
         }
+        if (!permissions.contains(PERMISSION_CONSUMABLES_VIEW)) {
+            permissions.remove(PERMISSION_CONSUMABLES_EDIT);
+            permissions.remove(PERMISSION_CONSUMABLES_STOCK_ADJUST);
+            permissions.remove(PERMISSION_CONSUMABLES_PROCUREMENT);
+            permissions.remove(PERMISSION_CONSUMABLES_INVENTORY);
+            permissions.remove(PERMISSION_CONSUMABLES_REPORTS);
+        }
     }
 
     private static void removeActionsWithoutView(LinkedHashSet<String> permissions, String group) {
@@ -181,6 +203,7 @@ public final class SecurityUtils {
         allowed.add(PERMISSION_BILLING_ADVANCE_INVOICE_ISSUE);
         allowed.add(PERMISSION_BILLING_OPEN_INVOICE_ISSUE);
         allowed.add(PERMISSION_BILLING_REFUND_ISSUE);
+        allowed.addAll(CONSUMABLE_PERMISSION_KEYS);
         for (String group : PERMISSION_GROUP_KEYS) {
             for (String action : PERMISSION_ACTION_KEYS) {
                 allowed.add(group + "_" + action);

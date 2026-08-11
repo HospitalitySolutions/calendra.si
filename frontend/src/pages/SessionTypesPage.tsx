@@ -36,6 +36,7 @@ import {
   parseGuestAppSettings,
 } from "./configuration/guestWebsiteSettings";
 import { getDefaultAllowedRoute } from "../lib/packageAccess";
+import { hasEmployeePermission } from "../lib/employeePermissions";
 import { isWorkspaceRolloutEnabled } from "../lib/workspaceRollout";
 import { GuestConfigSaveIcon } from "../components/GuestConfigSaveIcon";
 import {
@@ -763,6 +764,8 @@ function transactionServiceGross(service: BillingService): number {
 
 export function SessionTypesPage() {
   const me = useAuthenticatedUser();
+  const canViewConsumables = hasEmployeePermission(me, "CONSUMABLES_VIEW");
+  const canEditConsumables = hasEmployeePermission(me, "CONSUMABLES_EDIT");
   const activeUnitId = me.activeUnitId ?? me.companyId;
   const queryClient = useQueryClient();
   const [selectedLocationId] = useSelectedLocationId(activeUnitId);
@@ -1301,7 +1304,7 @@ export function SessionTypesPage() {
     setServices(nextServices);
     const activeLocations = nextLocations.filter((location) => location.active !== false);
     setLocations(activeLocations);
-    const consumablesEnabled = nextCapabilities.consumablesEnabled === true && nextSettings.CONSUMABLES_ENABLED === "true";
+    const consumablesEnabled = nextCapabilities.consumablesEnabled === true && nextSettings.CONSUMABLES_ENABLED === "true" && canViewConsumables;
     setConsumablesCapabilityEnabled(consumablesEnabled);
     if (consumablesEnabled) {
       try {
@@ -1884,7 +1887,7 @@ export function SessionTypesPage() {
           { params: { locationId: selectedLocationId } },
         );
       }
-      if (consumablesCapabilityEnabled && Number.isFinite(savedTypeId)) {
+      if (consumablesCapabilityEnabled && canEditConsumables && Number.isFinite(savedTypeId)) {
         await api.put(`/consumables/service-types/${savedTypeId}/defaults`,
           typeForm.consumableLines.map((line) => ({
             consumableId: line.consumableId,
@@ -4782,7 +4785,7 @@ export function SessionTypesPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="session-type-config-unified-actions">
+                      {canEditConsumables && <div className="session-type-config-unified-actions">
                         <button type="button" className="secondary small-btn" onClick={() => setConsumableEditorMode("existing")}>
                           <ServiceConfigTabIcon name="plus" />
                           {locale === "sl" ? "Dodaj obstoječe" : "Add existing"}
@@ -4791,10 +4794,10 @@ export function SessionTypesPage() {
                           <ServiceConfigTabIcon name="plus" />
                           {locale === "sl" ? "Ustvari novo" : "Create new"}
                         </button>
-                      </div>
+                      </div>}
                     </div>
 
-                    {consumableEditorMode ? (
+                    {canEditConsumables && consumableEditorMode ? (
                       <div className="session-type-consumable-add-panel">
                         {consumableEditorMode === "existing" ? (
                           <>
@@ -4845,21 +4848,21 @@ export function SessionTypesPage() {
                                 <span>{item?.unit || "kos"}</span>
                               </span>
                               <div className="session-type-consumable-quantity">
-                                <input type="number" min="0" step="0.01" value={line.defaultQuantity} onChange={(event) => setTypeForm((current) => ({ ...current, consumableLines: current.consumableLines.map((row, rowIndex) => rowIndex === idx ? { ...row, defaultQuantity: event.target.value } : row) }))} />
+                                <input type="number" min="0" step="0.01" value={line.defaultQuantity} disabled={!canEditConsumables} onChange={(event) => setTypeForm((current) => ({ ...current, consumableLines: current.consumableLines.map((row, rowIndex) => rowIndex === idx ? { ...row, defaultQuantity: event.target.value } : row) }))} />
                                 <span>{item?.unit || "kos"}</span>
                               </div>
-                              <select value={line.quantityMode} onChange={(event) => setTypeForm((current) => ({ ...current, consumableLines: current.consumableLines.map((row, rowIndex) => rowIndex === idx ? { ...row, quantityMode: event.target.value as TypeConsumableLine["quantityMode"] } : row) }))}>
+                              <select value={line.quantityMode} disabled={!canEditConsumables} onChange={(event) => setTypeForm((current) => ({ ...current, consumableLines: current.consumableLines.map((row, rowIndex) => rowIndex === idx ? { ...row, quantityMode: event.target.value as TypeConsumableLine["quantityMode"] } : row) }))}>
                                 <option value="PER_SESSION">{locale === "sl" ? "Na termin" : "Per appointment"}</option>
                                 <option value="PER_PARTICIPANT">{locale === "sl" ? "Na udeleženca" : "Per participant"}</option>
                               </select>
                               <label className="switch session-type-consumable-switch">
-                                <input type="checkbox" checked={line.billableOverride === true} onChange={(event) => setTypeForm((current) => ({ ...current, consumableLines: current.consumableLines.map((row, rowIndex) => rowIndex === idx ? { ...row, billableOverride: event.target.checked } : row) }))} />
+                                <input type="checkbox" checked={line.billableOverride === true} disabled={!canEditConsumables} onChange={(event) => setTypeForm((current) => ({ ...current, consumableLines: current.consumableLines.map((row, rowIndex) => rowIndex === idx ? { ...row, billableOverride: event.target.checked } : row) }))} />
                                 <span className="slider" />
                               </label>
                               <div className="session-type-linked-card-actions">
-                                <button type="button" className="danger secondary slim-btn" onClick={() => setTypeForm((current) => ({ ...current, consumableLines: current.consumableLines.filter((_, rowIndex) => rowIndex !== idx) }))}>
+                                {canEditConsumables && <button type="button" className="danger secondary slim-btn" onClick={() => setTypeForm((current) => ({ ...current, consumableLines: current.consumableLines.filter((_, rowIndex) => rowIndex !== idx) }))}>
                                   {locale === "sl" ? "Odstrani" : "Remove"}
-                                </button>
+                                </button>}
                               </div>
                             </div>
                           );

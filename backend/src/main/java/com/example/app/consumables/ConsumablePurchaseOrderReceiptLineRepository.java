@@ -17,4 +17,21 @@ public interface ConsumablePurchaseOrderReceiptLineRepository extends JpaReposit
             @Param("companyId") Long companyId,
             @Param("receiptId") Long receiptId
     );
+
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT rl FROM ConsumablePurchaseOrderReceiptLine rl
+            JOIN FETCH rl.receipt r
+            JOIN FETCH r.purchaseOrder po
+            LEFT JOIN FETCH po.supplier
+            JOIN FETCH po.location
+            JOIN FETCH rl.purchaseOrderLine pol
+            JOIN FETCH pol.consumable c
+            LEFT JOIN FETCH c.category
+            WHERE rl.company.id = :companyId
+            ORDER BY r.receivedAt DESC, rl.id DESC
+            """)
+    java.util.List<ConsumablePurchaseOrderReceiptLine> findAllForReport(
+            @org.springframework.data.repository.query.Param("companyId") Long companyId
+    );
 }
+

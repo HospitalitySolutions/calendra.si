@@ -333,6 +333,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const canViewServices = hasEmployeePermission(user, 'SERVICES_VIEW')
   const canViewBilling = hasAnyEmployeePermission(user, ['BILLING_INVOICES_VIEW', 'PAYMENTS_VIEW'])
   const canViewWalletBenefits = hasEmployeePermission(user, 'WALLET_BENEFITS_VIEW')
+  const canViewConsumables = hasEmployeePermission(user, 'CONSUMABLES_VIEW')
   const canViewReports = hasEmployeePermission(user, 'REPORTS_ANALYTICS_VIEW')
   const canViewInbox = hasEmployeePermission(user, 'INBOX_MESSAGES_VIEW')
   const canViewDeliveryLogs = hasEmployeePermission(user, 'DELIVERY_LOGS_VIEW')
@@ -346,7 +347,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   ])
   const billingAllowed = billingModuleEnabled && canViewBilling
   const appointmentsAllowed = waitlistModuleEnabled && canViewAppointments
-  const consumablesAllowed = consumablesModuleEnabled && canViewWalletBenefits
+  const consumablesAllowed = consumablesModuleEnabled && canViewConsumables
   const inboxAllowed = inboxModuleEnabled && (canViewInbox || canViewDeliveryLogs)
   const defaultCompanyName = locale === 'sl' ? 'Podjetje' : 'Company'
   const voiceLabel = locale === 'sl' ? 'AI glasovna dejanja' : 'AI voice actions'

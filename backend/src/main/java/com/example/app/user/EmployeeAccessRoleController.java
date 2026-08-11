@@ -242,6 +242,7 @@ public class EmployeeAccessRoleController {
         var permissions = new LinkedHashSet<String>();
         if ("ADMINISTRATOR".equals(key)) {
             addGroups(permissions, SecurityUtils.PERMISSION_GROUP_KEYS, SecurityUtils.PERMISSION_ACTION_KEYS);
+            SecurityUtils.CONSUMABLE_PERMISSION_KEYS.forEach(permission -> addPermission(permissions, permission));
         }
         return new ArrayList<>(SecurityUtils.normalizePermissionsForStorage(new ArrayList<>(permissions)));
     }
@@ -298,7 +299,8 @@ public class EmployeeAccessRoleController {
                 group("WEBSITE_WIDGET", "Website Widget", "View and manage public booking widget settings and visibility"),
                 group("GUEST_MOBILE_APP", "Guest Mobile App", "View and manage guest mobile app settings, modules and content"),
                 group("PAYMENTS", "Payments", "View and manage payment records, payment status and refunds"),
-                group("SCANNER", "Scanner", "View and use QR scanning and guest check-in validation")
+                group("SCANNER", "Scanner", "View and use QR scanning and guest check-in validation"),
+                group("CONSUMABLES", "Consumables", "View and manage articles, stock, procurement, inventory and consumables reports")
         );
     }
 
@@ -341,6 +343,7 @@ public class EmployeeAccessRoleController {
             case "PAYMENTS" -> settingEnabled(settings, SettingKey.BILLING_ENABLED, true);
             case "SCANNER" -> settingEnabled(settings, SettingKey.ENTITLEMENTS_ENABLED, true)
                     && settingEnabled(settings, SettingKey.SCANNER_MODULE_ENABLED, true);
+            case "CONSUMABLES" -> settingEnabled(settings, SettingKey.CONSUMABLES_ENABLED, false);
             default -> true;
         };
     }

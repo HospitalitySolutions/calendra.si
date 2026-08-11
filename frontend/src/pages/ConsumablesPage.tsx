@@ -6,6 +6,7 @@ import { useAuthenticatedUser } from '../authUserContext'
 import { useToast } from '../components/Toast'
 import { BarcodeScannerModal, type BarcodeScanResult } from '../components/BarcodeScannerModal'
 import { useSelectedLocationId } from '../lib/locationContext'
+import { hasEmployeePermission } from '../lib/employeePermissions'
 import type { Location } from '../lib/types'
 import { locationsQueryOptions } from '../queries/sharedQueryOptions'
 import {
@@ -189,10 +190,20 @@ type PurchaseOrderFormState = {
   receipts: PurchaseOrderReceipt[]
 }
 
-type TabKey = 'overview' | 'items' | 'procurement' | 'suppliers' | 'movements' | 'inventory'
+type TabKey = 'overview' | 'items' | 'procurement' | 'suppliers' | 'movements' | 'inventory' | 'reports'
 type ManualMovementType = 'PURCHASE' | 'MANUAL_ADJUSTMENT' | 'RETURN' | 'WASTE' | 'CORRECTION'
 type BarcodeScannerMode = 'FIND_ITEM' | 'ITEM_BARCODE' | 'MOVEMENT_ITEM' | 'TRANSFER_ITEM' | 'PURCHASE_ORDER_ITEM' | 'RECEIVE_ITEM' | 'INVENTORY_ITEM'
 type BarcodeScannerState = { mode: BarcodeScannerMode; title: string; subtitle: string; continuous?: boolean }
+
+type ConsumableReportType = 'STOCK_VALUATION' | 'CONSUMPTION' | 'PURCHASES' | 'INVENTORY' | 'TRANSFERS'
+type ConsumableReport = {
+  type: ConsumableReportType
+  columns: { key: string; label: string; type: 'TEXT' | 'NUMBER' | 'CURRENCY' }[]
+  rows: Record<string, string | number | null>[]
+  totals: Record<string, number>
+  serviceOptions: { id: number; label: string }[]
+  employeeOptions: { id: number; label: string }[]
+}
 
 type ItemFormState = {
   name: string
@@ -264,6 +275,7 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: 'suppliers', label: 'Dobavitelji' },
   { key: 'movements', label: 'Premiki zaloge' },
   { key: 'inventory', label: 'Inventura' },
+  { key: 'reports', label: 'Poročila' },
 ]
 
 const emptyItemForm = (locationId: number | null): ItemFormState => ({
@@ -346,6 +358,12 @@ function movementSignedQuantity(form: StockMovementFormState) {
 
 export function ConsumablesPage() {
   const me = useAuthenticatedUser()
+  const canEditConsumables = hasEmployeePermission(me, 'CONSUMABLES_EDIT')
+  const canAdjustStock = hasEmployeePermission(me, 'CONSUMABLES_STOCK_ADJUST')
+  const canManageProcurement = hasEmployeePermission(me, 'CONSUMABLES_PROCUREMENT')
+  const canManageInventory = hasEmployeePermission(me, 'CONSUMABLES_INVENTORY')
+  const canViewConsumableReports = hasEmployeePermission(me, 'CONSUMABLES_REPORTS')
+  const visibleTabs = useMemo(() => tabs.filter((tab) => tab.key !== 'reports' || canViewConsumableReports), [canViewConsumableReports])
   const activeUnitId = me.activeUnitId ?? me.companyId
   const [selectedLocationId, setSelectedLocationId] = useSelectedLocationId(activeUnitId)
   const queryClient = useQueryClient()
@@ -380,6 +398,18 @@ export function ConsumablesPage() {
   const [locationFilter, setLocationFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [showOnlyLow, setShowOnlyLow] = useState(false)
+  const [reportType, setReportType] = useState<ConsumableReportType>('STOCK_VALUATION')
+  const [reportFrom, setReportFrom] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10) })
+  const [reportTo, setReportTo] = useState(() => new Date().toISOString().slice(0, 10))
+  const [reportLocationId, setReportLocationId] = useState('')
+  const [reportServiceTypeId, setReportServiceTypeId] = useState('')
+  const [reportEmployeeId, setReportEmployeeId] = useState('')
+  const [report, setReport] = useState<ConsumableReport | null>(null)
+  const [reportLoading, setReportLoading] = useState(false)
+
+  useEffect(() => {
+    if (activeTab === 'reports' && !canViewConsumableReports) setActiveTab('overview')
+  }, [activeTab, canViewConsumableReports])
 
   useEffect(() => {
     if (notificationLocationId == null || operationalLocations.length === 0) return
@@ -512,6 +542,53 @@ export function ConsumablesPage() {
   }, [activeUnitId, selectedLocationId])
   useEffect(() => { void load(false) }, [load])
   useEffect(() => { setLocationFilter('') }, [selectedLocationId])
+
+  const reportParams = useMemo(() => ({
+    type: reportType,
+    from: reportType === 'STOCK_VALUATION' ? undefined : reportFrom || undefined,
+    to: reportType === 'STOCK_VALUATION' ? undefined : reportTo || undefined,
+    locationId: reportLocationId ? Number(reportLocationId) : undefined,
+    serviceTypeId: reportType === 'CONSUMPTION' && reportServiceTypeId ? Number(reportServiceTypeId) : undefined,
+    employeeId: reportType === 'CONSUMPTION' && reportEmployeeId ? Number(reportEmployeeId) : undefined,
+  }), [reportType, reportFrom, reportTo, reportLocationId, reportServiceTypeId, reportEmployeeId])
+
+  const loadReport = useCallback(async () => {
+    if (!canViewConsumableReports) return
+    setReportLoading(true)
+    try {
+      const { data } = await api.get<ConsumableReport>('/consumables/reports', { params: reportParams })
+      setReport(data || null)
+    } catch (error: any) {
+      setReport(null)
+      showToast('error', error?.response?.data?.message || 'Poročila ni bilo mogoče naložiti.')
+    } finally {
+      setReportLoading(false)
+    }
+  }, [canViewConsumableReports, reportParams, showToast])
+
+  useEffect(() => {
+    if (activeTab === 'reports' && canViewConsumableReports) void loadReport()
+  }, [activeTab, canViewConsumableReports, loadReport])
+
+  async function exportReport(format: 'csv' | 'excel') {
+    if (!canViewConsumableReports) return
+    try {
+      const response = await api.get(`/consumables/reports/${format}`, { params: reportParams, responseType: 'blob' })
+      const disposition = String(response.headers?.['content-disposition'] || '')
+      const filenameMatch = disposition.match(/filename="?([^";]+)"?/i)
+      const filename = filenameMatch?.[1] || `porabni-material.${format === 'excel' ? 'xlsx' : 'csv'}`
+      const url = URL.createObjectURL(response.data)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = filename
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+    } catch (error: any) {
+      showToast('error', error?.response?.data?.message || 'Izvoza ni bilo mogoče pripraviti.')
+    }
+  }
 
   const activeInventoryLocations = useMemo(() => operationalLocations.filter((location) => location.active), [operationalLocations])
   const writableInventoryLocations = useMemo(() => {
@@ -1246,25 +1323,27 @@ export function ConsumablesPage() {
         <div className="consumables-header-row">
           <div><h1>Porabni material</h1></div>
           <div className="consumables-header-actions">
-            <button type="button" className="btn secondary" onClick={() => window.print()}>Izvozi</button>
-            {activeTab === 'items' && <><button type="button" className="btn secondary barcode-action" onClick={() => openBarcodeScanner('FIND_ITEM')}>▦ Skeniraj</button><button type="button" className="btn primary" onClick={openNewItem}>+ Nov artikel</button></>}
-            {activeTab === 'procurement' && <button type="button" className="btn primary" onClick={() => createPurchaseOrder()}>+ Nova naročilnica</button>}
-            {activeTab === 'suppliers' && <button type="button" className="btn primary" onClick={openNewSupplier}>+ Nov dobavitelj</button>}
-            {activeTab === 'movements' && <><button type="button" className="btn secondary barcode-action" onClick={() => openBarcodeScanner('MOVEMENT_ITEM')}>▦ Skeniraj za premik</button><button type="button" className="btn secondary" onClick={() => setActiveTab('items')}>Nov premik</button><button type="button" className="btn primary" onClick={() => openStockTransfer()}>⇄ Prenos zaloge</button></>}
-            {activeTab === 'inventory' && <><button type="button" className="btn secondary barcode-action" disabled={inventoryDetail?.session.status !== 'IN_PROGRESS'} onClick={() => openBarcodeScanner('INVENTORY_ITEM')}>▦ Skeniraj štetje</button><button type="button" className="btn primary" onClick={openStartInventory}>+ Začni inventuro</button></>}
+            {canViewConsumableReports && activeTab !== 'reports' && <button type="button" className="btn secondary" onClick={() => setActiveTab('reports')}>Poročila / izvoz</button>}
+            {activeTab === 'reports' && <><button type="button" className="btn secondary" onClick={() => void exportReport('csv')}>CSV</button><button type="button" className="btn primary" onClick={() => void exportReport('excel')}>Excel</button></>}
+            {activeTab === 'items' && <>{canAdjustStock && <button type="button" className="btn secondary barcode-action" onClick={() => openBarcodeScanner('FIND_ITEM')}>▦ Skeniraj</button>}{canEditConsumables && <button type="button" className="btn primary" onClick={openNewItem}>+ Nov artikel</button>}</>}
+            {activeTab === 'procurement' && canManageProcurement && <button type="button" className="btn primary" onClick={() => createPurchaseOrder()}>+ Nova naročilnica</button>}
+            {activeTab === 'suppliers' && canManageProcurement && <button type="button" className="btn primary" onClick={openNewSupplier}>+ Nov dobavitelj</button>}
+            {activeTab === 'movements' && canAdjustStock && <><button type="button" className="btn secondary barcode-action" onClick={() => openBarcodeScanner('MOVEMENT_ITEM')}>▦ Skeniraj za premik</button><button type="button" className="btn secondary" onClick={() => setActiveTab('items')}>Nov premik</button><button type="button" className="btn primary" onClick={() => openStockTransfer()}>⇄ Prenos zaloge</button></>}
+            {activeTab === 'inventory' && canManageInventory && <><button type="button" className="btn secondary barcode-action" disabled={inventoryDetail?.session.status !== 'IN_PROGRESS'} onClick={() => openBarcodeScanner('INVENTORY_ITEM')}>▦ Skeniraj štetje</button><button type="button" className="btn primary" onClick={openStartInventory}>+ Začni inventuro</button></>}
           </div>
         </div>
 
         <div className="consumables-tabs" role="tablist" aria-label="Porabni material">
-          {tabs.map((tab) => <button key={tab.key} type="button" className={activeTab === tab.key ? 'active' : ''} onClick={() => setActiveTab(tab.key)}>{tab.label}</button>)}
+          {visibleTabs.map((tab) => <button key={tab.key} type="button" className={activeTab === tab.key ? 'active' : ''} onClick={() => setActiveTab(tab.key)}>{tab.label}</button>)}
         </div>
 
-        {activeTab === 'overview' && <OverviewTab overview={overview} items={items} lowStockItems={lowStockItems} movements={movements} query={query} setQuery={setQuery} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} locationFilter={locationFilter} setLocationFilter={setLocationFilter} showOnlyLow={showOnlyLow} setShowOnlyLow={setShowOnlyLow} categories={categories} locations={stockLocationNames} createPurchaseOrder={createPurchaseOrder} loading={loading} />}
-        {activeTab === 'items' && <ItemsTab items={filteredItems} categories={categories} locations={stockLocationNames} query={query} setQuery={setQuery} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} locationFilter={locationFilter} setLocationFilter={setLocationFilter} statusFilter={statusFilter} setStatusFilter={setStatusFilter} lowStockItems={lowStockItems} billableCount={billableCount} outOfStockCount={outOfStockCount} openCategoryManager={openCategoryManager} onEditItem={openEditItem} onAdjustStock={openStockMovement} onTransferStock={openStockTransfer} />}
-        {activeTab === 'procurement' && <ProcurementTab orders={purchaseOrders} items={items} suppliers={suppliers} createPurchaseOrder={createPurchaseOrder} openPurchaseOrder={openExistingPurchaseOrder} createSuggestedOrder={openNewPurchaseOrder} highlightItemId={notificationLowStockItemId} />}
-        {activeTab === 'suppliers' && <SuppliersTab suppliers={suppliers} openSupplier={openEditSupplier} createSupplier={openNewSupplier} />}
-        {activeTab === 'movements' && <MovementsTab movements={movements} transfers={transfers} onCreateTransfer={() => openStockTransfer()} />}
-        {activeTab === 'inventory' && <InventoryTab sessions={inventorySessions} detail={inventoryDetail} draft={inventoryCountDraft} setDraft={setInventoryCountDraft} query={inventoryQuery} setQuery={setInventoryQuery} categoryFilter={inventoryCategoryFilter} setCategoryFilter={setInventoryCategoryFilter} countStatusFilter={inventoryCountStatusFilter} setCountStatusFilter={setInventoryCountStatusFilter} loading={loading || loadingInventoryDetail} saving={savingInventory} onOpenSession={openInventorySession} onSave={() => { void saveInventoryCounts().catch(() => undefined) }} onFinalize={() => { void finalizeInventory() }} onScan={() => openBarcodeScanner('INVENTORY_ITEM')} />}
+        {activeTab === 'overview' && <OverviewTab overview={overview} items={items} lowStockItems={lowStockItems} movements={movements} query={query} setQuery={setQuery} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} locationFilter={locationFilter} setLocationFilter={setLocationFilter} showOnlyLow={showOnlyLow} setShowOnlyLow={setShowOnlyLow} categories={categories} locations={stockLocationNames} createPurchaseOrder={createPurchaseOrder} canManageProcurement={canManageProcurement} loading={loading} />}
+        {activeTab === 'items' && <ItemsTab items={filteredItems} categories={categories} locations={stockLocationNames} query={query} setQuery={setQuery} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} locationFilter={locationFilter} setLocationFilter={setLocationFilter} statusFilter={statusFilter} setStatusFilter={setStatusFilter} lowStockItems={lowStockItems} billableCount={billableCount} outOfStockCount={outOfStockCount} openCategoryManager={canEditConsumables ? openCategoryManager : undefined} onEditItem={canEditConsumables ? openEditItem : undefined} onAdjustStock={canAdjustStock ? openStockMovement : undefined} onTransferStock={canAdjustStock ? openStockTransfer : undefined} />}
+        {activeTab === 'procurement' && <ProcurementTab orders={purchaseOrders} items={items} suppliers={suppliers} createPurchaseOrder={createPurchaseOrder} openPurchaseOrder={openExistingPurchaseOrder} createSuggestedOrder={openNewPurchaseOrder} highlightItemId={notificationLowStockItemId} canManage={canManageProcurement} />}
+        {activeTab === 'suppliers' && <SuppliersTab suppliers={suppliers} openSupplier={openEditSupplier} createSupplier={openNewSupplier} canManage={canManageProcurement} />}
+        {activeTab === 'movements' && <MovementsTab movements={movements} transfers={transfers} onCreateTransfer={() => openStockTransfer()} canManage={canAdjustStock} />}
+        {activeTab === 'inventory' && <InventoryTab sessions={inventorySessions} detail={inventoryDetail} draft={inventoryCountDraft} setDraft={setInventoryCountDraft} query={inventoryQuery} setQuery={setInventoryQuery} categoryFilter={inventoryCategoryFilter} setCategoryFilter={setInventoryCategoryFilter} countStatusFilter={inventoryCountStatusFilter} setCountStatusFilter={setInventoryCountStatusFilter} loading={loading || loadingInventoryDetail} saving={savingInventory} onOpenSession={openInventorySession} onSave={() => { void saveInventoryCounts().catch(() => undefined) }} onFinalize={() => { void finalizeInventory() }} onScan={() => openBarcodeScanner('INVENTORY_ITEM')} canManage={canManageInventory} />}
+        {activeTab === 'reports' && canViewConsumableReports && <ReportsTab report={report} loading={reportLoading} reportType={reportType} setReportType={setReportType} from={reportFrom} setFrom={setReportFrom} to={reportTo} setTo={setReportTo} locationId={reportLocationId} setLocationId={setReportLocationId} serviceTypeId={reportServiceTypeId} setServiceTypeId={setReportServiceTypeId} employeeId={reportEmployeeId} setEmployeeId={setReportEmployeeId} locations={activeInventoryLocations} onRefresh={() => void loadReport()} onExportCsv={() => void exportReport('csv')} onExportExcel={() => void exportReport('excel')} />}
       </section>
 
       {inventoryStartModalOpen && (
@@ -1417,31 +1496,31 @@ export function ConsumablesPage() {
 
       {purchaseOrderModalOpen && (
         <div className="consumables-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !receiveModalOpen) closePurchaseOrderModal() }}>
-          <form className="consumables-modal consumables-modal-xl" onSubmit={savePurchaseOrder}>
+          <form className="consumables-modal consumables-modal-xl" onSubmit={canManageProcurement ? savePurchaseOrder : (event) => event.preventDefault()}>
             <header>
               <div><h2>{purchaseOrderForm.id ? `Naročilnica ${purchaseOrderForm.orderNumber}` : 'Nova naročilnica'}</h2><p>Dodajte artikle, določite količine in nabavne cene ter nato spremljajte delne prejeme.</p></div>
               <button type="button" onClick={closePurchaseOrderModal} aria-label="Zapri">×</button>
             </header>
             {loadingPurchaseOrder ? <div className="consumables-empty">Nalagam naročilnico…</div> : <>
               <div className="consumables-modal-grid procurement-header-grid">
-                <label>Št. naročilnice<input value={purchaseOrderForm.orderNumber} disabled={purchaseOrderTerminal} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, orderNumber: e.target.value }))} placeholder="Samodejno, če pustite prazno" /></label>
-                <label>Dobavitelj<select value={purchaseOrderForm.supplierId} disabled={purchaseOrderTerminal || purchaseOrderHasReceipts} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, supplierId: e.target.value }))}><option value="">Brez dobavitelja</option>{suppliers.filter((supplier) => supplier.status === 'ACTIVE' || String(supplier.id) === purchaseOrderForm.supplierId).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
-                <label>Poslovalnica<select value={purchaseOrderForm.locationId} disabled={purchaseOrderTerminal || purchaseOrderHasReceipts} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, locationId: e.target.value, lines: [] }))}><option value="">Izberite</option>{writableInventoryLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
-                <label>Status<select value={purchaseOrderForm.status} disabled={purchaseOrderTerminal || purchaseOrderHasReceipts} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, status: e.target.value as PurchaseOrderFormState['status'] }))}><option value="DRAFT">Osnutek</option><option value="ORDERED">Naročeno</option>{!purchaseOrderHasReceipts && <option value="CANCELLED">Preklicano</option>}{purchaseOrderForm.status === 'PARTIALLY_RECEIVED' && <option value="PARTIALLY_RECEIVED">Delno prejeto</option>}{purchaseOrderForm.status === 'COMPLETED' && <option value="COMPLETED">Zaključeno</option>}</select></label>
-                <label>Datum naročila<input type="date" value={purchaseOrderForm.orderDate} disabled={purchaseOrderTerminal} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, orderDate: e.target.value }))} /></label>
-                <label>Pričakovana dobava<input type="date" value={purchaseOrderForm.expectedDate} disabled={purchaseOrderTerminal} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, expectedDate: e.target.value }))} /></label>
-                <label className="full">Opombe<textarea value={purchaseOrderForm.notes} disabled={purchaseOrderTerminal} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Interna opomba naročilnice" /></label>
+                <label>Št. naročilnice<input value={purchaseOrderForm.orderNumber} disabled={!canManageProcurement || purchaseOrderTerminal} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, orderNumber: e.target.value }))} placeholder="Samodejno, če pustite prazno" /></label>
+                <label>Dobavitelj<select value={purchaseOrderForm.supplierId} disabled={!canManageProcurement || purchaseOrderTerminal || purchaseOrderHasReceipts} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, supplierId: e.target.value }))}><option value="">Brez dobavitelja</option>{suppliers.filter((supplier) => supplier.status === 'ACTIVE' || String(supplier.id) === purchaseOrderForm.supplierId).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
+                <label>Poslovalnica<select value={purchaseOrderForm.locationId} disabled={!canManageProcurement || purchaseOrderTerminal || purchaseOrderHasReceipts} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, locationId: e.target.value, lines: [] }))}><option value="">Izberite</option>{writableInventoryLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+                <label>Status<select value={purchaseOrderForm.status} disabled={!canManageProcurement || purchaseOrderTerminal || purchaseOrderHasReceipts} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, status: e.target.value as PurchaseOrderFormState['status'] }))}><option value="DRAFT">Osnutek</option><option value="ORDERED">Naročeno</option>{!purchaseOrderHasReceipts && <option value="CANCELLED">Preklicano</option>}{purchaseOrderForm.status === 'PARTIALLY_RECEIVED' && <option value="PARTIALLY_RECEIVED">Delno prejeto</option>}{purchaseOrderForm.status === 'COMPLETED' && <option value="COMPLETED">Zaključeno</option>}</select></label>
+                <label>Datum naročila<input type="date" value={purchaseOrderForm.orderDate} disabled={!canManageProcurement || purchaseOrderTerminal} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, orderDate: e.target.value }))} /></label>
+                <label>Pričakovana dobava<input type="date" value={purchaseOrderForm.expectedDate} disabled={!canManageProcurement || purchaseOrderTerminal} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, expectedDate: e.target.value }))} /></label>
+                <label className="full">Opombe<textarea value={purchaseOrderForm.notes} disabled={!canManageProcurement || purchaseOrderTerminal} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Interna opomba naročilnice" /></label>
               </div>
 
               <section className="procurement-lines-section">
-                <div className="procurement-section-header"><div><h3>Artikli</h3><p>Nabavna cena je neto cena na enoto. DDV in bruto vrednost se izračunata samodejno.</p></div>{!purchaseOrderTerminal && !purchaseOrderHasReceipts && <div className="procurement-section-actions"><button type="button" className="btn secondary barcode-action" onClick={() => openBarcodeScanner('PURCHASE_ORDER_ITEM')}>▦ Skeniraj artikel</button><button type="button" className="btn secondary" onClick={() => addPurchaseOrderLine()}>+ Dodaj artikel</button></div>}</div>
-                <div className="procurement-lines-table-wrap"><table className="procurement-lines-table"><thead><tr><th>Artikel</th><th>Naročeno</th><th>Prejeto</th><th>Nabavna cena</th><th>DDV</th><th>Neto</th><th>Bruto</th>{!purchaseOrderTerminal && !purchaseOrderHasReceipts && <th />}</tr></thead><tbody>{purchaseOrderForm.lines.map((line, index) => {
+                <div className="procurement-section-header"><div><h3>Artikli</h3><p>Nabavna cena je neto cena na enoto. DDV in bruto vrednost se izračunata samodejno.</p></div>{canManageProcurement && !purchaseOrderTerminal && !purchaseOrderHasReceipts && <div className="procurement-section-actions"><button type="button" className="btn secondary barcode-action" onClick={() => openBarcodeScanner('PURCHASE_ORDER_ITEM')}>▦ Skeniraj artikel</button><button type="button" className="btn secondary" onClick={() => addPurchaseOrderLine()}>+ Dodaj artikel</button></div>}</div>
+                <div className="procurement-lines-table-wrap"><table className="procurement-lines-table"><thead><tr><th>Artikel</th><th>Naročeno</th><th>Prejeto</th><th>Nabavna cena</th><th>DDV</th><th>Neto</th><th>Bruto</th>{canManageProcurement && !purchaseOrderTerminal && !purchaseOrderHasReceipts && <th />}</tr></thead><tbody>{purchaseOrderForm.lines.map((line, index) => {
                   const item = procurementInventoryRows.find((candidate) => candidate.id === Number(line.consumableId) && candidate.locationId === Number(purchaseOrderForm.locationId))
                   const qty = Number(String(line.orderedQuantity || '0').replace(',', '.')) || 0
                   const unitPrice = Number(String(line.unitPrice || '0').replace(',', '.')) || 0
                   const net = qty * unitPrice
                   const gross = net * (1 + vatMultiplier(line.vatRate))
-                  return <tr key={line.lineId || `new-${index}`}><td><select value={line.consumableId} disabled={purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => selectPurchaseOrderItem(index, e.target.value)}><option value="">Izberite artikel</option>{procurementInventoryRows.filter((candidate) => candidate.locationId === Number(purchaseOrderForm.locationId) && (candidate.id === Number(line.consumableId) || !purchaseOrderForm.lines.some((other, otherIndex) => otherIndex !== index && Number(other.consumableId) === candidate.id))).map((candidate) => <option key={`${candidate.id}:${candidate.locationId}`} value={candidate.id}>{candidate.name}{candidate.sku ? ` · ${candidate.sku}` : ''}</option>)}</select><small>{item ? `${item.location || ''} · ${item.unit}` : ''}</small></td><td><div className="quantity-with-unit"><input type="number" min="0.0001" step="0.0001" value={line.orderedQuantity} disabled={purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { orderedQuantity: e.target.value })} /><span>{item?.unit || 'enota'}</span></div></td><td><strong>{n(line.receivedQuantity, 2)}</strong><br /><small>{n(Math.max(0, qty - Number(line.receivedQuantity || 0)), 2)} preostalo</small></td><td><div className="money-input"><span>€</span><input type="number" min="0" step="0.0001" value={line.unitPrice} disabled={purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { unitPrice: e.target.value })} /></div></td><td><select value={line.vatRate} disabled={purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { vatRate: e.target.value as PurchaseOrderLineForm['vatRate'] })}><option value="VAT_22">22 %</option><option value="VAT_9_5">9,5 %</option><option value="VAT_0">0 %</option><option value="NO_VAT">Brez DDV</option></select></td><td>{eur(net)}</td><td><strong>{eur(gross)}</strong></td>{!purchaseOrderTerminal && !purchaseOrderHasReceipts && <td><button type="button" className="icon-btn danger" onClick={() => removePurchaseOrderLine(index)} title="Odstrani">×</button></td>}</tr>
+                  return <tr key={line.lineId || `new-${index}`}><td><select value={line.consumableId} disabled={!canManageProcurement || purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => selectPurchaseOrderItem(index, e.target.value)}><option value="">Izberite artikel</option>{procurementInventoryRows.filter((candidate) => candidate.locationId === Number(purchaseOrderForm.locationId) && (candidate.id === Number(line.consumableId) || !purchaseOrderForm.lines.some((other, otherIndex) => otherIndex !== index && Number(other.consumableId) === candidate.id))).map((candidate) => <option key={`${candidate.id}:${candidate.locationId}`} value={candidate.id}>{candidate.name}{candidate.sku ? ` · ${candidate.sku}` : ''}</option>)}</select><small>{item ? `${item.location || ''} · ${item.unit}` : ''}</small></td><td><div className="quantity-with-unit"><input type="number" min="0.0001" step="0.0001" value={line.orderedQuantity} disabled={!canManageProcurement || purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { orderedQuantity: e.target.value })} /><span>{item?.unit || 'enota'}</span></div></td><td><strong>{n(line.receivedQuantity, 2)}</strong><br /><small>{n(Math.max(0, qty - Number(line.receivedQuantity || 0)), 2)} preostalo</small></td><td><div className="money-input"><span>€</span><input type="number" min="0" step="0.0001" value={line.unitPrice} disabled={!canManageProcurement || purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { unitPrice: e.target.value })} /></div></td><td><select value={line.vatRate} disabled={!canManageProcurement || purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { vatRate: e.target.value as PurchaseOrderLineForm['vatRate'] })}><option value="VAT_22">22 %</option><option value="VAT_9_5">9,5 %</option><option value="VAT_0">0 %</option><option value="NO_VAT">Brez DDV</option></select></td><td>{eur(net)}</td><td><strong>{eur(gross)}</strong></td>{canManageProcurement && !purchaseOrderTerminal && !purchaseOrderHasReceipts && <td><button type="button" className="icon-btn danger" onClick={() => removePurchaseOrderLine(index)} title="Odstrani">×</button></td>}</tr>
                 })}</tbody></table></div>
                 <Empty visible={purchaseOrderForm.lines.length === 0} text="Dodajte vsaj en artikel ali ustvarite naročilnico iz predlogov za naročilo." />
                 <div className="procurement-totals"><span>Neto<strong>{eur(purchaseOrderTotals.net)}</strong></span><span>DDV<strong>{eur(purchaseOrderTotals.vat)}</strong></span><span>Skupaj<strong>{eur(purchaseOrderTotals.gross)}</strong></span></div>
@@ -1451,8 +1530,8 @@ export function ConsumablesPage() {
             </>}
             <footer>
               <button type="button" className="btn secondary" onClick={closePurchaseOrderModal}>Zapri</button>
-              {purchaseOrderForm.id && ['ORDERED', 'PARTIALLY_RECEIVED'].includes(purchaseOrderForm.status) && !purchaseOrderTerminal && <button type="button" className="btn secondary" onClick={openReceivePurchaseOrder}>Prejmi blago</button>}
-              {!purchaseOrderTerminal && <button type="submit" className="btn primary" disabled={savingPurchaseOrder || loadingPurchaseOrder}>{savingPurchaseOrder ? 'Shranjujem…' : purchaseOrderForm.id ? 'Shrani spremembe' : 'Ustvari naročilnico'}</button>}
+              {canManageProcurement && purchaseOrderForm.id && ['ORDERED', 'PARTIALLY_RECEIVED'].includes(purchaseOrderForm.status) && !purchaseOrderTerminal && <button type="button" className="btn secondary" onClick={openReceivePurchaseOrder}>Prejmi blago</button>}
+              {canManageProcurement && !purchaseOrderTerminal && <button type="submit" className="btn primary" disabled={savingPurchaseOrder || loadingPurchaseOrder}>{savingPurchaseOrder ? 'Shranjujem…' : purchaseOrderForm.id ? 'Shrani spremembe' : 'Ustvari naročilnico'}</button>}
             </footer>
           </form>
         </div>
@@ -1498,7 +1577,7 @@ function KpiCard({ tone, title, value, note }: { tone: string; title: string; va
   return <div className="consumables-kpi"><span className={`consumables-kpi-icon ${tone}`} /> <div><small>{title}</small><strong>{value}</strong>{note && <em>{note}</em>}</div></div>
 }
 
-function OverviewTab(props: { overview: Overview; items: Item[]; lowStockItems: Item[]; movements: Movement[]; query: string; setQuery: (v: string) => void; categoryFilter: string; setCategoryFilter: (v: string) => void; locationFilter: string; setLocationFilter: (v: string) => void; showOnlyLow: boolean; setShowOnlyLow: (v: boolean) => void; categories: Category[]; locations: string[]; createPurchaseOrder: (items?: Item[]) => void; loading: boolean }) {
+function OverviewTab(props: { overview: Overview; items: Item[]; lowStockItems: Item[]; movements: Movement[]; query: string; setQuery: (v: string) => void; categoryFilter: string; setCategoryFilter: (v: string) => void; locationFilter: string; setLocationFilter: (v: string) => void; showOnlyLow: boolean; setShowOnlyLow: (v: boolean) => void; categories: Category[]; locations: string[]; createPurchaseOrder: (items?: Item[]) => void; canManageProcurement: boolean; loading: boolean }) {
   const { overview, lowStockItems, movements } = props
   return <>
     <Filters {...props} extra={<label className="consumables-switch"><input type="checkbox" checked={props.showOnlyLow} onChange={(e) => props.setShowOnlyLow(e.target.checked)} /> Prikaži samo nizko zalogo</label>} />
@@ -1519,26 +1598,26 @@ function OverviewTab(props: { overview: Overview; items: Item[]; lowStockItems: 
     <div className="consumables-three-col">
       <ChartCard title="Poraba po kategorijah (30 dni)" data={overview.categoryUsage} />
       <BarsCard title="Najbolj porabljeni artikli (30 dni)" data={overview.mostUsed} />
-      <ReorderCard items={lowStockItems.slice(0, 5)} createPurchaseOrder={props.createPurchaseOrder} />
+      <ReorderCard items={lowStockItems.slice(0, 5)} createPurchaseOrder={props.createPurchaseOrder} canManage={props.canManageProcurement} />
     </div>
     <TableCard title="Zaloga – vsi artikli" action="Prikaži vse"><ItemRows items={props.items.slice(0, 4)} compact /></TableCard>
   </>
 }
 
-function ItemsTab(props: { items: Item[]; categories: Category[]; locations: string[]; query: string; setQuery: (v: string) => void; categoryFilter: string; setCategoryFilter: (v: string) => void; locationFilter: string; setLocationFilter: (v: string) => void; statusFilter: string; setStatusFilter: (v: string) => void; lowStockItems: Item[]; billableCount: number; outOfStockCount: number; openCategoryManager: () => void; onEditItem: (item: Item) => void; onAdjustStock: (item: Item) => void; onTransferStock: (item: Item) => void }) {
+function ItemsTab(props: { items: Item[]; categories: Category[]; locations: string[]; query: string; setQuery: (v: string) => void; categoryFilter: string; setCategoryFilter: (v: string) => void; locationFilter: string; setLocationFilter: (v: string) => void; statusFilter: string; setStatusFilter: (v: string) => void; lowStockItems: Item[]; billableCount: number; outOfStockCount: number; openCategoryManager?: () => void; onEditItem?: (item: Item) => void; onAdjustStock?: (item: Item) => void; onTransferStock?: (item: Item) => void }) {
   const catalogCount = distinctItemCount(props.items)
   const tableTitle = catalogCount === props.items.length ? `Prikazujem ${catalogCount} artiklov` : `Prikazujem ${catalogCount} artiklov · ${props.items.length} lokacijskih zalog`
   return <div className="consumables-main-with-side">
     <div>
       <Filters {...props} extra={<label>Status<select value={props.statusFilter} onChange={(e) => props.setStatusFilter(e.target.value)}><option value="">Vsi statusi</option><option value="active">Aktivni</option><option value="inactive">Neaktivni</option><option value="ok">Zaloga OK</option><option value="low">Nizka zaloga</option><option value="out">Brez zaloge</option></select></label>} />
-      <div className="consumables-chip-row"><button type="button" className={!props.categoryFilter ? 'active' : ''} onClick={() => props.setCategoryFilter('')}>Vse kategorije <span>{catalogCount}</span></button>{props.categories.filter((c) => c.active).map((c) => <button type="button" className={props.categoryFilter === String(c.id) ? 'active' : ''} key={c.id} onClick={() => props.setCategoryFilter(String(c.id))}>{c.name}</button>)}<button type="button" className="manage" onClick={props.openCategoryManager}>Uredi kategorije</button></div>
+      <div className="consumables-chip-row"><button type="button" className={!props.categoryFilter ? 'active' : ''} onClick={() => props.setCategoryFilter('')}>Vse kategorije <span>{catalogCount}</span></button>{props.categories.filter((c) => c.active).map((c) => <button type="button" className={props.categoryFilter === String(c.id) ? 'active' : ''} key={c.id} onClick={() => props.setCategoryFilter(String(c.id))}>{c.name}</button>)}{props.openCategoryManager && <button type="button" className="manage" onClick={props.openCategoryManager}>Uredi kategorije</button>}</div>
       <TableCard title={tableTitle}><ItemRows items={props.items} onEditItem={props.onEditItem} onAdjustStock={props.onAdjustStock} onTransferStock={props.onTransferStock} /></TableCard>
     </div>
     <aside className="consumables-side-stack"><SideLowStock items={props.lowStockItems} /><CategoryDistribution items={props.items} /><QuickStats total={catalogCount} value={props.items.reduce((s, i) => s + Number(i.currentStock || 0) * Number(i.costPrice || 0), 0)} low={props.lowStockItems.length} out={props.outOfStockCount} billable={props.billableCount} /></aside>
   </div>
 }
 
-function ProcurementTab({ orders, items, suppliers, createPurchaseOrder, openPurchaseOrder, createSuggestedOrder, highlightItemId }: {
+function ProcurementTab({ orders, items, suppliers, createPurchaseOrder, openPurchaseOrder, createSuggestedOrder, highlightItemId, canManage }: {
   orders: PurchaseOrder[]
   items: Item[]
   suppliers: Supplier[]
@@ -1546,6 +1625,7 @@ function ProcurementTab({ orders, items, suppliers, createPurchaseOrder, openPur
   openPurchaseOrder: (order: PurchaseOrder) => void
   createSuggestedOrder: (items?: Item[]) => void
   highlightItemId?: number | null
+  canManage: boolean
 }) {
   const [supplierFilter, setSupplierFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -1565,17 +1645,17 @@ function ProcurementTab({ orders, items, suppliers, createPurchaseOrder, openPur
   const highlightedLowStockItem = highlightItemId == null ? null : low.find((item) => item.id === highlightItemId) || null
   return <div className="consumables-main-with-side">
     <div>
-      {highlightedLowStockItem && <div className="low-stock-alert-banner"><div><strong>Nizka zaloga · {highlightedLowStockItem.name}</strong><span>{highlightedLowStockItem.location || 'Poslovalnica'} · trenutno {n(highlightedLowStockItem.currentStock, 2)} {highlightedLowStockItem.unit}, minimum {n(highlightedLowStockItem.minimumStock, 2)} {highlightedLowStockItem.unit}</span></div><button type="button" className="btn primary" onClick={() => createSuggestedOrder([highlightedLowStockItem])}>Ustvari naročilnico</button></div>}
+      {highlightedLowStockItem && <div className="low-stock-alert-banner"><div><strong>Nizka zaloga · {highlightedLowStockItem.name}</strong><span>{highlightedLowStockItem.location || 'Poslovalnica'} · trenutno {n(highlightedLowStockItem.currentStock, 2)} {highlightedLowStockItem.unit}, minimum {n(highlightedLowStockItem.minimumStock, 2)} {highlightedLowStockItem.unit}</span></div>{canManage && <button type="button" className="btn primary" onClick={() => createSuggestedOrder([highlightedLowStockItem])}>Ustvari naročilnico</button>}</div>}
       <div className="consumables-kpi-grid compact"><KpiCard tone="blue" title="Odprte naročilnice" value={open.length} note="V pripravi ali naročene" /><KpiCard tone="green" title="Pričakovane dobave" value={open.filter((o) => o.expectedDate).length} note="Odprte z datumom dobave" /><KpiCard tone="orange" title="Izdelki za naročilo" value={low.length} note="Pod minimalno zalogo" /><KpiCard tone="purple" title="Vrednost nabave" value={eur(orders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0))} note="Vse naročilnice" /></div>
       <div className="consumables-filter-row"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Išči po naročilnici, dobavitelju ali poslovalnici…" /><label>Dobavitelj<select value={supplierFilter} onChange={(e) => setSupplierFilter(e.target.value)}><option value="">Vsi dobavitelji</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label><label>Status<select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="">Vsi statusi</option><option value="DRAFT">Osnutek</option><option value="ORDERED">Naročeno</option><option value="PARTIALLY_RECEIVED">Delno prejeto</option><option value="COMPLETED">Zaključeno</option><option value="CANCELLED">Preklicano</option></select></label><button type="button" className="btn secondary" onClick={reset}>Ponastavi filtre</button></div>
-      <TableCard title={`Naročilnice · ${filteredOrders.length}`}><table><thead><tr><th>Št. naročilnice</th><th>Datum</th><th>Dobavitelj</th><th>Poslovalnica</th><th>Status</th><th>Prič. dobava</th><th>Vrednost</th><th>Prejeto</th><th>Napredek</th><th>Akcije</th></tr></thead><tbody>{filteredOrders.map((o) => { const progress = Number(o.totalAmount || 0) > 0 ? Math.min(100, Math.round((Number(o.receivedAmount || 0) / Number(o.totalAmount || 0)) * 100)) : 0; return <tr key={o.id}><td><button type="button" className="link-button" onClick={() => openPurchaseOrder(o)}>{o.orderNumber}</button></td><td>{date(o.orderDate)}</td><td>{o.supplierName || '—'}</td><td>{o.locationName || '—'}</td><td><Badge tone={o.status === 'COMPLETED' ? 'success' : o.status === 'PARTIALLY_RECEIVED' ? 'warning' : o.status === 'CANCELLED' ? 'muted' : 'info'}>{statusText(o.status)}</Badge></td><td>{date(o.expectedDate)}</td><td>{eur(o.totalAmount)}</td><td>{eur(o.receivedAmount)}</td><td><span className="mini-progress"><i style={{ width: `${progress}%` }} /></span> {progress}%</td><td><button type="button" className="icon-btn edit" onClick={() => openPurchaseOrder(o)} title="Odpri naročilnico">✎</button></td></tr> })}</tbody></table><Empty visible={filteredOrders.length === 0} text="Naročilnic še ni oziroma ne ustrezajo izbranim filtrom." /></TableCard>
+      <TableCard title={`Naročilnice · ${filteredOrders.length}`}><table><thead><tr><th>Št. naročilnice</th><th>Datum</th><th>Dobavitelj</th><th>Poslovalnica</th><th>Status</th><th>Prič. dobava</th><th>Vrednost</th><th>Prejeto</th><th>Napredek</th><th>Akcije</th></tr></thead><tbody>{filteredOrders.map((o) => { const progress = Number(o.totalAmount || 0) > 0 ? Math.min(100, Math.round((Number(o.receivedAmount || 0) / Number(o.totalAmount || 0)) * 100)) : 0; return <tr key={o.id}><td><button type="button" className="link-button" onClick={() => openPurchaseOrder(o)}>{o.orderNumber}</button></td><td>{date(o.orderDate)}</td><td>{o.supplierName || '—'}</td><td>{o.locationName || '—'}</td><td><Badge tone={o.status === 'COMPLETED' ? 'success' : o.status === 'PARTIALLY_RECEIVED' ? 'warning' : o.status === 'CANCELLED' ? 'muted' : 'info'}>{statusText(o.status)}</Badge></td><td>{date(o.expectedDate)}</td><td>{eur(o.totalAmount)}</td><td>{eur(o.receivedAmount)}</td><td><span className="mini-progress"><i style={{ width: `${progress}%` }} /></span> {progress}%</td><td>{canManage ? <button type="button" className="icon-btn edit" onClick={() => openPurchaseOrder(o)} title="Odpri naročilnico">✎</button> : <button type="button" className="link-button" onClick={() => openPurchaseOrder(o)} title="Preglej naročilnico">Pregled</button>}</td></tr> })}</tbody></table><Empty visible={filteredOrders.length === 0} text="Naročilnic še ni oziroma ne ustrezajo izbranim filtrom." /></TableCard>
     </div>
-    <aside className="consumables-side-stack"><ReorderCard items={low.slice(0, 8)} createPurchaseOrder={createSuggestedOrder} highlightItemId={highlightItemId} /><TableCard title="Pričakovane dobave" action="Prikaži vse"><table><tbody>{open.filter((o) => o.expectedDate).slice(0, 5).map((o) => <tr key={o.id}><td>{o.supplierName || o.orderNumber}</td><td>{date(o.expectedDate)}</td><td><Badge tone="info">{statusText(o.status)}</Badge></td></tr>)}</tbody></table><Empty visible={open.filter((o) => o.expectedDate).length === 0} text="Ni načrtovanih dobav." /></TableCard><button type="button" className="btn primary wide" onClick={() => createPurchaseOrder()}>+ Nova naročilnica</button></aside>
+    <aside className="consumables-side-stack"><ReorderCard items={low.slice(0, 8)} createPurchaseOrder={createSuggestedOrder} highlightItemId={highlightItemId} canManage={canManage} /><TableCard title="Pričakovane dobave" action="Prikaži vse"><table><tbody>{open.filter((o) => o.expectedDate).slice(0, 5).map((o) => <tr key={o.id}><td>{o.supplierName || o.orderNumber}</td><td>{date(o.expectedDate)}</td><td><Badge tone="info">{statusText(o.status)}</Badge></td></tr>)}</tbody></table><Empty visible={open.filter((o) => o.expectedDate).length === 0} text="Ni načrtovanih dobav." /></TableCard>{canManage && <button type="button" className="btn primary wide" onClick={() => createPurchaseOrder()}>+ Nova naročilnica</button>}</aside>
   </div>
 }
 
 
-function SuppliersTab({ suppliers, createSupplier, openSupplier }: { suppliers: Supplier[]; createSupplier: () => void; openSupplier: (supplier: Supplier) => void }) {
+function SuppliersTab({ suppliers, createSupplier, openSupplier, canManage }: { suppliers: Supplier[]; createSupplier: () => void; openSupplier: (supplier: Supplier) => void; canManage: boolean }) {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [category, setCategory] = useState('')
@@ -1600,14 +1680,14 @@ function SuppliersTab({ suppliers, createSupplier, openSupplier }: { suppliers: 
     <div className="consumables-main-with-side">
       <div>
         <div className="consumables-kpi-grid compact"><KpiCard tone="blue" title="Skupaj dobaviteljev" value={suppliers.length} note="Vsi registrirani dobavitelji" /><KpiCard tone="green" title="Aktivni dobavitelji" value={suppliers.filter((s) => s.status === 'ACTIVE').length} note="Na voljo za nabavo" /><KpiCard tone="red" title="Neplačane obveznosti" value={eur(suppliers.reduce((s, x) => s + Number(x.outstandingAmount || 0), 0))} note="Skupaj zapadlo" /></div>
-        <TableCard title={`Seznam dobaviteljev · ${filtered.length}`}><table><thead><tr><th>Dobavitelj</th><th>Kontaktna oseba</th><th>Telefon / E-mail</th><th>Kategorije</th><th>Pogoji plačila</th><th>Zanesljivost</th><th>Status</th><th>Akcije</th></tr></thead><tbody>{filtered.map((s) => <tr key={s.id}><td><strong>{s.name}</strong></td><td>{s.contactName || '—'}</td><td>{s.phone || '—'}<br /><small>{s.email || ''}</small></td><td>{s.categories || '—'}</td><td>{s.paymentTermsDays || 0} dni</td><td><span className="mini-progress"><i style={{ width: `${s.reliabilityPercent || 0}%` }} /></span> {s.reliabilityPercent || 0}%</td><td><Badge tone={s.status === 'ACTIVE' ? 'success' : 'muted'}>{s.status === 'ACTIVE' ? 'Aktiven' : 'Neaktiven'}</Badge></td><td><button type="button" className="icon-btn edit" onClick={() => openSupplier(s)} title="Uredi dobavitelja" aria-label={`Uredi ${s.name}`}>✎</button></td></tr>)}</tbody></table><Empty visible={filtered.length === 0} text="Ni dobaviteljev, ki ustrezajo izbranim filtrom." /></TableCard>
+        <TableCard title={`Seznam dobaviteljev · ${filtered.length}`}><table><thead><tr><th>Dobavitelj</th><th>Kontaktna oseba</th><th>Telefon / E-mail</th><th>Kategorije</th><th>Pogoji plačila</th><th>Zanesljivost</th><th>Status</th><th>Akcije</th></tr></thead><tbody>{filtered.map((s) => <tr key={s.id}><td><strong>{s.name}</strong></td><td>{s.contactName || '—'}</td><td>{s.phone || '—'}<br /><small>{s.email || ''}</small></td><td>{s.categories || '—'}</td><td>{s.paymentTermsDays || 0} dni</td><td><span className="mini-progress"><i style={{ width: `${s.reliabilityPercent || 0}%` }} /></span> {s.reliabilityPercent || 0}%</td><td><Badge tone={s.status === 'ACTIVE' ? 'success' : 'muted'}>{s.status === 'ACTIVE' ? 'Aktiven' : 'Neaktiven'}</Badge></td><td>{canManage ? <button type="button" className="icon-btn edit" onClick={() => openSupplier(s)} title="Uredi dobavitelja" aria-label={`Uredi ${s.name}`}>✎</button> : <span className="muted">—</span>}</td></tr>)}</tbody></table><Empty visible={filtered.length === 0} text="Ni dobaviteljev, ki ustrezajo izbranim filtrom." /></TableCard>
       </div>
-      <aside className="consumables-side-stack"><TableCard title="Top dobavitelji (zanesljivost)" action="Prikaži vse"><table><tbody>{suppliers.slice().sort((a, b) => Number(b.reliabilityPercent || 0) - Number(a.reliabilityPercent || 0)).slice(0, 5).map((s) => <tr key={s.id}><td>{s.name}</td><td><span className="mini-progress"><i style={{ width: `${s.reliabilityPercent || 0}%` }} /></span></td><td>{s.reliabilityPercent || 0}%</td></tr>)}</tbody></table></TableCard><button className="btn primary" onClick={createSupplier}>+ Nov dobavitelj</button></aside>
+      <aside className="consumables-side-stack"><TableCard title="Top dobavitelji (zanesljivost)" action="Prikaži vse"><table><tbody>{suppliers.slice().sort((a, b) => Number(b.reliabilityPercent || 0) - Number(a.reliabilityPercent || 0)).slice(0, 5).map((s) => <tr key={s.id}><td>{s.name}</td><td><span className="mini-progress"><i style={{ width: `${s.reliabilityPercent || 0}%` }} /></span></td><td>{s.reliabilityPercent || 0}%</td></tr>)}</tbody></table></TableCard>{canManage && <button type="button" className="btn primary" onClick={createSupplier}>+ Nov dobavitelj</button>}</aside>
     </div>
   </>
 }
 
-function MovementsTab({ movements, transfers, onCreateTransfer }: { movements: Movement[]; transfers: StockTransfer[]; onCreateTransfer: () => void }) {
+function MovementsTab({ movements, transfers, onCreateTransfer, canManage }: { movements: Movement[]; transfers: StockTransfer[]; onCreateTransfer: () => void; canManage: boolean }) {
   const [movementTypeFilter, setMovementTypeFilter] = useState('')
   const [movementLocationFilter, setMovementLocationFilter] = useState('')
   const [movementSearch, setMovementSearch] = useState('')
@@ -1649,13 +1729,13 @@ function MovementsTab({ movements, transfers, onCreateTransfer }: { movements: M
       <div className="consumables-kpi-grid compact"><KpiCard tone="blue" title="Današnji premiki" value={today.length} note="vseh premikov" /><KpiCard tone="green" title="Sprememba količine" value={`${totalDelta > 0 ? '+' : ''}${n(totalDelta, 2)}`} note="neto sprememba" /><KpiCard tone="purple" title="Vrednost premikov" value={eur(value)} note="skupna vrednost" /><KpiCard tone="orange" title="Prenosi" value={transfers.length} note="med poslovalnicami" /></div>
       <div className="consumables-filter-row"><label>Vrsta premika<select value={movementTypeFilter} onChange={(e) => setMovementTypeFilter(e.target.value)}><option value="">Vse vrste</option><option value="PURCHASE">Prejem</option><option value="SESSION_USAGE">Poraba</option><option value="MANUAL_ADJUSTMENT">Ročni popravek</option><option value="RETURN">Vračilo</option><option value="WASTE">Odpis</option><option value="CORRECTION">Korekcija</option><option value="INVENTORY_COUNT">Inventura</option><option value="TRANSFER_OUT">Prenos iz</option><option value="TRANSFER_IN">Prenos v</option></select></label><label>Poslovalnica<select value={movementLocationFilter} onChange={(e) => setMovementLocationFilter(e.target.value)}><option value="">Vse poslovalnice</option>{locationOptions.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label><input value={movementSearch} onChange={(e) => setMovementSearch(e.target.value)} placeholder="Išči po artiklu, lokaciji, opombi ali uporabniku…" /><button type="button" className="btn secondary" onClick={reset}>Ponastavi filtre</button></div>
       <TableCard title={`Zgodovina premikov zaloge · ${filteredMovements.length}`}><table><thead><tr><th>Datum in čas</th><th>Vrsta premika</th><th>Artikel</th><th>Kategorija</th><th>Poslovalnica</th><th>Količina</th><th>Enota</th><th>Vrednost</th><th>Opomba</th><th>Uporabnik</th></tr></thead><tbody>{filteredMovements.map((movement) => <tr key={movement.id}><td>{dateTime(movement.createdAt)}</td><td><Badge tone={movement.movementType.startsWith('TRANSFER_') ? 'info' : movement.quantityDelta < 0 ? 'danger' : movement.movementType.includes('CORRECTION') ? 'warning' : 'success'}>{movementText(movement.movementType)}</Badge></td><td>{movement.itemName}</td><td>{movement.categoryName || '—'}</td><td>{movement.locationName || '—'}</td><td className={movement.quantityDelta < 0 ? 'danger' : 'success'}>{movement.quantityDelta > 0 ? '+' : ''}{n(movement.quantityDelta, 2)}</td><td>{movement.unit || 'kos'}</td><td>{eur(Math.abs(Number(movement.valueDelta || 0)))}</td><td>{movement.note || '—'}</td><td>{movement.userName || '—'}</td></tr>)}</tbody></table><Empty visible={filteredMovements.length === 0} text="Ni premikov, ki ustrezajo izbranim filtrom." /></TableCard>
-      <TableCard title={`Prenosi med poslovalnicami · ${filteredTransfers.length}`}><table className="stock-transfer-history-table"><thead><tr><th>Datum</th><th>Prenos</th><th>Artikel</th><th>Iz</th><th>V</th><th>Količina</th><th>Nabavna cena</th><th>Vrednost</th><th>Opomba</th><th>Uporabnik</th></tr></thead><tbody>{filteredTransfers.map((transfer) => <tr key={transfer.id}><td>{dateTime(transfer.createdAt)}</td><td><strong>#{transfer.id}</strong></td><td>{transfer.itemName}</td><td>{transfer.fromLocationName}</td><td>{transfer.toLocationName}</td><td><strong>{n(transfer.quantity, 2)} {transfer.unit}</strong></td><td>{eur(transfer.unitCostSnapshot)}</td><td>{eur(transfer.valueAmount)}</td><td>{transfer.note || '—'}</td><td>{transfer.userName || '—'}</td></tr>)}</tbody></table><Empty visible={filteredTransfers.length === 0} text="Prenosov med poslovalnicami še ni oziroma ne ustrezajo filtrom." /><div className="stock-transfer-history-action"><button type="button" className="btn secondary" onClick={onCreateTransfer}>⇄ Nov prenos zaloge</button></div></TableCard>
+      <TableCard title={`Prenosi med poslovalnicami · ${filteredTransfers.length}`}><table className="stock-transfer-history-table"><thead><tr><th>Datum</th><th>Prenos</th><th>Artikel</th><th>Iz</th><th>V</th><th>Količina</th><th>Nabavna cena</th><th>Vrednost</th><th>Opomba</th><th>Uporabnik</th></tr></thead><tbody>{filteredTransfers.map((transfer) => <tr key={transfer.id}><td>{dateTime(transfer.createdAt)}</td><td><strong>#{transfer.id}</strong></td><td>{transfer.itemName}</td><td>{transfer.fromLocationName}</td><td>{transfer.toLocationName}</td><td><strong>{n(transfer.quantity, 2)} {transfer.unit}</strong></td><td>{eur(transfer.unitCostSnapshot)}</td><td>{eur(transfer.valueAmount)}</td><td>{transfer.note || '—'}</td><td>{transfer.userName || '—'}</td></tr>)}</tbody></table><Empty visible={filteredTransfers.length === 0} text="Prenosov med poslovalnicami še ni oziroma ne ustrezajo filtrom." />{canManage && <div className="stock-transfer-history-action"><button type="button" className="btn secondary" onClick={onCreateTransfer}>⇄ Nov prenos zaloge</button></div>}</TableCard>
     </div>
     <aside className="consumables-side-stack"><BarsCard title="Najpogosteje uporabljeni artikli" data={groupMovements(movements)} /><FakeLineChart /></aside>
   </div>
 }
 
-function InventoryTab({ sessions, detail, draft, setDraft, query, setQuery, categoryFilter, setCategoryFilter, countStatusFilter, setCountStatusFilter, loading, saving, onOpenSession, onSave, onFinalize, onScan }: {
+function InventoryTab({ sessions, detail, draft, setDraft, query, setQuery, categoryFilter, setCategoryFilter, countStatusFilter, setCountStatusFilter, loading, saving, onOpenSession, onSave, onFinalize, onScan, canManage }: {
   sessions: InventorySession[]
   detail: InventoryDetail | null
   draft: InventoryCountDraft
@@ -1672,9 +1752,10 @@ function InventoryTab({ sessions, detail, draft, setDraft, query, setQuery, cate
   onSave: () => void
   onFinalize: () => void
   onScan: () => void
+  canManage: boolean
 }) {
   const session = detail?.session || null
-  const editable = session?.status === 'IN_PROGRESS'
+  const editable = canManage && session?.status === 'IN_PROGRESS'
   const lines = detail?.lines || []
   const categories = Array.from(new Set(lines.map((line) => line.categoryName).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b, 'sl'))
   const lineState = (line: InventoryLine) => {
@@ -1776,6 +1857,65 @@ function TableCard({ title, action, children }: { title: string; action?: string
 }
 function Empty({ visible, text }: { visible: boolean; text: string }) { return visible ? <div className="consumables-empty">{text}</div> : null }
 function Badge({ tone, children }: { tone: string; children: ReactNode }) { return <span className={`consumables-badge ${tone}`}>{children}</span> }
+
+function ReportsTab({ report, loading, reportType, setReportType, from, setFrom, to, setTo, locationId, setLocationId, serviceTypeId, setServiceTypeId, employeeId, setEmployeeId, locations, onRefresh, onExportCsv, onExportExcel }: {
+  report: ConsumableReport | null
+  loading: boolean
+  reportType: ConsumableReportType
+  setReportType: (value: ConsumableReportType) => void
+  from: string
+  setFrom: (value: string) => void
+  to: string
+  setTo: (value: string) => void
+  locationId: string
+  setLocationId: (value: string) => void
+  serviceTypeId: string
+  setServiceTypeId: (value: string) => void
+  employeeId: string
+  setEmployeeId: (value: string) => void
+  locations: Location[]
+  onRefresh: () => void
+  onExportCsv: () => void
+  onExportExcel: () => void
+}) {
+  const reportLabels: Record<ConsumableReportType, string> = {
+    STOCK_VALUATION: 'Vrednost zaloge',
+    CONSUMPTION: 'Poraba',
+    PURCHASES: 'Nabava',
+    INVENTORY: 'Inventurne razlike',
+    TRANSFERS: 'Prenosi zaloge',
+  }
+  const totalLabels: Record<string, string> = { value: 'Vrednost', quantity: 'Količina', net: 'Neto', vat: 'DDV', gross: 'Bruto', difference: 'Razlika' }
+  const formatValue = (value: string | number | null | undefined, type: string) => {
+    if (value == null || value === '') return '—'
+    if (type === 'CURRENCY') return eur(Number(value))
+    if (type === 'NUMBER') return n(Number(value), 2)
+    return String(value)
+  }
+  return <div className="consumables-reports">
+    <div className="consumables-report-toolbar">
+      <label>Vrsta poročila<select value={reportType} onChange={(e) => { setReportType(e.target.value as ConsumableReportType); setServiceTypeId(''); setEmployeeId('') }}><option value="STOCK_VALUATION">Vrednost zaloge</option><option value="CONSUMPTION">Poraba</option><option value="PURCHASES">Nabava</option><option value="INVENTORY">Inventurne razlike</option><option value="TRANSFERS">Prenosi zaloge</option></select></label>
+      {reportType !== 'STOCK_VALUATION' && <><label>Od<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label><label>Do<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label></>}
+      <label>Poslovalnica<select value={locationId} onChange={(e) => setLocationId(e.target.value)}><option value="">Vse poslovalnice</option>{locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+      {reportType === 'CONSUMPTION' && <><label>Storitev<select value={serviceTypeId} onChange={(e) => setServiceTypeId(e.target.value)}><option value="">Vse storitve</option>{(report?.serviceOptions || []).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><label>Izvajalec<select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}><option value="">Vsi izvajalci</option>{(report?.employeeOptions || []).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label></>}
+      <button type="button" className="btn secondary" onClick={onRefresh} disabled={loading}>{loading ? 'Nalagam…' : 'Osveži'}</button>
+    </div>
+    <div className="consumables-report-kpis">
+      <KpiCard tone="blue" title="Poročilo" value={reportLabels[reportType]} note="Izbrani pogled" />
+      <KpiCard tone="green" title="Vrstice" value={report?.rows?.length || 0} note="Po uporabljenih filtrih" />
+      {Object.entries(report?.totals || {}).slice(0, 2).map(([key, value], index) => <KpiCard key={key} tone={index === 0 ? 'purple' : 'orange'} title={totalLabels[key] || key} value={['value', 'net', 'vat', 'gross'].includes(key) ? eur(Number(value)) : n(Number(value), 2)} note="Skupaj" />)}
+    </div>
+    <TableCard title={`${reportLabels[reportType]} · ${report?.rows?.length || 0}`}>
+      <div className="consumables-report-table-wrap">
+        <table><thead><tr>{(report?.columns || []).map((column) => <th key={column.key}>{column.label}</th>)}</tr></thead><tbody>{(report?.rows || []).map((row, rowIndex) => <tr key={rowIndex}>{report!.columns.map((column) => <td key={column.key} className={column.type === 'CURRENCY' || column.type === 'NUMBER' ? 'numeric' : ''}>{formatValue(row[column.key], column.type)}</td>)}</tr>)}</tbody></table>
+        <Empty visible={!loading && (!report || report.rows.length === 0)} text="Za izbrane filtre ni podatkov." />
+        {loading && <div className="consumables-report-loading">Nalaganje poročila…</div>}
+      </div>
+      <div className="consumables-report-footer"><span>Izvoz vključuje trenutno izbrano vrsto poročila in filtre.</span><div><button type="button" className="btn secondary" onClick={onExportCsv}>CSV</button><button type="button" className="btn primary" onClick={onExportExcel}>Excel</button></div></div>
+    </TableCard>
+  </div>
+}
+
 function ItemRows({ items, compact, onEditItem, onAdjustStock, onTransferStock }: { items: Item[]; compact?: boolean; onEditItem?: (item: Item) => void; onAdjustStock?: (item: Item) => void; onTransferStock?: (item: Item) => void }) {
   return <><table><thead><tr><th>Artikel</th>{!compact && <th>SKU / črtna koda</th>}<th>Kategorija</th><th>Lokacija</th><th>Na zalogi</th><th>Min. zaloga</th><th>Enota</th><th>Vrednost</th>{!compact && <th>Prodajna cena / DDV</th>}{!compact && <th>Zaračunljivo</th>}<th>Aktivnost</th><th>Zaloga</th>{!compact && <th>Akcije</th>}</tr></thead><tbody>{items.map((item) => <tr key={`${item.id}:${item.locationId}`}><td><strong>{item.name}</strong>{item.description && <><br /><small>{item.description}</small></>}</td>{!compact && <td>{item.sku || '—'}{item.barcode && <><br /><small>{item.barcode}</small></>}</td>}<td>{item.category?.name || '—'}</td><td>{item.location || '—'}</td><td className={item.lowStock ? 'danger' : ''}>{n(item.currentStock, 2)}</td><td>{n(item.minimumStock, 2)}</td><td>{item.unit}</td><td>{eur(Number(item.currentStock || 0) * Number(item.costPrice || 0))}</td>{!compact && <td>{eur(item.salePrice)}<br /><small>{vatText(item.vatRate)}</small></td>}{!compact && <td><span className={`toggle-dot ${item.billable ? 'on' : ''}`} /></td>}<td><Badge tone={item.active ? 'success' : 'muted'}>{item.active ? 'Aktiven' : 'Neaktiven'}</Badge></td><td><Badge tone={!item.trackStock ? 'muted' : item.currentStock <= 0 ? 'danger' : item.lowStock ? 'warning' : 'success'}>{!item.trackStock ? 'Brez sledenja' : item.currentStock <= 0 ? 'Brez zaloge' : item.lowStock ? 'Nizko' : 'OK'}</Badge></td>{!compact && <td><div className="consumables-row-actions"><button type="button" className="icon-btn edit" onClick={() => onEditItem?.(item)} title="Uredi artikel" aria-label={`Uredi ${item.name}`}>✎</button><button type="button" className="icon-btn movement" onClick={() => onAdjustStock?.(item)} title="Premik zaloge" aria-label={`Premik zaloge ${item.name}`}>±</button>{item.trackStock && <button type="button" className="icon-btn transfer" onClick={() => onTransferStock?.(item)} title="Prenos med poslovalnicami" aria-label={`Prenos zaloge ${item.name}`}>⇄</button>}</div></td>}</tr>)}</tbody></table><Empty visible={items.length === 0} text="Ni artiklov za prikaz." /></>
 }
@@ -1788,7 +1928,7 @@ function CategoryDistribution({ items }: { items: Item[] }) {
 function QuickStats({ total, value, low, out, billable }: { total: number; value: number; low: number; out: number; billable: number }) { return <TableCard title="Hitra statistika"><div className="quick-stat-grid"><span>Skupaj artiklov<strong>{total}</strong></span><span>Vrednost zaloge<strong>{eur(value)}</strong></span><span>Nizka zaloga<strong>{low}</strong></span><span>Zunaj zaloge<strong>{out}</strong></span><span>Zaračunljivih<strong>{billable}</strong></span></div></TableCard> }
 function ChartCard({ title, data }: { title: string; data: { label: string; value: number }[] }) { const total = data.reduce((s, d) => s + Number(d.value || 0), 0); return <TableCard title={title}><div className="consumables-donut-row"><div className="consumables-donut" /><ul>{data.slice(0, 6).map((d) => <li key={d.label}><span>{d.label}</span><strong>{total ? Math.round((d.value / total) * 100) : 0}% ({n(d.value, 0)})</strong></li>)}</ul></div></TableCard> }
 function BarsCard({ title, data }: { title: string; data: { label: string; value: number }[] }) { const max = Math.max(1, ...data.map((d) => Number(d.value || 0))); return <TableCard title={title} action="Prikaži vse"><div className="consumables-bars">{data.slice(0, 6).map((d) => <div key={d.label}><span>{d.label}</span><i><b style={{ width: `${Math.max(6, (Number(d.value || 0) / max) * 100)}%` }} /></i><strong>{n(d.value, 2)}</strong></div>)}</div></TableCard> }
-function ReorderCard({ items, createPurchaseOrder, highlightItemId }: { items: Item[]; createPurchaseOrder: (items?: Item[]) => void; highlightItemId?: number | null }) { return <TableCard title="Predlogi za naročilo" action="Prikaži vse"><table><tbody>{items.slice(0, 8).map((item) => <tr key={`${item.id}:${item.locationId}`} className={item.id === highlightItemId ? 'highlighted-low-stock' : ''}><td>{item.name}<br /><small>{item.location || '—'} · Trenutno: {n(item.currentStock, 2)} {item.unit} · Min: {n(item.minimumStock, 2)} {item.unit}</small></td><td>Predlagano: {n(suggestedOrderQuantity(item), 0)} {item.unit}</td><td><button type="button" className="btn tiny" onClick={() => createPurchaseOrder([item])}>Dodaj</button></td></tr>)}</tbody></table><Empty visible={items.length === 0} text="Ni artiklov pod minimalno zalogo." /><button type="button" className="btn secondary wide" disabled={items.length === 0} onClick={() => createPurchaseOrder(items)}>Ustvari predloge naročil</button></TableCard> }
+function ReorderCard({ items, createPurchaseOrder, highlightItemId, canManage }: { items: Item[]; createPurchaseOrder: (items?: Item[]) => void; highlightItemId?: number | null; canManage: boolean }) { return <TableCard title="Predlogi za naročilo" action="Prikaži vse"><table><tbody>{items.slice(0, 8).map((item) => <tr key={`${item.id}:${item.locationId}`} className={item.id === highlightItemId ? 'highlighted-low-stock' : ''}><td>{item.name}<br /><small>{item.location || '—'} · Trenutno: {n(item.currentStock, 2)} {item.unit} · Min: {n(item.minimumStock, 2)} {item.unit}</small></td><td>Predlagano: {n(suggestedOrderQuantity(item), 0)} {item.unit}</td><td>{canManage ? <button type="button" className="btn tiny" onClick={() => createPurchaseOrder([item])}>Dodaj</button> : <span className="muted">—</span>}</td></tr>)}</tbody></table><Empty visible={items.length === 0} text="Ni artiklov pod minimalno zalogo." />{canManage && <button type="button" className="btn secondary wide" disabled={items.length === 0} onClick={() => createPurchaseOrder(items)}>Ustvari predloge naročil</button>}</TableCard> }
 
 function FakeLineChart() { return <TableCard title="Poraba v zadnjih 7 dneh"><div className="fake-line-chart"><svg viewBox="0 0 300 140" role="img" aria-label="Poraba"><polyline points="0,100 50,72 100,35 150,108 200,76 250,58 300,58" fill="none" stroke="currentColor" strokeWidth="4" /><path d="M0 100L50 72L100 35L150 108L200 76L250 58L300 58L300 140L0 140Z" fill="currentColor" opacity="0.08" /></svg></div><div className="quick-stat-grid two"><span>Skupna poraba<strong>1.842 kos</strong></span><span>Povprečno na dan<strong>263 kos</strong></span></div></TableCard> }
 function toInventoryDraft(detail: InventoryDetail | null | undefined): InventoryCountDraft {

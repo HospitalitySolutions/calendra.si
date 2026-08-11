@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { api } from '../api'
 import { Card, EmptyState } from '../components/ui'
-import { EMPLOYEE_PERMISSION_ACTION_KEYS, type EmployeePermission } from '../lib/employeePermissions'
+import { CONSUMABLE_SPECIAL_PERMISSIONS, EMPLOYEE_PERMISSION_ACTION_KEYS, type EmployeePermission } from '../lib/employeePermissions'
 import { useLocale, type AppLocale } from '../locale'
 
 type PermissionAction = typeof EMPLOYEE_PERMISSION_ACTION_KEYS[number]
@@ -76,6 +76,7 @@ const fallbackPermissionGroups: PermissionGroup[] = [
   { key: 'GUEST_MOBILE_APP', label: 'Guest Mobile App', description: 'View and manage guest mobile app settings, modules and content' },
   { key: 'PAYMENTS', label: 'Payments', description: 'View and manage payment records, payment status and refunds' },
   { key: 'SCANNER', label: 'Scanner', description: 'View and use QR scanning and guest check-in validation' },
+  { key: 'CONSUMABLES', label: 'Consumables', description: 'View and manage articles, stock, procurement, inventory and consumables reports' },
 ]
 
 const slPermissionGroups: Record<string, PermissionGroup> = {
@@ -99,6 +100,7 @@ const slPermissionGroups: Record<string, PermissionGroup> = {
   GUEST_MOBILE_APP: { key: 'GUEST_MOBILE_APP', label: 'Mobilna aplikacija za stranke', description: 'Pregled in upravljanje nastavitev, modulov in vsebin mobilne aplikacije za stranke' },
   PAYMENTS: { key: 'PAYMENTS', label: 'Plačila', description: 'Pregled in upravljanje plačil, statusov plačil in vračil' },
   SCANNER: { key: 'SCANNER', label: 'Skener', description: 'Pregled in uporaba QR skeniranja ter potrjevanja prihodov' },
+  CONSUMABLES: { key: 'CONSUMABLES', label: 'Porabni material', description: 'Pregled in upravljanje artiklov, zaloge, nabave, inventure in poročil porabnega materiala' },
 }
 
 const roleCopy = {
@@ -142,6 +144,9 @@ const roleCopy = {
     permissionGroup: 'Permission group',
     all: 'All',
     detailFoot: 'Changes to permissions will be applied to all users assigned to this custom role.',
+    consumablesPermissionsTitle: 'Consumables permissions',
+    consumablesPermissionsHint: 'Fine-grained access for the Consumables module.',
+    consumablesPermissionLabels: { CONSUMABLES_VIEW: 'View module', CONSUMABLES_EDIT: 'Edit articles & defaults', CONSUMABLES_STOCK_ADJUST: 'Stock adjustments & transfers', CONSUMABLES_PROCUREMENT: 'Procurement & suppliers', CONSUMABLES_INVENTORY: 'Inventory counts', CONSUMABLES_REPORTS: 'Reports & export' } as Record<string, string>,
     assignedUsersEyebrow: 'Assigned users',
     closeMembers: 'Close members list',
     loadingMembers: 'Loading members…',
@@ -198,6 +203,9 @@ const roleCopy = {
     permissionGroup: 'Skupina dovoljenj',
     all: 'Vse',
     detailFoot: 'Spremembe dovoljenj bodo uporabljene za vse uporabnike, ki so dodeljeni tej prilagojeni vlogi.',
+    consumablesPermissionsTitle: 'Dovoljenja za porabni material',
+    consumablesPermissionsHint: 'Podrobna dovoljenja za modul Porabni material.',
+    consumablesPermissionLabels: { CONSUMABLES_VIEW: 'Pregled modula', CONSUMABLES_EDIT: 'Urejanje artiklov in privzetih nastavitev', CONSUMABLES_STOCK_ADJUST: 'Premiki in prenosi zaloge', CONSUMABLES_PROCUREMENT: 'Nabava in dobavitelji', CONSUMABLES_INVENTORY: 'Inventura', CONSUMABLES_REPORTS: 'Poročila in izvoz' } as Record<string, string>,
     assignedUsersEyebrow: 'Dodeljeni uporabniki',
     closeMembers: 'Zapri seznam uporabnikov',
     loadingMembers: 'Nalaganje uporabnikov …',
@@ -312,6 +320,7 @@ function groupIconName(key: string): Parameters<typeof RolePermissionIcon>[0]['n
   if (key === 'GUEST_MOBILE_APP') return 'platform'
   if (key === 'PAYMENTS') return 'billing'
   if (key === 'SCANNER') return 'wallet'
+  if (key === 'CONSUMABLES') return 'platform'
   return 'group'
 }
 
@@ -385,6 +394,8 @@ export function EmployeeRolesPermissionsTab() {
     () => (overview?.permissionGroups?.length ? overview.permissionGroups : fallbackPermissionGroups).map((group) => localizePermissionGroup(group, locale)),
     [locale, overview?.permissionGroups],
   )
+  const consumablesPermissionGroup = permissionGroups.find((group) => group.key === 'CONSUMABLES') ?? null
+  const matrixPermissionGroups = useMemo(() => permissionGroups.filter((group) => group.key !== 'CONSUMABLES'), [permissionGroups])
   const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? roles[0] ?? null
   const permissionSet = useMemo(() => new Set(draftPermissions), [draftPermissions])
 
@@ -438,9 +449,10 @@ export function EmployeeRolesPermissionsTab() {
 
   function visibleMatrixPermissionKeys() {
     return new Set(
-      permissionGroups.flatMap((group) =>
-        EMPLOYEE_PERMISSION_ACTION_KEYS.map((action) => permissionKey(group.key, action)),
-      ),
+      [
+        ...matrixPermissionGroups.flatMap((group) => EMPLOYEE_PERMISSION_ACTION_KEYS.map((action) => permissionKey(group.key, action))),
+        ...(consumablesPermissionGroup ? [...CONSUMABLE_SPECIAL_PERMISSIONS] : []),
+      ],
     )
   }
 
@@ -454,14 +466,34 @@ export function EmployeeRolesPermissionsTab() {
     // visible groups, so disabling a module in App settings hides it here without
     // silently deleting saved role permissions that may be needed again if the module is re-enabled.
     const values = new Set(permissions)
-    permissionGroups.forEach((group) => {
+    matrixPermissionGroups.forEach((group) => {
       const viewKey = permissionKey(group.key, 'VIEW')
       if (values.has(viewKey)) return
       values.delete(permissionKey(group.key, 'CREATE'))
       values.delete(permissionKey(group.key, 'EDIT'))
       values.delete(permissionKey(group.key, 'DELETE'))
     })
+    if (consumablesPermissionGroup && !values.has('CONSUMABLES_VIEW')) {
+      CONSUMABLE_SPECIAL_PERMISSIONS.forEach((permission) => { if (permission !== 'CONSUMABLES_VIEW') values.delete(permission) })
+    }
     return Array.from(values)
+  }
+
+  function toggleConsumablesPermission(permission: string) {
+    if (!selectedRole || selectedRole.system || !consumablesPermissionGroup) return
+    setDraftPermissions((current) => {
+      const next = new Set(enforceViewDependenciesForDraft(current))
+      const checked = next.has(permission)
+      if (permission === 'CONSUMABLES_VIEW') {
+        if (checked) CONSUMABLE_SPECIAL_PERMISSIONS.forEach((key) => next.delete(key))
+        else next.add(permission)
+      } else {
+        if (!next.has('CONSUMABLES_VIEW')) return current
+        if (checked) next.delete(permission)
+        else next.add(permission)
+      }
+      return enforceViewDependenciesForDraft(Array.from(next))
+    })
   }
 
   function togglePermission(groupKey: string, action: PermissionAction) {
@@ -748,7 +780,7 @@ export function EmployeeRolesPermissionsTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {permissionGroups.map((group) => (
+                  {matrixPermissionGroups.map((group) => (
                     <tr key={group.key}>
                       <td>
                         <div className="employee-roles-group-cell">
@@ -805,7 +837,7 @@ export function EmployeeRolesPermissionsTab() {
             </div>
 
             <div className="employee-roles-mobile-permissions" aria-label={copy.permissionGroup}>
-              {permissionGroups.map((group) => {
+              {matrixPermissionGroups.map((group) => {
                 const groupPermissionKeys = EMPLOYEE_PERMISSION_ACTION_KEYS.map((action) => permissionKey(group.key, action))
                 const allChecked = groupPermissionKeys.every((key) => permissionSet.has(key))
                 const someChecked = groupPermissionKeys.some((key) => permissionSet.has(key))
@@ -878,6 +910,31 @@ export function EmployeeRolesPermissionsTab() {
                 )
               })}
             </div>
+            {consumablesPermissionGroup && (
+              <section className="employee-roles-special-permissions" aria-label={copy.consumablesPermissionsTitle}>
+                <div className="employee-roles-special-permissions-head">
+                  <div className="employee-roles-group-cell">
+                    <span className="employee-roles-group-icon employee-roles-group-icon--consumables"><RolePermissionIcon name="platform" /></span>
+                    <div><strong>{copy.consumablesPermissionsTitle}</strong><span>{copy.consumablesPermissionsHint}</span></div>
+                  </div>
+                </div>
+                <div className="employee-roles-special-permissions-grid">
+                  {CONSUMABLE_SPECIAL_PERMISSIONS.map((permission) => {
+                    const checked = permissionSet.has(permission)
+                    const disabled = !!selectedRole.system || (permission !== 'CONSUMABLES_VIEW' && !permissionSet.has('CONSUMABLES_VIEW'))
+                    return (
+                      <label key={permission} className={`employee-roles-special-permission${disabled ? ' employee-roles-special-permission--disabled' : ''}`}>
+                        <span className={`employee-roles-check${checked ? ' employee-roles-check--checked' : ''}${disabled ? ' employee-roles-check--disabled' : ''}`}>
+                          <input type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleConsumablesPermission(permission)} />
+                          <span aria-hidden>{checked ? '✓' : '—'}</span>
+                        </span>
+                        <span>{copy.consumablesPermissionLabels[permission] ?? permission}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
             <div className="employee-roles-detail-foot"><RolePermissionIcon name="info" /> {copy.detailFoot}</div>
           </section>
         )}

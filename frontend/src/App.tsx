@@ -580,6 +580,7 @@ export default function App() {
   const canViewServices = hasEmployeePermission(user, 'SERVICES_VIEW')
   const canViewBilling = hasAnyEmployeePermission(user, ['BILLING_INVOICES_VIEW', 'PAYMENTS_VIEW'])
   const canViewWalletBenefits = hasEmployeePermission(user, 'WALLET_BENEFITS_VIEW')
+  const canViewConsumables = hasEmployeePermission(user, 'CONSUMABLES_VIEW')
   const canViewReports = hasEmployeePermission(user, 'REPORTS_ANALYTICS_VIEW')
   const hasWorkspaceAnalyticsFeature = (user.workspaceFeatures == null || user.workspaceFeatures.includes('WORKSPACE_ANALYTICS')) && isWorkspaceRolloutEnabled(user, 'WORKSPACE_ANALYTICS')
   const canViewInbox = hasEmployeePermission(user, 'INBOX_MESSAGES_VIEW')
@@ -594,7 +595,7 @@ export default function App() {
   ])
   const billingAllowed = billingModuleEnabled && canViewBilling
   const appointmentsAllowed = waitlistModuleEnabled && canViewAppointments
-  const consumablesAllowed = consumablesModuleEnabled && canViewWalletBenefits
+  const consumablesAllowed = consumablesModuleEnabled && canViewConsumables
   const inboxAllowed = inboxModuleEnabled && (canViewInbox || canViewDeliveryLogs)
   const canScanWalletEntitlements = scannerModuleEnabled && hasAnyEmployeePermission(user, ['WALLET_ENTITLEMENT_SCAN', 'SCANNER_VIEW', 'SCANNER_CREATE', 'SCANNER_EDIT'])
   const preferredFallbackRoute = getDefaultAllowedRoute(user.packageType)
@@ -609,6 +610,7 @@ export default function App() {
     { path: '/consultants', allowed: canViewEmployees },
     { path: '/configuration', allowed: canViewConfiguration },
     { path: '/scanner', allowed: canScanWalletEntitlements },
+    { path: '/consumables', allowed: consumablesAllowed },
   ]
   const preferredCandidate = routeCandidates.find((candidate) => candidate.path === preferredFallbackRoute && candidate.allowed)
   const fallbackRoute = preferredCandidate?.path ?? routeCandidates.find((candidate) => candidate.allowed)?.path ?? (user.role === 'CONSULTANT' ? '/my-profile' : '/help')

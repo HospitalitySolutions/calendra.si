@@ -396,3 +396,35 @@
   .consumables-barcode-modal > footer > div { width: 100%; }
   .consumables-barcode-modal > footer .btn { flex: 1; }
 }
+
+/* Reports & export */
+.consumables-reports { display: grid; gap: 16px; }
+.consumables-report-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fafafa;
+}
+.consumables-report-toolbar label { display: grid; gap: 6px; min-width: 150px; font-size: 12px; font-weight: 700; color: #4b5563; }
+.consumables-report-toolbar select,
+.consumables-report-toolbar input { min-height: 40px; border: 1px solid #dbe1ea; border-radius: 10px; background: #fff; padding: 0 10px; color: #111827; }
+.consumables-report-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.consumables-report-table-wrap { overflow-x: auto; }
+.consumables-report-table-wrap table { min-width: 880px; }
+.consumables-report-table-wrap td.numeric { text-align: right; font-variant-numeric: tabular-nums; }
+.consumables-report-loading { padding: 28px; text-align: center; color: #64748b; }
+.consumables-report-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 1px solid #eef0f4; color: #64748b; font-size: 12px; }
+.consumables-report-footer > div { display: flex; gap: 8px; }
+@media (max-width: 900px) {
+  .consumables-report-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .consumables-report-toolbar label { min-width: calc(50% - 8px); flex: 1 1 calc(50% - 8px); }
+  .consumables-report-footer { align-items: stretch; flex-direction: column; }
+}
+@media (max-width: 560px) {
+  .consumables-report-kpis { grid-template-columns: 1fr; }
+  .consumables-report-toolbar label { min-width: 100%; }
+}

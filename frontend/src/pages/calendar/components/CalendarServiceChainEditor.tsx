@@ -256,6 +256,7 @@ export function CalendarServiceChainEditor({
   sessionMaxParticipants = null,
   onSessionMaxParticipantsChange,
   consumablesEnabled = false,
+  canEditConsumables = false,
   bookingId = null,
   sessionConsumables,
   resetSessionConsumablesToDefaults = false,
@@ -280,6 +281,7 @@ export function CalendarServiceChainEditor({
   sessionMaxParticipants?: number | null
   onSessionMaxParticipantsChange?: (value: number | null) => void
   consumablesEnabled?: boolean
+  canEditConsumables?: boolean
   bookingId?: number | null
   sessionConsumables?: SessionConsumableDraft[] | null
   resetSessionConsumablesToDefaults?: boolean
@@ -402,6 +404,7 @@ export function CalendarServiceChainEditor({
   }, [consumablesEnabled, bookingId, primaryTypeId, sessionConsumables, resetSessionConsumablesToDefaults, sessionConsumablesOverridden])
 
   const openConsumablesEditor = async () => {
+    if (!canEditConsumables) return
     setWorkingConsumables(consumablePreview.map((row) => ({ ...row })))
     setWorkingConsumablesReset(resetSessionConsumablesToDefaults)
     setConsumableToAdd('')
@@ -786,9 +789,9 @@ export function CalendarServiceChainEditor({
                 <strong>{locale === 'sl' ? 'Porabni material' : locale === 'sr' ? 'Potrošni materijal' : 'Consumables'}</strong>
                 <span>{consumablePreview.length} {locale === 'sl' ? 'privzeti artikli' : locale === 'sr' ? 'artikla' : 'default items'}</span>
               </div>
-              <button type="button" className="secondary slim-btn" onClick={openConsumablesEditor}>
+              {canEditConsumables ? <button type="button" className="secondary slim-btn" onClick={openConsumablesEditor}>
                 {locale === 'sl' ? 'Uredi' : locale === 'sr' ? 'Uredi' : 'Edit'}
-              </button>
+              </button> : null}
             </div>
             {consumablesLoading ? (
               <div className="calendar-consumables-summary__empty">{locale === 'sl' ? 'Nalaganje …' : 'Loading…'}</div>
@@ -816,7 +819,7 @@ export function CalendarServiceChainEditor({
         ) : null}
       </section>
 
-      {consumablesOpen ? (
+      {consumablesOpen && canEditConsumables ? (
         <div className="calendar-service-picker-backdrop calendar-consumables-editor-backdrop" onClick={() => setConsumablesOpen(false)}>
           <div className="calendar-consumables-editor" role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Uredi porabni material' : 'Edit consumables'} onClick={(event) => event.stopPropagation()}>
             <div className="calendar-consumables-editor__header">
