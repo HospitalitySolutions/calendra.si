@@ -37,4 +37,9 @@ public final class ConsumableEnums {
         ACTIVE,
         INACTIVE
     }
+
+    public enum InventorySessionStatus {
+        IN_PROGRESS,
+        COMPLETED
+    }
 }

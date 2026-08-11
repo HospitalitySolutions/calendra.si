@@ -100,6 +100,8 @@ configcopy/ConfigurationCopyController.java|@PostMapping("/execute")|execute
 configcopy/ConfigurationCopyController.java|@PostMapping("/preview")|preview
 consumables/ConsumableController.java|@PostMapping("/bookings/{bookingId}/session-consumables/reset-defaults")|resetSessionConsumables
 consumables/ConsumableController.java|@PostMapping("/categories")|createCategory
+consumables/ConsumableController.java|@PostMapping("/inventory-sessions")|startInventory
+consumables/ConsumableController.java|@PostMapping("/inventory-sessions/{id}/finalize")|finalizeInventory
 consumables/ConsumableController.java|@PostMapping("/items")|createItem
 consumables/ConsumableController.java|@PostMapping("/items/{id}/adjust")|adjustStock
 consumables/ConsumableController.java|@PostMapping("/purchase-orders")|createPurchaseOrder
@@ -107,6 +109,7 @@ consumables/ConsumableController.java|@PostMapping("/purchase-orders/{id}/receiv
 consumables/ConsumableController.java|@PostMapping("/suppliers")|createSupplier
 consumables/ConsumableController.java|@PutMapping("/bookings/{bookingId}/session-consumables")|replaceSessionConsumables
 consumables/ConsumableController.java|@PutMapping("/categories/{id}")|updateCategory
+consumables/ConsumableController.java|@PutMapping("/inventory-sessions/{id}/counts")|saveInventoryCounts
 consumables/ConsumableController.java|@PutMapping("/items/{id}")|updateItem
 consumables/ConsumableController.java|@PutMapping("/purchase-orders/{id}")|updatePurchaseOrder
 consumables/ConsumableController.java|@PutMapping("/service-types/{typeId}/defaults")|replaceServiceTypeDefaults

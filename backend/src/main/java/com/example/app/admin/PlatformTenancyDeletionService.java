@@ -585,6 +585,7 @@ public class PlatformTenancyDeletionService {
         exec("DELETE FROM widget_booking_idempotency WHERE company_id = ?", companyId);
 
         // Session/inventory joins must disappear before sessions, services, rooms, users and locations.
+        exec("DELETE FROM consumable_inventory_session WHERE company_id = ?", companyId);
         exec("DELETE FROM session_consumable WHERE company_id = ?", companyId);
         exec("DELETE FROM service_type_consumable WHERE company_id = ?", companyId);
         exec("DELETE FROM consumable_location_stock WHERE company_id = ?", companyId);

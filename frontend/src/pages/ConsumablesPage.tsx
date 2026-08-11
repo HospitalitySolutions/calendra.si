@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 import { useAuthenticatedUser } from '../authUserContext'
@@ -115,6 +115,38 @@ type PurchaseOrderReceipt = {
   lines: { purchaseOrderLineId: number; consumableId: number; itemName: string; unit: string; quantity: number }[]
 }
 type PurchaseOrderDetail = { order: PurchaseOrder; lines: PurchaseOrderLine[]; receipts: PurchaseOrderReceipt[] }
+type InventorySession = {
+  id: number
+  locationId: number
+  locationName: string
+  status: 'IN_PROGRESS' | 'COMPLETED'
+  startedAt: string
+  completedAt?: string | null
+  startedBy?: string | null
+  completedBy?: string | null
+  notes?: string | null
+  totalItems: number
+  countedItems: number
+  discrepancyItems: number
+  progressPercent: number
+}
+type InventoryLine = {
+  id: number
+  consumableId: number
+  itemName: string
+  categoryName?: string | null
+  unit: string
+  systemQuantity: number
+  countedQuantity?: number | null
+  discrepancyQuantity?: number | null
+  costPriceSnapshot: number
+  discrepancyValue?: number | null
+  notes?: string | null
+  countedAt?: string | null
+  countedBy?: string | null
+}
+type InventoryDetail = { session: InventorySession; lines: InventoryLine[]; movements: Movement[] }
+type InventoryCountDraft = Record<number, { countedQuantity: string; notes: string }>
 type PurchaseOrderLineForm = {
   lineId?: number
   consumableId: string
@@ -329,6 +361,18 @@ export function ConsumablesPage() {
   const [receiveNote, setReceiveNote] = useState('')
   const [savingReceipt, setSavingReceipt] = useState(false)
 
+  const [inventorySessions, setInventorySessions] = useState<InventorySession[]>([])
+  const [inventoryDetail, setInventoryDetail] = useState<InventoryDetail | null>(null)
+  const [inventoryCountDraft, setInventoryCountDraft] = useState<InventoryCountDraft>({})
+  const [inventoryStartModalOpen, setInventoryStartModalOpen] = useState(false)
+  const [inventoryStartLocationId, setInventoryStartLocationId] = useState('')
+  const [inventoryStartNotes, setInventoryStartNotes] = useState('')
+  const [savingInventory, setSavingInventory] = useState(false)
+  const [loadingInventoryDetail, setLoadingInventoryDetail] = useState(false)
+  const [inventoryQuery, setInventoryQuery] = useState('')
+  const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState('')
+  const [inventoryCountStatusFilter, setInventoryCountStatusFilter] = useState('')
+
   const load = useCallback(async (force = true) => {
     setLoading(true)
     try {
@@ -362,7 +406,27 @@ export function ConsumablesPage() {
       } else if (activeTab === 'movements') {
         tasks.push(loadMovements())
       } else if (activeTab === 'inventory') {
-        tasks.push(loadItems())
+        tasks.push((async () => {
+          try {
+            const response = await api.get<InventorySession[]>('/consumables/inventory-sessions', { params: { locationId: selectedLocationId ?? undefined } })
+            const rows = response.data || []
+            setInventorySessions(rows)
+            const preferred = rows.find((row) => row.status === 'IN_PROGRESS') || rows[0] || null
+            if (preferred) {
+              const detailResponse = await api.get<InventoryDetail>(`/consumables/inventory-sessions/${preferred.id}`)
+              const detail = detailResponse.data || null
+              setInventoryDetail(detail)
+              setInventoryCountDraft(toInventoryDraft(detail))
+            } else {
+              setInventoryDetail(null)
+              setInventoryCountDraft({})
+            }
+          } catch {
+            setInventorySessions([])
+            setInventoryDetail(null)
+            setInventoryCountDraft({})
+          }
+        })())
       }
 
       const [nextLocations] = await Promise.all([locationsPromise, Promise.all(tasks).then(() => undefined)])
@@ -377,6 +441,9 @@ export function ConsumablesPage() {
     setItems([])
     setMovements([])
     setPurchaseOrders([])
+    setInventorySessions([])
+    setInventoryDetail(null)
+    setInventoryCountDraft({})
     setOperationalLocations([])
   }, [activeUnitId, selectedLocationId])
   useEffect(() => { void load(false) }, [load])
@@ -787,6 +854,108 @@ export function ConsumablesPage() {
       .finally(() => setSavingReceipt(false))
   }
 
+  const hydrateInventory = (detail: InventoryDetail | null) => {
+    setInventoryDetail(detail)
+    setInventoryCountDraft(toInventoryDraft(detail))
+  }
+
+  const refreshInventorySessions = async (preferredId?: number | null) => {
+    const response = await api.get<InventorySession[]>('/consumables/inventory-sessions', { params: { locationId: selectedLocationId ?? undefined } })
+    const rows = response.data || []
+    setInventorySessions(rows)
+    const preferred = rows.find((row) => row.id === preferredId) || rows.find((row) => row.status === 'IN_PROGRESS') || rows[0] || null
+    if (!preferred) { hydrateInventory(null); return }
+    const detailResponse = await api.get<InventoryDetail>(`/consumables/inventory-sessions/${preferred.id}`)
+    hydrateInventory(detailResponse.data || null)
+  }
+
+  const openInventorySession = async (sessionId: number) => {
+    setLoadingInventoryDetail(true)
+    try {
+      const response = await api.get<InventoryDetail>(`/consumables/inventory-sessions/${sessionId}`)
+      hydrateInventory(response.data || null)
+    } catch (e: any) {
+      showToast('error', e?.response?.data?.message || 'Inventure ni bilo mogoče odpreti.')
+    } finally {
+      setLoadingInventoryDetail(false)
+    }
+  }
+
+  const openStartInventory = () => {
+    const locationId = defaultWriteLocationId ?? writableInventoryLocations.find((location) => !inventorySessions.some((session) => session.locationId === location.id && session.status === 'IN_PROGRESS'))?.id ?? writableInventoryLocations[0]?.id ?? null
+    if (locationId == null) {
+      showToast('error', 'Izberite poslovalnico za inventuro.')
+      return
+    }
+    setInventoryStartLocationId(String(locationId))
+    setInventoryStartNotes('')
+    setInventoryStartModalOpen(true)
+  }
+
+  const startInventory = (event: FormEvent) => {
+    event.preventDefault()
+    if (!inventoryStartLocationId) { showToast('error', 'Izberite poslovalnico.'); return }
+    setSavingInventory(true)
+    api.post<InventoryDetail>('/consumables/inventory-sessions', { locationId: Number(inventoryStartLocationId), notes: inventoryStartNotes.trim() || null })
+      .then(({ data }) => {
+        showToast('success', 'Inventura je začeta. Sistemske količine so shranjene kot začetni posnetek.')
+        setInventoryStartModalOpen(false)
+        hydrateInventory(data || null)
+        void refreshInventorySessions(data?.session?.id).catch(() => undefined)
+      })
+      .catch((e) => showToast('error', e?.response?.data?.message || 'Inventure ni bilo mogoče začeti.'))
+      .finally(() => setSavingInventory(false))
+  }
+
+  const saveInventoryCounts = async (showSuccess = true) => {
+    if (!inventoryDetail || inventoryDetail.session.status !== 'IN_PROGRESS') return inventoryDetail
+    setSavingInventory(true)
+    try {
+      const payload = {
+        lines: inventoryDetail.lines.map((line) => {
+          const draft = inventoryCountDraft[line.id] || { countedQuantity: '', notes: '' }
+          const raw = draft.countedQuantity.trim().replace(',', '.')
+          const countedQuantity = raw === '' ? null : Number(raw)
+          if (countedQuantity != null && (!Number.isFinite(countedQuantity) || countedQuantity < 0)) {
+            throw new Error(`Neveljavna količina pri artiklu ${line.itemName}.`)
+          }
+          return { lineId: line.id, countedQuantity, notes: draft.notes.trim() || null }
+        }),
+      }
+      const response = await api.put<InventoryDetail>(`/consumables/inventory-sessions/${inventoryDetail.session.id}/counts`, payload)
+      hydrateInventory(response.data || null)
+      await refreshInventorySessions(response.data?.session?.id).catch(() => undefined)
+      if (showSuccess) showToast('success', 'Štetje inventure je shranjeno.')
+      return response.data || null
+    } catch (e: any) {
+      showToast('error', e?.response?.data?.message || e?.message || 'Štetja ni bilo mogoče shraniti.')
+      throw e
+    } finally {
+      setSavingInventory(false)
+    }
+  }
+
+  const finalizeInventory = async () => {
+    if (!inventoryDetail || inventoryDetail.session.status !== 'IN_PROGRESS') return
+    const uncounted = inventoryDetail.lines.filter((line) => (inventoryCountDraft[line.id]?.countedQuantity ?? '').trim() === '').length
+    if (uncounted > 0) { showToast('error', `Pred zaključkom preštejte vse artikle. Manjka še ${uncounted}.`); return }
+    if (!window.confirm('Zaključim inventuro? Razlike bodo zapisane kot premiki zaloge in inventure po tem ne bo več mogoče urejati.')) return
+    try {
+      await saveInventoryCounts(false)
+      setSavingInventory(true)
+      const response = await api.post<InventoryDetail>(`/consumables/inventory-sessions/${inventoryDetail.session.id}/finalize`)
+      hydrateInventory(response.data || null)
+      await refreshInventorySessions(response.data?.session?.id).catch(() => undefined)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.consumables.all, refetchType: 'none' })
+      showToast('success', 'Inventura je zaključena. Odstopanja so zabeležena v premikih zaloge.')
+    } catch (e: any) {
+      if (e?.message && !e?.response) return
+      showToast('error', e?.response?.data?.message || 'Inventure ni bilo mogoče zaključiti.')
+    } finally {
+      setSavingInventory(false)
+    }
+  }
+
   const createPurchaseOrder = (suggestedItems: Item[] = []) => openNewPurchaseOrder(suggestedItems)
 
 
@@ -816,7 +985,7 @@ export function ConsumablesPage() {
             {activeTab === 'procurement' && <button type="button" className="btn primary" onClick={() => createPurchaseOrder()}>+ Nova naročilnica</button>}
             {activeTab === 'suppliers' && <button type="button" className="btn primary" onClick={openNewSupplier}>+ Nov dobavitelj</button>}
             {activeTab === 'movements' && <button type="button" className="btn primary" onClick={() => setActiveTab('items')}>Nov premik</button>}
-            {activeTab === 'inventory' && <button type="button" className="btn primary" onClick={() => showToast('info', 'Inventura uporablja iste podatke zaloge in odstopanja. Podrobna inventurna seja je pripravljena za naslednjo fazo.')}>Začni inventuro</button>}
+            {activeTab === 'inventory' && <button type="button" className="btn primary" onClick={openStartInventory}>+ Začni inventuro</button>}
           </div>
         </div>
 
@@ -829,8 +998,22 @@ export function ConsumablesPage() {
         {activeTab === 'procurement' && <ProcurementTab orders={purchaseOrders} items={items} suppliers={suppliers} createPurchaseOrder={createPurchaseOrder} openPurchaseOrder={openExistingPurchaseOrder} createSuggestedOrder={openNewPurchaseOrder} />}
         {activeTab === 'suppliers' && <SuppliersTab suppliers={suppliers} openSupplier={openEditSupplier} createSupplier={openNewSupplier} />}
         {activeTab === 'movements' && <MovementsTab movements={movements} />}
-        {activeTab === 'inventory' && <InventoryTab items={items} />}
+        {activeTab === 'inventory' && <InventoryTab sessions={inventorySessions} detail={inventoryDetail} draft={inventoryCountDraft} setDraft={setInventoryCountDraft} query={inventoryQuery} setQuery={setInventoryQuery} categoryFilter={inventoryCategoryFilter} setCategoryFilter={setInventoryCategoryFilter} countStatusFilter={inventoryCountStatusFilter} setCountStatusFilter={setInventoryCountStatusFilter} loading={loading || loadingInventoryDetail} saving={savingInventory} onOpenSession={openInventorySession} onSave={() => { void saveInventoryCounts().catch(() => undefined) }} onFinalize={() => { void finalizeInventory() }} />}
       </section>
+
+      {inventoryStartModalOpen && (
+        <div className="consumables-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setInventoryStartModalOpen(false) }}>
+          <form className="consumables-modal" onSubmit={startInventory}>
+            <header><div><h2>Začni inventuro</h2><p>Sistemska zaloga se ob začetku shrani kot nespremenljiv posnetek za izbrano poslovalnico.</p></div><button type="button" onClick={() => setInventoryStartModalOpen(false)} aria-label="Zapri">×</button></header>
+            <div className="consumables-modal-grid">
+              <label>Poslovalnica<select autoFocus value={inventoryStartLocationId} onChange={(e) => setInventoryStartLocationId(e.target.value)}><option value="">Izberite poslovalnico</option>{writableInventoryLocations.map((location) => { const active = inventorySessions.some((session) => session.locationId === location.id && session.status === 'IN_PROGRESS'); return <option key={location.id} value={location.id} disabled={active}>{location.name}{active ? ' · inventura že poteka' : ''}</option> })}</select></label>
+              <label className="full">Opomba<textarea value={inventoryStartNotes} onChange={(e) => setInventoryStartNotes(e.target.value)} placeholder="Npr. mesečna inventura, zaključek izmene ..." /></label>
+            </div>
+            <div className="procurement-info-note inventory-start-note">Med inventuro lahko normalno nastajajo drugi premiki zaloge. Zaključna korekcija uporablja razliko med prešteto količino in posnetkom ob začetku, zato kasnejši premiki ne prepišejo začetnega stanja.</div>
+            <footer><button type="button" className="btn secondary" onClick={() => setInventoryStartModalOpen(false)}>Prekliči</button><button type="submit" className="btn primary" disabled={savingInventory}>{savingInventory ? 'Začenjam…' : 'Začni inventuro'}</button></footer>
+          </form>
+        </div>
+      )}
 
       {itemModalOpen && (
         <div className="consumables-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) closeItemModal() }}>
@@ -1134,18 +1317,118 @@ function MovementsTab({ movements }: { movements: Movement[] }) {
   </div>
 }
 
-function InventoryTab({ items }: { items: Item[] }) {
-  const counted = items.filter((i) => i.currentStock >= 0).length
-  const discrepancies = items.filter((i) => i.lowStock).length
+function InventoryTab({ sessions, detail, draft, setDraft, query, setQuery, categoryFilter, setCategoryFilter, countStatusFilter, setCountStatusFilter, loading, saving, onOpenSession, onSave, onFinalize }: {
+  sessions: InventorySession[]
+  detail: InventoryDetail | null
+  draft: InventoryCountDraft
+  setDraft: Dispatch<SetStateAction<InventoryCountDraft>>
+  query: string
+  setQuery: (value: string) => void
+  categoryFilter: string
+  setCategoryFilter: (value: string) => void
+  countStatusFilter: string
+  setCountStatusFilter: (value: string) => void
+  loading: boolean
+  saving: boolean
+  onOpenSession: (id: number) => void
+  onSave: () => void
+  onFinalize: () => void
+}) {
+  const session = detail?.session || null
+  const editable = session?.status === 'IN_PROGRESS'
+  const lines = detail?.lines || []
+  const categories = Array.from(new Set(lines.map((line) => line.categoryName).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b, 'sl'))
+  const lineState = (line: InventoryLine) => {
+    const draftValue = draft[line.id]?.countedQuantity ?? (line.countedQuantity == null ? '' : String(line.countedQuantity))
+    const raw = draftValue.trim().replace(',', '.')
+    const counted = raw === '' ? null : Number(raw)
+    const validCounted = counted != null && Number.isFinite(counted) && counted >= 0 ? counted : null
+    const discrepancy = validCounted == null ? null : validCounted - Number(line.systemQuantity || 0)
+    return { draftValue, counted: validCounted, discrepancy }
+  }
+  const counted = lines.filter((line) => lineState(line).counted != null).length
+  const discrepancyLines = lines.map((line) => ({ line, ...lineState(line) })).filter((row) => row.discrepancy != null && Math.abs(row.discrepancy) > 0.00005)
+  const progress = lines.length ? Math.round((counted / lines.length) * 100) : 0
+  const filtered = lines.filter((line) => {
+    const state = lineState(line)
+    const haystack = `${line.itemName} ${line.categoryName || ''}`.toLowerCase()
+    const matchesQuery = !query.trim() || haystack.includes(query.trim().toLowerCase())
+    const matchesCategory = !categoryFilter || line.categoryName === categoryFilter
+    const matchesStatus = !countStatusFilter
+      || (countStatusFilter === 'UNCOUNTED' && state.counted == null)
+      || (countStatusFilter === 'COUNTED' && state.counted != null)
+      || (countStatusFilter === 'DISCREPANCY' && state.discrepancy != null && Math.abs(state.discrepancy) > 0.00005)
+      || (countStatusFilter === 'MATCH' && state.discrepancy != null && Math.abs(state.discrepancy) <= 0.00005)
+    return matchesQuery && matchesCategory && matchesStatus
+  })
+  const largest = discrepancyLines.slice().sort((a, b) => Math.abs(Number(b.discrepancy || 0)) - Math.abs(Number(a.discrepancy || 0))).slice(0, 5)
+
+  if (!session) {
+    return <div className="consumables-main-with-side">
+      <div>
+        <div className="consumables-kpi-grid compact"><KpiCard tone="blue" title="Aktivne inventure" value={sessions.filter((row) => row.status === 'IN_PROGRESS').length} note="Trenutno v teku" /><KpiCard tone="green" title="Zaključene inventure" value={sessions.filter((row) => row.status === 'COMPLETED').length} note="V zgodovini" /><KpiCard tone="red" title="Odstopanja" value="—" note="Za izbrano inventuro" /><KpiCard tone="purple" title="Napredek" value="—" note="Za izbrano inventuro" /></div>
+        <TableCard title="Inventura"><div className="inventory-empty-state"><strong>{loading ? 'Nalagam inventure…' : 'Ni inventure za prikaz.'}</strong><p>Začnite inventuro z gumbom zgoraj. Zaloga se spremeni šele ob zaključku inventure.</p></div></TableCard>
+      </div>
+      <aside className="consumables-side-stack"><InventoryHistory sessions={sessions} selectedId={null} onOpen={onOpenSession} /></aside>
+    </div>
+  }
+
   return <div className="consumables-main-with-side">
     <div>
-      <div className="consumables-kpi-grid"><KpiCard tone="blue" title="Aktivne inventure" value="1" note="V teku" /><KpiCard tone="green" title="Prešteti artikli" value={counted} note={`Od ${items.length}`} /><KpiCard tone="red" title="Odstopanja" value={discrepancies} note="Artikli z odstopanjem" /><KpiCard tone="purple" title="Napredek inventure" value={items.length ? `${Math.round((counted / items.length) * 100)}%` : '0%'} note="Skupni napredek" /></div>
-      <div className="consumables-filter-row"><label>Lokacija<select><option>Vse lokacije</option></select></label><label>Kategorija<select><option>Vse kategorije</option></select></label><label>Status štetja<select><option>Vsi statusi</option></select></label><button className="btn secondary">Ponastavi filtre</button></div>
-      <div className="inventory-progress"><span>Skupni napredek inventure</span><strong>{items.length ? Math.round((counted / items.length) * 100) : 0}%</strong><i><b style={{ width: `${items.length ? Math.round((counted / items.length) * 100) : 0}%` }} /></i><small>{counted} od {items.length} artiklov</small></div>
-      <TableCard title="Inventura – štetje artiklov"><table><thead><tr><th>Artikel</th><th>Kategorija</th><th>Lokacija</th><th>Sistemska zaloga</th><th>Prešteta zaloga</th><th>Razlika</th><th>Status</th></tr></thead><tbody>{items.map((item) => <tr key={`${item.id}:${item.locationId}`}><td>{item.name}</td><td>{item.category?.name || '—'}</td><td>{item.location || '—'}</td><td>{n(item.currentStock, 2)} {item.unit}</td><td>{n(item.currentStock, 2)} {item.unit}</td><td>{item.lowStock ? <span className="danger">-{n(item.minimumStock - item.currentStock, 2)} {item.unit}</span> : '0'}</td><td><Badge tone={item.lowStock ? 'danger' : 'success'}>{item.lowStock ? 'Odstopanje' : 'Ujema se'}</Badge></td></tr>)}</tbody></table></TableCard>
+      <div className="consumables-kpi-grid compact">
+        <KpiCard tone="blue" title="Aktivne inventure" value={sessions.filter((row) => row.status === 'IN_PROGRESS').length} note="Trenutno v teku" />
+        <KpiCard tone="green" title="Prešteti artikli" value={counted} note={`Od ${lines.length}`} />
+        <KpiCard tone="red" title="Odstopanja" value={discrepancyLines.length} note="Prešteti artikli z razliko" />
+        <KpiCard tone="purple" title="Napredek inventure" value={`${progress}%`} note={session.status === 'COMPLETED' ? 'Zaključena' : 'Shranjeno lokalno / v osnutku'} />
+      </div>
+
+      <div className="inventory-session-banner">
+        <div><Badge tone={session.status === 'COMPLETED' ? 'success' : 'info'}>{session.status === 'COMPLETED' ? 'Zaključena' : 'V teku'}</Badge><strong>{session.locationName}</strong><span>Začeta {dateTime(session.startedAt)}{session.startedBy ? ` · ${session.startedBy}` : ''}</span>{session.completedAt && <span>Zaključena {dateTime(session.completedAt)}{session.completedBy ? ` · ${session.completedBy}` : ''}</span>}</div>
+        {session.notes && <p>{session.notes}</p>}
+      </div>
+
+      <div className="consumables-filter-row inventory-filters">
+        <label>Inventura<select value={session.id} onChange={(e) => onOpenSession(Number(e.target.value))}>{sessions.map((row) => <option key={row.id} value={row.id}>{row.locationName} · {date(row.startedAt)} · {row.status === 'IN_PROGRESS' ? 'V teku' : 'Zaključena'}</option>)}</select></label>
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Išči po artiklu ali kategoriji…" />
+        <label>Kategorija<select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}><option value="">Vse kategorije</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+        <label>Status štetja<select value={countStatusFilter} onChange={(e) => setCountStatusFilter(e.target.value)}><option value="">Vsi statusi</option><option value="UNCOUNTED">Ni prešteto</option><option value="COUNTED">Prešteto</option><option value="DISCREPANCY">Odstopanje</option><option value="MATCH">Ujema se</option></select></label>
+        <button type="button" className="btn secondary" onClick={() => { setQuery(''); setCategoryFilter(''); setCountStatusFilter('') }}>Ponastavi filtre</button>
+      </div>
+
+      <div className="inventory-progress"><span>Skupni napredek inventure</span><strong>{progress}%</strong><i><b style={{ width: `${progress}%` }} /></i><small>{counted} od {lines.length} artiklov{editable ? ' · zaloga se še ne spreminja' : ' · inventura zaključena'}</small></div>
+
+      <TableCard title={`Inventura – štetje artiklov · ${session.locationName}`}>
+        <div className="inventory-table-wrap"><table className="inventory-count-table"><thead><tr><th>Artikel</th><th>Kategorija</th><th>Sistemska zaloga</th><th>Prešteta zaloga</th><th>Razlika</th><th>Vrednost razlike</th><th>Status</th><th>Opomba</th></tr></thead><tbody>{filtered.map((line) => {
+          const state = lineState(line)
+          const difference = state.discrepancy
+          const discrepancyValue = difference == null ? null : difference * Number(line.costPriceSnapshot || 0)
+          const tone = difference == null ? 'muted' : Math.abs(difference) <= 0.00005 ? 'success' : 'danger'
+          const status = difference == null ? 'Ni prešteto' : Math.abs(difference) <= 0.00005 ? 'Ujema se' : difference > 0 ? 'Višek' : 'Manjko'
+          return <tr key={line.id} className={difference != null && Math.abs(difference) > 0.00005 ? 'inventory-row-discrepancy' : ''}>
+            <td><strong>{line.itemName}</strong><br /><small>{line.unit}</small></td>
+            <td>{line.categoryName || '—'}</td>
+            <td>{n(line.systemQuantity, 2)} {line.unit}</td>
+            <td>{editable ? <div className="quantity-with-unit inventory-count-input"><input type="number" min="0" step="0.0001" value={state.draftValue} onChange={(e) => setDraft((current) => ({ ...current, [line.id]: { countedQuantity: e.target.value, notes: current[line.id]?.notes || '' } }))} placeholder="Vnesi" /><span>{line.unit}</span></div> : <strong>{n(line.countedQuantity, 2)} {line.unit}</strong>}</td>
+            <td>{difference == null ? '—' : <span className={Math.abs(difference) <= 0.00005 ? 'success' : 'danger'}>{difference > 0 ? '+' : ''}{n(difference, 2)} {line.unit}</span>}</td>
+            <td>{difference == null ? '—' : eur(discrepancyValue == null ? line.discrepancyValue : discrepancyValue)}</td>
+            <td><Badge tone={tone}>{status}</Badge></td>
+            <td>{editable ? <input className="inventory-note-input" value={draft[line.id]?.notes || ''} onChange={(e) => setDraft((current) => ({ ...current, [line.id]: { countedQuantity: current[line.id]?.countedQuantity ?? '', notes: e.target.value } }))} placeholder="Opomba…" /> : <>{line.notes || '—'}{line.countedBy && <><br /><small>{line.countedBy}</small></>}</>}</td>
+          </tr>
+        })}</tbody></table></div>
+        <Empty visible={!loading && filtered.length === 0} text="Ni artiklov, ki ustrezajo filtrom." />
+        {editable && <div className="inventory-actions"><div><strong>Štetje je osnutek, dokler inventure ne zaključite.</strong><small>Ob zaključku se za vsako razliko ustvari nespremenljiv premik tipa INVENTORY_COUNT.</small></div><button type="button" className="btn secondary" disabled={saving} onClick={onSave}>{saving ? 'Shranjujem…' : 'Shrani štetje'}</button><button type="button" className="btn primary" disabled={saving || counted !== lines.length} onClick={onFinalize}>Zaključi inventuro</button></div>}
+      </TableCard>
+      {session.status === 'COMPLETED' && detail && <TableCard title="Premiki ob zaključku inventure"><table><thead><tr><th>Artikel</th><th>Količina</th><th>Zaloga pred</th><th>Zaloga po</th><th>Vrednost</th><th>Uporabnik</th></tr></thead><tbody>{(detail.movements || []).map((movement) => <tr key={movement.id}><td>{movement.itemName}</td><td className={movement.quantityDelta < 0 ? 'danger' : 'success'}>{movement.quantityDelta > 0 ? '+' : ''}{n(movement.quantityDelta, 2)} {movement.unit || ''}</td><td>{n(movement.stockBefore, 2)}</td><td>{n(movement.stockAfter, 2)}</td><td>{eur(Math.abs(Number(movement.valueDelta || 0)))}</td><td>{movement.userName || '—'}</td></tr>)}</tbody></table><Empty visible={(detail.movements || []).length === 0} text="Inventura ni zahtevala korekcij zaloge." /></TableCard>}
     </div>
-    <aside className="consumables-side-stack"><TableCard title="Napredek po lokacijah" action="Prikaži vse"><table><tbody>{Object.entries(groupByLocation(items)).map(([location, count]) => <tr key={location}><td>{location}</td><td>{count} / {count}</td><td><span className="mini-progress"><i style={{ width: '100%' }} /></span></td></tr>)}</tbody></table></TableCard><SideLowStock items={items.filter((i) => i.lowStock)} title="Največja odstopanja" /></aside>
+    <aside className="consumables-side-stack">
+      <InventoryHistory sessions={sessions} selectedId={session.id} onOpen={onOpenSession} />
+      <TableCard title="Največja odstopanja"><table><tbody>{largest.map(({ line, discrepancy }) => <tr key={line.id}><td>{line.itemName}<br /><small>{session.locationName}</small></td><td className="danger">{Number(discrepancy) > 0 ? '+' : ''}{n(Number(discrepancy), 2)} {line.unit}</td></tr>)}</tbody></table><Empty visible={largest.length === 0} text="Ni zabeleženih odstopanj." /></TableCard>
+    </aside>
   </div>
+}
+
+function InventoryHistory({ sessions, selectedId, onOpen }: { sessions: InventorySession[]; selectedId: number | null; onOpen: (id: number) => void }) {
+  return <TableCard title="Zgodovina inventur"><div className="inventory-history-list">{sessions.slice(0, 12).map((session) => <button key={session.id} type="button" className={session.id === selectedId ? 'active' : ''} onClick={() => onOpen(session.id)}><span><strong>{session.locationName}</strong><small>{dateTime(session.startedAt)}</small></span><span><Badge tone={session.status === 'COMPLETED' ? 'success' : 'info'}>{session.status === 'COMPLETED' ? 'Zaključena' : 'V teku'}</Badge><small>{session.countedItems}/{session.totalItems}</small></span></button>)}</div><Empty visible={sessions.length === 0} text="Inventur še ni." /></TableCard>
 }
 
 function TableCard({ title, action, children }: { title: string; action?: string; children: ReactNode }) {
@@ -1168,6 +1451,11 @@ function BarsCard({ title, data }: { title: string; data: { label: string; value
 function ReorderCard({ items, createPurchaseOrder }: { items: Item[]; createPurchaseOrder: (items?: Item[]) => void }) { return <TableCard title="Predlogi za naročilo" action="Prikaži vse"><table><tbody>{items.slice(0, 8).map((item) => <tr key={`${item.id}:${item.locationId}`}><td>{item.name}<br /><small>{item.location || '—'} · Trenutno: {n(item.currentStock, 2)} {item.unit} · Min: {n(item.minimumStock, 2)} {item.unit}</small></td><td>Predlagano: {n(suggestedOrderQuantity(item), 0)} {item.unit}</td><td><button type="button" className="btn tiny" onClick={() => createPurchaseOrder([item])}>Dodaj</button></td></tr>)}</tbody></table><Empty visible={items.length === 0} text="Ni artiklov pod minimalno zalogo." /><button type="button" className="btn secondary wide" disabled={items.length === 0} onClick={() => createPurchaseOrder(items)}>Ustvari predloge naročil</button></TableCard> }
 
 function FakeLineChart() { return <TableCard title="Poraba v zadnjih 7 dneh"><div className="fake-line-chart"><svg viewBox="0 0 300 140" role="img" aria-label="Poraba"><polyline points="0,100 50,72 100,35 150,108 200,76 250,58 300,58" fill="none" stroke="currentColor" strokeWidth="4" /><path d="M0 100L50 72L100 35L150 108L200 76L250 58L300 58L300 140L0 140Z" fill="currentColor" opacity="0.08" /></svg></div><div className="quick-stat-grid two"><span>Skupna poraba<strong>1.842 kos</strong></span><span>Povprečno na dan<strong>263 kos</strong></span></div></TableCard> }
+function toInventoryDraft(detail: InventoryDetail | null | undefined): InventoryCountDraft {
+  const result: InventoryCountDraft = {}
+  ;(detail?.lines || []).forEach((line) => { result[line.id] = { countedQuantity: line.countedQuantity == null ? '' : String(line.countedQuantity), notes: line.notes || '' } })
+  return result
+}
 function suggestedOrderQuantity(item: Item) { return Math.max(Number(item.minimumStock || 0) * 2 - Number(item.currentStock || 0), Number(item.minimumStock || 0), 0) }
 function vatMultiplier(rate?: PurchaseOrderLineForm['vatRate'] | Item['vatRate'] | null) { return rate === 'VAT_22' ? 0.22 : rate === 'VAT_9_5' ? 0.095 : 0 }
 function groupMovements(movements: Movement[]) { const m: Record<string, number> = {}; movements.forEach((x) => { if (x.quantityDelta < 0) m[x.itemName] = (m[x.itemName] || 0) + Math.abs(x.quantityDelta) }); return Object.entries(m).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value) }

@@ -64,9 +64,20 @@ public interface ConsumableStockMovementRepository extends JpaRepository<Consuma
             Long sourceId
     );
 
+    @Query("""
+            SELECT m FROM ConsumableStockMovement m
+            JOIN FETCH m.consumable c
+            LEFT JOIN FETCH c.category
+            JOIN FETCH m.location l
+            LEFT JOIN FETCH m.createdBy
+            WHERE m.company.id = :companyId
+              AND m.sourceType = :sourceType
+              AND m.sourceId = :sourceId
+            ORDER BY m.createdAt ASC, m.id ASC
+            """)
     List<ConsumableStockMovement> findByCompanyIdAndSourceTypeAndSourceId(
-            Long companyId,
-            StockMovementSourceType sourceType,
-            Long sourceId
+            @Param("companyId") Long companyId,
+            @Param("sourceType") StockMovementSourceType sourceType,
+            @Param("sourceId") Long sourceId
     );
 }

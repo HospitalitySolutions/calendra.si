@@ -23,13 +23,14 @@ class ConsumableControllerFeatureGateTest {
     @Mock private ConsumableService service;
     @Mock private GlobalConsumablesFeatureService feature;
     @Mock private OpenBillSyncService openBillSyncService;
+    @Mock private ConsumableInventoryService inventoryService;
 
     private ConsumableController controller;
     private User me;
 
     @BeforeEach
     void setUp() {
-        controller = new ConsumableController(service, feature, openBillSyncService);
+        controller = new ConsumableController(service, feature, openBillSyncService, inventoryService);
         Company company = new Company();
         company.setId(11L);
         me = new User();
@@ -63,4 +64,18 @@ class ConsumableControllerFeatureGateTest {
         assertEquals(HttpStatus.FORBIDDEN, error.getStatusCode());
         verifyNoInteractions(service);
     }
+    @Test
+    void inventoryWriteIsBlockedWhenConsumablesFeatureIsOff() {
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Consumables disabled"))
+                .when(feature).assertEnabledForUser(me);
+
+        ResponseStatusException error = assertThrows(
+                ResponseStatusException.class,
+                () -> controller.startInventory(new ConsumableController.InventoryStartRequest(3L, null), me)
+        );
+
+        assertEquals(HttpStatus.FORBIDDEN, error.getStatusCode());
+        verifyNoInteractions(inventoryService);
+    }
+
 }

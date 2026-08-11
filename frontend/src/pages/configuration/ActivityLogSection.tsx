@@ -69,6 +69,7 @@ const ACTIVITY_ACTIONS = [
   "CONSUMABLE_CREATED", "CONSUMABLE_UPDATED", "CONSUMABLE_STOCK_ADJUSTED",
   "CONSUMABLE_CATEGORY_CREATED", "CONSUMABLE_CATEGORY_UPDATED", "CONSUMABLE_SUPPLIER_CREATED", "CONSUMABLE_SUPPLIER_UPDATED",
   "PURCHASE_ORDER_CREATED", "PURCHASE_ORDER_UPDATED", "SERVICE_CONSUMABLE_DEFAULTS_UPDATED", "SESSION_CONSUMABLES_UPDATED",
+  "INVENTORY_SESSION_CREATED", "INVENTORY_SESSION_UPDATED", "INVENTORY_SESSION_COMPLETED",
 ] as const;
 
 const MODULES: ActivityModule[] = ["CALENDAR", "CLIENTS", "BILLING", "INBOX", "WAITLIST", "SERVICES", "CONSUMABLES", "EMPLOYEES", "CONFIGURATION", "GUEST_APP", "WEBSITE", "INTEGRATIONS", "SYSTEM"];
@@ -180,6 +181,9 @@ const actionLabel = (action: string, sl: boolean) => {
     PURCHASE_ORDER_CREATED: ["Ustvaril naročilo dobavitelju", "Created purchase order"], PURCHASE_ORDER_UPDATED: ["Posodobil naročilo dobavitelju", "Updated purchase order"],
     SERVICE_CONSUMABLE_DEFAULTS_UPDATED: ["Posodobil privzeti material storitve", "Updated service consumable defaults"],
     SESSION_CONSUMABLES_UPDATED: ["Posodobil material termina", "Updated session consumables"],
+    INVENTORY_SESSION_CREATED: ["Začel inventuro", "Started inventory session"],
+    INVENTORY_SESSION_UPDATED: ["Posodobil štetje inventure", "Updated inventory counts"],
+    INVENTORY_SESSION_COMPLETED: ["Zaključil inventuro", "Completed inventory session"],
   };
   const pair = labels[action];
   if (pair) return sl ? pair[0] : pair[1];

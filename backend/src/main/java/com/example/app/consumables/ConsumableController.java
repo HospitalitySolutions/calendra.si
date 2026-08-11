@@ -33,6 +33,7 @@ public class ConsumableController {
     private final ConsumableService service;
     private final GlobalConsumablesFeatureService consumablesFeatureService;
     private final OpenBillSyncService openBillSyncService;
+    private final ConsumableInventoryService inventoryService;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ActivityLogService activityLogs;
@@ -40,11 +41,13 @@ public class ConsumableController {
     public ConsumableController(
             ConsumableService service,
             GlobalConsumablesFeatureService consumablesFeatureService,
-            OpenBillSyncService openBillSyncService
+            OpenBillSyncService openBillSyncService,
+            ConsumableInventoryService inventoryService
     ) {
         this.service = service;
         this.consumablesFeatureService = consumablesFeatureService;
         this.openBillSyncService = openBillSyncService;
+        this.inventoryService = inventoryService;
     }
 
     public record CategoryRequest(String name, String color, Boolean active) {}
@@ -263,6 +266,44 @@ public class ConsumableController {
             List<PurchaseOrderReceiptResponse> receipts
     ) {}
 
+    public record InventoryStartRequest(Long locationId, String notes) {}
+    public record InventoryCountLineRequest(Long lineId, BigDecimal countedQuantity, String notes) {}
+    public record InventoryCountRequest(List<InventoryCountLineRequest> lines) {}
+
+    public record InventorySessionResponse(
+            Long id,
+            Long locationId,
+            String locationName,
+            String status,
+            Instant startedAt,
+            Instant completedAt,
+            String startedBy,
+            String completedBy,
+            String notes,
+            int totalItems,
+            int countedItems,
+            int discrepancyItems,
+            int progressPercent
+    ) {}
+
+    public record InventoryLineResponse(
+            Long id,
+            Long consumableId,
+            String itemName,
+            String categoryName,
+            String unit,
+            BigDecimal systemQuantity,
+            BigDecimal countedQuantity,
+            BigDecimal discrepancyQuantity,
+            BigDecimal costPriceSnapshot,
+            BigDecimal discrepancyValue,
+            String notes,
+            Instant countedAt,
+            String countedBy
+    ) {}
+
+    public record InventoryDetailResponse(InventorySessionResponse session, List<InventoryLineResponse> lines, List<MovementResponse> movements) {}
+
     private Long enabledCompanyId(User me) {
         consumablesFeatureService.assertEnabledForUser(me);
         return me.getCompany().getId();
@@ -480,6 +521,128 @@ public class ConsumableController {
                 service.listPurchaseOrderLines(companyId, id),
                 service.listPurchaseOrderReceipts(companyId, id)
         );
+    }
+
+    @GetMapping("/inventory-sessions")
+    public List<InventorySessionResponse> inventorySessions(
+            @RequestParam(required = false) Long locationId,
+            @AuthenticationPrincipal User me
+    ) {
+        Long companyId = enabledCompanyId(me);
+        List<ConsumableInventorySession> sessions = inventoryService.listSessions(companyId, locationId);
+        List<ConsumableInventoryLine> allLines = inventoryService.getLinesForSessions(
+                companyId, sessions.stream().map(ConsumableInventorySession::getId).toList());
+        java.util.Map<Long, List<ConsumableInventoryLine>> linesBySession = allLines.stream()
+                .collect(java.util.stream.Collectors.groupingBy(line -> line.getInventorySession().getId()));
+        return sessions.stream()
+                .map(session -> toInventorySessionResponse(session, linesBySession.getOrDefault(session.getId(), List.of())))
+                .toList();
+    }
+
+    @GetMapping("/inventory-sessions/{id}")
+    public InventoryDetailResponse inventorySession(@PathVariable Long id, @AuthenticationPrincipal User me) {
+        Long companyId = enabledCompanyId(me);
+        return toInventoryDetailResponse(companyId, inventoryService.getSession(companyId, id));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/inventory-sessions")
+    public InventoryDetailResponse startInventory(@RequestBody InventoryStartRequest req, @AuthenticationPrincipal User me) {
+        assertConsumablesEnabled(me);
+        ConsumableInventorySession session = inventoryService.start(me, req);
+        InventoryDetailResponse result = toInventoryDetailResponse(me.getCompany().getId(), session);
+        recordInventory(me, ActivityAction.INVENTORY_SESSION_CREATED, result.session(), "Started inventory session");
+        return result;
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/inventory-sessions/{id}/counts")
+    public InventoryDetailResponse saveInventoryCounts(
+            @PathVariable Long id,
+            @RequestBody InventoryCountRequest req,
+            @AuthenticationPrincipal User me
+    ) {
+        assertConsumablesEnabled(me);
+        ConsumableInventorySession session = inventoryService.saveCounts(me, id, req);
+        InventoryDetailResponse result = toInventoryDetailResponse(me.getCompany().getId(), session);
+        recordInventory(me, ActivityAction.INVENTORY_SESSION_UPDATED, result.session(), "Saved inventory counts");
+        return result;
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/inventory-sessions/{id}/finalize")
+    public InventoryDetailResponse finalizeInventory(@PathVariable Long id, @AuthenticationPrincipal User me) {
+        assertConsumablesEnabled(me);
+        ConsumableInventorySession session = inventoryService.finalizeInventory(me, id);
+        InventoryDetailResponse result = toInventoryDetailResponse(me.getCompany().getId(), session);
+        recordInventory(me, ActivityAction.INVENTORY_SESSION_COMPLETED, result.session(), "Completed inventory session");
+        return result;
+    }
+
+    private InventoryDetailResponse toInventoryDetailResponse(Long companyId, ConsumableInventorySession session) {
+        List<ConsumableInventoryLine> inventoryLines = inventoryService.getLines(companyId, session.getId());
+        return new InventoryDetailResponse(
+                toInventorySessionResponse(session, inventoryLines),
+                inventoryLines.stream().map(ConsumableController::toInventoryLineResponse).toList(),
+                inventoryService.getMovements(companyId, session.getId()).stream()
+                        .map(ConsumableController::toMovementResponse).toList()
+        );
+    }
+
+    private static InventorySessionResponse toInventorySessionResponse(
+            ConsumableInventorySession session,
+            List<ConsumableInventoryLine> inventoryLines
+    ) {
+        List<ConsumableInventoryLine> safeLines = inventoryLines == null ? List.of() : inventoryLines;
+        int total = safeLines.size();
+        int counted = (int) safeLines.stream().filter(line -> line.getCountedQuantity() != null).count();
+        int discrepancies = (int) safeLines.stream()
+                .map(ConsumableInventoryService::discrepancy)
+                .filter(java.util.Objects::nonNull)
+                .filter(delta -> delta.compareTo(BigDecimal.ZERO) != 0)
+                .count();
+        int progress = total == 0 ? 0 : Math.min(100, (int) Math.round((counted * 100.0) / total));
+        return new InventorySessionResponse(
+                session.getId(),
+                session.getLocation().getId(),
+                session.getLocation().getName(),
+                session.getStatus().name(),
+                session.getStartedAt(),
+                session.getCompletedAt(),
+                userName(session.getStartedBy()),
+                userName(session.getCompletedBy()),
+                session.getNotes(),
+                total, counted, discrepancies, progress
+        );
+    }
+
+    private static InventoryLineResponse toInventoryLineResponse(ConsumableInventoryLine line) {
+        BigDecimal discrepancy = ConsumableInventoryService.discrepancy(line);
+        BigDecimal discrepancyValue = discrepancy == null
+                ? null
+                : discrepancy.multiply(line.getCostPriceSnapshot() == null ? BigDecimal.ZERO : line.getCostPriceSnapshot())
+                        .setScale(4, java.math.RoundingMode.HALF_UP);
+        return new InventoryLineResponse(
+                line.getId(), line.getConsumable().getId(), line.getItemNameSnapshot(), line.getCategoryNameSnapshot(),
+                line.getUnitSnapshot(), line.getSystemQuantity(), line.getCountedQuantity(), discrepancy, line.getCostPriceSnapshot(), discrepancyValue,
+                line.getNotes(), line.getCountedAt(), userName(line.getCountedBy())
+        );
+    }
+
+    private void recordInventory(User me, ActivityAction action, InventorySessionResponse row, String summary) {
+        if (activityLogs == null || row == null) return;
+        activityLogs.recordUser(me, ActivityModule.CONSUMABLES, action,
+                "CONSUMABLE_INVENTORY", row.id(), "Inventura #" + row.id(), summary, row.locationId(), null,
+                ActivityDetails.of("status", row.status(), "countedItems", row.countedItems(),
+                        "totalItems", row.totalItems(), "discrepancyItems", row.discrepancyItems(), "targetPath", "/consumables"));
+    }
+
+    private static String userName(User user) {
+        if (user == null) return null;
+        String first = user.getFirstName() == null ? "" : user.getFirstName().trim();
+        String last = user.getLastName() == null ? "" : user.getLastName().trim();
+        String name = (first + " " + last).trim();
+        return name.isBlank() ? null : name;
     }
 
     private void recordItem(User me, ActivityAction action, ItemResponse row, String summary) {
