@@ -309,3 +309,9 @@
   .stock-transfer-arrow { transform: rotate(90deg); }
   .stock-transfer-arrow small { transform: rotate(-90deg); }
 }
+
+/* Low-stock notification deep-link */
+.low-stock-alert-banner{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:0 0 16px;padding:14px 16px;border:1px solid #fed7aa;border-radius:14px;background:#fff7ed}
+.low-stock-alert-banner>div{display:flex;flex-direction:column;gap:3px}.low-stock-alert-banner strong{color:#9a3412}.low-stock-alert-banner span{color:#7c2d12;font-size:13px}
+.consumables-card tr.highlighted-low-stock td{background:#fff7ed}
+@media(max-width:720px){.low-stock-alert-banner{align-items:stretch;flex-direction:column}.low-stock-alert-banner .btn{width:100%}}

@@ -60,6 +60,14 @@ function TaskIcon() {
 
 function NotificationTypeIcon({ type }: { type: string }) {
   const normalized = String(type || '').toUpperCase()
+  if (normalized === 'LOW_STOCK') {
+    return (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M12 3 2.8 19h18.4L12 3Z" />
+        <path d="M12 9v4M12 17h.01" />
+      </svg>
+    )
+  }
   if (normalized.includes('CREATED')) {
     return (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -94,6 +102,7 @@ function NotificationTypeIcon({ type }: { type: string }) {
 
 function localizedTitle(item: NotificationItem, locale: string) {
   const type = String(item.type || '').toUpperCase()
+  if (type === 'LOW_STOCK') return locale === 'sl' ? 'Nizka zaloga' : locale === 'sr' ? 'Niska zaliha' : 'Low stock'
   if (type === 'BOOKING_CREATED') return locale === 'sl' ? 'Nova rezervacija' : locale === 'sr' ? 'Nova rezervacija' : 'New booking'
   if (type === 'BOOKING_RESCHEDULED' || type === 'BOOKING_UPDATED') return locale === 'sl' ? 'Termin je bil prestavljen' : locale === 'sr' ? 'Termin je pomeren' : 'Booking rescheduled'
   if (type === 'BOOKING_CANCELLED') return locale === 'sl' ? 'Termin je bil odpovedan' : locale === 'sr' ? 'Termin je otkazan' : 'Booking cancelled'

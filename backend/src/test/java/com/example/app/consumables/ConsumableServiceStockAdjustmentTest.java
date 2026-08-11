@@ -44,6 +44,7 @@ class ConsumableServiceStockAdjustmentTest {
     @Mock private ConsumablePurchaseOrderReceiptLineRepository purchaseOrderReceiptLines;
     @Mock private TimeService timeService;
     @Mock private GlobalConsumablesFeatureService consumablesFeatureService;
+    @Mock private ConsumableLowStockAlertService lowStockAlerts;
 
     private ConsumableService service;
     private User me;
@@ -70,7 +71,8 @@ class ConsumableServiceStockAdjustmentTest {
                 purchaseOrderReceipts,
                 purchaseOrderReceiptLines,
                 timeService,
-                consumablesFeatureService
+                consumablesFeatureService,
+                lowStockAlerts
         );
 
         company = new Company();

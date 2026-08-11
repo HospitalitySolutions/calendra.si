@@ -30,7 +30,20 @@ public interface TenantNotificationRepository extends JpaRepository<TenantNotifi
             """)
     long countUnread(@Param("userId") Long userId, @Param("now") Instant now);
 
+    @Query("""
+            select count(n) from TenantNotification n
+            where n.recipient.id = :userId
+              and n.readAt is null
+              and n.category <> :excludedCategory
+              and (n.expiresAt is null or n.expiresAt > :now)
+            """)
+    long countUnreadExcludingCategory(@Param("userId") Long userId,
+                                      @Param("excludedCategory") String excludedCategory,
+                                      @Param("now") Instant now);
+
     Optional<TenantNotification> findByIdAndRecipientId(Long id, Long recipientId);
+
+    Optional<TenantNotification> findByRecipientIdAndDedupeKey(Long recipientId, String dedupeKey);
 
     boolean existsByRecipientIdAndDedupeKey(Long recipientId, String dedupeKey);
 

@@ -344,10 +344,24 @@ function movementSignedQuantity(form: StockMovementFormState) {
 export function ConsumablesPage() {
   const me = useAuthenticatedUser()
   const activeUnitId = me.activeUnitId ?? me.companyId
-  const [selectedLocationId] = useSelectedLocationId(activeUnitId)
+  const [selectedLocationId, setSelectedLocationId] = useSelectedLocationId(activeUnitId)
   const queryClient = useQueryClient()
   const { showToast } = useToast()
-  const [activeTab, setActiveTab] = useState<TabKey>('overview')
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    if (typeof window === 'undefined') return 'overview'
+    const requested = new URLSearchParams(window.location.search).get('tab') as TabKey | null
+    return requested && tabs.some((tab) => tab.key === requested) ? requested : 'overview'
+  })
+  const notificationLocationId = useMemo(() => {
+    if (typeof window === 'undefined') return null
+    const value = Number(new URLSearchParams(window.location.search).get('locationId'))
+    return Number.isInteger(value) && value > 0 ? value : null
+  }, [])
+  const notificationLowStockItemId = useMemo(() => {
+    if (typeof window === 'undefined') return null
+    const value = Number(new URLSearchParams(window.location.search).get('lowStockItemId'))
+    return Number.isInteger(value) && value > 0 ? value : null
+  }, [])
   const [loading, setLoading] = useState(true)
   const [overview, setOverview] = useState<Overview>(emptyOverview)
   const [items, setItems] = useState<Item[]>([])
@@ -363,6 +377,12 @@ export function ConsumablesPage() {
   const [locationFilter, setLocationFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [showOnlyLow, setShowOnlyLow] = useState(false)
+
+  useEffect(() => {
+    if (notificationLocationId == null || operationalLocations.length === 0) return
+    if (!operationalLocations.some((location) => location.id === notificationLocationId)) return
+    if (selectedLocationId !== notificationLocationId) setSelectedLocationId(notificationLocationId)
+  }, [notificationLocationId, operationalLocations, selectedLocationId, setSelectedLocationId])
 
   const [itemModalOpen, setItemModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<Item | null>(null)
@@ -1116,7 +1136,7 @@ export function ConsumablesPage() {
 
         {activeTab === 'overview' && <OverviewTab overview={overview} items={items} lowStockItems={lowStockItems} movements={movements} query={query} setQuery={setQuery} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} locationFilter={locationFilter} setLocationFilter={setLocationFilter} showOnlyLow={showOnlyLow} setShowOnlyLow={setShowOnlyLow} categories={categories} locations={stockLocationNames} createPurchaseOrder={createPurchaseOrder} loading={loading} />}
         {activeTab === 'items' && <ItemsTab items={filteredItems} categories={categories} locations={stockLocationNames} query={query} setQuery={setQuery} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} locationFilter={locationFilter} setLocationFilter={setLocationFilter} statusFilter={statusFilter} setStatusFilter={setStatusFilter} lowStockItems={lowStockItems} billableCount={billableCount} outOfStockCount={outOfStockCount} openCategoryManager={openCategoryManager} onEditItem={openEditItem} onAdjustStock={openStockMovement} onTransferStock={openStockTransfer} />}
-        {activeTab === 'procurement' && <ProcurementTab orders={purchaseOrders} items={items} suppliers={suppliers} createPurchaseOrder={createPurchaseOrder} openPurchaseOrder={openExistingPurchaseOrder} createSuggestedOrder={openNewPurchaseOrder} />}
+        {activeTab === 'procurement' && <ProcurementTab orders={purchaseOrders} items={items} suppliers={suppliers} createPurchaseOrder={createPurchaseOrder} openPurchaseOrder={openExistingPurchaseOrder} createSuggestedOrder={openNewPurchaseOrder} highlightItemId={notificationLowStockItemId} />}
         {activeTab === 'suppliers' && <SuppliersTab suppliers={suppliers} openSupplier={openEditSupplier} createSupplier={openNewSupplier} />}
         {activeTab === 'movements' && <MovementsTab movements={movements} transfers={transfers} onCreateTransfer={() => openStockTransfer()} />}
         {activeTab === 'inventory' && <InventoryTab sessions={inventorySessions} detail={inventoryDetail} draft={inventoryCountDraft} setDraft={setInventoryCountDraft} query={inventoryQuery} setQuery={setInventoryQuery} categoryFilter={inventoryCategoryFilter} setCategoryFilter={setInventoryCategoryFilter} countStatusFilter={inventoryCountStatusFilter} setCountStatusFilter={setInventoryCountStatusFilter} loading={loading || loadingInventoryDetail} saving={savingInventory} onOpenSession={openInventorySession} onSave={() => { void saveInventoryCounts().catch(() => undefined) }} onFinalize={() => { void finalizeInventory() }} />}
@@ -1383,13 +1403,14 @@ function ItemsTab(props: { items: Item[]; categories: Category[]; locations: str
   </div>
 }
 
-function ProcurementTab({ orders, items, suppliers, createPurchaseOrder, openPurchaseOrder, createSuggestedOrder }: {
+function ProcurementTab({ orders, items, suppliers, createPurchaseOrder, openPurchaseOrder, createSuggestedOrder, highlightItemId }: {
   orders: PurchaseOrder[]
   items: Item[]
   suppliers: Supplier[]
   createPurchaseOrder: (items?: Item[]) => void
   openPurchaseOrder: (order: PurchaseOrder) => void
   createSuggestedOrder: (items?: Item[]) => void
+  highlightItemId?: number | null
 }) {
   const [supplierFilter, setSupplierFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -1406,13 +1427,15 @@ function ProcurementTab({ orders, items, suppliers, createPurchaseOrder, openPur
     })
   }, [orders, supplierFilter, statusFilter, search])
   const reset = () => { setSupplierFilter(''); setStatusFilter(''); setSearch('') }
+  const highlightedLowStockItem = highlightItemId == null ? null : low.find((item) => item.id === highlightItemId) || null
   return <div className="consumables-main-with-side">
     <div>
+      {highlightedLowStockItem && <div className="low-stock-alert-banner"><div><strong>Nizka zaloga · {highlightedLowStockItem.name}</strong><span>{highlightedLowStockItem.location || 'Poslovalnica'} · trenutno {n(highlightedLowStockItem.currentStock, 2)} {highlightedLowStockItem.unit}, minimum {n(highlightedLowStockItem.minimumStock, 2)} {highlightedLowStockItem.unit}</span></div><button type="button" className="btn primary" onClick={() => createSuggestedOrder([highlightedLowStockItem])}>Ustvari naročilnico</button></div>}
       <div className="consumables-kpi-grid compact"><KpiCard tone="blue" title="Odprte naročilnice" value={open.length} note="V pripravi ali naročene" /><KpiCard tone="green" title="Pričakovane dobave" value={open.filter((o) => o.expectedDate).length} note="Odprte z datumom dobave" /><KpiCard tone="orange" title="Izdelki za naročilo" value={low.length} note="Pod minimalno zalogo" /><KpiCard tone="purple" title="Vrednost nabave" value={eur(orders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0))} note="Vse naročilnice" /></div>
       <div className="consumables-filter-row"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Išči po naročilnici, dobavitelju ali poslovalnici…" /><label>Dobavitelj<select value={supplierFilter} onChange={(e) => setSupplierFilter(e.target.value)}><option value="">Vsi dobavitelji</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label><label>Status<select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="">Vsi statusi</option><option value="DRAFT">Osnutek</option><option value="ORDERED">Naročeno</option><option value="PARTIALLY_RECEIVED">Delno prejeto</option><option value="COMPLETED">Zaključeno</option><option value="CANCELLED">Preklicano</option></select></label><button type="button" className="btn secondary" onClick={reset}>Ponastavi filtre</button></div>
       <TableCard title={`Naročilnice · ${filteredOrders.length}`}><table><thead><tr><th>Št. naročilnice</th><th>Datum</th><th>Dobavitelj</th><th>Poslovalnica</th><th>Status</th><th>Prič. dobava</th><th>Vrednost</th><th>Prejeto</th><th>Napredek</th><th>Akcije</th></tr></thead><tbody>{filteredOrders.map((o) => { const progress = Number(o.totalAmount || 0) > 0 ? Math.min(100, Math.round((Number(o.receivedAmount || 0) / Number(o.totalAmount || 0)) * 100)) : 0; return <tr key={o.id}><td><button type="button" className="link-button" onClick={() => openPurchaseOrder(o)}>{o.orderNumber}</button></td><td>{date(o.orderDate)}</td><td>{o.supplierName || '—'}</td><td>{o.locationName || '—'}</td><td><Badge tone={o.status === 'COMPLETED' ? 'success' : o.status === 'PARTIALLY_RECEIVED' ? 'warning' : o.status === 'CANCELLED' ? 'muted' : 'info'}>{statusText(o.status)}</Badge></td><td>{date(o.expectedDate)}</td><td>{eur(o.totalAmount)}</td><td>{eur(o.receivedAmount)}</td><td><span className="mini-progress"><i style={{ width: `${progress}%` }} /></span> {progress}%</td><td><button type="button" className="icon-btn edit" onClick={() => openPurchaseOrder(o)} title="Odpri naročilnico">✎</button></td></tr> })}</tbody></table><Empty visible={filteredOrders.length === 0} text="Naročilnic še ni oziroma ne ustrezajo izbranim filtrom." /></TableCard>
     </div>
-    <aside className="consumables-side-stack"><ReorderCard items={low.slice(0, 8)} createPurchaseOrder={createSuggestedOrder} /><TableCard title="Pričakovane dobave" action="Prikaži vse"><table><tbody>{open.filter((o) => o.expectedDate).slice(0, 5).map((o) => <tr key={o.id}><td>{o.supplierName || o.orderNumber}</td><td>{date(o.expectedDate)}</td><td><Badge tone="info">{statusText(o.status)}</Badge></td></tr>)}</tbody></table><Empty visible={open.filter((o) => o.expectedDate).length === 0} text="Ni načrtovanih dobav." /></TableCard><button type="button" className="btn primary wide" onClick={() => createPurchaseOrder()}>+ Nova naročilnica</button></aside>
+    <aside className="consumables-side-stack"><ReorderCard items={low.slice(0, 8)} createPurchaseOrder={createSuggestedOrder} highlightItemId={highlightItemId} /><TableCard title="Pričakovane dobave" action="Prikaži vse"><table><tbody>{open.filter((o) => o.expectedDate).slice(0, 5).map((o) => <tr key={o.id}><td>{o.supplierName || o.orderNumber}</td><td>{date(o.expectedDate)}</td><td><Badge tone="info">{statusText(o.status)}</Badge></td></tr>)}</tbody></table><Empty visible={open.filter((o) => o.expectedDate).length === 0} text="Ni načrtovanih dobav." /></TableCard><button type="button" className="btn primary wide" onClick={() => createPurchaseOrder()}>+ Nova naročilnica</button></aside>
   </div>
 }
 
@@ -1628,7 +1651,7 @@ function CategoryDistribution({ items }: { items: Item[] }) {
 function QuickStats({ total, value, low, out, billable }: { total: number; value: number; low: number; out: number; billable: number }) { return <TableCard title="Hitra statistika"><div className="quick-stat-grid"><span>Skupaj artiklov<strong>{total}</strong></span><span>Vrednost zaloge<strong>{eur(value)}</strong></span><span>Nizka zaloga<strong>{low}</strong></span><span>Zunaj zaloge<strong>{out}</strong></span><span>Zaračunljivih<strong>{billable}</strong></span></div></TableCard> }
 function ChartCard({ title, data }: { title: string; data: { label: string; value: number }[] }) { const total = data.reduce((s, d) => s + Number(d.value || 0), 0); return <TableCard title={title}><div className="consumables-donut-row"><div className="consumables-donut" /><ul>{data.slice(0, 6).map((d) => <li key={d.label}><span>{d.label}</span><strong>{total ? Math.round((d.value / total) * 100) : 0}% ({n(d.value, 0)})</strong></li>)}</ul></div></TableCard> }
 function BarsCard({ title, data }: { title: string; data: { label: string; value: number }[] }) { const max = Math.max(1, ...data.map((d) => Number(d.value || 0))); return <TableCard title={title} action="Prikaži vse"><div className="consumables-bars">{data.slice(0, 6).map((d) => <div key={d.label}><span>{d.label}</span><i><b style={{ width: `${Math.max(6, (Number(d.value || 0) / max) * 100)}%` }} /></i><strong>{n(d.value, 2)}</strong></div>)}</div></TableCard> }
-function ReorderCard({ items, createPurchaseOrder }: { items: Item[]; createPurchaseOrder: (items?: Item[]) => void }) { return <TableCard title="Predlogi za naročilo" action="Prikaži vse"><table><tbody>{items.slice(0, 8).map((item) => <tr key={`${item.id}:${item.locationId}`}><td>{item.name}<br /><small>{item.location || '—'} · Trenutno: {n(item.currentStock, 2)} {item.unit} · Min: {n(item.minimumStock, 2)} {item.unit}</small></td><td>Predlagano: {n(suggestedOrderQuantity(item), 0)} {item.unit}</td><td><button type="button" className="btn tiny" onClick={() => createPurchaseOrder([item])}>Dodaj</button></td></tr>)}</tbody></table><Empty visible={items.length === 0} text="Ni artiklov pod minimalno zalogo." /><button type="button" className="btn secondary wide" disabled={items.length === 0} onClick={() => createPurchaseOrder(items)}>Ustvari predloge naročil</button></TableCard> }
+function ReorderCard({ items, createPurchaseOrder, highlightItemId }: { items: Item[]; createPurchaseOrder: (items?: Item[]) => void; highlightItemId?: number | null }) { return <TableCard title="Predlogi za naročilo" action="Prikaži vse"><table><tbody>{items.slice(0, 8).map((item) => <tr key={`${item.id}:${item.locationId}`} className={item.id === highlightItemId ? 'highlighted-low-stock' : ''}><td>{item.name}<br /><small>{item.location || '—'} · Trenutno: {n(item.currentStock, 2)} {item.unit} · Min: {n(item.minimumStock, 2)} {item.unit}</small></td><td>Predlagano: {n(suggestedOrderQuantity(item), 0)} {item.unit}</td><td><button type="button" className="btn tiny" onClick={() => createPurchaseOrder([item])}>Dodaj</button></td></tr>)}</tbody></table><Empty visible={items.length === 0} text="Ni artiklov pod minimalno zalogo." /><button type="button" className="btn secondary wide" disabled={items.length === 0} onClick={() => createPurchaseOrder(items)}>Ustvari predloge naročil</button></TableCard> }
 
 function FakeLineChart() { return <TableCard title="Poraba v zadnjih 7 dneh"><div className="fake-line-chart"><svg viewBox="0 0 300 140" role="img" aria-label="Poraba"><polyline points="0,100 50,72 100,35 150,108 200,76 250,58 300,58" fill="none" stroke="currentColor" strokeWidth="4" /><path d="M0 100L50 72L100 35L150 108L200 76L250 58L300 58L300 140L0 140Z" fill="currentColor" opacity="0.08" /></svg></div><div className="quick-stat-grid two"><span>Skupna poraba<strong>1.842 kos</strong></span><span>Povprečno na dan<strong>263 kos</strong></span></div></TableCard> }
 function toInventoryDraft(detail: InventoryDetail | null | undefined): InventoryCountDraft {

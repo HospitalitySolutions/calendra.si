@@ -56,6 +56,7 @@ public class ConsumableService {
     private final ConsumablePurchaseOrderReceiptLineRepository purchaseOrderReceiptLines;
     private final TimeService timeService;
     private final GlobalConsumablesFeatureService consumablesFeatureService;
+    private final ConsumableLowStockAlertService lowStockAlerts;
 
     /** A shared SKU projected through the stock settings of one concrete branch. */
     public record ItemStockView(
@@ -83,7 +84,8 @@ public class ConsumableService {
             ConsumablePurchaseOrderReceiptRepository purchaseOrderReceipts,
             ConsumablePurchaseOrderReceiptLineRepository purchaseOrderReceiptLines,
             TimeService timeService,
-            GlobalConsumablesFeatureService consumablesFeatureService
+            GlobalConsumablesFeatureService consumablesFeatureService,
+            ConsumableLowStockAlertService lowStockAlerts
     ) {
         this.companies = companies;
         this.locations = locations;
@@ -102,6 +104,7 @@ public class ConsumableService {
         this.purchaseOrderReceiptLines = purchaseOrderReceiptLines;
         this.timeService = timeService;
         this.consumablesFeatureService = consumablesFeatureService;
+        this.lowStockAlerts = lowStockAlerts;
     }
 
     @Transactional(readOnly = true)
@@ -153,6 +156,7 @@ public class ConsumableService {
         applyStockSettings(stock, req);
         stock = locationStocks.save(stock);
         applyRequestedStockLevel(me, item, location, stock, req.currentStock(), "Initial stock");
+        lowStockAlerts.sync(locationStocks.findByCompanyIdAndConsumableIdAndLocationId(companyId, item.getId(), location.getId()).orElse(stock));
         return itemView(item, location);
     }
 
@@ -168,6 +172,7 @@ public class ConsumableService {
         applyStockSettings(stock, req);
         stock = locationStocks.save(stock);
         applyRequestedStockLevel(me, item, location, stock, req.currentStock(), "Stock level updated from item editor");
+        lowStockAlerts.sync(locationStocks.findByCompanyIdAndConsumableIdAndLocationId(companyId, item.getId(), location.getId()).orElse(stock));
         return itemView(item, location);
     }
 
@@ -330,7 +335,9 @@ public class ConsumableService {
         movement.setValueDelta(delta.multiply(unitCost).setScale(4, RoundingMode.HALF_UP));
         movement.setNote(blankToNull(note));
         movement.setCreatedBy(actor);
-        return movements.save(movement);
+        ConsumableStockMovement saved = movements.save(movement);
+        lowStockAlerts.sync(stock);
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -984,7 +991,9 @@ public class ConsumableService {
         movement.setValueDelta(quantity.multiply(unitPrice).setScale(4, RoundingMode.HALF_UP));
         movement.setNote("Prejem naročilnice " + defaultString(orderNumber, ""));
         movement.setCreatedBy(actor);
-        return movements.save(movement);
+        ConsumableStockMovement saved = movements.save(movement);
+        lowStockAlerts.sync(stock);
+        return saved;
     }
 
     private void recalculatePurchaseOrderTotals(ConsumablePurchaseOrder po) {

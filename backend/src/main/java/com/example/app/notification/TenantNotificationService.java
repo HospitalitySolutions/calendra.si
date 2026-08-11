@@ -4,6 +4,7 @@ import com.example.app.client.Client;
 import com.example.app.session.BookingChangePublisher;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
+import com.example.app.settings.GlobalConsumablesFeatureService;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
@@ -35,6 +36,7 @@ public class TenantNotificationService {
     private final SessionBookingRepository bookings;
     private final UserRepository users;
     private final ObjectMapper objectMapper;
+    private final GlobalConsumablesFeatureService consumablesFeatureService;
 
     public TenantNotificationService(
             TenantNotificationRepository notifications,
@@ -42,7 +44,8 @@ public class TenantNotificationService {
             PlatformAnnouncementReadRepository announcementReads,
             SessionBookingRepository bookings,
             UserRepository users,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            GlobalConsumablesFeatureService consumablesFeatureService
     ) {
         this.notifications = notifications;
         this.announcements = announcements;
@@ -50,6 +53,7 @@ public class TenantNotificationService {
         this.bookings = bookings;
         this.users = users;
         this.objectMapper = objectMapper;
+        this.consumablesFeatureService = consumablesFeatureService;
     }
 
     public record NotificationItem(
@@ -76,7 +80,9 @@ public class TenantNotificationService {
         Instant now = Instant.now();
         List<NotificationItem> out = new ArrayList<>();
 
+        boolean consumablesVisible = consumablesFeatureService.isEnabledForCompany(me.getCompany().getId());
         notifications.findVisible(me.getId(), category, now, PageRequest.of(0, limit)).stream()
+                .filter(row -> consumablesVisible || !"CONSUMABLES".equalsIgnoreCase(row.getCategory()))
                 .map(this::toItem)
                 .forEach(out::add);
 
@@ -101,7 +107,9 @@ public class TenantNotificationService {
     @Transactional(readOnly = true)
     public long unreadCount(User me) {
         Instant now = Instant.now();
-        long count = notifications.countUnread(me.getId(), now);
+        long count = consumablesFeatureService.isEnabledForCompany(me.getCompany().getId())
+                ? notifications.countUnread(me.getId(), now)
+                : notifications.countUnreadExcludingCategory(me.getId(), "CONSUMABLES", now);
         List<PlatformAnnouncement> active = announcements.findActive(now).stream()
                 .filter(a -> targetsCompany(a, me.getCompany().getId()))
                 .toList();
@@ -334,7 +342,7 @@ public class TenantNotificationService {
     private String normalizeCategory(String raw) {
         if (raw == null) return "ALL";
         String normalized = raw.trim().toUpperCase(Locale.ROOT);
-        return Set.of("ALL", "BOOKING", "SYSTEM").contains(normalized) ? normalized : "ALL";
+        return Set.of("ALL", "BOOKING", "CONSUMABLES", "SYSTEM").contains(normalized) ? normalized : "ALL";
     }
 
     private java.util.Optional<Long> parseId(String raw) {

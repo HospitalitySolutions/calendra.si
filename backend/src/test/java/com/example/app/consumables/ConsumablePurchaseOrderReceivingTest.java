@@ -45,6 +45,7 @@ class ConsumablePurchaseOrderReceivingTest {
     @Mock private ConsumablePurchaseOrderReceiptLineRepository purchaseOrderReceiptLines;
     @Mock private TimeService timeService;
     @Mock private GlobalConsumablesFeatureService consumablesFeatureService;
+    @Mock private ConsumableLowStockAlertService lowStockAlerts;
 
     private ConsumableService service;
     private Company company;
@@ -60,7 +61,7 @@ class ConsumablePurchaseOrderReceivingTest {
                 companies, locations, consumables, locationStocks, categories, movements,
                 serviceTypeConsumables, sessionConsumables, sessionTypes, bookings, suppliers,
                 purchaseOrders, purchaseOrderLines, purchaseOrderReceipts, purchaseOrderReceiptLines,
-                timeService, consumablesFeatureService
+                timeService, consumablesFeatureService, lowStockAlerts
         );
         company = new Company(); company.setId(1L);
         me = new User(); me.setId(9L); me.setCompany(company);

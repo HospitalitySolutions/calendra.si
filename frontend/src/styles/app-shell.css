@@ -3580,3 +3580,7 @@ a.credentials-popover-action-btn {
     display: none;
   }
 }
+.staff-notification-item--low-stock .staff-notification-item-icon {
+    background: #fff7ed;
+    color: #ea580c;
+}

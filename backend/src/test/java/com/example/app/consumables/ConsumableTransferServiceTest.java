@@ -29,6 +29,7 @@ class ConsumableTransferServiceTest {
     @Mock private ConsumableLocationStockRepository locationStocks;
     @Mock private ConsumableStockMovementRepository movements;
     @Mock private ConsumableStockTransferRepository transfers;
+    @Mock private ConsumableLowStockAlertService lowStockAlerts;
 
     private ConsumableTransferService service;
     private Company company;
@@ -41,7 +42,7 @@ class ConsumableTransferServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ConsumableTransferService(consumables, locations, locationStocks, movements, transfers);
+        service = new ConsumableTransferService(consumables, locations, locationStocks, movements, transfers, lowStockAlerts);
         company = new Company(); company.setId(1L);
         me = new User(); me.setId(10L); me.setCompany(company); me.setFirstName("Test"); me.setLastName("Admin");
         item = new Consumable(); item.setId(5L); item.setCompany(company); item.setName("Masažno olje"); item.setUnit("ml"); item.setTrackStock(true);

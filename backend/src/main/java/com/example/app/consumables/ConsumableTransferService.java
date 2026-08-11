@@ -21,19 +21,22 @@ public class ConsumableTransferService {
     private final ConsumableLocationStockRepository locationStocks;
     private final ConsumableStockMovementRepository movements;
     private final ConsumableStockTransferRepository transfers;
+    private final ConsumableLowStockAlertService lowStockAlerts;
 
     public ConsumableTransferService(
             ConsumableRepository consumables,
             LocationRepository locations,
             ConsumableLocationStockRepository locationStocks,
             ConsumableStockMovementRepository movements,
-            ConsumableStockTransferRepository transfers
+            ConsumableStockTransferRepository transfers,
+            ConsumableLowStockAlertService lowStockAlerts
     ) {
         this.consumables = consumables;
         this.locations = locations;
         this.locationStocks = locationStocks;
         this.movements = movements;
         this.transfers = transfers;
+        this.lowStockAlerts = lowStockAlerts;
     }
 
     @Transactional(readOnly = true)
@@ -137,6 +140,8 @@ public class ConsumableTransferService {
                 quantity.negate(), sourceBefore, sourceAfter, sourceCost, movementNote);
         saveMovement(actor, transfer, toLocation, StockMovementType.TRANSFER_IN,
                 quantity, destinationBefore, destinationAfter, sourceCost, movementNote);
+        lowStockAlerts.sync(source);
+        lowStockAlerts.sync(destination);
         return transfer;
     }
 

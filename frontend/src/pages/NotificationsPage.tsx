@@ -17,6 +17,7 @@ type Item = {
 
 function localizedNotificationTitle(item: Item, locale: string) {
   const type = String(item.type || '').toUpperCase()
+  if (type === 'LOW_STOCK') return locale === 'sl' ? 'Nizka zaloga' : locale === 'sr' ? 'Niska zaliha' : 'Low stock'
   if (type === 'BOOKING_CREATED') return locale === 'sl' ? 'Nova rezervacija' : locale === 'sr' ? 'Nova rezervacija' : 'New booking'
   if (type === 'BOOKING_RESCHEDULED' || type === 'BOOKING_UPDATED') return locale === 'sl' ? 'Termin je bil prestavljen' : locale === 'sr' ? 'Termin je pomeren' : 'Booking rescheduled'
   if (type === 'BOOKING_CANCELLED') return locale === 'sl' ? 'Termin je bil odpovedan' : locale === 'sr' ? 'Termin je otkazan' : 'Booking cancelled'
