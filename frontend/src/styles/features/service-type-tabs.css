@@ -988,3 +988,14 @@
     font-size: 0.82rem;
     line-height: 1.35;
 }
+
+/* Desktop-only seamless Services / Entitlements shell.
+   Keep tablet/mobile card presentation intact. */
+@media (min-width: 1280px) {
+    .service-config-card.clients-modern-card.card {
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+}

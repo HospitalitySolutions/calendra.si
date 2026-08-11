@@ -4338,3 +4338,15 @@
         color: #94a3b8;
     }
 }
+
+/* Desktop-only seamless billing shell.
+   On higher desktop resolutions the billing page background becomes the
+   visible surface, removing the outer card/block from all billing list tabs. */
+@media (min-width: 1280px) {
+    .billing-modern-card.card {
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+}

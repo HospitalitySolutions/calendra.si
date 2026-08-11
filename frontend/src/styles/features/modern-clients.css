@@ -6617,3 +6617,23 @@
     opacity: 0.42;
     box-shadow: none;
 }
+
+/* Desktop-only seamless page shell for Clients / Companies / Groups.
+   On higher desktop resolutions we remove the visual card container so the
+   page background becomes the shell itself and the content feels blockless. */
+@media (min-width: 1280px) {
+    .clients-modern-card.card {
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .clients-modern-card .clients-page-header {
+        margin-bottom: 18px;
+    }
+
+    .clients-modern-card .clients-list-shell {
+        margin-top: 0;
+    }
+}
