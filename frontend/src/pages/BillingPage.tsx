@@ -1766,6 +1766,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }, [activeUnitId, billingTab, selectedLocationId, editorOnlyMode, debouncedOpenPaymentsSearch, openPaymentsSort, openPaymentsPage, debouncedUnusedAdvancesSearch, unusedAdvancesSort, unusedAdvancesPage, debouncedGiftCardSearch, giftCardDateFrom, giftCardDateTo, giftCardStatusFilter, giftCardsSort, giftCardsPage, debouncedHistorySearch, historyDateFrom, historyDateTo, historyStatusFilter, historyFiscalStatusFilter, historyBillTypeFilter, historySortField, historySortDir, historyPage])
 
   const advanceBillingEnabled = settings.BILLING_ADVANCE_ENABLED !== 'false'
+  const isCreateAdvanceBill = billForm.billType === 'ADVANCE'
   const entitlementsEnabled = settings.ENTITLEMENTS_ENABLED !== 'false'
   const giftCardsEnabled =
     entitlementsEnabled && settings.BILLING_GIFT_CARDS_ENABLED === 'true'
@@ -10415,7 +10416,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           ? (selectedRecipientCompany?.name || billingCopy.targetCompany)
           : (selectedClient ? fullName(selectedClient) : billingCopy.targetPerson)
         const createTargetLabel = billForm.billingTarget === 'COMPANY' ? billingCopy.targetCompany : billingCopy.targetPerson
-        const isCreateAdvanceBill = billForm.billType === 'ADVANCE'
         const canIssueCreateBillType = isCreateAdvanceBill ? canIssueAdvanceInvoice : canIssueOpenInvoice
         const createPermissionTooltip = !canIssueCreateBillType
           ? (isCreateAdvanceBill
