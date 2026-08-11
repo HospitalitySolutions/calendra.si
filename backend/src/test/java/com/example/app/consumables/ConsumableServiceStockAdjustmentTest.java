@@ -39,6 +39,9 @@ class ConsumableServiceStockAdjustmentTest {
     @Mock private SessionBookingRepository bookings;
     @Mock private ConsumableSupplierRepository suppliers;
     @Mock private ConsumablePurchaseOrderRepository purchaseOrders;
+    @Mock private ConsumablePurchaseOrderLineRepository purchaseOrderLines;
+    @Mock private ConsumablePurchaseOrderReceiptRepository purchaseOrderReceipts;
+    @Mock private ConsumablePurchaseOrderReceiptLineRepository purchaseOrderReceiptLines;
     @Mock private TimeService timeService;
     @Mock private GlobalConsumablesFeatureService consumablesFeatureService;
 
@@ -63,6 +66,9 @@ class ConsumableServiceStockAdjustmentTest {
                 bookings,
                 suppliers,
                 purchaseOrders,
+                purchaseOrderLines,
+                purchaseOrderReceipts,
+                purchaseOrderReceiptLines,
                 timeService,
                 consumablesFeatureService
         );

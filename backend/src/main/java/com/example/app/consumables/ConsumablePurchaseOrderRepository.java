@@ -1,9 +1,11 @@
 package com.example.app.consumables;
 
 import com.example.app.consumables.ConsumableEnums.PurchaseOrderStatus;
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -28,6 +30,18 @@ public interface ConsumablePurchaseOrderRepository extends JpaRepository<Consuma
             WHERE po.id = :id AND po.company.id = :companyId
             """)
     Optional<ConsumablePurchaseOrder> findByIdAndCompanyId(
+            @Param("id") Long id,
+            @Param("companyId") Long companyId
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT po FROM ConsumablePurchaseOrder po
+            LEFT JOIN FETCH po.supplier
+            JOIN FETCH po.location
+            WHERE po.id = :id AND po.company.id = :companyId
+            """)
+    Optional<ConsumablePurchaseOrder> findForUpdate(
             @Param("id") Long id,
             @Param("companyId") Long companyId
     );

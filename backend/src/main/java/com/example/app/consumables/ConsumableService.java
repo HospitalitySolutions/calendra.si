@@ -20,6 +20,7 @@ import com.example.app.settings.GlobalConsumablesFeatureService;
 import com.example.app.user.User;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -50,6 +51,9 @@ public class ConsumableService {
     private final SessionBookingRepository bookings;
     private final ConsumableSupplierRepository suppliers;
     private final ConsumablePurchaseOrderRepository purchaseOrders;
+    private final ConsumablePurchaseOrderLineRepository purchaseOrderLines;
+    private final ConsumablePurchaseOrderReceiptRepository purchaseOrderReceipts;
+    private final ConsumablePurchaseOrderReceiptLineRepository purchaseOrderReceiptLines;
     private final TimeService timeService;
     private final GlobalConsumablesFeatureService consumablesFeatureService;
 
@@ -75,6 +79,9 @@ public class ConsumableService {
             SessionBookingRepository bookings,
             ConsumableSupplierRepository suppliers,
             ConsumablePurchaseOrderRepository purchaseOrders,
+            ConsumablePurchaseOrderLineRepository purchaseOrderLines,
+            ConsumablePurchaseOrderReceiptRepository purchaseOrderReceipts,
+            ConsumablePurchaseOrderReceiptLineRepository purchaseOrderReceiptLines,
             TimeService timeService,
             GlobalConsumablesFeatureService consumablesFeatureService
     ) {
@@ -90,6 +97,9 @@ public class ConsumableService {
         this.bookings = bookings;
         this.suppliers = suppliers;
         this.purchaseOrders = purchaseOrders;
+        this.purchaseOrderLines = purchaseOrderLines;
+        this.purchaseOrderReceipts = purchaseOrderReceipts;
+        this.purchaseOrderReceiptLines = purchaseOrderReceiptLines;
         this.timeService = timeService;
         this.consumablesFeatureService = consumablesFeatureService;
     }
@@ -758,22 +768,54 @@ public class ConsumableService {
         return purchaseOrders.findByCompanyId(companyId, locationId);
     }
 
+    @Transactional(readOnly = true)
+    public ConsumablePurchaseOrder getPurchaseOrder(Long companyId, Long id) {
+        return purchaseOrders.findByIdAndCompanyId(id, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Purchase order not found."));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ConsumablePurchaseOrderLine> listPurchaseOrderLines(Long companyId, Long purchaseOrderId) {
+        getPurchaseOrder(companyId, purchaseOrderId);
+        return purchaseOrderLines.findByCompanyIdAndPurchaseOrderId(companyId, purchaseOrderId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ConsumablePurchaseOrderReceipt> listPurchaseOrderReceipts(Long companyId, Long purchaseOrderId) {
+        getPurchaseOrder(companyId, purchaseOrderId);
+        return purchaseOrderReceipts.findByCompanyAndPurchaseOrder(companyId, purchaseOrderId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ConsumablePurchaseOrderReceiptLine> listPurchaseOrderReceiptLines(Long companyId, Long receiptId) {
+        return purchaseOrderReceiptLines.findByCompanyAndReceipt(companyId, receiptId);
+    }
+
     @Transactional
     public ConsumablePurchaseOrder savePurchaseOrder(User me, Long id, ConsumableController.PurchaseOrderRequest req) {
         if (req == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request is required.");
         Long companyId = me.getCompany().getId();
         var po = id == null
                 ? new ConsumablePurchaseOrder()
-                : purchaseOrders.findByIdAndCompanyId(id, companyId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        if (id == null) po.setCompany(requireCompany(companyId));
+                : purchaseOrders.findForUpdate(id, companyId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Purchase order not found."));
+        boolean creating = id == null;
+        if (creating) {
+            po.setCompany(requireCompany(companyId));
+        } else if (po.getStatus() == PurchaseOrderStatus.COMPLETED || po.getStatus() == PurchaseOrderStatus.CANCELLED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Completed or cancelled purchase orders cannot be edited.");
+        }
+
+        List<ConsumablePurchaseOrderLine> existingLines = creating ? List.of() : purchaseOrderLines.findForUpdate(companyId, id);
+        boolean hasReceipts = existingLines.stream().anyMatch(line -> nz(line.getReceivedQuantity()).compareTo(BigDecimal.ZERO) > 0);
+
         Long requestedLocationId = req.locationId() != null ? req.locationId() : (po.getLocation() == null ? null : po.getLocation().getId());
+        if (hasReceipts && po.getLocation() != null && !Objects.equals(po.getLocation().getId(), requestedLocationId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Receiving location cannot be changed after goods have been received.");
+        }
         po.setLocation(resolveInventoryWriteLocation(companyId, requestedLocationId));
-        po.setOrderNumber(blankToNull(req.orderNumber()) != null ? req.orderNumber().trim() : generateOrderNumber());
-        po.setStatus(req.status() != null ? req.status() : PurchaseOrderStatus.DRAFT);
-        po.setOrderDate(req.orderDate() != null ? req.orderDate() : timeService.localDate());
+        po.setOrderNumber(blankToNull(req.orderNumber()) != null ? req.orderNumber().trim() : (creating ? generateOrderNumber() : po.getOrderNumber()));
+        po.setOrderDate(req.orderDate() != null ? req.orderDate() : (po.getOrderDate() != null ? po.getOrderDate() : timeService.localDate()));
         po.setExpectedDate(req.expectedDate());
-        po.setTotalAmount(nz(req.totalAmount()));
-        po.setReceivedAmount(nz(req.receivedAmount()));
         po.setNotes(blankToNull(req.notes()));
         if (req.supplierId() != null && req.supplierId() > 0) {
             po.setSupplier(suppliers.findByIdAndCompanyId(req.supplierId(), companyId)
@@ -781,7 +823,182 @@ public class ConsumableService {
         } else {
             po.setSupplier(null);
         }
+
+        PurchaseOrderStatus requestedStatus = req.status() != null ? req.status() : (creating ? PurchaseOrderStatus.DRAFT : po.getStatus());
+        if (req.status() != null && (requestedStatus == PurchaseOrderStatus.PARTIALLY_RECEIVED || requestedStatus == PurchaseOrderStatus.COMPLETED)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Receiving statuses are managed automatically.");
+        }
+        if (requestedStatus == PurchaseOrderStatus.CANCELLED && hasReceipts) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "A purchase order with received goods cannot be cancelled.");
+        }
+        po.setStatus(requestedStatus);
+        po = purchaseOrders.saveAndFlush(po);
+
+        if (req.lines() != null) {
+            if (hasReceipts) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Purchase-order lines cannot be changed after receiving has started.");
+            }
+            replacePurchaseOrderLines(me, po, req.lines());
+        }
+        recalculatePurchaseOrderTotals(po);
+        List<ConsumablePurchaseOrderLine> effectiveLines = purchaseOrderLines.findByCompanyIdAndPurchaseOrderId(companyId, po.getId());
+        if (po.getStatus() == PurchaseOrderStatus.ORDERED && effectiveLines.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Add at least one article before marking the purchase order as ordered.");
+        }
+        if (po.getStatus() == PurchaseOrderStatus.ORDERED && po.getSupplier() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select a supplier before marking the purchase order as ordered.");
+        }
         return purchaseOrders.save(po);
+    }
+
+    private void replacePurchaseOrderLines(User me, ConsumablePurchaseOrder po, List<ConsumableController.PurchaseOrderLineRequest> requests) {
+        Long companyId = me.getCompany().getId();
+        Map<Long, ConsumableController.PurchaseOrderLineRequest> unique = new LinkedHashMap<>();
+        for (ConsumableController.PurchaseOrderLineRequest request : requests) {
+            if (request == null || request.consumableId() == null) continue;
+            if (unique.put(request.consumableId(), request) != null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The same article can only appear once on a purchase order.");
+            }
+        }
+        purchaseOrderLines.deleteByCompanyIdAndPurchaseOrderId(companyId, po.getId());
+        purchaseOrderLines.flush();
+        for (ConsumableController.PurchaseOrderLineRequest request : unique.values()) {
+            Consumable item = consumables.findByIdAndCompanyId(request.consumableId(), companyId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Consumable not found."));
+            BigDecimal quantity = scale4(request.orderedQuantity());
+            BigDecimal unitPrice = scale4(request.unitPrice());
+            if (quantity.compareTo(BigDecimal.ZERO) <= 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ordered quantity must be greater than zero.");
+            if (unitPrice.compareTo(BigDecimal.ZERO) < 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Purchase price cannot be negative.");
+            ConsumablePurchaseOrderLine line = new ConsumablePurchaseOrderLine();
+            line.setCompany(me.getCompany());
+            line.setPurchaseOrder(po);
+            line.setConsumable(item);
+            line.setItemNameSnapshot(defaultString(item.getName(), "Porabni material"));
+            line.setUnitSnapshot(defaultString(item.getUnit(), "kos"));
+            line.setOrderedQuantity(quantity);
+            line.setReceivedQuantity(BigDecimal.ZERO.setScale(4));
+            line.setUnitPrice(unitPrice);
+            line.setVatRate(request.vatRate() != null ? request.vatRate() : TaxRate.NO_VAT);
+            purchaseOrderLines.save(line);
+        }
+    }
+
+    @Transactional
+    public ConsumablePurchaseOrder receivePurchaseOrder(User me, Long purchaseOrderId, ConsumableController.PurchaseOrderReceiveRequest req) {
+        if (req == null || blankToNull(req.idempotencyKey()) == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Idempotency key is required.");
+        }
+        Long companyId = me.getCompany().getId();
+        ConsumablePurchaseOrder po = purchaseOrders.findForUpdate(purchaseOrderId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Purchase order not found."));
+
+        String key = req.idempotencyKey().trim();
+        if (purchaseOrderReceipts.findByCompanyIdAndPurchaseOrderIdAndIdempotencyKey(companyId, purchaseOrderId, key).isPresent()) {
+            return po;
+        }
+        if (po.getStatus() == PurchaseOrderStatus.DRAFT) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Mark the purchase order as ordered before receiving goods.");
+        }
+        if (po.getStatus() == PurchaseOrderStatus.COMPLETED || po.getStatus() == PurchaseOrderStatus.CANCELLED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This purchase order cannot receive more goods.");
+        }
+        List<ConsumablePurchaseOrderLine> lines = purchaseOrderLines.findForUpdate(companyId, purchaseOrderId);
+        if (lines.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT, "Purchase order has no lines to receive.");
+        Map<Long, ConsumablePurchaseOrderLine> byId = lines.stream().collect(Collectors.toMap(ConsumablePurchaseOrderLine::getId, line -> line));
+        if (req.lines() == null || req.lines().isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one received quantity is required.");
+
+        Map<Long, BigDecimal> quantities = new LinkedHashMap<>();
+        for (ConsumableController.PurchaseOrderReceiveLineRequest request : req.lines()) {
+            if (request == null || request.lineId() == null) continue;
+            BigDecimal quantity = scale4(request.quantity());
+            if (quantity.compareTo(BigDecimal.ZERO) <= 0) continue;
+            quantities.merge(request.lineId(), quantity, BigDecimal::add);
+        }
+        if (quantities.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one received quantity must be greater than zero.");
+        for (Map.Entry<Long, BigDecimal> entry : quantities.entrySet()) {
+            ConsumablePurchaseOrderLine line = byId.get(entry.getKey());
+            if (line == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Purchase-order line not found.");
+            BigDecimal remaining = nz(line.getOrderedQuantity()).subtract(nz(line.getReceivedQuantity()));
+            if (entry.getValue().compareTo(remaining) > 0) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Received quantity exceeds the remaining ordered quantity for " + line.getItemNameSnapshot() + ".");
+            }
+        }
+
+        ConsumablePurchaseOrderReceipt receipt = new ConsumablePurchaseOrderReceipt();
+        receipt.setCompany(me.getCompany());
+        receipt.setPurchaseOrder(po);
+        receipt.setIdempotencyKey(key);
+        receipt.setReceivedAt(Instant.now());
+        receipt.setNote(blankToNull(req.note()));
+        receipt.setCreatedBy(me);
+        receipt = purchaseOrderReceipts.saveAndFlush(receipt);
+
+        for (Map.Entry<Long, BigDecimal> entry : quantities.entrySet()) {
+            ConsumablePurchaseOrderLine line = byId.get(entry.getKey());
+            BigDecimal quantity = entry.getValue().setScale(4, RoundingMode.HALF_UP);
+            ConsumablePurchaseOrderReceiptLine receiptLine = new ConsumablePurchaseOrderReceiptLine();
+            receiptLine.setCompany(me.getCompany());
+            receiptLine.setReceipt(receipt);
+            receiptLine.setPurchaseOrderLine(line);
+            receiptLine.setQuantity(quantity);
+            purchaseOrderReceiptLines.save(receiptLine);
+
+            createPurchaseReceiptMovement(me, line.getConsumable(), po.getLocation(), receipt.getId(), quantity, nz(line.getUnitPrice()), po.getOrderNumber());
+            line.setReceivedQuantity(nz(line.getReceivedQuantity()).add(quantity).setScale(4, RoundingMode.HALF_UP));
+            purchaseOrderLines.save(line);
+        }
+
+        recalculatePurchaseOrderTotals(po);
+        boolean allReceived = lines.stream().allMatch(line -> nz(line.getReceivedQuantity()).compareTo(nz(line.getOrderedQuantity())) >= 0);
+        po.setStatus(allReceived ? PurchaseOrderStatus.COMPLETED : PurchaseOrderStatus.PARTIALLY_RECEIVED);
+        return purchaseOrders.save(po);
+    }
+
+    private ConsumableStockMovement createPurchaseReceiptMovement(User actor, Consumable item, Location location, Long receiptId, BigDecimal quantity, BigDecimal unitPrice, String orderNumber) {
+        ConsumableLocationStock stock = lockStockRow(item, location);
+        BigDecimal before = nz(stock.getCurrentStock());
+        BigDecimal oldCost = nz(stock.getCostPrice());
+        BigDecimal after = before.add(quantity).setScale(4, RoundingMode.HALF_UP);
+        BigDecimal weightedCost = after.compareTo(BigDecimal.ZERO) > 0
+                ? before.multiply(oldCost).add(quantity.multiply(unitPrice)).divide(after, 4, RoundingMode.HALF_UP)
+                : unitPrice.setScale(4, RoundingMode.HALF_UP);
+        stock.setCurrentStock(after);
+        stock.setCostPrice(weightedCost);
+        locationStocks.save(stock);
+
+        ConsumableStockMovement movement = new ConsumableStockMovement();
+        movement.setCompany(item.getCompany());
+        movement.setConsumable(item);
+        movement.setLocation(location);
+        movement.setMovementType(StockMovementType.PURCHASE);
+        movement.setSourceType(StockMovementSourceType.PURCHASE_ORDER);
+        movement.setSourceId(receiptId);
+        movement.setQuantityDelta(quantity.setScale(4, RoundingMode.HALF_UP));
+        movement.setStockBefore(before);
+        movement.setStockAfter(after);
+        movement.setUnitCostSnapshot(unitPrice.setScale(4, RoundingMode.HALF_UP));
+        movement.setValueDelta(quantity.multiply(unitPrice).setScale(4, RoundingMode.HALF_UP));
+        movement.setNote("Prejem naročilnice " + defaultString(orderNumber, ""));
+        movement.setCreatedBy(actor);
+        return movements.save(movement);
+    }
+
+    private void recalculatePurchaseOrderTotals(ConsumablePurchaseOrder po) {
+        if (po == null || po.getId() == null) return;
+        List<ConsumablePurchaseOrderLine> lines = purchaseOrderLines.findByCompanyIdAndPurchaseOrderId(po.getCompany().getId(), po.getId());
+        BigDecimal total = BigDecimal.ZERO;
+        BigDecimal received = BigDecimal.ZERO;
+        for (ConsumablePurchaseOrderLine line : lines) {
+            BigDecimal factor = BigDecimal.ONE.add((line.getVatRate() == null ? TaxRate.NO_VAT : line.getVatRate()).multiplier);
+            total = total.add(nz(line.getOrderedQuantity()).multiply(nz(line.getUnitPrice())).multiply(factor));
+            received = received.add(nz(line.getReceivedQuantity()).multiply(nz(line.getUnitPrice())).multiply(factor));
+        }
+        po.setTotalAmount(total.setScale(4, RoundingMode.HALF_UP));
+        po.setReceivedAmount(received.setScale(4, RoundingMode.HALF_UP));
+    }
+
+    private static BigDecimal scale4(BigDecimal value) {
+        return (value == null ? BigDecimal.ZERO : value).setScale(4, RoundingMode.HALF_UP);
     }
 
     @Transactional(readOnly = true)

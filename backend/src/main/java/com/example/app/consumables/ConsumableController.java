@@ -195,6 +195,13 @@ public class ConsumableController {
             SupplierStatus status
     ) {}
 
+    public record PurchaseOrderLineRequest(
+            Long consumableId,
+            BigDecimal orderedQuantity,
+            BigDecimal unitPrice,
+            TaxRate vatRate
+    ) {}
+
     public record PurchaseOrderRequest(
             String orderNumber,
             Long supplierId,
@@ -204,7 +211,35 @@ public class ConsumableController {
             LocalDate expectedDate,
             BigDecimal totalAmount,
             BigDecimal receivedAmount,
-            String notes
+            String notes,
+            List<PurchaseOrderLineRequest> lines
+    ) {}
+
+    public record PurchaseOrderLineResponse(
+            Long id,
+            Long consumableId,
+            String itemName,
+            String sku,
+            String unit,
+            BigDecimal orderedQuantity,
+            BigDecimal receivedQuantity,
+            BigDecimal remainingQuantity,
+            BigDecimal unitPrice,
+            TaxRate vatRate,
+            BigDecimal netAmount,
+            BigDecimal vatAmount,
+            BigDecimal grossAmount
+    ) {}
+
+    public record PurchaseOrderReceiveLineRequest(Long lineId, BigDecimal quantity) {}
+    public record PurchaseOrderReceiveRequest(String idempotencyKey, String note, List<PurchaseOrderReceiveLineRequest> lines) {}
+
+    public record PurchaseOrderReceiptLineResponse(
+            Long purchaseOrderLineId, Long consumableId, String itemName, String unit, BigDecimal quantity
+    ) {}
+
+    public record PurchaseOrderReceiptResponse(
+            Long id, String idempotencyKey, Instant receivedAt, String note, String userName, List<PurchaseOrderReceiptLineResponse> lines
     ) {}
 
     public record PurchaseOrderResponse(
@@ -220,6 +255,12 @@ public class ConsumableController {
             BigDecimal totalAmount,
             BigDecimal receivedAmount,
             String notes
+    ) {}
+
+    public record PurchaseOrderDetailResponse(
+            PurchaseOrderResponse order,
+            List<PurchaseOrderLineResponse> lines,
+            List<PurchaseOrderReceiptResponse> receipts
     ) {}
 
     private Long enabledCompanyId(User me) {
@@ -394,6 +435,16 @@ public class ConsumableController {
         return service.listPurchaseOrders(enabledCompanyId(me), locationId).stream().map(ConsumableController::toPurchaseOrderResponse).toList();
     }
 
+    @GetMapping("/purchase-orders/{id}")
+    public PurchaseOrderDetailResponse purchaseOrder(@PathVariable Long id, @AuthenticationPrincipal User me) {
+        Long companyId = enabledCompanyId(me);
+        return toPurchaseOrderDetailResponse(
+                service.getPurchaseOrder(companyId, id),
+                service.listPurchaseOrderLines(companyId, id),
+                service.listPurchaseOrderReceipts(companyId, id)
+        );
+    }
+
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/purchase-orders")
     public PurchaseOrderResponse createPurchaseOrder(@RequestBody PurchaseOrderRequest req, @AuthenticationPrincipal User me) {
@@ -410,6 +461,25 @@ public class ConsumableController {
         PurchaseOrderResponse result = toPurchaseOrderResponse(service.savePurchaseOrder(me, id, req));
         recordPurchaseOrder(me, ActivityAction.PURCHASE_ORDER_UPDATED, result, "Updated purchase order");
         return result;
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/purchase-orders/{id}/receive")
+    public PurchaseOrderDetailResponse receivePurchaseOrder(
+            @PathVariable Long id,
+            @RequestBody PurchaseOrderReceiveRequest req,
+            @AuthenticationPrincipal User me
+    ) {
+        assertConsumablesEnabled(me);
+        ConsumablePurchaseOrder order = service.receivePurchaseOrder(me, id, req);
+        PurchaseOrderResponse summary = toPurchaseOrderResponse(order);
+        recordPurchaseOrder(me, ActivityAction.PURCHASE_ORDER_UPDATED, summary, "Received purchase order goods");
+        Long companyId = me.getCompany().getId();
+        return toPurchaseOrderDetailResponse(
+                service.getPurchaseOrder(companyId, id),
+                service.listPurchaseOrderLines(companyId, id),
+                service.listPurchaseOrderReceipts(companyId, id)
+        );
     }
 
     private void recordItem(User me, ActivityAction action, ItemResponse row, String summary) {
@@ -514,6 +584,44 @@ public class ConsumableController {
         return new SupplierResponse(
                 s.getId(), s.getName(), s.getContactName(), s.getPhone(), s.getEmail(), s.getCategories(), s.getPaymentTermsDays(),
                 s.getReliabilityPercent(), s.getOutstandingAmount(), s.getStatus()
+        );
+    }
+
+    public static PurchaseOrderLineResponse toPurchaseOrderLineResponse(ConsumablePurchaseOrderLine line) {
+        BigDecimal ordered = line.getOrderedQuantity() == null ? BigDecimal.ZERO : line.getOrderedQuantity();
+        BigDecimal received = line.getReceivedQuantity() == null ? BigDecimal.ZERO : line.getReceivedQuantity();
+        BigDecimal unitPrice = line.getUnitPrice() == null ? BigDecimal.ZERO : line.getUnitPrice();
+        TaxRate vatRate = line.getVatRate() == null ? TaxRate.NO_VAT : line.getVatRate();
+        BigDecimal net = ordered.multiply(unitPrice).setScale(4, java.math.RoundingMode.HALF_UP);
+        BigDecimal vat = net.multiply(vatRate.multiplier).setScale(4, java.math.RoundingMode.HALF_UP);
+        return new PurchaseOrderLineResponse(
+                line.getId(), line.getConsumable().getId(), line.getItemNameSnapshot(), line.getConsumable().getSku(),
+                line.getUnitSnapshot(), ordered, received, ordered.subtract(received).max(BigDecimal.ZERO), unitPrice, vatRate,
+                net, vat, net.add(vat).setScale(4, java.math.RoundingMode.HALF_UP)
+        );
+    }
+
+    private PurchaseOrderDetailResponse toPurchaseOrderDetailResponse(
+            ConsumablePurchaseOrder po,
+            List<ConsumablePurchaseOrderLine> lines,
+            List<ConsumablePurchaseOrderReceipt> receipts
+    ) {
+        Long companyId = po.getCompany().getId();
+        List<PurchaseOrderReceiptResponse> receiptResponses = receipts.stream().map(receipt -> new PurchaseOrderReceiptResponse(
+                receipt.getId(), receipt.getIdempotencyKey(), receipt.getReceivedAt(), receipt.getNote(),
+                receipt.getCreatedBy() != null ? (receipt.getCreatedBy().getFirstName() + " " + receipt.getCreatedBy().getLastName()).trim() : null,
+                service.listPurchaseOrderReceiptLines(companyId, receipt.getId()).stream().map(receiptLine -> new PurchaseOrderReceiptLineResponse(
+                        receiptLine.getPurchaseOrderLine().getId(),
+                        receiptLine.getPurchaseOrderLine().getConsumable().getId(),
+                        receiptLine.getPurchaseOrderLine().getItemNameSnapshot(),
+                        receiptLine.getPurchaseOrderLine().getUnitSnapshot(),
+                        receiptLine.getQuantity()
+                )).toList()
+        )).toList();
+        return new PurchaseOrderDetailResponse(
+                toPurchaseOrderResponse(po),
+                lines.stream().map(ConsumableController::toPurchaseOrderLineResponse).toList(),
+                receiptResponses
         );
     }
 

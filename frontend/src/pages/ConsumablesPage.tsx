@@ -91,6 +91,51 @@ type PurchaseOrder = {
   notes?: string | null
 }
 
+type PurchaseOrderLine = {
+  id: number
+  consumableId: number
+  itemName: string
+  sku?: string | null
+  unit: string
+  orderedQuantity: number
+  receivedQuantity: number
+  remainingQuantity: number
+  unitPrice: number
+  vatRate: 'VAT_22' | 'VAT_9_5' | 'VAT_0' | 'NO_VAT'
+  netAmount: number
+  vatAmount: number
+  grossAmount: number
+}
+type PurchaseOrderReceipt = {
+  id: number
+  idempotencyKey: string
+  receivedAt: string
+  note?: string | null
+  userName?: string | null
+  lines: { purchaseOrderLineId: number; consumableId: number; itemName: string; unit: string; quantity: number }[]
+}
+type PurchaseOrderDetail = { order: PurchaseOrder; lines: PurchaseOrderLine[]; receipts: PurchaseOrderReceipt[] }
+type PurchaseOrderLineForm = {
+  lineId?: number
+  consumableId: string
+  orderedQuantity: string
+  receivedQuantity: number
+  unitPrice: string
+  vatRate: 'VAT_22' | 'VAT_9_5' | 'VAT_0' | 'NO_VAT'
+}
+type PurchaseOrderFormState = {
+  id: number | null
+  orderNumber: string
+  supplierId: string
+  locationId: string
+  status: 'DRAFT' | 'ORDERED' | 'PARTIALLY_RECEIVED' | 'COMPLETED' | 'CANCELLED'
+  orderDate: string
+  expectedDate: string
+  notes: string
+  lines: PurchaseOrderLineForm[]
+  receipts: PurchaseOrderReceipt[]
+}
+
 type TabKey = 'overview' | 'items' | 'procurement' | 'suppliers' | 'movements' | 'inventory'
 type ManualMovementType = 'PURCHASE' | 'MANUAL_ADJUSTMENT' | 'RETURN' | 'WASTE' | 'CORRECTION'
 
@@ -188,6 +233,19 @@ const emptySupplierForm: SupplierFormState = {
   status: 'ACTIVE',
 }
 
+const emptyPurchaseOrderForm = (locationId: number | null): PurchaseOrderFormState => ({
+  id: null,
+  orderNumber: '',
+  supplierId: '',
+  locationId: locationId != null ? String(locationId) : '',
+  status: 'DRAFT',
+  orderDate: new Date().toISOString().slice(0, 10),
+  expectedDate: '',
+  notes: '',
+  lines: [],
+  receipts: [],
+})
+
 function eur(value: number | null | undefined) {
   return Number(value || 0).toLocaleString('sl-SI', { style: 'currency', currency: 'EUR' })
 }
@@ -262,6 +320,15 @@ export function ConsumablesPage() {
   const [savingSupplier, setSavingSupplier] = useState(false)
   const [supplierForm, setSupplierForm] = useState<SupplierFormState>(emptySupplierForm)
 
+  const [purchaseOrderModalOpen, setPurchaseOrderModalOpen] = useState(false)
+  const [purchaseOrderForm, setPurchaseOrderForm] = useState<PurchaseOrderFormState>(emptyPurchaseOrderForm(null))
+  const [loadingPurchaseOrder, setLoadingPurchaseOrder] = useState(false)
+  const [savingPurchaseOrder, setSavingPurchaseOrder] = useState(false)
+  const [receiveModalOpen, setReceiveModalOpen] = useState(false)
+  const [receiveQuantities, setReceiveQuantities] = useState<Record<number, string>>({})
+  const [receiveNote, setReceiveNote] = useState('')
+  const [savingReceipt, setSavingReceipt] = useState(false)
+
   const load = useCallback(async (force = true) => {
     setLoading(true)
     try {
@@ -288,6 +355,7 @@ export function ConsumablesPage() {
         tasks.push(
           loadItems(),
           queryClient.fetchQuery(consumablesPurchaseOrdersQueryOptions<PurchaseOrder>(activeUnitId, selectedLocationId)).then(setPurchaseOrders).catch(() => setPurchaseOrders([])),
+          queryClient.fetchQuery(consumablesSuppliersQueryOptions<Supplier>(activeUnitId)).then(setSuppliers).catch(() => setSuppliers([])),
         )
       } else if (activeTab === 'suppliers') {
         tasks.push(queryClient.fetchQuery(consumablesSuppliersQueryOptions<Supplier>(activeUnitId)).then(setSuppliers).catch(() => setSuppliers([])))
@@ -540,19 +608,202 @@ export function ConsumablesPage() {
       .finally(() => setSavingSupplier(false))
   }
 
-  const createPurchaseOrder = () => {
+  const openNewPurchaseOrder = (suggestedItems: Item[] = []) => {
     if (defaultWriteLocationId == null) {
       showToast('error', 'Za naročilnico najprej izberite poslovalnico v zgornjem izbirniku.')
       return
     }
-    api.post('/consumables/purchase-orders', { locationId: defaultWriteLocationId, status: 'DRAFT', orderDate: new Date().toISOString().slice(0, 10), totalAmount: 0, receivedAmount: 0 })
-      .then(() => { showToast('success', 'Naročilnica je ustvarjena.'); void load(); setActiveTab('procurement') })
-      .catch((e) => showToast('error', e?.response?.data?.message || 'Naročilnice ni bilo mogoče ustvariti.'))
+    const byItem = new Map<number, Item>()
+    suggestedItems.filter((item) => item.locationId === defaultWriteLocationId).forEach((item) => byItem.set(item.id, item))
+    setPurchaseOrderForm({
+      ...emptyPurchaseOrderForm(defaultWriteLocationId),
+      lines: Array.from(byItem.values()).map((item) => ({
+        consumableId: String(item.id),
+        orderedQuantity: String(suggestedOrderQuantity(item)),
+        receivedQuantity: 0,
+        unitPrice: String(Number(item.costPrice || 0)),
+        vatRate: item.vatRate || 'NO_VAT',
+      })),
+    })
+    setPurchaseOrderModalOpen(true)
   }
+
+  const openExistingPurchaseOrder = (order: PurchaseOrder) => {
+    setLoadingPurchaseOrder(true)
+    setPurchaseOrderModalOpen(true)
+    api.get<PurchaseOrderDetail>(`/consumables/purchase-orders/${order.id}`)
+      .then(({ data }) => {
+        const detail = data
+        setPurchaseOrderForm({
+          id: detail.order.id,
+          orderNumber: detail.order.orderNumber || '',
+          supplierId: detail.order.supplierId != null ? String(detail.order.supplierId) : '',
+          locationId: detail.order.locationId != null ? String(detail.order.locationId) : '',
+          status: detail.order.status,
+          orderDate: detail.order.orderDate || new Date().toISOString().slice(0, 10),
+          expectedDate: detail.order.expectedDate || '',
+          notes: detail.order.notes || '',
+          lines: (detail.lines || []).map((line) => ({
+            lineId: line.id,
+            consumableId: String(line.consumableId),
+            orderedQuantity: String(line.orderedQuantity),
+            receivedQuantity: Number(line.receivedQuantity || 0),
+            unitPrice: String(line.unitPrice || 0),
+            vatRate: line.vatRate || 'NO_VAT',
+          })),
+          receipts: detail.receipts || [],
+        })
+      })
+      .catch((e) => { showToast('error', e?.response?.data?.message || 'Naročilnice ni bilo mogoče odpreti.'); setPurchaseOrderModalOpen(false) })
+      .finally(() => setLoadingPurchaseOrder(false))
+  }
+
+  const closePurchaseOrderModal = () => {
+    setPurchaseOrderModalOpen(false)
+    setReceiveModalOpen(false)
+    setPurchaseOrderForm(emptyPurchaseOrderForm(defaultWriteLocationId))
+  }
+
+  const addPurchaseOrderLine = (item?: Item) => {
+    const firstAvailable = item || items.find((candidate) => candidate.locationId === Number(purchaseOrderForm.locationId) && !purchaseOrderForm.lines.some((line) => Number(line.consumableId) === candidate.id))
+    setPurchaseOrderForm((form) => ({
+      ...form,
+      lines: [...form.lines, {
+        consumableId: firstAvailable ? String(firstAvailable.id) : '',
+        orderedQuantity: firstAvailable ? String(Math.max(1, suggestedOrderQuantity(firstAvailable))) : '1',
+        receivedQuantity: 0,
+        unitPrice: firstAvailable ? String(Number(firstAvailable.costPrice || 0)) : '0',
+        vatRate: firstAvailable?.vatRate || 'NO_VAT',
+      }],
+    }))
+  }
+
+  const updatePurchaseOrderLine = (index: number, patch: Partial<PurchaseOrderLineForm>) => {
+    setPurchaseOrderForm((form) => ({ ...form, lines: form.lines.map((line, i) => i === index ? { ...line, ...patch } : line) }))
+  }
+
+  const selectPurchaseOrderItem = (index: number, consumableId: string) => {
+    const item = items.find((candidate) => candidate.id === Number(consumableId) && candidate.locationId === Number(purchaseOrderForm.locationId))
+    updatePurchaseOrderLine(index, {
+      consumableId,
+      unitPrice: item ? String(Number(item.costPrice || 0)) : '0',
+      vatRate: item?.vatRate || 'NO_VAT',
+    })
+  }
+
+  const removePurchaseOrderLine = (index: number) => {
+    setPurchaseOrderForm((form) => ({ ...form, lines: form.lines.filter((_, i) => i !== index) }))
+  }
+
+  const savePurchaseOrder = (event: FormEvent) => {
+    event.preventDefault()
+    if (!purchaseOrderForm.locationId) { showToast('error', 'Izberite poslovalnico prejema.'); return }
+    const hasReceipts = purchaseOrderForm.lines.some((line) => Number(line.receivedQuantity || 0) > 0)
+    const cleanLines = purchaseOrderForm.lines.map((line) => ({
+      consumableId: Number(line.consumableId),
+      orderedQuantity: Number(String(line.orderedQuantity).replace(',', '.')),
+      unitPrice: Number(String(line.unitPrice).replace(',', '.')),
+      vatRate: line.vatRate,
+    }))
+    if (!hasReceipts && cleanLines.some((line) => !line.consumableId || !Number.isFinite(line.orderedQuantity) || line.orderedQuantity <= 0 || !Number.isFinite(line.unitPrice) || line.unitPrice < 0)) {
+      showToast('error', 'Preverite artikle, količine in nabavne cene na naročilnici.')
+      return
+    }
+    if (!hasReceipts && new Set(cleanLines.map((line) => line.consumableId)).size !== cleanLines.length) {
+      showToast('error', 'Artikel je lahko na naročilnici samo enkrat.')
+      return
+    }
+    if (purchaseOrderForm.status === 'ORDERED' && (!purchaseOrderForm.supplierId || cleanLines.length === 0)) {
+      showToast('error', 'Preden naročilnico označite kot naročeno, izberite dobavitelja in dodajte vsaj en artikel.')
+      return
+    }
+    setSavingPurchaseOrder(true)
+    const payload = {
+      orderNumber: purchaseOrderForm.orderNumber.trim() || null,
+      supplierId: purchaseOrderForm.supplierId ? Number(purchaseOrderForm.supplierId) : null,
+      locationId: Number(purchaseOrderForm.locationId),
+      status: ['PARTIALLY_RECEIVED', 'COMPLETED'].includes(purchaseOrderForm.status) ? null : purchaseOrderForm.status,
+      orderDate: purchaseOrderForm.orderDate || null,
+      expectedDate: purchaseOrderForm.expectedDate || null,
+      notes: purchaseOrderForm.notes.trim() || null,
+      lines: hasReceipts ? null : cleanLines,
+    }
+    const request = purchaseOrderForm.id ? api.put(`/consumables/purchase-orders/${purchaseOrderForm.id}`, payload) : api.post('/consumables/purchase-orders', payload)
+    request.then((response) => {
+      showToast('success', purchaseOrderForm.id ? 'Naročilnica je posodobljena.' : 'Naročilnica je ustvarjena.')
+      const id = purchaseOrderForm.id || response.data?.id
+      void load()
+      if (id) openExistingPurchaseOrder({ ...(response.data || {}), id } as PurchaseOrder)
+      else closePurchaseOrderModal()
+    }).catch((e) => showToast('error', e?.response?.data?.message || 'Naročilnice ni bilo mogoče shraniti.'))
+      .finally(() => setSavingPurchaseOrder(false))
+  }
+
+  const openReceivePurchaseOrder = () => {
+    const quantities: Record<number, string> = {}
+    purchaseOrderForm.lines.forEach((line) => {
+      if (line.lineId) quantities[line.lineId] = String(Math.max(0, Number(line.orderedQuantity || 0) - Number(line.receivedQuantity || 0)))
+    })
+    setReceiveQuantities(quantities)
+    setReceiveNote('')
+    setReceiveModalOpen(true)
+  }
+
+  const saveReceipt = (event: FormEvent) => {
+    event.preventDefault()
+    if (!purchaseOrderForm.id) return
+    const lines = purchaseOrderForm.lines.filter((line) => line.lineId).map((line) => ({
+      lineId: line.lineId as number,
+      quantity: Number(String(receiveQuantities[line.lineId as number] || '0').replace(',', '.')),
+    })).filter((line) => Number.isFinite(line.quantity) && line.quantity > 0)
+    if (!lines.length) { showToast('error', 'Vnesite vsaj eno prejeto količino.'); return }
+    const invalid = lines.some((request) => {
+      const line = purchaseOrderForm.lines.find((candidate) => candidate.lineId === request.lineId)
+      return !line || request.quantity > Number(line.orderedQuantity || 0) - Number(line.receivedQuantity || 0)
+    })
+    if (invalid) { showToast('error', 'Prejeta količina ne sme presegati preostale naročene količine.'); return }
+    setSavingReceipt(true)
+    const key = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    api.post(`/consumables/purchase-orders/${purchaseOrderForm.id}/receive`, { idempotencyKey: key, note: receiveNote.trim() || null, lines })
+      .then(({ data }) => {
+        showToast('success', 'Prejem je zabeležen in zaloga je posodobljena.')
+        setReceiveModalOpen(false)
+        void load()
+        const detail = data as PurchaseOrderDetail
+        setPurchaseOrderForm({
+          id: detail.order.id,
+          orderNumber: detail.order.orderNumber || '',
+          supplierId: detail.order.supplierId != null ? String(detail.order.supplierId) : '',
+          locationId: detail.order.locationId != null ? String(detail.order.locationId) : '',
+          status: detail.order.status,
+          orderDate: detail.order.orderDate || '',
+          expectedDate: detail.order.expectedDate || '',
+          notes: detail.order.notes || '',
+          lines: detail.lines.map((line) => ({ lineId: line.id, consumableId: String(line.consumableId), orderedQuantity: String(line.orderedQuantity), receivedQuantity: Number(line.receivedQuantity || 0), unitPrice: String(line.unitPrice || 0), vatRate: line.vatRate })),
+          receipts: detail.receipts || [],
+        })
+      })
+      .catch((e) => showToast('error', e?.response?.data?.message || 'Prejema ni bilo mogoče shraniti.'))
+      .finally(() => setSavingReceipt(false))
+  }
+
+  const createPurchaseOrder = (suggestedItems: Item[] = []) => openNewPurchaseOrder(suggestedItems)
+
 
   const stockPreviewDelta = movementSignedQuantity(stockMovementForm)
   const stockPreviewAfter = stockMovementItem ? Number(stockMovementItem.currentStock || 0) + stockPreviewDelta : 0
   const manualDirectionVisible = ['MANUAL_ADJUSTMENT', 'CORRECTION'].includes(stockMovementForm.movementType)
+
+  const purchaseOrderHasReceipts = purchaseOrderForm.lines.some((line) => Number(line.receivedQuantity || 0) > 0)
+  const purchaseOrderTerminal = ['COMPLETED', 'CANCELLED'].includes(purchaseOrderForm.status)
+  const purchaseOrderTotals = purchaseOrderForm.lines.reduce((totals, line) => {
+    const quantity = Number(String(line.orderedQuantity || '0').replace(',', '.')) || 0
+    const unitPrice = Number(String(line.unitPrice || '0').replace(',', '.')) || 0
+    const net = quantity * unitPrice
+    const vat = net * vatMultiplier(line.vatRate)
+    totals.net += net; totals.vat += vat; totals.gross += net + vat
+    return totals
+  }, { net: 0, vat: 0, gross: 0 })
 
   return (
     <div className="consumables-page">
@@ -575,7 +826,7 @@ export function ConsumablesPage() {
 
         {activeTab === 'overview' && <OverviewTab overview={overview} items={items} lowStockItems={lowStockItems} movements={movements} query={query} setQuery={setQuery} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} locationFilter={locationFilter} setLocationFilter={setLocationFilter} showOnlyLow={showOnlyLow} setShowOnlyLow={setShowOnlyLow} categories={categories} locations={stockLocationNames} createPurchaseOrder={createPurchaseOrder} loading={loading} />}
         {activeTab === 'items' && <ItemsTab items={filteredItems} categories={categories} locations={stockLocationNames} query={query} setQuery={setQuery} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} locationFilter={locationFilter} setLocationFilter={setLocationFilter} statusFilter={statusFilter} setStatusFilter={setStatusFilter} lowStockItems={lowStockItems} billableCount={billableCount} outOfStockCount={outOfStockCount} openCategoryManager={openCategoryManager} onEditItem={openEditItem} onAdjustStock={openStockMovement} />}
-        {activeTab === 'procurement' && <ProcurementTab orders={purchaseOrders} items={items} createPurchaseOrder={createPurchaseOrder} />}
+        {activeTab === 'procurement' && <ProcurementTab orders={purchaseOrders} items={items} suppliers={suppliers} createPurchaseOrder={createPurchaseOrder} openPurchaseOrder={openExistingPurchaseOrder} createSuggestedOrder={openNewPurchaseOrder} />}
         {activeTab === 'suppliers' && <SuppliersTab suppliers={suppliers} openSupplier={openEditSupplier} createSupplier={openNewSupplier} />}
         {activeTab === 'movements' && <MovementsTab movements={movements} />}
         {activeTab === 'inventory' && <InventoryTab items={items} />}
@@ -689,6 +940,59 @@ export function ConsumablesPage() {
           </form>
         </div>
       )}
+
+      {purchaseOrderModalOpen && (
+        <div className="consumables-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !receiveModalOpen) closePurchaseOrderModal() }}>
+          <form className="consumables-modal consumables-modal-xl" onSubmit={savePurchaseOrder}>
+            <header>
+              <div><h2>{purchaseOrderForm.id ? `Naročilnica ${purchaseOrderForm.orderNumber}` : 'Nova naročilnica'}</h2><p>Dodajte artikle, določite količine in nabavne cene ter nato spremljajte delne prejeme.</p></div>
+              <button type="button" onClick={closePurchaseOrderModal} aria-label="Zapri">×</button>
+            </header>
+            {loadingPurchaseOrder ? <div className="consumables-empty">Nalagam naročilnico…</div> : <>
+              <div className="consumables-modal-grid procurement-header-grid">
+                <label>Št. naročilnice<input value={purchaseOrderForm.orderNumber} disabled={purchaseOrderTerminal} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, orderNumber: e.target.value }))} placeholder="Samodejno, če pustite prazno" /></label>
+                <label>Dobavitelj<select value={purchaseOrderForm.supplierId} disabled={purchaseOrderTerminal || purchaseOrderHasReceipts} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, supplierId: e.target.value }))}><option value="">Brez dobavitelja</option>{suppliers.filter((supplier) => supplier.status === 'ACTIVE' || String(supplier.id) === purchaseOrderForm.supplierId).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
+                <label>Poslovalnica<select value={purchaseOrderForm.locationId} disabled={purchaseOrderTerminal || purchaseOrderHasReceipts} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, locationId: e.target.value, lines: [] }))}><option value="">Izberite</option>{writableInventoryLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+                <label>Status<select value={purchaseOrderForm.status} disabled={purchaseOrderTerminal || purchaseOrderHasReceipts} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, status: e.target.value as PurchaseOrderFormState['status'] }))}><option value="DRAFT">Osnutek</option><option value="ORDERED">Naročeno</option>{!purchaseOrderHasReceipts && <option value="CANCELLED">Preklicano</option>}{purchaseOrderForm.status === 'PARTIALLY_RECEIVED' && <option value="PARTIALLY_RECEIVED">Delno prejeto</option>}{purchaseOrderForm.status === 'COMPLETED' && <option value="COMPLETED">Zaključeno</option>}</select></label>
+                <label>Datum naročila<input type="date" value={purchaseOrderForm.orderDate} disabled={purchaseOrderTerminal} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, orderDate: e.target.value }))} /></label>
+                <label>Pričakovana dobava<input type="date" value={purchaseOrderForm.expectedDate} disabled={purchaseOrderTerminal} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, expectedDate: e.target.value }))} /></label>
+                <label className="full">Opombe<textarea value={purchaseOrderForm.notes} disabled={purchaseOrderTerminal} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Interna opomba naročilnice" /></label>
+              </div>
+
+              <section className="procurement-lines-section">
+                <div className="procurement-section-header"><div><h3>Artikli</h3><p>Nabavna cena je neto cena na enoto. DDV in bruto vrednost se izračunata samodejno.</p></div>{!purchaseOrderTerminal && !purchaseOrderHasReceipts && <button type="button" className="btn secondary" onClick={() => addPurchaseOrderLine()}>+ Dodaj artikel</button>}</div>
+                <div className="procurement-lines-table-wrap"><table className="procurement-lines-table"><thead><tr><th>Artikel</th><th>Naročeno</th><th>Prejeto</th><th>Nabavna cena</th><th>DDV</th><th>Neto</th><th>Bruto</th>{!purchaseOrderTerminal && !purchaseOrderHasReceipts && <th />}</tr></thead><tbody>{purchaseOrderForm.lines.map((line, index) => {
+                  const item = items.find((candidate) => candidate.id === Number(line.consumableId) && candidate.locationId === Number(purchaseOrderForm.locationId))
+                  const qty = Number(String(line.orderedQuantity || '0').replace(',', '.')) || 0
+                  const unitPrice = Number(String(line.unitPrice || '0').replace(',', '.')) || 0
+                  const net = qty * unitPrice
+                  const gross = net * (1 + vatMultiplier(line.vatRate))
+                  return <tr key={line.lineId || `new-${index}`}><td><select value={line.consumableId} disabled={purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => selectPurchaseOrderItem(index, e.target.value)}><option value="">Izberite artikel</option>{items.filter((candidate) => candidate.locationId === Number(purchaseOrderForm.locationId) && (candidate.id === Number(line.consumableId) || !purchaseOrderForm.lines.some((other, otherIndex) => otherIndex !== index && Number(other.consumableId) === candidate.id))).map((candidate) => <option key={`${candidate.id}:${candidate.locationId}`} value={candidate.id}>{candidate.name}{candidate.sku ? ` · ${candidate.sku}` : ''}</option>)}</select><small>{item ? `${item.location || ''} · ${item.unit}` : ''}</small></td><td><div className="quantity-with-unit"><input type="number" min="0.0001" step="0.0001" value={line.orderedQuantity} disabled={purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { orderedQuantity: e.target.value })} /><span>{item?.unit || 'enota'}</span></div></td><td><strong>{n(line.receivedQuantity, 2)}</strong><br /><small>{n(Math.max(0, qty - Number(line.receivedQuantity || 0)), 2)} preostalo</small></td><td><div className="money-input"><span>€</span><input type="number" min="0" step="0.0001" value={line.unitPrice} disabled={purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { unitPrice: e.target.value })} /></div></td><td><select value={line.vatRate} disabled={purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { vatRate: e.target.value as PurchaseOrderLineForm['vatRate'] })}><option value="VAT_22">22 %</option><option value="VAT_9_5">9,5 %</option><option value="VAT_0">0 %</option><option value="NO_VAT">Brez DDV</option></select></td><td>{eur(net)}</td><td><strong>{eur(gross)}</strong></td>{!purchaseOrderTerminal && !purchaseOrderHasReceipts && <td><button type="button" className="icon-btn danger" onClick={() => removePurchaseOrderLine(index)} title="Odstrani">×</button></td>}</tr>
+                })}</tbody></table></div>
+                <Empty visible={purchaseOrderForm.lines.length === 0} text="Dodajte vsaj en artikel ali ustvarite naročilnico iz predlogov za naročilo." />
+                <div className="procurement-totals"><span>Neto<strong>{eur(purchaseOrderTotals.net)}</strong></span><span>DDV<strong>{eur(purchaseOrderTotals.vat)}</strong></span><span>Skupaj<strong>{eur(purchaseOrderTotals.gross)}</strong></span></div>
+              </section>
+
+              {purchaseOrderForm.receipts.length > 0 && <section className="procurement-receipts-section"><div className="procurement-section-header"><div><h3>Zgodovina prejemov</h3><p>Vsak prejem je zabeležen ločeno in povezan s premiki zaloge.</p></div></div><div className="procurement-receipt-list">{purchaseOrderForm.receipts.map((receipt) => <div key={receipt.id} className="procurement-receipt-card"><div><strong>{dateTime(receipt.receivedAt)}</strong><small>{receipt.userName || 'Sistem'}{receipt.note ? ` · ${receipt.note}` : ''}</small></div><div>{receipt.lines.map((line) => <span key={`${receipt.id}:${line.purchaseOrderLineId}`}>{line.itemName}: <strong>+{n(line.quantity, 2)} {line.unit}</strong></span>)}</div></div>)}</div></section>}
+            </>}
+            <footer>
+              <button type="button" className="btn secondary" onClick={closePurchaseOrderModal}>Zapri</button>
+              {purchaseOrderForm.id && ['ORDERED', 'PARTIALLY_RECEIVED'].includes(purchaseOrderForm.status) && !purchaseOrderTerminal && <button type="button" className="btn secondary" onClick={openReceivePurchaseOrder}>Prejmi blago</button>}
+              {!purchaseOrderTerminal && <button type="submit" className="btn primary" disabled={savingPurchaseOrder || loadingPurchaseOrder}>{savingPurchaseOrder ? 'Shranjujem…' : purchaseOrderForm.id ? 'Shrani spremembe' : 'Ustvari naročilnico'}</button>}
+            </footer>
+          </form>
+        </div>
+      )}
+
+      {receiveModalOpen && purchaseOrderForm.id && (
+        <div className="consumables-modal-backdrop procurement-receive-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setReceiveModalOpen(false) }}>
+          <form className="consumables-modal consumables-modal-wide" onSubmit={saveReceipt}>
+            <header><div><h2>Prejmi blago</h2><p>{purchaseOrderForm.orderNumber} · količine povečajo zalogo v izbrani poslovalnici.</p></div><button type="button" onClick={() => setReceiveModalOpen(false)} aria-label="Zapri">×</button></header>
+            <div className="procurement-receive-list"><table><thead><tr><th>Artikel</th><th>Naročeno</th><th>Že prejeto</th><th>Preostalo</th><th>Prejmi zdaj</th></tr></thead><tbody>{purchaseOrderForm.lines.filter((line) => line.lineId).map((line) => { const remaining = Math.max(0, Number(line.orderedQuantity || 0) - Number(line.receivedQuantity || 0)); const item = items.find((candidate) => candidate.id === Number(line.consumableId) && candidate.locationId === Number(purchaseOrderForm.locationId)); return <tr key={line.lineId}><td><strong>{item?.name || 'Artikel'}</strong></td><td>{n(Number(line.orderedQuantity || 0), 2)} {item?.unit || ''}</td><td>{n(line.receivedQuantity, 2)} {item?.unit || ''}</td><td>{n(remaining, 2)} {item?.unit || ''}</td><td><input type="number" min="0" max={remaining} step="0.0001" value={receiveQuantities[line.lineId as number] || '0'} onChange={(e) => setReceiveQuantities((values) => ({ ...values, [line.lineId as number]: e.target.value }))} disabled={remaining <= 0} /></td></tr> })}</tbody></table><label className="procurement-receive-note">Opomba<textarea value={receiveNote} onChange={(e) => setReceiveNote(e.target.value)} placeholder="Npr. delna dobava, dobavnica št. ..." /></label><div className="procurement-info-note">Prejem je idempotenten: ponovljen isti zahtevek ne more dvakrat povečati zaloge. Nabavna cena se shrani na premik, lokacijska povprečna nabavna cena pa se preračuna uteženo.</div></div>
+            <footer><button type="button" className="btn secondary" onClick={() => setReceiveModalOpen(false)}>Prekliči</button><button type="submit" className="btn primary" disabled={savingReceipt}>{savingReceipt ? 'Shranjujem…' : 'Potrdi prejem'}</button></footer>
+          </form>
+        </div>
+      )}
     </div>
   )
 }
@@ -710,7 +1014,7 @@ function KpiCard({ tone, title, value, note }: { tone: string; title: string; va
   return <div className="consumables-kpi"><span className={`consumables-kpi-icon ${tone}`} /> <div><small>{title}</small><strong>{value}</strong>{note && <em>{note}</em>}</div></div>
 }
 
-function OverviewTab(props: { overview: Overview; items: Item[]; lowStockItems: Item[]; movements: Movement[]; query: string; setQuery: (v: string) => void; categoryFilter: string; setCategoryFilter: (v: string) => void; locationFilter: string; setLocationFilter: (v: string) => void; showOnlyLow: boolean; setShowOnlyLow: (v: boolean) => void; categories: Category[]; locations: string[]; createPurchaseOrder: () => void; loading: boolean }) {
+function OverviewTab(props: { overview: Overview; items: Item[]; lowStockItems: Item[]; movements: Movement[]; query: string; setQuery: (v: string) => void; categoryFilter: string; setCategoryFilter: (v: string) => void; locationFilter: string; setLocationFilter: (v: string) => void; showOnlyLow: boolean; setShowOnlyLow: (v: boolean) => void; categories: Category[]; locations: string[]; createPurchaseOrder: (items?: Item[]) => void; loading: boolean }) {
   const { overview, lowStockItems, movements } = props
   return <>
     <Filters {...props} extra={<label className="consumables-switch"><input type="checkbox" checked={props.showOnlyLow} onChange={(e) => props.setShowOnlyLow(e.target.checked)} /> Prikaži samo nizko zalogo</label>} />
@@ -750,18 +1054,39 @@ function ItemsTab(props: { items: Item[]; categories: Category[]; locations: str
   </div>
 }
 
-function ProcurementTab({ orders, items, createPurchaseOrder }: { orders: PurchaseOrder[]; items: Item[]; createPurchaseOrder: () => void }) {
+function ProcurementTab({ orders, items, suppliers, createPurchaseOrder, openPurchaseOrder, createSuggestedOrder }: {
+  orders: PurchaseOrder[]
+  items: Item[]
+  suppliers: Supplier[]
+  createPurchaseOrder: (items?: Item[]) => void
+  openPurchaseOrder: (order: PurchaseOrder) => void
+  createSuggestedOrder: (items?: Item[]) => void
+}) {
+  const [supplierFilter, setSupplierFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [search, setSearch] = useState('')
   const open = orders.filter((o) => !['COMPLETED', 'CANCELLED'].includes(o.status))
-  const low = items.filter((i) => i.lowStock)
+  const low = items.filter((i) => i.active && i.trackStock && i.lowStock)
+  const filteredOrders = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return orders.filter((order) => {
+      if (supplierFilter && String(order.supplierId || '') !== supplierFilter) return false
+      if (statusFilter && order.status !== statusFilter) return false
+      if (q && ![order.orderNumber, order.supplierName, order.locationName, order.notes].some((value) => String(value || '').toLowerCase().includes(q))) return false
+      return true
+    })
+  }, [orders, supplierFilter, statusFilter, search])
+  const reset = () => { setSupplierFilter(''); setStatusFilter(''); setSearch('') }
   return <div className="consumables-main-with-side">
     <div>
-      <div className="consumables-kpi-grid compact"><KpiCard tone="blue" title="Odprte naročilnice" value={open.length} note="V pripravi ali naročene" /><KpiCard tone="green" title="Pričakovane dobave" value={orders.filter((o) => o.expectedDate).length} note="Z vpisanim datumom" /><KpiCard tone="orange" title="Izdelki za naročilo" value={low.length} note="Pod minimalno zalogo" /><KpiCard tone="purple" title="Mesečni strošek nabave" value={eur(orders.reduce((s, o) => s + Number(o.totalAmount || 0), 0))} note="Skupaj" /></div>
-      <div className="consumables-filter-row"><label>Dobavitelj<select><option>Vsi dobavitelji</option></select></label><label>Status<select><option>Vsi statusi</option></select></label><label>Obdobje<input value="01/05/2026 – 31/05/2026" readOnly /></label><button className="btn secondary">Ponastavi filtre</button></div>
-      <TableCard title="Naročilnice"><table><thead><tr><th>Št. naročilnice</th><th>Datum</th><th>Dobavitelj</th><th>Poslovalnica</th><th>Status</th><th>Prič. dobava</th><th>Vrednost</th><th>Prejeto</th><th>Akcije</th></tr></thead><tbody>{orders.map((o) => <tr key={o.id}><td className="linkish">{o.orderNumber}</td><td>{date(o.orderDate)}</td><td>{o.supplierName || '—'}</td><td>{o.locationName || '—'}</td><td><Badge tone={o.status === 'COMPLETED' ? 'success' : o.status === 'PARTIALLY_RECEIVED' ? 'warning' : 'info'}>{statusText(o.status)}</Badge></td><td>{date(o.expectedDate)}</td><td>{eur(o.totalAmount)}</td><td>{eur(o.receivedAmount)}</td><td><button className="icon-btn">…</button></td></tr>)}</tbody></table><Empty visible={orders.length === 0} text="Naročilnic še ni. Ustvarite prvo naročilnico iz predlogov za naročilo." /></TableCard>
+      <div className="consumables-kpi-grid compact"><KpiCard tone="blue" title="Odprte naročilnice" value={open.length} note="V pripravi ali naročene" /><KpiCard tone="green" title="Pričakovane dobave" value={open.filter((o) => o.expectedDate).length} note="Odprte z datumom dobave" /><KpiCard tone="orange" title="Izdelki za naročilo" value={low.length} note="Pod minimalno zalogo" /><KpiCard tone="purple" title="Vrednost nabave" value={eur(orders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0))} note="Vse naročilnice" /></div>
+      <div className="consumables-filter-row"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Išči po naročilnici, dobavitelju ali poslovalnici…" /><label>Dobavitelj<select value={supplierFilter} onChange={(e) => setSupplierFilter(e.target.value)}><option value="">Vsi dobavitelji</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label><label>Status<select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="">Vsi statusi</option><option value="DRAFT">Osnutek</option><option value="ORDERED">Naročeno</option><option value="PARTIALLY_RECEIVED">Delno prejeto</option><option value="COMPLETED">Zaključeno</option><option value="CANCELLED">Preklicano</option></select></label><button type="button" className="btn secondary" onClick={reset}>Ponastavi filtre</button></div>
+      <TableCard title={`Naročilnice · ${filteredOrders.length}`}><table><thead><tr><th>Št. naročilnice</th><th>Datum</th><th>Dobavitelj</th><th>Poslovalnica</th><th>Status</th><th>Prič. dobava</th><th>Vrednost</th><th>Prejeto</th><th>Napredek</th><th>Akcije</th></tr></thead><tbody>{filteredOrders.map((o) => { const progress = Number(o.totalAmount || 0) > 0 ? Math.min(100, Math.round((Number(o.receivedAmount || 0) / Number(o.totalAmount || 0)) * 100)) : 0; return <tr key={o.id}><td><button type="button" className="link-button" onClick={() => openPurchaseOrder(o)}>{o.orderNumber}</button></td><td>{date(o.orderDate)}</td><td>{o.supplierName || '—'}</td><td>{o.locationName || '—'}</td><td><Badge tone={o.status === 'COMPLETED' ? 'success' : o.status === 'PARTIALLY_RECEIVED' ? 'warning' : o.status === 'CANCELLED' ? 'muted' : 'info'}>{statusText(o.status)}</Badge></td><td>{date(o.expectedDate)}</td><td>{eur(o.totalAmount)}</td><td>{eur(o.receivedAmount)}</td><td><span className="mini-progress"><i style={{ width: `${progress}%` }} /></span> {progress}%</td><td><button type="button" className="icon-btn edit" onClick={() => openPurchaseOrder(o)} title="Odpri naročilnico">✎</button></td></tr> })}</tbody></table><Empty visible={filteredOrders.length === 0} text="Naročilnic še ni oziroma ne ustrezajo izbranim filtrom." /></TableCard>
     </div>
-    <aside className="consumables-side-stack"><ReorderCard items={low.slice(0, 5)} createPurchaseOrder={createPurchaseOrder} /><TableCard title="Pričakovane dobave" action="Prikaži vse"><table><tbody>{orders.filter((o) => o.expectedDate).slice(0, 5).map((o) => <tr key={o.id}><td>{o.supplierName || o.orderNumber}</td><td>{date(o.expectedDate)}</td><td><Badge tone="info">{statusText(o.status)}</Badge></td></tr>)}</tbody></table></TableCard></aside>
+    <aside className="consumables-side-stack"><ReorderCard items={low.slice(0, 8)} createPurchaseOrder={createSuggestedOrder} /><TableCard title="Pričakovane dobave" action="Prikaži vse"><table><tbody>{open.filter((o) => o.expectedDate).slice(0, 5).map((o) => <tr key={o.id}><td>{o.supplierName || o.orderNumber}</td><td>{date(o.expectedDate)}</td><td><Badge tone="info">{statusText(o.status)}</Badge></td></tr>)}</tbody></table><Empty visible={open.filter((o) => o.expectedDate).length === 0} text="Ni načrtovanih dobav." /></TableCard><button type="button" className="btn primary wide" onClick={() => createPurchaseOrder()}>+ Nova naročilnica</button></aside>
   </div>
 }
+
 
 function SuppliersTab({ suppliers, createSupplier, openSupplier }: { suppliers: Supplier[]; createSupplier: () => void; openSupplier: (supplier: Supplier) => void }) {
   const [search, setSearch] = useState('')
@@ -840,8 +1165,11 @@ function CategoryDistribution({ items }: { items: Item[] }) {
 function QuickStats({ total, value, low, out, billable }: { total: number; value: number; low: number; out: number; billable: number }) { return <TableCard title="Hitra statistika"><div className="quick-stat-grid"><span>Skupaj artiklov<strong>{total}</strong></span><span>Vrednost zaloge<strong>{eur(value)}</strong></span><span>Nizka zaloga<strong>{low}</strong></span><span>Zunaj zaloge<strong>{out}</strong></span><span>Zaračunljivih<strong>{billable}</strong></span></div></TableCard> }
 function ChartCard({ title, data }: { title: string; data: { label: string; value: number }[] }) { const total = data.reduce((s, d) => s + Number(d.value || 0), 0); return <TableCard title={title}><div className="consumables-donut-row"><div className="consumables-donut" /><ul>{data.slice(0, 6).map((d) => <li key={d.label}><span>{d.label}</span><strong>{total ? Math.round((d.value / total) * 100) : 0}% ({n(d.value, 0)})</strong></li>)}</ul></div></TableCard> }
 function BarsCard({ title, data }: { title: string; data: { label: string; value: number }[] }) { const max = Math.max(1, ...data.map((d) => Number(d.value || 0))); return <TableCard title={title} action="Prikaži vse"><div className="consumables-bars">{data.slice(0, 6).map((d) => <div key={d.label}><span>{d.label}</span><i><b style={{ width: `${Math.max(6, (Number(d.value || 0) / max) * 100)}%` }} /></i><strong>{n(d.value, 2)}</strong></div>)}</div></TableCard> }
-function ReorderCard({ items, createPurchaseOrder }: { items: Item[]; createPurchaseOrder: () => void }) { return <TableCard title="Predlogi za naročilo" action="Prikaži vse"><table><tbody>{items.slice(0, 5).map((item) => <tr key={`${item.id}:${item.locationId}`}><td>{item.name}<br /><small>Trenutno: {n(item.currentStock, 2)} {item.unit} · Min: {n(item.minimumStock, 2)} {item.unit}</small></td><td>Predlagano: {n(Math.max(item.minimumStock * 2 - item.currentStock, item.minimumStock), 0)} {item.unit}</td><td><button className="btn tiny">Dodaj</button></td></tr>)}</tbody></table><button type="button" className="btn secondary wide" onClick={createPurchaseOrder}>Ustvari predloge naročil</button></TableCard> }
+function ReorderCard({ items, createPurchaseOrder }: { items: Item[]; createPurchaseOrder: (items?: Item[]) => void }) { return <TableCard title="Predlogi za naročilo" action="Prikaži vse"><table><tbody>{items.slice(0, 8).map((item) => <tr key={`${item.id}:${item.locationId}`}><td>{item.name}<br /><small>{item.location || '—'} · Trenutno: {n(item.currentStock, 2)} {item.unit} · Min: {n(item.minimumStock, 2)} {item.unit}</small></td><td>Predlagano: {n(suggestedOrderQuantity(item), 0)} {item.unit}</td><td><button type="button" className="btn tiny" onClick={() => createPurchaseOrder([item])}>Dodaj</button></td></tr>)}</tbody></table><Empty visible={items.length === 0} text="Ni artiklov pod minimalno zalogo." /><button type="button" className="btn secondary wide" disabled={items.length === 0} onClick={() => createPurchaseOrder(items)}>Ustvari predloge naročil</button></TableCard> }
+
 function FakeLineChart() { return <TableCard title="Poraba v zadnjih 7 dneh"><div className="fake-line-chart"><svg viewBox="0 0 300 140" role="img" aria-label="Poraba"><polyline points="0,100 50,72 100,35 150,108 200,76 250,58 300,58" fill="none" stroke="currentColor" strokeWidth="4" /><path d="M0 100L50 72L100 35L150 108L200 76L250 58L300 58L300 140L0 140Z" fill="currentColor" opacity="0.08" /></svg></div><div className="quick-stat-grid two"><span>Skupna poraba<strong>1.842 kos</strong></span><span>Povprečno na dan<strong>263 kos</strong></span></div></TableCard> }
+function suggestedOrderQuantity(item: Item) { return Math.max(Number(item.minimumStock || 0) * 2 - Number(item.currentStock || 0), Number(item.minimumStock || 0), 0) }
+function vatMultiplier(rate?: PurchaseOrderLineForm['vatRate'] | Item['vatRate'] | null) { return rate === 'VAT_22' ? 0.22 : rate === 'VAT_9_5' ? 0.095 : 0 }
 function groupMovements(movements: Movement[]) { const m: Record<string, number> = {}; movements.forEach((x) => { if (x.quantityDelta < 0) m[x.itemName] = (m[x.itemName] || 0) + Math.abs(x.quantityDelta) }); return Object.entries(m).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value) }
 function distinctItemCount(items: Item[]) { return new Set(items.map((item) => item.id)).size }
 function groupByLocation(items: Item[]) { const result: Record<string, number> = {}; items.forEach((i) => { const k = i.location || 'Brez lokacije'; result[k] = (result[k] || 0) + 1 }); return result }
