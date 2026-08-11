@@ -10738,3 +10738,99 @@
     display: none;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Nov/Uredi neizdan račun — final desktop alignment from the approved preview.
+   Keep the recipient block on its own row, place items + payments below it,
+   keep the four summary blocks directly above the action footer, and use the
+   session context in place of the old recipient heading/helper copy.
+   -------------------------------------------------------------------------- */
+.billing-invoice-management-context {
+  min-width: 0;
+}
+
+.billing-invoice-session-meta {
+  margin: 0 !important;
+  color: #64748b;
+  font-size: 0.86rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+@media (min-width: 1025px) {
+  /* Header: title only for unissued invoices; advance invoices keep their badge. */
+  .billing-create-panel--open .billing-bill-modal-header,
+  .billing-open-detail-panel--invoice-editor .billing-bill-modal-header {
+    align-items: center;
+    padding-bottom: 20px;
+  }
+
+  .billing-create-panel--open .billing-bill-modal-title-row,
+  .billing-open-detail-panel--invoice-editor .billing-bill-modal-title-row {
+    gap: 0;
+  }
+
+  /* Recipient/payee block is a separate full-width row above the workspace. */
+  .billing-create-panel--open .billing-invoice-management-card--open-create-compact,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-management-card--open-edit-compact {
+    padding: 16px 18px;
+  }
+
+  .billing-create-panel--open .billing-invoice-tabs-row--create-open-compact {
+    margin: 0;
+  }
+
+  .billing-open-detail-panel--invoice-editor .billing-invoice-management-head--edit-open {
+    align-items: center;
+    min-height: 26px;
+    margin-bottom: 12px;
+  }
+
+  .billing-open-detail-panel--invoice-editor .billing-invoice-session-meta {
+    max-width: 760px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Make create/edit payee cards use the same clean rounded-card language. */
+  .billing-create-panel--open .billing-invoice-bill-tab,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-bill-tab--bookmark,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-add-tab--bookmark {
+    min-height: 78px;
+    border-radius: 14px;
+  }
+
+  .billing-open-detail-panel--invoice-editor .billing-invoice-tabs-row--bookmarks {
+    gap: 12px;
+    padding-top: 0;
+  }
+
+  .billing-open-detail-panel--invoice-editor .billing-invoice-bill-tab--bookmark {
+    margin-right: 0;
+  }
+
+  .billing-open-detail-panel--invoice-editor .billing-invoice-bill-tab--bookmark::after {
+    display: none;
+  }
+
+  /* Payment panel remains in the second row, aligned with Postavke računa. */
+  .billing-create-panel--open .billing-invoice-workspace-card,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-workspace-card {
+    margin-top: 0;
+  }
+
+  /* Four info blocks are intentionally the last body row before footer buttons. */
+  .billing-create-panel--open .billing-invoice-compact-summary,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-compact-summary {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+}
+
+/* On compact layouts the existing mobile header owns the available context. */
+@media (max-width: 1024px) {
+  .billing-open-detail-panel--invoice-editor .billing-invoice-management-context {
+    display: none !important;
+  }
+}

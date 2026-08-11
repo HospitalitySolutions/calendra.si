@@ -7999,11 +7999,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
     return (
       <div className="billing-invoice-modern-body">
-        <section className="billing-invoice-management-card billing-invoice-management-card--bookmarks">
+        <section className="billing-invoice-management-card billing-invoice-management-card--bookmarks billing-invoice-management-card--open-edit-compact">
           <div className="billing-invoice-management-head billing-invoice-management-head--edit-open">
-            <div>
-              <h3>{locale === 'sl' ? 'Prejemnik računa' : 'Bill recipient'}</h3>
-              <p>{locale === 'sl' ? 'Preklopite med računi ali dodajte novega.' : 'Switch between bills or add a new one.'}</p>
+            <div className="billing-invoice-management-context">
+              <p className="billing-invoice-session-meta">{openBillEditorSubtitle(activeBill)}</p>
             </div>
             {baseRelatedOpenBills.length > 1 && temporaryOpenBills.length === 0 && !onePayeeLocked && (
               <button
@@ -10118,8 +10117,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             <div className="billing-bill-modal-header">
               <div>
                 <div className="billing-bill-modal-title-row">
-                  <h2>{locale === 'sl' ? 'Uredi odprti račun' : 'Edit open bill'}</h2>
-                  <span className="billing-bill-modal-status billing-bill-modal-status--open">{locale === 'sl' ? 'Odprto' : 'Open'}</span>
+                  <h2>{locale === 'sl' ? 'Uredi neizdan račun' : 'Edit unissued invoice'}</h2>
                 </div>
                 <p>{locale === 'sl' ? 'Nalaganje podatkov računa…' : 'Loading bill data…'}</p>
               </div>
@@ -10182,10 +10180,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               <div className="billing-bill-modal-header">
                 <div>
                   <div className="billing-bill-modal-title-row">
-                    <h2>{locale === 'sl' ? 'Uredi odprti račun' : 'Edit open bill'}</h2>
-                    <span className="billing-bill-modal-status billing-bill-modal-status--open">{locale === 'sl' ? 'Odprto' : 'Open'}</span>
+                    <h2>{locale === 'sl' ? 'Uredi neizdan račun' : 'Edit unissued invoice'}</h2>
                   </div>
-                  <p>{openBillEditorSubtitle(detailOpenBill)}</p>
                 </div>
                 <button type="button" className="billing-bill-modal-close" onClick={closeDetailOpenBill} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
                 <details className="billing-open-detail-actions-menu">
@@ -10437,10 +10433,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 )}
                 <div>
                   <div className="billing-bill-modal-title-row">
-                    <h2>{isCreateAdvanceBill ? (locale === 'sl' ? 'Novo predplačilo' : 'New advance') : (locale === 'sl' ? 'Nov odprti račun' : 'New open bill')}</h2>
-                    <span className="billing-bill-modal-status billing-bill-modal-status--draft">{isCreateAdvanceBill ? billingCopy.billTypeAdvance : (locale === 'sl' ? 'Novo' : 'New')}</span>
+                    <h2>{isCreateAdvanceBill ? (locale === 'sl' ? 'Novo predplačilo' : 'New advance') : (locale === 'sl' ? 'Nov neizdan račun' : 'New unissued invoice')}</h2>
+                    {isCreateAdvanceBill && (
+                      <span className="billing-bill-modal-status billing-bill-modal-status--draft">{billingCopy.billTypeAdvance}</span>
+                    )}
                   </div>
-                  <p>{createRecipientLabel}</p>
+                  {isCreateAdvanceBill && <p>{createRecipientLabel}</p>}
                 </div>
                 <button type="button" className="billing-bill-modal-close" onClick={closeCreateBillModal} aria-label="Close">×</button>
               </div>
