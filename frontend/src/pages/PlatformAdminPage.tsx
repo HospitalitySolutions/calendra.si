@@ -2567,7 +2567,6 @@ type PaymentProviderKey =
   | "GLOBAL_PAYMENTS_STRIPE_ENABLED"
   | "GLOBAL_PAYMENTS_PAYPAL_ENABLED";
 type AjpesProviderKey = "GLOBAL_AJPES_PRS_ENABLED";
-type OtherGlobalFeatureKey = "GLOBAL_CONSUMABLES_ENABLED";
 type FiscalUrlKey =
   | "GLOBAL_FISCAL_TEST_INVOICE_URL"
   | "GLOBAL_FISCAL_TEST_PREMISE_URL"
@@ -3618,138 +3617,6 @@ function AjpesAdminPanel() {
               OFF
             </button>
           </div>
-        </div>
-      ) : null}
-
-      <div style={{ marginTop: 18 }} className="platform-admin-top-actions">
-        <button
-          className="platform-admin-button platform-admin-primary"
-          type="button"
-          onClick={() => void save()}
-          disabled={saving || loading}
-        >
-          {saving ? "Saving…" : "Save changes"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function OtherAdminPanel() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
-  const [flags, setFlags] = useState<Record<OtherGlobalFeatureKey, boolean>>({
-    GLOBAL_CONSUMABLES_ENABLED: true,
-  });
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      setErr(null);
-      try {
-        const { data } = await api.get<PlatformGlobalSettingsDto>(
-          "/platform-admin/settings",
-        );
-        if (cancelled || !data) return;
-        setFlags({
-          GLOBAL_CONSUMABLES_ENABLED: parseEnabledFlag(
-            data.GLOBAL_CONSUMABLES_ENABLED,
-            true,
-          ),
-        });
-      } catch {
-        if (!cancelled) setErr("Could not load other global settings.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const save = async () => {
-    setSaving(true);
-    setErr(null);
-    setOk(null);
-    try {
-      await api.put("/platform-admin/settings", {
-        GLOBAL_CONSUMABLES_ENABLED: String(flags.GLOBAL_CONSUMABLES_ENABLED),
-      });
-      window.dispatchEvent(new Event("settings-updated"));
-      setOk("Other settings saved.");
-    } catch {
-      setErr("Could not save other settings.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const enabled = flags.GLOBAL_CONSUMABLES_ENABLED;
-
-  return (
-    <div className="platform-admin-panel platform-admin-panel-pad">
-      <div className="platform-admin-plan-price-head">
-        <div className="platform-admin-eyebrow">Global controls</div>
-        <h2>Other</h2>
-        <p
-          className="platform-admin-muted"
-          style={{ margin: 0, fontWeight: 700, lineHeight: 1.5 }}
-        >
-          Turn optional platform features ON or OFF globally. Platform Admin
-          keeps access, while disabled features are hidden from all
-          non-platform-admin tenants and blocked on the backend.
-        </p>
-      </div>
-
-      {loading ? <p className="platform-admin-muted">Loading other settings…</p> : null}
-      {err ? <p className="platform-admin-search-err">{err}</p> : null}
-      {ok ? (
-        <p
-          style={{
-            margin: 0,
-            color: "var(--success-text)",
-            fontWeight: 800,
-            fontSize: "0.92rem",
-          }}
-        >
-          {ok}
-        </p>
-      ) : null}
-
-      {!loading ? (
-        <div className="platform-admin-section-card" style={{ marginTop: 12 }}>
-          <div className="platform-admin-section-head">
-            <div className="platform-admin-section-title">
-              <strong>Consumables</strong>
-              <span>
-                {enabled
-                  ? "Consumables are visible and usable for tenant admins."
-                  : "Consumables are hidden and blocked for non-platform-admin tenants."}
-              </span>
-            </div>
-          </div>
-          <label className="platform-admin-admin-setting-switch">
-            <input
-              type="checkbox"
-              checked={enabled}
-              onChange={(e) =>
-                setFlags({ GLOBAL_CONSUMABLES_ENABLED: e.target.checked })
-              }
-            />
-            <span className="platform-admin-admin-setting-switch-slider" aria-hidden />
-            <span className="platform-admin-admin-setting-switch-copy">
-              <strong>{enabled ? "ON" : "OFF"}</strong>
-              <span>
-                {enabled
-                  ? "Show Porabni material / Consumables."
-                  : "Hide Porabni material / Consumables."}
-              </span>
-            </span>
-          </label>
         </div>
       ) : null}
 
@@ -5437,7 +5304,6 @@ type AdminWorkspaceTab =
   | "zoom"
   | "payments"
   | "messaging"
-  | "other"
   | "developer";
 
 const ADMIN_TABS: Array<{ id: AdminWorkspaceTab; label: string }> = [
@@ -5455,7 +5321,6 @@ const ADMIN_TABS: Array<{ id: AdminWorkspaceTab; label: string }> = [
   { id: "zoom", label: "Zoom" },
   { id: "payments", label: "Payment providers" },
   { id: "messaging", label: "Messaging providers" },
-  { id: "other", label: "Other" },
   { id: "developer", label: "Developer tools" },
 ];
 
@@ -7270,8 +7135,6 @@ export function PlatformAdminPage() {
                   <PaymentProvidersAdminPanel />
                 ) : workspace === "ajpes" ? (
                   <AjpesAdminPanel />
-                ) : workspace === "other" ? (
-                  <OtherAdminPanel />
                 ) : workspace === "developer" ? (
                   <TimeSimulatorPanel />
                 ) : (

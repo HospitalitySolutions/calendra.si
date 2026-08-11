@@ -850,9 +850,7 @@ public class PlatformAdminController {
                 Map.entry(SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED.name(),
                         get(companyId, SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED, "false")),
                 Map.entry(SettingKey.GLOBAL_AJPES_PRS_ENABLED.name(),
-                        get(companyId, SettingKey.GLOBAL_AJPES_PRS_ENABLED, "false")),
-                Map.entry(SettingKey.GLOBAL_CONSUMABLES_ENABLED.name(),
-                        get(companyId, SettingKey.GLOBAL_CONSUMABLES_ENABLED, "false"))
+                        get(companyId, SettingKey.GLOBAL_AJPES_PRS_ENABLED, "false"))
         );
     }
 
@@ -868,7 +866,6 @@ public class PlatformAdminController {
         save(companyId, me, SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED, payload.get(SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED.name()));
         save(companyId, me, SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED, payload.get(SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED.name()));
         save(companyId, me, SettingKey.GLOBAL_AJPES_PRS_ENABLED, payload.get(SettingKey.GLOBAL_AJPES_PRS_ENABLED.name()));
-        save(companyId, me, SettingKey.GLOBAL_CONSUMABLES_ENABLED, payload.get(SettingKey.GLOBAL_CONSUMABLES_ENABLED.name()));
         return settings(me);
     }
 
