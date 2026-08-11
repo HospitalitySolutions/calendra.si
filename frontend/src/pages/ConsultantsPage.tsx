@@ -11,6 +11,15 @@ import { GuestConfigSaveIcon } from '../components/GuestConfigSaveIcon'
 import { ModernTimePicker } from '../components/ModernTimePicker'
 import { GuestSwitch } from './configuration/ConfigurationVisualComponents'
 import { EmployeeRolesPermissionsTab } from './EmployeeRolesPermissionsTab'
+import {
+  ServiceConfigDeleteButton,
+  ServiceConfigEditButton,
+  ServiceConfigSortableTableHeader,
+  ServiceConfigTableFooter,
+  nextServiceConfigSortState,
+  sortServiceConfigRows,
+  type ServiceConfigSortState,
+} from '../components/ServiceConfigTableUi'
 import { formatDate, fullName } from '../lib/format'
 import { dayOptions, type DayOfWeek, type WorkingHoursConfig } from '../lib/types'
 import {
@@ -179,8 +188,15 @@ function fallbackUserQuota(consultants: Consultant[], error?: any): UserQuota {
 }
 
 type UserRole = 'ADMIN' | 'CONSULTANT'
+type EmployeeSortKey = 'name' | 'email' | 'role' | 'status' | 'createdAt'
 function formatRoleLabel(role: UserRole, t: (key: string) => string) {
   return role === 'ADMIN' ? t('employeesFormRoleOptionAdmin') : t('employeesFormRoleOptionConsultant')
+}
+
+function employeeRoleFilterValue(consultant: Consultant): string {
+  return consultant.accessRoleName?.trim()
+    ? `custom:${consultant.accessRoleName.trim()}`
+    : `system:${consultant.role}`
 }
 
 type Consultant = {
@@ -361,6 +377,13 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const [showFormPanel, setShowFormPanel] = useState(false)
   const [search, setSearch] = useState('')
   const [activeFilter, setActiveFilter] = useState<'active' | 'inactive'>('active')
+  const [roleFilter, setRoleFilter] = useState('all')
+  const [roleFilterOpen, setRoleFilterOpen] = useState(false)
+  const roleFilterRef = useRef<HTMLDivElement | null>(null)
+  const [employeeSort, setEmployeeSort] = useState<ServiceConfigSortState<EmployeeSortKey>>({
+    key: null,
+    direction: 'asc',
+  })
   const [form, setForm] = useState<ConsultantForm>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -389,6 +412,22 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
   }, [])
+
+  useEffect(() => {
+    if (!roleFilterOpen) return
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!roleFilterRef.current?.contains(event.target as Node)) setRoleFilterOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setRoleFilterOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnOutsideClick)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick)
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [roleFilterOpen])
 
   async function loadConsultants(force = true) {
     if (!canViewEmployeesTab) {
@@ -519,14 +558,27 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initial self profile load only
   }, [selfService])
 
+  const employeeRoleOptions = useMemo(() => {
+    const roles = new Map<string, string>()
+    consultants.forEach((consultant) => {
+      roles.set(
+        employeeRoleFilterValue(consultant),
+        consultant.accessRoleName || formatRoleLabel(consultant.role, t),
+      )
+    })
+    return Array.from(roles, ([value, label]) => ({ value, label }))
+      .sort((left, right) => left.label.localeCompare(right.label, locale, { sensitivity: 'base' }))
+  }, [consultants, locale, t])
+
   const filteredConsultants = useMemo(() => {
     const byStatus = consultants.filter((consultant) =>
       activeFilter === 'inactive' ? consultant.active === false : consultant.active !== false,
     )
+    const byRole = roleFilter === 'all'
+      ? byStatus
+      : byStatus.filter((consultant) => employeeRoleFilterValue(consultant) === roleFilter)
     const q = search.trim().toLowerCase()
-    if (!q) return byStatus
-
-    return byStatus.filter((consultant) => {
+    const matched = !q ? byRole : byRole.filter((consultant) => {
       const nm = `${consultant.firstName} ${consultant.lastName}`.toLowerCase()
       const roleLabel = (consultant.accessRoleName || formatRoleLabel(consultant.role, t)).toLowerCase()
       return (
@@ -536,7 +588,19 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
         roleLabel.includes(q)
       )
     })
-  }, [consultants, search, activeFilter, t])
+    return sortServiceConfigRows(
+      matched,
+      employeeSort,
+      (consultant, key) => {
+        if (key === 'name') return fullName(consultant)
+        if (key === 'email') return consultant.email
+        if (key === 'role') return consultant.accessRoleName || formatRoleLabel(consultant.role, t)
+        if (key === 'status') return consultant.active === false ? 0 : 1
+        return consultant.createdAt
+      },
+      locale,
+    )
+  }, [consultants, search, activeFilter, roleFilter, employeeSort, locale, t])
 
   const startCreate = () => {
     if (hasReachedUserQuota(userQuota)) {
@@ -611,25 +675,37 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     return !consultantFormsEqual(form, formBaselineRef.current)
   }, [form, showFormPanel])
 
-  const removeEditing = async () => {
-    if (!editing || !canDeleteEmployees) return
-    if (!window.confirm(`Delete consultant ${fullName(editing)}? This cannot be undone.`)) return
+  const removeConsultant = async (consultant: Consultant) => {
+    if (!canDeleteEmployees || consultant.tenantOwner) return
+    const confirmed = window.confirm(
+      locale === 'sl'
+        ? `Izbrišem zaposlenega ${fullName(consultant)}? Tega dejanja ni mogoče razveljaviti.`
+        : `Delete employee ${fullName(consultant)}? This cannot be undone.`,
+    )
+    if (!confirmed) return
     setDeleting(true)
     setErrorMessage('')
     setSuccessMessage('')
     try {
-      await api.delete(`/users/${editing.id}`)
-      setShowFormPanel(false)
-      setEditing(null)
-      setForm(emptyForm)
+      await api.delete(`/users/${consultant.id}`)
+      if (editing?.id === consultant.id) {
+        setShowFormPanel(false)
+        setEditing(null)
+        setForm(emptyForm)
+      }
       await loadConsultants()
       window.dispatchEvent(new Event('users-updated'))
     } catch (error: any) {
       const backendMessage = error?.response?.data?.message
-      setErrorMessage(backendMessage || 'Failed to delete consultant.')
+      setErrorMessage(backendMessage || (locale === 'sl' ? 'Zaposlenega ni bilo mogoče izbrisati.' : 'Failed to delete employee.'))
     } finally {
       setDeleting(false)
     }
+  }
+
+  const removeEditing = async () => {
+    if (!editing) return
+    await removeConsultant(editing)
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -924,45 +1000,47 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     })
   }
 
+  const employeeTabs = (
+    <div className="employees-page-tabs-shell clients-entity-tabs-shell">
+      <div className="employee-page-tabs clients-session-tabs clients-entity-tabs" role="tablist" aria-label={t('employeesSubtabsAria')}>
+        {canViewEmployeesTab && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={employeesTab === 'employees'}
+            className={`clients-session-tab employee-page-tab${employeesTab === 'employees' ? ' active employee-page-tab--active' : ''}`}
+            onClick={() => {
+              setEmployeesTab('employees')
+              void loadConsultants(false)
+            }}
+          >
+            <EmployeePageTabIcon name="employees" />
+            <span>{t('employeesSubtabEmployees')}</span>
+            <strong className="employees-tab-count">{filteredConsultants.length}</strong>
+          </button>
+        )}
+        {canViewRolesTab && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={employeesTab === 'roles'}
+            className={`clients-session-tab employee-page-tab${employeesTab === 'roles' ? ' active employee-page-tab--active' : ''}`}
+            onClick={() => setEmployeesTab('roles')}
+          >
+            <EmployeePageTabIcon name="roles" />
+            <span>{t('employeesSubtabRolesPermissions')}</span>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+
   return (
     <div className={`stack gap-lg${!selfService ? ' employees-page-root' : ''}`}>
       {selfService && !showFormPanel && <PageHeader title={t('myProfileTitle')} />}
       {selfService && loadingSelfProfile && <div className="muted">{t('employeesSelfProfileLoading')}</div>}
       {selfService && !loadingSelfProfile && !showFormPanel && errorMessage && <div className="error">{errorMessage}</div>}
-      {!selfService && (
-        <div className="employees-page-tabs-shell clients-entity-tabs-shell">
-        <div className="employee-page-tabs clients-session-tabs clients-entity-tabs" role="tablist" aria-label={t('employeesSubtabsAria')}>
-          {canViewEmployeesTab && (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={employeesTab === 'employees'}
-              className={`clients-session-tab employee-page-tab${employeesTab === 'employees' ? ' active employee-page-tab--active' : ''}`}
-              onClick={() => {
-                setEmployeesTab('employees')
-                void loadConsultants(false)
-              }}
-            >
-              <EmployeePageTabIcon name="employees" />
-              <span>{t('employeesSubtabEmployees')}</span>
-              <strong className="employees-tab-count">{filteredConsultants.length}</strong>
-            </button>
-          )}
-          {canViewRolesTab && (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={employeesTab === 'roles'}
-              className={`clients-session-tab employee-page-tab${employeesTab === 'roles' ? ' active employee-page-tab--active' : ''}`}
-              onClick={() => setEmployeesTab('roles')}
-            >
-              <EmployeePageTabIcon name="roles" />
-              <span>{t('employeesSubtabRolesPermissions')}</span>
-            </button>
-          )}
-        </div>
-        </div>
-      )}
+      {!selfService && (employeesTab === 'roles' || isConsultantsMobile) && employeeTabs}
       {!selfService && canViewRolesTab && employeesTab === 'roles' && (
         <div className="employees-tab-panel employees-roles-tab-panel">
           <EmployeeRolesPermissionsTab />
@@ -971,15 +1049,75 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       {!selfService && canViewEmployeesTab && employeesTab === 'employees' && (
         <div className="employees-tab-panel employees-list-tab-panel">
           <Card data-onboarding-panel="employees" className={`clients-modern-card employees-modern-card${isConsultantsMobile ? ' clients-mobile-shell' : ''}`}>
+            {!isConsultantsMobile && employeeTabs}
             <div className="clients-toolbar clients-modern-toolbar employees-modern-toolbar">
-              <div className="clients-search-wrap">
-                <EmployeeModernIcon name="search" />
-                <input
-                  className="clients-search-input"
-                  placeholder={t('employeesSearchPlaceholder')}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+              <div className="clients-toolbar-primary employees-toolbar-primary">
+                <div className="clients-search-wrap">
+                  <EmployeeModernIcon name="search" />
+                  <input
+                    className="clients-search-input"
+                    placeholder={t('employeesSearchPlaceholder')}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+                {!isConsultantsMobile && (
+                  <div className="clients-owner-filter employees-role-filter" ref={roleFilterRef}>
+                    <button
+                      type="button"
+                      className={`clients-owner-filter__button${roleFilter !== 'all' ? ' clients-owner-filter__button--active' : ''}`}
+                      aria-haspopup="listbox"
+                      aria-expanded={roleFilterOpen}
+                      onClick={() => setRoleFilterOpen((open) => !open)}
+                    >
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M4 5h16l-6.3 7.2V18l-3.4 1.8v-7.6L4 5Z" />
+                      </svg>
+                      <span className="clients-owner-filter__label">{locale === 'sl' ? 'Vloga' : 'Role'}:</span>
+                      <strong>
+                        {roleFilter === 'all'
+                          ? (locale === 'sl' ? 'Vse vloge' : 'All roles')
+                          : employeeRoleOptions.find((option) => option.value === roleFilter)?.label ?? roleFilter}
+                      </strong>
+                      <svg className={`clients-owner-filter__chevron${roleFilterOpen ? ' clients-owner-filter__chevron--open' : ''}`} width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="m5 7.5 5 5 5-5" />
+                      </svg>
+                    </button>
+                    {roleFilterOpen && (
+                      <div className="clients-owner-filter__menu" role="listbox" aria-label={locale === 'sl' ? 'Vloga zaposlenega' : 'Employee role'}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={roleFilter === 'all'}
+                          className={roleFilter === 'all' ? 'clients-owner-filter__option active' : 'clients-owner-filter__option'}
+                          onClick={() => {
+                            setRoleFilter('all')
+                            setRoleFilterOpen(false)
+                          }}
+                        >
+                          <span>{locale === 'sl' ? 'Vse vloge' : 'All roles'}</span>
+                          {roleFilter === 'all' && <span className="clients-owner-filter__check">✓</span>}
+                        </button>
+                        {employeeRoleOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            role="option"
+                            aria-selected={roleFilter === option.value}
+                            className={roleFilter === option.value ? 'clients-owner-filter__option active' : 'clients-owner-filter__option'}
+                            onClick={() => {
+                              setRoleFilter(option.value)
+                              setRoleFilterOpen(false)
+                            }}
+                          >
+                            <span>{option.label}</span>
+                            {roleFilter === option.value && <span className="clients-owner-filter__check">✓</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="clients-toolbar-actions employees-toolbar-actions">
                 <div className="clients-session-tabs clients-filter-tabs" style={{ marginBottom: 0 }}>
@@ -993,9 +1131,11 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                     {activeFilter === 'active' ? activeStatusLabel : inactiveStatusLabel}
                   </button>
                 </div>
-                <div className={`clients-count-chip${isConsultantsMobile ? ' clients-count-chip--mobile-open' : ''}`}>
-                  {employeeListCountLabel(filteredConsultants.length, locale)}
-                </div>
+                {isConsultantsMobile && (
+                  <div className="clients-count-chip clients-count-chip--mobile-open">
+                    {employeeListCountLabel(filteredConsultants.length, locale)}
+                  </div>
+                )}
                 {canCreateEmployees && <button type="button" className="clients-modern-new-btn employees-modern-new-btn" onClick={startCreate}>
                   <EmployeeModernIcon name="plus" />
                   <span>{isConsultantsMobile ? t('billingNewMobile') : t('billingNew')}</span>
@@ -1075,11 +1215,12 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                   <table className="clients-table employees-table">
                     <thead>
                       <tr>
-                        <th>{t('employeesTableName')}</th>
-                        <th>{t('loginEmailLabel')}</th>
-                        <th>{t('employeesTableRole')}</th>
-                        <th>{statusHeader}</th>
-                        <th>{t('employeesTableCreated')}</th>
+                        <ServiceConfigSortableTableHeader label={t('employeesTableName')} sortKey="name" sortState={employeeSort} onSort={(key) => setEmployeeSort((current) => nextServiceConfigSortState(current, key))} />
+                        <ServiceConfigSortableTableHeader label={t('loginEmailLabel')} sortKey="email" sortState={employeeSort} onSort={(key) => setEmployeeSort((current) => nextServiceConfigSortState(current, key))} />
+                        <ServiceConfigSortableTableHeader label={t('employeesTableRole')} sortKey="role" sortState={employeeSort} onSort={(key) => setEmployeeSort((current) => nextServiceConfigSortState(current, key))} />
+                        <ServiceConfigSortableTableHeader label={statusHeader} sortKey="status" sortState={employeeSort} onSort={(key) => setEmployeeSort((current) => nextServiceConfigSortState(current, key))} />
+                        <ServiceConfigSortableTableHeader label={t('employeesTableCreated')} sortKey="createdAt" sortState={employeeSort} onSort={(key) => setEmployeeSort((current) => nextServiceConfigSortState(current, key))} />
+                        <th>{locale === 'sl' ? 'Dejanja' : 'Actions'}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1115,7 +1256,11 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                               </div>
                             </div>
                           </td>
-                          <td className="clients-muted">{c.email}</td>
+                          <td className="clients-muted">
+                            {c.email?.trim() ? (
+                              <a href={contactMailtoHref(c.email)} className="clients-contact-link" onClick={(e) => e.stopPropagation()}>{c.email.trim()}</a>
+                            ) : '—'}
+                          </td>
                           <td className="clients-muted">{c.accessRoleName || formatRoleLabel(c.role, t)}</td>
                           <td>
                             <button
@@ -1137,11 +1282,38 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                             </button>
                           </td>
                           <td className="clients-muted">{formatDate(c.createdAt)}</td>
+                          <td className="clients-actions service-config-actions account-table-actions" onClick={(e) => e.stopPropagation()}>
+                            {canEditEmployees && (
+                              <ServiceConfigEditButton
+                                label={locale === 'sl' ? 'Uredi' : 'Edit'}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  startEdit(c)
+                                }}
+                              />
+                            )}
+                            {canDeleteEmployees && !c.tenantOwner && c.id !== myUserId && (
+                              <ServiceConfigDeleteButton
+                                label={locale === 'sl' ? 'Izbriši' : 'Delete'}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  void removeConsultant(c)
+                                }}
+                                disabled={deleting}
+                              />
+                            )}
+                            {!canEditEmployees && (!canDeleteEmployees || c.tenantOwner || c.id === myUserId) && <span className="clients-muted">—</span>}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+                <ServiceConfigTableFooter
+                  summary={locale === 'sl'
+                    ? `Prikazano ${filteredConsultants.length} od ${consultants.length} zaposlenih`
+                    : `Showing ${filteredConsultants.length} of ${consultants.length} employees`}
+                />
               </div>
             )}
           </Card>

@@ -41,12 +41,17 @@ import { GuestConfigSaveIcon } from "../components/GuestConfigSaveIcon";
 import {
   ServiceConfigDeleteButton,
   ServiceConfigEditButton,
+  ServiceConfigSortableTableHeader,
   ServiceConfigTableFooter,
+  nextServiceConfigSortState,
+  sortServiceConfigRows,
+  type ServiceConfigSortState,
 } from "../components/ServiceConfigTableUi";
 import {
   CardsMembershipsSection,
   type CardsMembershipsSectionHandle,
   type GuestAdminProductType,
+  type GuestAdminProductServiceFilter,
 } from "./CardsMembershipsSection";
 import { CoursesSection, type CoursesSectionHandle } from "./CoursesSection";
 import { WorkspaceServiceManager } from "../components/WorkspaceServiceManager";
@@ -69,6 +74,9 @@ const SESSION_TYPES_SUBTAB_GROUPS = "service-groups";
 const SESSION_TYPES_SUBTAB_TRANSACTION = "transaction-services";
 const SESSION_TYPES_SUBTAB_CARDS = "cards-memberships";
 const SESSION_TYPES_SUBTAB_COURSES = "courses";
+
+type SessionTypeSortKey = "name" | "category" | "duration" | "price" | "status";
+type BillingServiceSortKey = "name" | "category" | "price" | "tax" | "status";
 
 const SERVICE_TYPE_DEFAULT_COLOR = "#D7DFF0";
 const SERVICE_TYPE_COLOR_PALETTE = [
@@ -696,17 +704,6 @@ function ServiceConfigNameCell({
   );
 }
 
-function ServiceConfigSortableHeader({ children }: { children: ReactNode }) {
-  return (
-    <span className="service-config-sortable-header">
-      {children}
-      <span className="service-config-sort-icon" aria-hidden>
-        ↕
-      </span>
-    </span>
-  );
-}
-
 function typeLinkedCategory(type: SessionTypeT): string {
   const first = type.linkedServices?.[0];
   if (first) return first.description?.trim() || first.code?.trim() || "—";
@@ -930,6 +927,17 @@ export function SessionTypesPage() {
   const [cardTypeFilter, setCardTypeFilter] = useState<"all" | GuestAdminProductType>("all");
   const [cardTypeFilterOpen, setCardTypeFilterOpen] = useState(false);
   const cardTypeFilterRef = useRef<HTMLDivElement | null>(null);
+  const [cardServiceFilter, setCardServiceFilter] = useState<GuestAdminProductServiceFilter>("all");
+  const [cardServiceFilterOpen, setCardServiceFilterOpen] = useState(false);
+  const cardServiceFilterRef = useRef<HTMLDivElement | null>(null);
+  const [typeSort, setTypeSort] = useState<ServiceConfigSortState<SessionTypeSortKey>>({
+    key: null,
+    direction: "asc",
+  });
+  const [serviceSort, setServiceSort] = useState<ServiceConfigSortState<BillingServiceSortKey>>({
+    key: null,
+    direction: "asc",
+  });
   const [coursesActiveFilter, setCoursesActiveFilter] = useState<
     "active" | "inactive"
   >("active");
@@ -1028,6 +1036,24 @@ export function SessionTypesPage() {
   }, [cardTypeFilterOpen]);
 
   useEffect(() => {
+    if (!cardServiceFilterOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!cardServiceFilterRef.current?.contains(event.target as Node)) {
+        setCardServiceFilterOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setCardServiceFilterOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [cardServiceFilterOpen]);
+
+  useEffect(() => {
     if (
       isSessionTypesNarrow ||
       showCourses ||
@@ -1039,6 +1065,7 @@ export function SessionTypesPage() {
     }
     if (isSessionTypesNarrow || !showCardsMemberships) {
       setCardTypeFilterOpen(false);
+      setCardServiceFilterOpen(false);
     }
   }, [
     isSessionTypesNarrow,
@@ -1354,13 +1381,25 @@ export function SessionTypesPage() {
         .toLowerCase();
       return hay.includes(q);
     });
-    return [...matched].sort((a, b) => {
+    const ordered = [...matched].sort((a, b) => {
       const ga = a.serviceGroupSortOrder ?? Number.MAX_SAFE_INTEGER;
       const gb = b.serviceGroupSortOrder ?? Number.MAX_SAFE_INTEGER;
       if (ga !== gb) return ga - gb;
       const so = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
       return so || a.name.localeCompare(b.name);
     });
+    return sortServiceConfigRows(
+      ordered,
+      typeSort,
+      (type, key) => {
+        if (key === "name") return type.description?.trim() || type.name;
+        if (key === "category") return typeLinkedCategory(type);
+        if (key === "duration") return type.durationMinutes;
+        if (key === "price") return typeGrossPrice(type);
+        return type.active === false ? 0 : 1;
+      },
+      locale,
+    );
   }, [
     types,
     typeSearch,
@@ -1369,6 +1408,8 @@ export function SessionTypesPage() {
     typeCategoryFilter,
     typeDurationFilter,
     typeVisibilityFilter,
+    typeSort,
+    locale,
   ]);
 
   const activeTypes = useMemo(
@@ -1391,8 +1432,7 @@ export function SessionTypesPage() {
         : service.active !== false,
     );
     const q = serviceSearch.trim().toLowerCase();
-    if (!q) return byStatus;
-    return byStatus.filter((s) => {
+    const matched = !q ? byStatus : byStatus.filter((s) => {
       const taxHay =
         s.taxRate === "NO_VAT"
           ? `${taxLabels[s.taxRate]} ${t("sessionTypesTxTaxOptionNoVat")}`
@@ -1408,7 +1448,19 @@ export function SessionTypesPage() {
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [services, serviceSearch, t, serviceActiveFilter]);
+    return sortServiceConfigRows(
+      matched,
+      serviceSort,
+      (service, key) => {
+        if (key === "name") return service.code;
+        if (key === "category") return service.description;
+        if (key === "price") return transactionServiceGross(service);
+        if (key === "tax") return taxLabels[service.taxRate];
+        return service.active === false ? 0 : 1;
+      },
+      locale,
+    );
+  }, [services, serviceSearch, t, serviceActiveFilter, serviceSort, locale]);
 
   const groupPickerOptions = useMemo(() => {
     const q = groupPickerQuery.trim().toLowerCase();
@@ -2390,6 +2442,16 @@ export function SessionTypesPage() {
     cardTypeFilter === "all"
       ? allCardTypesLabel
       : cardTypeFilterOptions.find((option) => option.value === cardTypeFilter)?.label ?? cardTypeFilter;
+  const cardServiceFilterLabel = locale === "sl" ? "Storitev" : "Service";
+  const cardServiceFilterOptions: Array<{ value: GuestAdminProductServiceFilter; label: string }> = [
+    { value: "all", label: locale === "sl" ? "Vse storitve" : "All services" },
+    { value: "all-services", label: locale === "sl" ? "Velja za vse" : "Valid for all" },
+    { value: "selected-services", label: locale === "sl" ? "Izbrane storitve" : "Selected services" },
+    { value: "service-groups", label: locale === "sl" ? "Skupine storitev" : "Service groups" },
+  ];
+  const selectedCardServiceFilterLabel =
+    cardServiceFilterOptions.find((option) => option.value === cardServiceFilter)?.label
+    ?? cardServiceFilterOptions[0].label;
   const serviceConfigActiveFilter = showCourses
     ? coursesActiveFilter
     : showCardsMemberships
@@ -2429,6 +2491,47 @@ export function SessionTypesPage() {
       previous === "active" ? "inactive" : "active",
     );
   };
+
+  const cardServiceFilterControl = showCardsMemberships && !isSessionTypesNarrow ? (
+    <div className="clients-owner-filter service-config-category-filter" ref={cardServiceFilterRef}>
+      <button
+        type="button"
+        className={`clients-owner-filter__button${cardServiceFilter !== "all" ? " clients-owner-filter__button--active" : ""}`}
+        aria-haspopup="listbox"
+        aria-expanded={cardServiceFilterOpen}
+        onClick={() => setCardServiceFilterOpen((open) => !open)}
+      >
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M4 5h16l-6.3 7.2V18l-3.4 1.8v-7.6L4 5Z" />
+        </svg>
+        <span className="clients-owner-filter__label">{cardServiceFilterLabel}:</span>
+        <strong>{selectedCardServiceFilterLabel}</strong>
+        <svg className={`clients-owner-filter__chevron${cardServiceFilterOpen ? " clients-owner-filter__chevron--open" : ""}`} width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="m5 7.5 5 5 5-5" />
+        </svg>
+      </button>
+      {cardServiceFilterOpen && (
+        <div className="clients-owner-filter__menu" role="listbox" aria-label={cardServiceFilterLabel}>
+          {cardServiceFilterOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="option"
+              aria-selected={cardServiceFilter === option.value}
+              className={cardServiceFilter === option.value ? "clients-owner-filter__option active" : "clients-owner-filter__option"}
+              onClick={() => {
+                setCardServiceFilter(option.value);
+                setCardServiceFilterOpen(false);
+              }}
+            >
+              <span>{option.label}</span>
+              {cardServiceFilter === option.value && <span className="clients-owner-filter__check">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  ) : null;
 
   const groupsPanelBody =
     groups.length === 0 ? (
@@ -2677,31 +2780,11 @@ export function SessionTypesPage() {
           <table className="clients-table session-types-table service-config-table">
             <thead>
               <tr>
-                <th>
-                  <ServiceConfigSortableHeader>
-                    {locale === "sl" ? "Naziv" : "Name"}
-                  </ServiceConfigSortableHeader>
-                </th>
-                <th>
-                  <ServiceConfigSortableHeader>
-                    {locale === "sl" ? "Kategorija" : "Category"}
-                  </ServiceConfigSortableHeader>
-                </th>
-                <th>
-                  <ServiceConfigSortableHeader>
-                    {locale === "sl" ? "Trajanje" : "Duration"}
-                  </ServiceConfigSortableHeader>
-                </th>
-                <th>
-                  <ServiceConfigSortableHeader>
-                    {locale === "sl" ? "Cena" : "Price"}
-                  </ServiceConfigSortableHeader>
-                </th>
-                <th>
-                  <ServiceConfigSortableHeader>
-                    {locale === "sl" ? "Status" : "Status"}
-                  </ServiceConfigSortableHeader>
-                </th>
+                <ServiceConfigSortableTableHeader label={locale === "sl" ? "Naziv" : "Name"} sortKey="name" sortState={typeSort} onSort={(key) => setTypeSort((current) => nextServiceConfigSortState(current, key))} />
+                <ServiceConfigSortableTableHeader label={locale === "sl" ? "Kategorija" : "Category"} sortKey="category" sortState={typeSort} onSort={(key) => setTypeSort((current) => nextServiceConfigSortState(current, key))} />
+                <ServiceConfigSortableTableHeader label={locale === "sl" ? "Trajanje" : "Duration"} sortKey="duration" sortState={typeSort} onSort={(key) => setTypeSort((current) => nextServiceConfigSortState(current, key))} />
+                <ServiceConfigSortableTableHeader label={locale === "sl" ? "Cena" : "Price"} sortKey="price" sortState={typeSort} onSort={(key) => setTypeSort((current) => nextServiceConfigSortState(current, key))} />
+                <ServiceConfigSortableTableHeader label={locale === "sl" ? "Status" : "Status"} sortKey="status" sortState={typeSort} onSort={(key) => setTypeSort((current) => nextServiceConfigSortState(current, key))} />
                 <th>{locale === "sl" ? "Dejanja" : "Actions"}</th>
               </tr>
             </thead>
@@ -2916,31 +2999,11 @@ export function SessionTypesPage() {
           <table className="clients-table session-types-table service-config-table">
             <thead>
               <tr>
-                <th>
-                  <ServiceConfigSortableHeader>
-                    {locale === "sl" ? "Naziv" : "Name"}
-                  </ServiceConfigSortableHeader>
-                </th>
-                <th>
-                  <ServiceConfigSortableHeader>
-                    {locale === "sl" ? "Kategorija" : "Category"}
-                  </ServiceConfigSortableHeader>
-                </th>
-                <th>
-                  <ServiceConfigSortableHeader>
-                    {t("sessionTypesTxLabelGross")}
-                  </ServiceConfigSortableHeader>
-                </th>
-                <th>
-                  <ServiceConfigSortableHeader>
-                    {t("sessionTypesTxLabelTax")}
-                  </ServiceConfigSortableHeader>
-                </th>
-                <th>
-                  <ServiceConfigSortableHeader>
-                    {locale === "sl" ? "Status" : "Status"}
-                  </ServiceConfigSortableHeader>
-                </th>
+                <ServiceConfigSortableTableHeader label={locale === "sl" ? "Naziv" : "Name"} sortKey="name" sortState={serviceSort} onSort={(key) => setServiceSort((current) => nextServiceConfigSortState(current, key))} />
+                <ServiceConfigSortableTableHeader label={locale === "sl" ? "Kategorija" : "Category"} sortKey="category" sortState={serviceSort} onSort={(key) => setServiceSort((current) => nextServiceConfigSortState(current, key))} />
+                <ServiceConfigSortableTableHeader label={t("sessionTypesTxLabelGross")} sortKey="price" sortState={serviceSort} onSort={(key) => setServiceSort((current) => nextServiceConfigSortState(current, key))} />
+                <ServiceConfigSortableTableHeader label={t("sessionTypesTxLabelTax")} sortKey="tax" sortState={serviceSort} onSort={(key) => setServiceSort((current) => nextServiceConfigSortState(current, key))} />
+                <ServiceConfigSortableTableHeader label={locale === "sl" ? "Status" : "Status"} sortKey="status" sortState={serviceSort} onSort={(key) => setServiceSort((current) => nextServiceConfigSortState(current, key))} />
                 <th>{locale === "sl" ? "Dejanja" : "Actions"}</th>
               </tr>
             </thead>
@@ -3429,6 +3492,7 @@ export function SessionTypesPage() {
                   )}
                 </div>
               )}
+              {cardServiceFilterControl}
             </div>
             <div className="clients-toolbar-actions service-config-toolbar-trailing">
               <div
@@ -3515,6 +3579,7 @@ export function SessionTypesPage() {
               searchQuery={cardSearch}
               activeFilter={cardsActiveFilter}
               typeFilter={cardTypeFilter}
+              serviceFilter={cardServiceFilter}
               onFilteredCountChange={onGuestCardsFilteredCount}
             />
           ) : showTransactionServices ? (
@@ -3644,6 +3709,7 @@ export function SessionTypesPage() {
                   )}
                 </div>
               )}
+              {cardServiceFilterControl}
             </div>
             <div className="clients-toolbar-actions service-config-toolbar-trailing">
               <div
@@ -3724,6 +3790,7 @@ export function SessionTypesPage() {
               searchQuery={cardSearch}
               activeFilter={cardsActiveFilter}
               typeFilter={cardTypeFilter}
+              serviceFilter={cardServiceFilter}
               onFilteredCountChange={onGuestCardsFilteredCount}
             />
           ) : (
