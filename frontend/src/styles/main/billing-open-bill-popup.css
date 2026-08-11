@@ -11372,7 +11372,7 @@
   .billing-create-panel--open .billing-invoice-discount-slider-layout,
   .billing-open-detail-panel--invoice-editor .billing-invoice-discount-slider-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 78px;
+    grid-template-columns: minmax(0, 1fr) 92px;
     gap: 10px;
     align-items: center;
   }
@@ -11952,13 +11952,24 @@
 
   .billing-create-panel--open .billing-invoice-discount-value-pill,
   .billing-open-detail-panel--invoice-editor .billing-invoice-discount-value-pill {
-    min-width: 78px !important;
+    min-width: 92px !important;
     padding: 0 10px !important;
   }
 
   .billing-create-panel--open .billing-invoice-discount-value-pill input,
   .billing-open-detail-panel--invoice-editor .billing-invoice-discount-value-pill input {
-    min-width: 0 !important;
+    width: 100% !important;
+    min-width: 38px !important;
+    box-sizing: border-box !important;
+    padding: 0 6px 0 2px !important;
+    text-align: right !important;
+    overflow: visible !important;
     font-variant-numeric: tabular-nums;
+  }
+
+  .billing-create-panel--open .billing-invoice-discount-value-pill em,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-value-pill em {
+    min-width: 14px !important;
+    text-align: right !important;
   }
 }
