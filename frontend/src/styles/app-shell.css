@@ -3584,3 +3584,23 @@ a.credentials-popover-action-btn {
     background: #fff7ed;
     color: #ea580c;
 }
+
+/* Desktop content canvas: keep the management/reporting sections on the same white surface as their data cards.
+ * Mobile/tablet (<= 1024px) intentionally keeps its existing page backgrounds and responsive treatment.
+ */
+@media (min-width: 1025px) {
+    html:not([data-theme="dark"]) .main-area--clients,
+    html:not([data-theme="dark"]) .main-area--billing,
+    html:not([data-theme="dark"]) .main-area--inbox,
+    html:not([data-theme="dark"]) .main-area--analytics,
+    html:not([data-theme="dark"]) .main-area--services,
+    html:not([data-theme="dark"]) .main-area--employees,
+    html:not([data-theme="dark"]) .main-area--clients > .content.content--clients,
+    html:not([data-theme="dark"]) .main-area--billing > .content.content--billing,
+    html:not([data-theme="dark"]) .main-area--inbox > .content.content--inbox,
+    html:not([data-theme="dark"]) .main-area--analytics > .content.content--analytics,
+    html:not([data-theme="dark"]) .main-area--services > .content.content--services,
+    html:not([data-theme="dark"]) .main-area--employees > .content.content--employees {
+        background: #ffffff;
+    }
+}
