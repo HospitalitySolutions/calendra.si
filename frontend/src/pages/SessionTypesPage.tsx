@@ -5412,8 +5412,7 @@ export function SessionTypesPage() {
 
             </form>
 
-            {(!isTypeEditorMobileTablet ||
-              (isTypeFormDirty && !typeEditorKeyboardOpen)) ? (
+            {(!isTypeEditorMobileTablet || !typeEditorKeyboardOpen) ? (
               <div className="form-actions booking-side-panel-footer session-type-config-modal-footer">
                 <button
                   form="session-type-edit-form"
