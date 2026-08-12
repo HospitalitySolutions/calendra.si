@@ -116,16 +116,6 @@
     background-clip: text;
 }
 
-.sidebar .user-info {
-    font-size: 0.875rem;
-    color: rgba(255, 255, 255, 0.9);
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: var(--radius-md);
-}
-
-.sidebar .user-info .muted { color: rgba(255, 255, 255, 0.65); }
-
 .sidebar nav {
     display: flex;
     flex-direction: column;
@@ -202,19 +192,6 @@
 .sidebar .sidebar-rail-footer a.sidebar-rail-link.active {
     background: rgba(255, 255, 255, 0.15);
     color: white;
-}
-
-.sidebar .logout-btn {
-    background: rgba(255, 255, 255, 0.12);
-    color: white;
-    padding: 12px 16px;
-    border-radius: var(--radius-md);
-    font-weight: 500;
-    transition: background 0.2s;
-}
-
-.sidebar .logout-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
 }
 
 .sidebar-rail-footer {
@@ -307,11 +284,6 @@
 [data-theme="dark"] .card.calendar-web-flush {
     border: none;
     box-shadow: none;
-}
-
-.card.calendar-web-flush > .calendar-voice-error {
-    flex-shrink: 0;
-    margin: 10px 12px 0;
 }
 
 .calendar-web-main {
@@ -547,7 +519,6 @@
 }
 
 .header-credentials-wrap,
-.notification-bell-wrap,
 .config-cog-wrap {
     position: relative;
     overflow: visible;
@@ -788,29 +759,7 @@ a.credentials-popover-action-btn {
     background: rgba(255, 255, 255, 0.1);
 }
 
-.header-user-info {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    line-height: 1.1;
-    margin-right: 8px;
-}
-
-.header-user-name {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--color-text);
-}
-
-.header-user-role {
-    font-size: 0.74rem;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    color: var(--color-text-muted);
-}
-
-.config-cog,
-.notification-bell {
+.config-cog {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -822,8 +771,7 @@ a.credentials-popover-action-btn {
     border-radius: var(--radius-md);
 }
 
-.config-cog:hover,
-.notification-bell:hover {
+.config-cog:hover {
     color: var(--color-text);
     background: rgba(0,0,0,0.04);
 }
@@ -867,137 +815,6 @@ a.credentials-popover-action-btn {
     background: rgba(255, 255, 255, 0.06);
 }
 
-.config-dropdown-section-label {
-    padding: 8px 16px 4px;
-    font-size: 0.6875rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--color-text-muted);
-}
-
-.config-dropdown-sub {
-    padding-left: 22px;
-}
-
-.config-page-settings-label {
-    font-size: 0.6875rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--color-text-muted);
-}
-
-/* Folio layout editor is impractical on narrow viewports (matches editor CSS breakpoint). */
-@media (max-width: 1024px) {
-    .config-billing-tab--folio-layout {
-        display: none !important;
-    }
-}
-
-.notification-dropdown {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    left: auto;
-    margin-top: 8px;
-    width: min(360px, calc(100vw - 24px));
-    max-width: calc(100vw - 24px);
-    min-width: 0;
-    max-height: min(320px, 70vh);
-    overflow-y: auto;
-    overflow-x: hidden;
-    box-sizing: border-box;
-    background: var(--color-surface);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg);
-    border: 1px solid var(--border);
-    z-index: 1000;
-}
-
-[data-theme="dark"] .notification-dropdown {
-    background: var(--color-surface);
-    border-color: var(--border);
-}
-
-.notification-dropdown-title {
-    padding: 12px 16px;
-    font-weight: 600;
-    font-size: 0.875rem;
-    border-bottom: 1px solid var(--border);
-}
-
-[data-theme="dark"] .notification-dropdown-title {
-    border-bottom-color: var(--border);
-}
-
-.notification-empty {
-    padding: 20px 16px;
-    color: var(--color-text-muted);
-    font-size: 0.875rem;
-}
-
-.notification-list {
-    list-style: none;
-    margin: 0;
-    padding: 8px;
-}
-
-.notification-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-}
-
-.notification-item:hover { background: #f3f1ed; }
-
-[data-theme="dark"] .notification-item:hover {
-    background: rgba(255, 255, 255, 0.06);
-}
-
-.notification-task {
-    flex: 1;
-    font-size: 0.9375rem;
-    text-align: left;
-}
-
-.notification-complete-btn {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border: none;
-    background: var(--color-success-soft);
-    color: var(--color-success);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-}
-
-.notification-complete-btn:hover { background: #059669; color: white; }
-
-.notification-badge {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 5px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: white;
-    background: var(--color-danger);
-    border-radius: 999px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
 /* Hamburger */
 .app-header-mobile-nav-trigger {
     display: none;
@@ -1029,12 +846,6 @@ a.credentials-popover-action-btn {
     align-items: center;
     gap: 10px;
     min-width: 0;
-}
-
-.app-header-mobile-notification {
-    display: inline-flex;
-    align-items: center;
-    flex-shrink: 0;
 }
 
 /* Full-screen mobile navigation */
@@ -1184,10 +995,6 @@ a.credentials-popover-action-btn {
     font-weight: 500;
 }
 
-.mobile-nav-overlay-link--button {
-    font-family: inherit;
-}
-
 .mobile-nav-overlay-section-label {
     margin: 20px 20px 8px;
     font-size: 0.7rem;
@@ -1266,52 +1073,6 @@ a.credentials-popover-action-btn {
 
 [data-theme="dark"] .mobile-nav-overlay-logout:hover {
     background: rgba(255, 255, 255, 0.06);
-}
-
-/* --- Responsive: Tablet portrait & mobile --- */
-@media (max-width: 1024px) {
-    .layout {
-        grid-template-columns: 1fr;
-    }
-
-    .sidebar {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: auto;
-        z-index: 1000;
-        flex-direction: row;
-        flex-wrap: wrap;
-        padding: 12px 16px;
-        gap: 12px;
-        max-height: none;
-    }
-
-    .sidebar h2 { flex: 1; }
-
-    .sidebar nav {
-        flex: 1 1 100%;
-        flex-direction: row;
-        flex-wrap: wrap;
-        gap: 6px;
-        order: 3;
-    }
-
-    .sidebar-rail-footer {
-        margin-top: 0;
-        flex-direction: row;
-        order: 4;
-        gap: 6px;
-    }
-
-    .sidebar-consultants {
-        margin-top: 0;
-    }
-
-    .sidebar a { padding: 10px 14px; font-size: 0.875rem; }
-    .sidebar .user-info { order: 2; flex: 0; }
-    .sidebar .logout-btn { order: 2; }
 }
 
 /* --- ≤1024px: hide left rail; hamburger opens full-screen nav --- */
@@ -2228,59 +1989,6 @@ a.credentials-popover-action-btn {
 
 .staff-notification-panel-header button:disabled { color: #94a3b8; cursor: default; }
 
-.staff-notification-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 0 16px 14px;
-    border-bottom: 1px solid #e8edf5;
-}
-
-.staff-notification-new-count {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 32px;
-    padding: 0 10px;
-    border: 1px solid #dbe5f2;
-    border-radius: 10px;
-    color: #64748b;
-    font-size: 12px;
-    white-space: nowrap;
-}
-
-.staff-notification-new-count svg { width: 15px; height: 15px; color: #7b93b8; }
-.staff-notification-new-count strong { color: #17253d; }
-
-.staff-notification-filters {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px;
-    border-radius: 12px;
-    background: #f1f5f9;
-}
-
-.staff-notification-filters button {
-    min-height: 28px;
-    padding: 0 10px;
-    border: 0;
-    border-radius: 9px;
-    background: transparent;
-    color: #64748b;
-    font: inherit;
-    font-size: 11px;
-    font-weight: 750;
-    cursor: pointer;
-}
-
-.staff-notification-filters button.active {
-    background: #e2ecff;
-    color: #2563eb;
-    box-shadow: inset 0 0 0 1px rgba(37,99,235,.08);
-}
-
 .staff-notification-items {
     min-height: 76px;
     transition: opacity .15s ease;
@@ -2397,15 +2105,11 @@ a.credentials-popover-action-btn {
 }
 [data-theme="dark"] .staff-notification-panel::before { border-color: var(--border); background: #141b27; }
 [data-theme="dark"] .staff-notification-panel-header h2,
-[data-theme="dark"] .staff-notification-new-count strong,
 [data-theme="dark"] .staff-notification-item-copy strong { color: var(--color-text); }
-[data-theme="dark"] .staff-notification-toolbar,
 [data-theme="dark"] .staff-notification-item { border-color: var(--border); }
 [data-theme="dark"] .staff-notification-item { background: transparent; }
 [data-theme="dark"] .staff-notification-item:hover,
 [data-theme="dark"] .staff-notification-item.unread { background: rgba(255,255,255,.045); }
-[data-theme="dark"] .staff-notification-filters { background: rgba(255,255,255,.06); }
-[data-theme="dark"] .staff-notification-new-count { border-color: var(--border); }
 [data-theme="dark"] .staff-notification-view-all { border-color: var(--border); background: rgba(255,255,255,.04); }
 
 @media (max-width: 1024px) {
@@ -3375,287 +3079,3 @@ a.credentials-popover-action-btn {
     padding-block: 6px;
   }
 }
-
-
-/* Phase 3: normalized physical-location management and workspace calendar scope. */
-.booking-locations-manager {
-  margin-bottom: 32px;
-  padding-bottom: 30px;
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
-}
-.booking-locations-heading-row,
-.booking-location-title-row,
-.booking-location-actions,
-.booking-location-form-actions,
-.calendar-workspace-scope-bar,
-.calendar-workspace-scope-buttons {
-  display: flex;
-  align-items: center;
-}
-.booking-locations-heading-row { justify-content: space-between; gap: 18px; margin-bottom: 18px; }
-.booking-locations-heading-row h3 { margin: 0 0 4px; font-size: 22px; }
-.booking-locations-heading-row p { margin: 0; color: var(--muted-color, #64748b); }
-.booking-location-grid { display: grid; gap: 12px; }
-.booking-location-card {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 18px;
-  border: 1px solid #dbe4f0;
-  border-radius: 16px;
-  background: #fff;
-}
-.booking-location-card.is-default { border-color: #93c5fd; background: #f8fbff; }
-.booking-location-card.is-inactive { opacity: .72; }
-.booking-location-title-row { gap: 8px; flex-wrap: wrap; }
-.booking-location-card h4 { margin: 0; font-size: 17px; }
-.booking-location-card p { margin: 6px 0 3px; color: #475569; }
-.booking-location-card small { color: #64748b; }
-.booking-location-default-pill,
-.booking-location-inactive-pill {
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 800;
-}
-.booking-location-default-pill { color: #1d4ed8; background: #dbeafe; }
-.booking-location-inactive-pill { color: #9f1239; background: #ffe4e6; }
-.booking-location-actions { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.booking-location-actions button {
-  border: 1px solid #cbd5e1;
-  border-radius: 9px;
-  background: #fff;
-  padding: 8px 10px;
-  cursor: pointer;
-}
-.booking-location-actions button.danger { color: #b91c1c; }
-.booking-location-form {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
-  padding: 18px;
-  border: 1px solid #bfdbfe;
-  border-radius: 16px;
-  background: #f8fbff;
-}
-.booking-location-form label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: #334155; }
-.booking-location-form input:not([type="checkbox"]),
-.booking-space-select {
-  width: 100%;
-  min-height: 40px;
-  border: 1px solid #cbd5e1;
-  border-radius: 9px;
-  background: #fff;
-  padding: 8px 10px;
-  font: inherit;
-}
-.booking-location-checkbox { display: flex !important; grid-template-columns: auto 1fr; align-items: center; }
-.booking-location-form-actions { grid-column: 1 / -1; gap: 8px; justify-content: flex-end; }
-.calendar-workspace-scope-bar {
-  justify-content: space-between;
-  gap: 14px;
-  margin: 0 0 12px;
-  padding: 10px 12px;
-  border: 1px solid #dbe4f0;
-  border-radius: 12px;
-  background: #f8fafc;
-}
-.calendar-workspace-scope-buttons { gap: 6px; }
-.calendar-workspace-scope-button {
-  border: 1px solid transparent;
-  border-radius: 9px;
-  padding: 8px 12px;
-  background: transparent;
-  color: #475569;
-  font-weight: 750;
-  cursor: pointer;
-}
-.calendar-workspace-scope-button.is-active { border-color: #bfdbfe; background: #dbeafe; color: #1d4ed8; }
-.calendar-workspace-readonly-note { color: #64748b; font-size: 13px; }
-@media (max-width: 1024px) {
-  .booking-locations-heading-row,
-  .booking-location-card,
-  .calendar-workspace-scope-bar { align-items: stretch; flex-direction: column; }
-  .booking-location-form { grid-template-columns: 1fr; }
-  .booking-location-actions { justify-content: flex-start; }
-  .calendar-workspace-scope-buttons { width: 100%; }
-  .calendar-workspace-scope-button { flex: 1; }
-}
-.calendar-location-filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: #475569;
-  font-size: 13px;
-  font-weight: 700;
-}
-.calendar-location-filter select {
-  min-width: 170px;
-  border: 1px solid #cbd5e1;
-  border-radius: 9px;
-  background: #fff;
-  padding: 8px 10px;
-  color: #0f172a;
-  font: inherit;
-}
-@media (max-width: 1024px) {
-  .calendar-location-filter { align-items: stretch; flex-direction: column; }
-  .calendar-location-filter select { width: 100%; }
-}
-
-/* Calendar desktop: the physical-location filter replaces the company label in the top row. */
-.app-header .app-header-brand--calendar.app-header-brand--calendar-location {
-  display: flex;
-  flex: 0 0 auto;
-  max-width: none;
-  overflow: visible;
-  letter-spacing: normal;
-  color: var(--color-text, #0f172a);
-}
-
-.calendar-header-location-filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  color: var(--color-text-muted, #475569);
-  font-size: 0.76rem;
-  font-weight: 750;
-  white-space: nowrap;
-}
-
-.calendar-header-location-select-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  min-width: 172px;
-  max-width: min(250px, 24vw);
-}
-
-.calendar-header-location-select-wrap select {
-  width: 100%;
-  min-height: 34px;
-  appearance: none;
-  border: 1px solid var(--border, #d7e0eb);
-  border-radius: 9px;
-  background: var(--color-surface, #fff);
-  color: var(--color-text, #0f172a);
-  padding: 6px 30px 6px 10px;
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 700;
-  line-height: 1.2;
-  cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.calendar-header-location-select-wrap select:focus-visible {
-  outline: 2px solid var(--primary, #2563eb);
-  outline-offset: 2px;
-}
-
-.calendar-header-location-select-wrap svg {
-  position: absolute;
-  right: 9px;
-  pointer-events: none;
-  color: var(--color-text-muted, #64748b);
-}
-
-@media (max-width: 1240px) {
-  .calendar-header-location-filter > span:first-child {
-    display: none;
-  }
-
-  .calendar-header-location-select-wrap {
-    min-width: 150px;
-    max-width: 190px;
-  }
-}
-
-@media (max-width: 1024px) {
-  .app-header .app-header-brand--calendar.app-header-brand--calendar-location {
-    display: none;
-  }
-}
-.staff-notification-item--low-stock .staff-notification-item-icon {
-    background: #fff7ed;
-    color: #ea580c;
-}
-
-
-/* Desktop canvas tint for management/reporting pages.
- * Keep cards and data blocks white, but use the approved very light blue page background (#F7FAFF)
- * on desktop only. Mobile/tablet styling remains unchanged.
- */
-@media (min-width: 1025px) {
-    html:not([data-theme="dark"]) .main-area--clients,
-    html:not([data-theme="dark"]) .main-area--billing,
-    html:not([data-theme="dark"]) .main-area--inbox,
-    html:not([data-theme="dark"]) .main-area--analytics,
-    html:not([data-theme="dark"]) .main-area--services,
-    html:not([data-theme="dark"]) .main-area--employees,
-    html:not([data-theme="dark"]) .main-area--clients > .content.content--clients,
-    html:not([data-theme="dark"]) .main-area--billing > .content.content--billing,
-    html:not([data-theme="dark"]) .main-area--inbox > .content.content--inbox,
-    html:not([data-theme="dark"]) .main-area--analytics > .content.content--analytics,
-    html:not([data-theme="dark"]) .main-area--services > .content.content--services,
-    html:not([data-theme="dark"]) .main-area--employees > .content.content--employees {
-        background: #F7FAFF;
-    }
-}
-
-
-/* Extend the desktop light-blue canvas to waitlist, scanner, configuration sections, and the consumables module.
- * Cards remain white; only the page/canvas surface changes.
- */
-@media (min-width: 1025px) {
-    html:not([data-theme="dark"]) .main-area--waitlist,
-    html:not([data-theme="dark"]) .main-area--scanner,
-    html:not([data-theme="dark"]) .main-area--configuration-guest-app,
-    html:not([data-theme="dark"]) .main-area--configuration-integrations,
-    html:not([data-theme="dark"]) .main-area--configuration-account,
-    html:not([data-theme="dark"]) .main-area--configuration-notifications,
-    html:not([data-theme="dark"]) .main-area--configuration-reservation-rules,
-    html:not([data-theme="dark"]) .main-area--configuration-billing,
-    html:not([data-theme="dark"]) .main-area--configuration-detail-white,
-    html:not([data-theme="dark"]) .main-area--waitlist > .content.content--waitlist,
-    html:not([data-theme="dark"]) .main-area--scanner > .content.content--scanner,
-    html:not([data-theme="dark"]) .main-area--configuration-guest-app > .content.content--configuration-guest-app,
-    html:not([data-theme="dark"]) .main-area--configuration-integrations > .content.content--configuration-integrations,
-    html:not([data-theme="dark"]) .main-area--configuration-account > .content.content--configuration-account,
-    html:not([data-theme="dark"]) .main-area--configuration-notifications > .content.content--configuration-notifications,
-    html:not([data-theme="dark"]) .main-area--configuration-reservation-rules > .content.content--configuration-reservation-rules,
-    html:not([data-theme="dark"]) .main-area--configuration-billing > .content.content--configuration-billing,
-    html:not([data-theme="dark"]) .main-area--configuration-detail-white > .content.content--configuration-detail-white,
-    html:not([data-theme="dark"]) .main-area:has(> .content .consumables-page),
-    html:not([data-theme="dark"]) .content:has(.consumables-page),
-    html:not([data-theme="dark"]) .consumables-page {
-        background: #F7FAFF;
-    }
-}
-/* Shared account/header avatar base. Kept global because Shell renders it on every authenticated route. */
-.clients-name-avatar {
-    width: 34px;
-    height: 34px;
-    border-radius: 999px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    color: var(--color-primary);
-    background: var(--color-primary-soft);
-}
-
-.clients-name-avatar-image {
-    width: 100%;
-    height: 100%;
-    display: block;
-    object-fit: cover;
-    border-radius: inherit;
-}
-
