@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../components/DesktopSelect'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
@@ -1388,7 +1389,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                 {!selfService && (
                   <>
                     <Field label={t('employeesFormRole')} hint={isEditingTenantOwner ? ownerRoleLockHint : undefined}>
-                      <select
+                      <DesktopSelect
                         value={employeeRoleSelectValue}
                         onChange={(e) => applyEmployeeRoleSelection(e.target.value)}
                         disabled={isEditingTenantOwner}
@@ -1402,7 +1403,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                             ))}
                           </optgroup>
                         )}
-                      </select>
+                      </DesktopSelect>
                     </Field>
                     <div className="employee-form-consultant-row full-span">
                       <span>{t('employeesFormConsultantShort')}</span>

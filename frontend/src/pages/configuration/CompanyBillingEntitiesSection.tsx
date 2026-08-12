@@ -1,3 +1,4 @@
+import { DesktopSelect } from "../../components/DesktopSelect";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../api";
 import { useAuthenticatedUser } from "../../authUserContext";
@@ -765,7 +766,7 @@ export function CompanyBillingEntitiesSection({
                           ? "Lokacija / poslovni prostor"
                           : "Location / business premise"}
                       </span>
-                      <select
+                      <DesktopSelect
                         value={selectedFiscalLocationId ?? ""}
                         onChange={(event) =>
                           setSelectedFiscalLocationId(
@@ -792,7 +793,7 @@ export function CompanyBillingEntitiesSection({
                               : ""}
                           </option>
                         ))}
-                      </select>
+                      </DesktopSelect>
                     </label>
                   </div>
                   <div className="company-billing-actions" style={{ marginTop: 12 }}>
@@ -872,7 +873,7 @@ export function CompanyBillingEntitiesSection({
             {editSection === "fiscal" ? (
               <label>
                 <span>{sl ? "Fiskalno okolje" : "Fiscal environment"}</span>
-                <select
+                <DesktopSelect
                   value={draft.fiscalEnvironment}
                   onChange={(event) =>
                     setDraft({
@@ -883,7 +884,7 @@ export function CompanyBillingEntitiesSection({
                 >
                   <option value="TEST">TEST</option>
                   <option value="PROD">PROD</option>
-                </select>
+                </DesktopSelect>
               </label>
             ) : (
               <label>

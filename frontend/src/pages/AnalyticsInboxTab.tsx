@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../components/DesktopSelect'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import DOMPurify from 'dompurify'
@@ -1972,31 +1973,31 @@ export function AnalyticsInboxTab() {
                   </div>
                   <div className="analytics-inbox-mobile-filter-grid">
                     <label>{ui.allClients}
-                      <select value={clientIdFilter} onChange={(event) => setClientIdFilter(event.target.value)}>
+                      <DesktopSelect value={clientIdFilter} onChange={(event) => setClientIdFilter(event.target.value)}>
                         <option value="">{ui.allClients}</option>
                         {activeInboxClients.map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
-                      </select>
+                      </DesktopSelect>
                     </label>
                     <label>{ui.channel}
-                      <select value={channelFilter} onChange={(event) => setChannelFilter(event.target.value as '' | InboxChannel)}>
+                      <DesktopSelect value={channelFilter} onChange={(event) => setChannelFilter(event.target.value as '' | InboxChannel)}>
                         <option value="">{ui.allChannels}</option>
                         {availableChannels.map((channel) => <option key={channel} value={channel}>{channelLabel(channel)}</option>)}
-                      </select>
+                      </DesktopSelect>
                     </label>
                     <label>{ui.allStatuses}
-                      <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as '' | InboxStatus)}>
+                      <DesktopSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as '' | InboxStatus)}>
                         <option value="">{ui.allStatuses}</option>
                         {statusOptions.map((status) => <option key={status} value={status}>{statusLabel(status, copy)}</option>)}
-                      </select>
+                      </DesktopSelect>
                     </label>
                     {isAdmin ? (
                       <label>{ui.responsible}
-                        <select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value ? Number(event.target.value) : '')}>
+                        <DesktopSelect value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value ? Number(event.target.value) : '')}>
                           <option value="">{ui.searchEmployee}</option>
                           {consultants.map((employee) => (
                             <option key={employee.id} value={employee.id}>{`${employee.firstName} ${employee.lastName}`.trim() || employee.email}</option>
                           ))}
-                        </select>
+                        </DesktopSelect>
                       </label>
                     ) : null}
                     <label>{locale === 'sl' ? 'Od datuma' : 'From'}
@@ -2124,16 +2125,16 @@ export function AnalyticsInboxTab() {
                 {recipientMode === 'group' ? (
                   <label className="analytics-inbox-mobile-recipient-field">
                     <span>{copy.groupSend}</span>
-                    <select value={selectedGroupId ?? ''} onChange={(event) => setSelectedGroupId(event.target.value ? Number(event.target.value) : null)}>
+                    <DesktopSelect value={selectedGroupId ?? ''} onChange={(event) => setSelectedGroupId(event.target.value ? Number(event.target.value) : null)}>
                       <option value="">{copy.selectGroup}</option>
                       {activeGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
-                    </select>
+                    </DesktopSelect>
                     <small>{selectedGroup ? copy.groupSummary(selectedGroup.members?.length ?? 0, groupMemberClients.length, eligibleGroupClients.length, channelLabel(composeChannel)) : copy.selectGroupHint}</small>
                   </label>
                 ) : (
                   <label className="analytics-inbox-mobile-recipient-field">
                     <span>{mobileCopy.recipient}</span>
-                    <select
+                    <DesktopSelect
                       value={selectedClientId ?? ''}
                       onChange={(event) => {
                         const nextId = event.target.value ? Number(event.target.value) : null
@@ -2143,7 +2144,7 @@ export function AnalyticsInboxTab() {
                     >
                       <option value="">{mobileCopy.selectRecipient}</option>
                       {activeInboxClients.map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
-                    </select>
+                    </DesktopSelect>
                   </label>
                 )}
                 <div className={`analytics-inbox-mobile-selected-channel analytics-inbox-mobile-selected-channel--${inboxMobileChannelClass(composeChannel)}`}>
@@ -2276,12 +2277,12 @@ export function AnalyticsInboxTab() {
                     <label><input type="radio" name="mobile-schedule-frequency" checked={scheduleFrequency === 'once'} onChange={() => setScheduleFrequency('once')} /> {ui.once}</label>
                     <label><input type="radio" name="mobile-schedule-frequency" checked={scheduleFrequency === 'repeat'} onChange={() => setScheduleFrequency('repeat')} /> {ui.repeat}</label>
                     {scheduleFrequency === 'repeat' ? (
-                      <select value={scheduleInterval} onChange={(event) => setScheduleInterval(event.target.value as Exclude<MessageRecurrence, 'NONE'>)}>
+                      <DesktopSelect value={scheduleInterval} onChange={(event) => setScheduleInterval(event.target.value as Exclude<MessageRecurrence, 'NONE'>)}>
                         <option value="DAILY">{ui.intervalDaily}</option>
                         <option value="WEEKLY">{ui.intervalWeekly}</option>
                         <option value="MONTHLY">{ui.intervalMonthly}</option>
                         <option value="YEARLY">{ui.intervalYearly}</option>
-                      </select>
+                      </DesktopSelect>
                     ) : null}
                   </div>
                   <button type="button" className="analytics-inbox-mobile-schedule-submit" onClick={() => void submitSchedule()} disabled={!inlineScheduleReady || submittingSchedule}>
@@ -2331,25 +2332,25 @@ export function AnalyticsInboxTab() {
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={ui.search} />
           <kbd>⌘ K</kbd>
         </div>
-        <select value={clientIdFilter} onChange={(e) => setClientIdFilter(e.target.value)}>
+        <DesktopSelect value={clientIdFilter} onChange={(e) => setClientIdFilter(e.target.value)}>
           <option value="">{ui.allClients}</option>
           {activeInboxClients.map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
-        </select>
-        <select value={channelFilter} onChange={(e) => setChannelFilter(e.target.value as '' | InboxChannel)}>
+        </DesktopSelect>
+        <DesktopSelect value={channelFilter} onChange={(e) => setChannelFilter(e.target.value as '' | InboxChannel)}>
           <option value="">{ui.allChannels}</option>
           {availableChannels.map((channel) => <option key={channel} value={channel}>{channelLabel(channel)}</option>)}
-        </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | InboxStatus)}>
+        </DesktopSelect>
+        <DesktopSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | InboxStatus)}>
           <option value="">{ui.allStatuses}</option>
           {statusOptions.map((status) => <option key={status} value={status}>{statusLabel(status, copy)}</option>)}
-        </select>
+        </DesktopSelect>
         {isAdmin ? (
-          <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value ? Number(e.target.value) : '')} aria-label={ui.responsible}>
+          <DesktopSelect value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value ? Number(e.target.value) : '')} aria-label={ui.responsible}>
             <option value="">{ui.searchEmployee}</option>
             {consultants.map((employee) => (
               <option key={employee.id} value={employee.id}>{`${employee.firstName} ${employee.lastName}`.trim() || employee.email}</option>
             ))}
-          </select>
+          </DesktopSelect>
         ) : null}
         <label className="analytics-inbox-b-date-range">
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From date" />
@@ -2440,7 +2441,7 @@ export function AnalyticsInboxTab() {
             <div className="analytics-inbox-b-conversation-actions">
               {isAdmin && selectedClientId != null ? (
                 <label className="analytics-inbox-b-assignee">{ui.responsible}:
-                  <select
+                  <DesktopSelect
                     value={selectedThread?.assignedToId ?? ''}
                     disabled={savingAssignee}
                     onChange={(e) => updateAssignee(e.target.value ? Number(e.target.value) : null)}
@@ -2449,11 +2450,11 @@ export function AnalyticsInboxTab() {
                     {consultants.map((employee) => (
                       <option key={employee.id} value={employee.id}>{`${employee.firstName} ${employee.lastName}`.trim() || employee.email}</option>
                     ))}
-                  </select>
+                  </DesktopSelect>
                 </label>
               ) : null}
               {selectedClientId != null ? (
-                <select
+                <DesktopSelect
                   className={`analytics-inbox-b-status${selectedThread?.closed ? ' is-closed' : ''}`}
                   value={selectedThread?.closed ? 'closed' : 'open'}
                   disabled={savingStatus || !!selectedThread?.closed}
@@ -2463,7 +2464,7 @@ export function AnalyticsInboxTab() {
                 >
                   <option value="open">{ui.statusOpen}</option>
                   <option value="closed">{ui.statusClosed}</option>
-                </select>
+                </DesktopSelect>
               ) : null}
               <button
                 type="button"
@@ -2581,10 +2582,10 @@ export function AnalyticsInboxTab() {
             </div>
             {recipientMode === 'group' ? (
               <label>{copy.groupSend}
-                <select value={selectedGroupId ?? ''} onChange={(e) => setSelectedGroupId(e.target.value ? Number(e.target.value) : null)}>
+                <DesktopSelect value={selectedGroupId ?? ''} onChange={(e) => setSelectedGroupId(e.target.value ? Number(e.target.value) : null)}>
                   <option value="">{copy.selectGroup}</option>
                   {activeGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
-                </select>
+                </DesktopSelect>
                 <small className="analytics-inbox-b-recipient-summary">
                   {selectedGroup
                     ? copy.groupSummary(selectedGroup.members?.length ?? 0, groupMemberClients.length, eligibleGroupClients.length, channelLabel(composeChannel))
@@ -2593,10 +2594,10 @@ export function AnalyticsInboxTab() {
               </label>
             ) : (
               <label>{copy.clientLabel}
-                <select value={selectedClientId ?? ''} onChange={(e) => selectClient(e.target.value ? Number(e.target.value) : null)}>
+                <DesktopSelect value={selectedClientId ?? ''} onChange={(e) => selectClient(e.target.value ? Number(e.target.value) : null)}>
                   <option value="">{copy.selectClient}</option>
                   {activeInboxClients.map((client) => <option key={client.id} value={client.id}>{clientName(client)}</option>)}
-                </select>
+                </DesktopSelect>
               </label>
             )}
             <div>
@@ -2647,12 +2648,12 @@ export function AnalyticsInboxTab() {
               <label><input type="radio" name="schedule-frequency" checked={scheduleFrequency === 'once'} onChange={() => setScheduleFrequency('once')} /> {ui.once}</label>
               <label><input type="radio" name="schedule-frequency" checked={scheduleFrequency === 'repeat'} onChange={() => setScheduleFrequency('repeat')} /> {ui.repeat}</label>
               {scheduleFrequency === 'repeat' ? (
-                <select className="analytics-inbox-b-interval" value={scheduleInterval} onChange={(e) => setScheduleInterval(e.target.value as Exclude<MessageRecurrence, 'NONE'>)}>
+                <DesktopSelect className="analytics-inbox-b-interval" value={scheduleInterval} onChange={(e) => setScheduleInterval(e.target.value as Exclude<MessageRecurrence, 'NONE'>)}>
                   <option value="DAILY">{ui.intervalDaily}</option>
                   <option value="WEEKLY">{ui.intervalWeekly}</option>
                   <option value="MONTHLY">{ui.intervalMonthly}</option>
                   <option value="YEARLY">{ui.intervalYearly}</option>
-                </select>
+                </DesktopSelect>
               ) : null}
             </div>
             <button type="button" className="analytics-inbox-b-primary-schedule" onClick={submitSchedule} disabled={!inlineScheduleReady || submittingSchedule}>

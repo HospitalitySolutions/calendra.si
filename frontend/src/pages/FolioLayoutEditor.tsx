@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../components/DesktopSelect'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import { useLocale, type AppLocale } from '../locale'
@@ -1398,16 +1399,16 @@ function A4PresetLayoutEditor() {
           <section className="fle-a4-card fle-a4-form-card">
             <label>
               <span>{copy.textSize}</span>
-              <select value={layout.fontSizePreset || 'STANDARD'} onChange={(e) => mutateLayout((next) => { applyFontPreset(next, e.target.value as A4FontSizePreset) })}>
+              <DesktopSelect value={layout.fontSizePreset || 'STANDARD'} onChange={(e) => mutateLayout((next) => { applyFontPreset(next, e.target.value as A4FontSizePreset) })}>
                 <option value="COMPACT">{copy.compactSize}</option>
                 <option value="STANDARD">{copy.standardSize}</option>
                 <option value="LARGE">{copy.largeSize}</option>
-              </select>
+              </DesktopSelect>
             </label>
 
             <label>
               <span>{copy.taxClauses}</span>
-              <select
+              <DesktopSelect
                 value=""
                 onChange={(e) => {
                   const clause = e.target.value
@@ -1422,7 +1423,7 @@ function A4PresetLayoutEditor() {
               >
                 <option value="">{copy.addTaxClause}</option>
                 {TAX_CLAUSE_OPTIONS.filter((clause) => !(layout.taxClauses || []).includes(clause)).map((clause) => <option key={clause} value={clause}>{clause}</option>)}
-              </select>
+              </DesktopSelect>
               <small>{copy.taxClausesHint}</small>
             </label>
             <div className="fle-tax-clause-list">

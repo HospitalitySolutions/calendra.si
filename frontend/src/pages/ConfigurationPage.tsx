@@ -1,3 +1,4 @@
+import { DesktopSelect } from "../components/DesktopSelect";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -1636,7 +1637,7 @@ export function ConfigurationPage() {
       <div className="modules-design-visibility-controls">
         <label>
           <span>{locale === "sl" ? "Min. paket" : "Min. package"}</span>
-          <select
+          <DesktopSelect
             value={rule.minPackage}
             onChange={(event) =>
               setModuleVisibilityRule(key, {
@@ -1651,11 +1652,11 @@ export function ConfigurationPage() {
                 {locale === "sl" ? option.labelSl : option.labelEn}
               </option>
             ))}
-          </select>
+          </DesktopSelect>
         </label>
         <label>
           <span>{locale === "sl" ? "Tip podjetja" : "Config type"}</span>
-          <select
+          <DesktopSelect
             value={rule.configType}
             onChange={(event) =>
               setModuleVisibilityRule(key, {
@@ -1671,7 +1672,7 @@ export function ConfigurationPage() {
                 {locale === "sl" ? option.labelSl : option.labelEn}
               </option>
             ))}
-          </select>
+          </DesktopSelect>
         </label>
       </div>
     );
@@ -5919,7 +5920,7 @@ export function ConfigurationPage() {
                 ? "Kod prikaza od 1 sata razmak između sati jednak je trenutnom razmaku od 30 minuta."
                 : "In the 1-hour view, hourly spacing matches the current 30-minute spacing.",
           valueControl: (
-            <select
+            <DesktopSelect
               className="modules-design-inline-control modules-design-calendar-scale-select"
               value={String(
                 normalizeCalendarTimeScaleMinutes(
@@ -5944,7 +5945,7 @@ export function ConfigurationPage() {
               <option value="60">
                 {locale === "sr" ? "1 sat" : locale === "sl" ? "1 ura" : "1 hour"}
               </option>
-            </select>
+            </DesktopSelect>
           ),
         },
         {
@@ -6226,7 +6227,7 @@ export function ConfigurationPage() {
                   : "Applied to every service that does not define its own break.",
               valueControl: (
                 <span className="modules-design-inline-control modules-design-inline-control--with-suffix">
-                  <select
+                  <DesktopSelect
                     value={moduleDraftForDesign.DEFAULT_SERVICE_BREAK_MINUTES}
                     onChange={(event) =>
                       setModulesDraft((previous) => ({
@@ -6241,7 +6242,7 @@ export function ConfigurationPage() {
                         {minutes}
                       </option>
                     ))}
-                  </select>
+                  </DesktopSelect>
                   <span>min</span>
                 </span>
               ),
@@ -6629,7 +6630,7 @@ export function ConfigurationPage() {
                 ? "Izaberite podrazumevani jezik aplikacije."
                 : "Select the default application language.",
           valueControl: (
-            <select
+            <DesktopSelect
               className="modules-design-language-select"
               value={locale}
               onChange={(event) => setLocale(event.target.value as AppLocale)}
@@ -6644,7 +6645,7 @@ export function ConfigurationPage() {
               <option value="sl">Slovenščina</option>
               <option value="en">English</option>
               <option value="sr">Srpski</option>
-            </select>
+            </DesktopSelect>
           ),
         },
       ],
@@ -8764,7 +8765,7 @@ export function ConfigurationPage() {
                                 <span className="account-field-label">
                                   Tip podjetja
                                 </span>
-                                <select
+                                <DesktopSelect
                                   className="account-field-control"
                                   value={companyTenantType}
                                   onChange={(e) =>
@@ -8778,7 +8779,7 @@ export function ConfigurationPage() {
                                         : option.labelEn}
                                     </option>
                                   ))}
-                                </select>
+                                </DesktopSelect>
                               </label>
                             </div>
                             <div className="account-public-logo-section">
@@ -8906,7 +8907,7 @@ export function ConfigurationPage() {
                                 <span className="account-field-label">
                                   Fiskalno okolje
                                 </span>
-                                <select
+                                <DesktopSelect
                                   className="account-field-control"
                                   value={settings.FISCAL_ENVIRONMENT || "TEST"}
                                   onChange={(e) =>
@@ -8922,7 +8923,7 @@ export function ConfigurationPage() {
                                   <option value="PROD">
                                     {locale === "sl" ? "Produkcijsko" : "Production"}
                                   </option>
-                                </select>
+                                </DesktopSelect>
                               </label>
                               <label className="account-field">
                                 <span className="account-field-label">
@@ -11988,7 +11989,7 @@ export function ConfigurationPage() {
                                         }
                                       />
                                       <div className="billing-location-scope-inline">
-                                        <select
+                                        <DesktopSelect
                                           value={inlinePaymentMethodForm.availableAllLocations ? "ALL" : "SELECTED"}
                                           onChange={(event) =>
                                             setInlinePaymentMethodForm({
@@ -12000,9 +12001,9 @@ export function ConfigurationPage() {
                                         >
                                           <option value="ALL">{locale === "sl" ? "Vse lokacije" : "All locations"}</option>
                                           <option value="SELECTED">{locale === "sl" ? "Izbrane lokacije" : "Selected locations"}</option>
-                                        </select>
+                                        </DesktopSelect>
                                         {!inlinePaymentMethodForm.availableAllLocations ? (
-                                          <select
+                                          <DesktopSelect
                                             multiple
                                             value={inlinePaymentMethodForm.locationIds.map(String)}
                                             onChange={(event) =>
@@ -12018,11 +12019,11 @@ export function ConfigurationPage() {
                                             {locations.filter((location) => location.active !== false).map((location) => (
                                               <option key={location.id} value={location.id}>{location.name}</option>
                                             ))}
-                                          </select>
+                                          </DesktopSelect>
                                         ) : null}
                                       </div>
                                     </div>
-                                    <select
+                                    <DesktopSelect
                                       className="billing-select"
                                       value={inlinePaymentMethodForm.paymentType}
                                       onChange={(e) => {
@@ -12059,7 +12060,7 @@ export function ConfigurationPage() {
                                       <option value="OTHER">
                                         {billingPaymentTypeLabel("OTHER", locale)}
                                       </option>
-                                    </select>
+                                    </DesktopSelect>
                                     {fiscalCashRegisterEnabledCommitted ? (
                                       <button
                                         type="button"
@@ -12098,7 +12099,7 @@ export function ConfigurationPage() {
                                           : "On location only"}
                                       </span>
                                     ) : (
-                                      <select
+                                      <DesktopSelect
                                         className="billing-availability-select"
                                         value={guestAppEnabledCommitted
                                           ? paymentAvailabilityValue(
@@ -12144,7 +12145,7 @@ export function ConfigurationPage() {
                                             ? "Brez razpoložljivosti"
                                             : "Not available"}
                                         </option>
-                                      </select>
+                                      </DesktopSelect>
                                     )}
                                     <div className="billing-row-actions">
                                       <button
@@ -12226,7 +12227,7 @@ export function ConfigurationPage() {
                                         )}
                                         {isInlineEditing ? (
                                           <div className="billing-location-scope-inline">
-                                            <select
+                                            <DesktopSelect
                                               value={inlinePaymentMethodForm.availableAllLocations ? "ALL" : "SELECTED"}
                                               onChange={(event) =>
                                                 setInlinePaymentMethodForm({
@@ -12238,9 +12239,9 @@ export function ConfigurationPage() {
                                             >
                                               <option value="ALL">{locale === "sl" ? "Vse lokacije" : "All locations"}</option>
                                               <option value="SELECTED">{locale === "sl" ? "Izbrane lokacije" : "Selected locations"}</option>
-                                            </select>
+                                            </DesktopSelect>
                                             {!inlinePaymentMethodForm.availableAllLocations ? (
-                                              <select
+                                              <DesktopSelect
                                                 multiple
                                                 value={inlinePaymentMethodForm.locationIds.map(String)}
                                                 onChange={(event) =>
@@ -12256,7 +12257,7 @@ export function ConfigurationPage() {
                                                 {locations.filter((location) => location.active !== false).map((location) => (
                                                   <option key={location.id} value={location.id}>{location.name}</option>
                                                 ))}
-                                              </select>
+                                              </DesktopSelect>
                                             ) : null}
                                           </div>
                                         ) : (
@@ -12322,7 +12323,7 @@ export function ConfigurationPage() {
                                               : "Internal payment method"}
                                         </span>
                                       ) : (
-                                        <select
+                                        <DesktopSelect
                                           className="billing-availability-select"
                                           value={availability}
                                           onChange={(e) =>
@@ -12364,7 +12365,7 @@ export function ConfigurationPage() {
                                               ? "Brez razpoložljivosti"
                                               : "Not available"}
                                           </option>
-                                        </select>
+                                        </DesktopSelect>
                                       )}
                                       <div className="billing-row-actions">
                                         {isInlineEditing ? (
@@ -12593,7 +12594,7 @@ export function ConfigurationPage() {
                           <div className="billing-form-grid">
                             <label className="billing-field">
                               <span className="billing-label">Ponudnik</span>
-                              <select
+                              <DesktopSelect
                                 className="billing-select"
                                 value={guestAppSettings.paymentProvider}
                                 onChange={(e) =>
@@ -12606,11 +12607,11 @@ export function ConfigurationPage() {
                                 <option value="stripe">Stripe Connect</option>
                                 <option value="paypal">PayPal</option>
                                 <option value="bankart">Bankart</option>
-                              </select>
+                              </DesktopSelect>
                             </label>
                             <label className="billing-field">
                               <span className="billing-label">Okolje</span>
-                              <select
+                              <DesktopSelect
                                 className="billing-select"
                                 value={
                                   stripeConnectStatus?.activeMode || "sandbox"
@@ -12626,7 +12627,7 @@ export function ConfigurationPage() {
                               >
                                 <option value="sandbox">Sandbox</option>
                                 <option value="production">Production</option>
-                              </select>
+                              </DesktopSelect>
                               <span className="billing-hint">
                                 Sandbox je za testiranje. Production uporabite
                                 šele po vnosu live ključev v Platform Admin.
@@ -12658,7 +12659,7 @@ export function ConfigurationPage() {
                               <span className="billing-label">
                                 Tip poslovanja
                               </span>
-                              <select
+                              <DesktopSelect
                                 className="billing-select"
                                 value={
                                   stripeConnectStatus?.businessType || "company"
@@ -12679,7 +12680,7 @@ export function ConfigurationPage() {
                                 <option value="non_profit">
                                   Neprofitna organizacija
                                 </option>
-                              </select>
+                              </DesktopSelect>
                             </label>
                           </div>
 
@@ -13504,18 +13505,18 @@ export function ConfigurationPage() {
                                 <div className="pos-settings-controls">
                                   <label className="pos-field">
                                     <span>{locale === "sl" ? "Širina papirja" : "Paper width"}</span>
-                                    <select className="pos-select" value={posPaperWidth} onChange={(e) => updatePosPrintingSetting("POS_PRINTER_PAPER_WIDTH_MM", e.target.value)}>
+                                    <DesktopSelect className="pos-select" value={posPaperWidth} onChange={(e) => updatePosPrintingSetting("POS_PRINTER_PAPER_WIDTH_MM", e.target.value)}>
                                       <option value="58">58 mm</option>
                                       <option value="80">80 mm</option>
-                                    </select>
+                                    </DesktopSelect>
                                   </label>
                                   {posPaperWidth === "80" ? (
                                     <label className="pos-field">
                                       <span>{locale === "sl" ? "Predloga" : "Template"}</span>
-                                      <select className="pos-select" value={posTemplate} onChange={(e) => updatePosPrintingSetting("POS_PRINTER_TEMPLATE", e.target.value)}>
+                                      <DesktopSelect className="pos-select" value={posTemplate} onChange={(e) => updatePosPrintingSetting("POS_PRINTER_TEMPLATE", e.target.value)}>
                                         <option value="COMPACT">{locale === "sl" ? "Kompaktna POS" : "Compact POS"}</option>
                                         <option value="DETAILED">{locale === "sl" ? "Razširjena POS" : "Detailed POS"}</option>
-                                      </select>
+                                      </DesktopSelect>
                                     </label>
                                   ) : null}
                                   <div className="pos-toggle-list">
@@ -14325,7 +14326,7 @@ export function ConfigurationPage() {
                               label="Politika za no-show"
                               hint="Izberite, kako ravnati v primeru, da se gost ne pojavi."
                             >
-                              <select
+                              <DesktopSelect
                                 className="gapp-select"
                                 value={guestBookingRules.noShowPolicy}
                                 onChange={(e) =>
@@ -14344,13 +14345,13 @@ export function ConfigurationPage() {
                                 <option value="mark_only">
                                   Samo označi no-show
                                 </option>
-                              </select>
+                              </DesktopSelect>
                             </GuestField>
                             <GuestField
                               label="Pravila vračila"
                               hint="Vračila se obdelajo samodejno na podlagi pravil odpovedi."
                             >
-                              <select
+                              <DesktopSelect
                                 className="gapp-select"
                                 value={guestBookingRules.refundPolicy}
                                 onChange={(e) =>
@@ -14369,7 +14370,7 @@ export function ConfigurationPage() {
                                 <option value="no_refund_after_payment">
                                   Brez vračila po plačilu
                                 </option>
-                              </select>
+                              </DesktopSelect>
                             </GuestField>
                             <GuestField
                               label="Besedilo pravil"
@@ -14436,7 +14437,7 @@ export function ConfigurationPage() {
                               label="Velikost QR kode"
                               hint="Izberite velikost QR kode za najboljšo kakovost."
                             >
-                              <select
+                              <DesktopSelect
                                 className="gapp-select"
                                 value={guestAppSettings.qrSize}
                                 onChange={(e) =>
@@ -14449,7 +14450,7 @@ export function ConfigurationPage() {
                                 <option value="512 x 512">512 x 512</option>
                                 <option value="1024 x 1024">1024 x 1024</option>
                                 <option value="2048 x 2048">2048 x 2048</option>
-                              </select>
+                              </DesktopSelect>
                             </GuestField>
                             <GuestField
                               label="Barva QR kode"

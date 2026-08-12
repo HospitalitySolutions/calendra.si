@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../components/DesktopSelect'
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api'
@@ -222,10 +223,10 @@ export function AnalyticsReportsPanel({ billingEnabled, selectedLocationId }: { 
                   </label>
                   <label className="analytics-invoice-report-field">
                     <span>{copy.payment}</span>
-                    <select value={paymentMethodId} onChange={(event) => setPaymentMethodId(event.target.value)}>
+                    <DesktopSelect value={paymentMethodId} onChange={(event) => setPaymentMethodId(event.target.value)}>
                       <option value="">{copy.allPayment}</option>
                       {(paymentMethodsQuery.data ?? []).map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}
-                    </select>
+                    </DesktopSelect>
                   </label>
                   <label className="analytics-invoice-report-field">
                     <span>{copy.customer}</span>
@@ -233,30 +234,30 @@ export function AnalyticsReportsPanel({ billingEnabled, selectedLocationId }: { 
                   </label>
                   <label className="analytics-invoice-report-field">
                     <span>{copy.tax}</span>
-                    <select value={taxRate} onChange={(event) => setTaxRate(event.target.value)}>
+                    <DesktopSelect value={taxRate} onChange={(event) => setTaxRate(event.target.value)}>
                       <option value="ALL">{copy.allTax}</option>
                       <option value="VAT_22">22%</option>
                       <option value="VAT_9_5">9,5%</option>
                       <option value="VAT_0">0%</option>
-                    </select>
+                    </DesktopSelect>
                   </label>
                   <label className="analytics-invoice-report-field">
                     <span>{copy.status}</span>
-                    <select value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value)}>
+                    <DesktopSelect value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value)}>
                       <option value="ALL">{copy.allStatus}</option>
                       <option value="paid">{copy.paid}</option>
                       <option value="OPEN">{copy.open}</option>
                       <option value="cancelled">{copy.cancelled}</option>
-                    </select>
+                    </DesktopSelect>
                   </label>
                   <label className="analytics-invoice-report-field">
                     <span>{copy.type}</span>
-                    <select value={billType} onChange={(event) => setBillType(event.target.value)}>
+                    <DesktopSelect value={billType} onChange={(event) => setBillType(event.target.value)}>
                       <option value="ALL">{copy.allTypes}</option>
                       <option value="INVOICE">{copy.invoice}</option>
                       <option value="ADVANCE">{copy.advance}</option>
                       <option value="REFUND">{copy.refund}</option>
-                    </select>
+                    </DesktopSelect>
                   </label>
                   <label className="analytics-invoice-report-field">
                     <span>{copy.number}</span>
@@ -264,14 +265,14 @@ export function AnalyticsReportsPanel({ billingEnabled, selectedLocationId }: { 
                   </label>
                   <label className="analytics-invoice-report-field">
                     <span>{copy.location}</span>
-                    <select value={locationId} onChange={(event) => setLocationId(event.target.value)}>
+                    <DesktopSelect value={locationId} onChange={(event) => setLocationId(event.target.value)}>
                       <option value="">{copy.allLocations}</option>
                       {(locationsQuery.data ?? []).map((location) => (
                         <option key={location.id} value={location.id}>
                           {location.name}{location.fiscalBusinessPremiseCode ? ` · ${location.fiscalBusinessPremiseCode}` : ''}
                         </option>
                       ))}
-                    </select>
+                    </DesktopSelect>
                   </label>
                 </div>
 

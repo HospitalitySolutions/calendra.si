@@ -1,3 +1,4 @@
+import { DesktopSelect } from "../components/DesktopSelect";
 import { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -1334,7 +1335,7 @@ export function RegisterBillingDetailsPage() {
                         >
                           ▦
                         </span>
-                        <select
+                        <DesktopSelect
                           id="billing-tenant-type"
                           value={tenantType}
                           onChange={(event) =>
@@ -1348,7 +1349,7 @@ export function RegisterBillingDetailsPage() {
                               {option.label}
                             </option>
                           ))}
-                        </select>
+                        </DesktopSelect>
                       </div>
                     </div>
 

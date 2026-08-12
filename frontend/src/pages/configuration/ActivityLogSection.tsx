@@ -1,3 +1,4 @@
+import { DesktopSelect } from "../../components/DesktopSelect";
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -420,22 +421,22 @@ export function ActivityLogSection({ locale }: { locale: string }) {
         </div>
 
         <div id="activity-log-filter-fields" className={`activity-log-filter-fields${filtersOpen ? " is-open" : ""}`}>
-          <select value={module} onChange={e => setModule(e.target.value)} aria-label={sl ? "Področje" : "Area"}>
+          <DesktopSelect value={module} onChange={e => setModule(e.target.value)} aria-label={sl ? "Področje" : "Area"}>
             <option value="">{sl ? "Vsa področja" : "All areas"}</option>
             {MODULES.map(m => <option key={m} value={m}>{moduleLabel(m, sl)}</option>)}
-          </select>
-          <select value={action} onChange={e => setAction(e.target.value)} aria-label={sl ? "Dejanje" : "Action"}>
+          </DesktopSelect>
+          <DesktopSelect value={action} onChange={e => setAction(e.target.value)} aria-label={sl ? "Dejanje" : "Action"}>
             <option value="">{sl ? "Vsa dejanja" : "All actions"}</option>
             {ACTIVITY_ACTIONS.map(a => <option key={a} value={a}>{actionLabel(a, sl)}</option>)}
-          </select>
-          <select value={actorUserId} onChange={e => { setActorUserId(e.target.value); if (e.target.value) setActorType("USER"); }} aria-label={sl ? "Uporabnik" : "User"}>
+          </DesktopSelect>
+          <DesktopSelect value={actorUserId} onChange={e => { setActorUserId(e.target.value); if (e.target.value) setActorType("USER"); }} aria-label={sl ? "Uporabnik" : "User"}>
             <option value="">{sl ? "Vsi uporabniki" : "All users"}</option>
             {users.map(u => <option key={u.id} value={u.id}>{`${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email || `#${u.id}`}</option>)}
-          </select>
-          <select value={locationId} onChange={e => setLocationId(e.target.value)} aria-label={sl ? "Lokacija" : "Location"}>
+          </DesktopSelect>
+          <DesktopSelect value={locationId} onChange={e => setLocationId(e.target.value)} aria-label={sl ? "Lokacija" : "Location"}>
             <option value="">{sl ? "Vse lokacije" : "All locations"}</option>
             {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-          </select>
+          </DesktopSelect>
           <input type="date" value={from} onChange={e => setFrom(e.target.value)} aria-label={sl ? "Od" : "From"} />
           <input type="date" value={to} onChange={e => setTo(e.target.value)} aria-label={sl ? "Do" : "To"} />
           <button type="button" className="activity-log-reset" onClick={resetFilters}>

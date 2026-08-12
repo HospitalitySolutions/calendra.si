@@ -1,3 +1,4 @@
+import { DesktopSelect } from "../components/DesktopSelect";
 import {
   useCallback,
   useEffect,
@@ -3973,74 +3974,74 @@ export function SessionTypesPage() {
               {showCourses ? (
                 <label>
                   <span>{locale === "sl" ? "Status" : "Status"}</span>
-                  <select value={serviceConfigFilterDraft.coursesStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, coursesStatus: e.target.value as "active" | "inactive" }))}>
+                  <DesktopSelect value={serviceConfigFilterDraft.coursesStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, coursesStatus: e.target.value as "active" | "inactive" }))}>
                     <option value="active">{locale === "sl" ? "Aktivna" : "Active"}</option>
                     <option value="inactive">{locale === "sl" ? "Neaktivna" : "Inactive"}</option>
-                  </select>
+                  </DesktopSelect>
                 </label>
               ) : showCardsMemberships ? (
                 <label>
                   <span>{locale === "sl" ? "Status" : "Status"}</span>
-                  <select value={serviceConfigFilterDraft.cardsStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, cardsStatus: e.target.value as "active" | "inactive" }))}>
+                  <DesktopSelect value={serviceConfigFilterDraft.cardsStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, cardsStatus: e.target.value as "active" | "inactive" }))}>
                     <option value="active">{locale === "sl" ? "Aktivna" : "Active"}</option>
                     <option value="inactive">{locale === "sl" ? "Neaktivna" : "Inactive"}</option>
-                  </select>
+                  </DesktopSelect>
                 </label>
               ) : showServiceGroups ? (
                 <label>
                   <span>{locale === "sl" ? "Status" : "Status"}</span>
-                  <select value={serviceConfigFilterDraft.groupStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, groupStatus: e.target.value as "active" | "inactive" }))}>
+                  <DesktopSelect value={serviceConfigFilterDraft.groupStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, groupStatus: e.target.value as "active" | "inactive" }))}>
                     <option value="active">{locale === "sl" ? "Aktivna" : "Active"}</option>
                     <option value="inactive">{locale === "sl" ? "Neaktivna" : "Inactive"}</option>
-                  </select>
+                  </DesktopSelect>
                 </label>
               ) : showTransactionServices ? (
                 <label>
                   <span>{locale === "sl" ? "Status" : "Status"}</span>
-                  <select value={serviceConfigFilterDraft.serviceStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, serviceStatus: e.target.value as "active" | "inactive" }))}>
+                  <DesktopSelect value={serviceConfigFilterDraft.serviceStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, serviceStatus: e.target.value as "active" | "inactive" }))}>
                     <option value="active">{locale === "sl" ? "Aktivna" : "Active"}</option>
                     <option value="inactive">{locale === "sl" ? "Neaktivna" : "Inactive"}</option>
-                  </select>
+                  </DesktopSelect>
                 </label>
               ) : (
                 <>
                   <label>
                     <span>{locale === "sl" ? "Status" : "Status"}</span>
-                    <select value={serviceConfigFilterDraft.typeStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeStatus: e.target.value as "active" | "inactive" }))}>
+                    <DesktopSelect value={serviceConfigFilterDraft.typeStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeStatus: e.target.value as "active" | "inactive" }))}>
                       <option value="active">{locale === "sl" ? "Aktivna" : "Active"}</option>
                       <option value="inactive">{locale === "sl" ? "Neaktivna" : "Inactive"}</option>
-                    </select>
+                    </DesktopSelect>
                   </label>
                   {serviceGroupsModuleEnabled ? (
                     <label>
                       <span>{locale === "sl" ? "Skupina" : "Group"}</span>
-                      <select value={serviceConfigFilterDraft.typeGroup} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeGroup: e.target.value }))}>
+                      <DesktopSelect value={serviceConfigFilterDraft.typeGroup} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeGroup: e.target.value }))}>
                         <option value="all">{locale === "sl" ? "Vse skupine" : "All groups"}</option>
                         <option value="ungrouped">{locale === "sl" ? "Brez skupine" : "Ungrouped"}</option>
                         {groups.map((group) => <option key={group.id} value={String(group.id)}>{group.name}</option>)}
-                      </select>
+                      </DesktopSelect>
                     </label>
                   ) : null}
                   <label>
                     <span>{locale === "sl" ? "Kategorija" : "Category"}</span>
-                    <select value={serviceConfigFilterDraft.typeCategory} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeCategory: e.target.value }))}>
+                    <DesktopSelect value={serviceConfigFilterDraft.typeCategory} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeCategory: e.target.value }))}>
                       <option value="all">{locale === "sl" ? "Vse kategorije" : "All categories"}</option>
                       {typeCategoryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                    </select>
+                    </DesktopSelect>
                   </label>
                   <label>
                     <span>{locale === "sl" ? "Trajanje" : "Duration"}</span>
-                    <select value={serviceConfigFilterDraft.typeDuration} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeDuration: e.target.value }))}>
+                    <DesktopSelect value={serviceConfigFilterDraft.typeDuration} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeDuration: e.target.value }))}>
                       <option value="all">{locale === "sl" ? "Vse" : "All"}</option>
                       {typeDurationOptions.map((option) => <option key={option} value={option}>{option} min</option>)}
-                    </select>
+                    </DesktopSelect>
                   </label>
                   <label className="service-config-filter-modal__field--wide">
                     <span>{locale === "sl" ? "Vidnost" : "Visibility"}</span>
-                    <select value={serviceConfigFilterDraft.typeVisibility} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeVisibility: e.target.value as "all" | GuestBookingMode }))}>
+                    <DesktopSelect value={serviceConfigFilterDraft.typeVisibility} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeVisibility: e.target.value as "all" | GuestBookingMode }))}>
                       <option value="all">{locale === "sl" ? "Vse" : "All"}</option>
                       {guestBookingOptions.map((option) => <option key={option.value} value={option.value}>{option.line}</option>)}
-                    </select>
+                    </DesktopSelect>
                   </label>
                 </>
               )}
@@ -4457,7 +4458,7 @@ export function SessionTypesPage() {
                           </span>
                         </label>
                         {typeForm.breakMinutesOverridden ? (
-                          <select
+                          <DesktopSelect
                             value={typeForm.breakMinutes}
                             onChange={(event) =>
                               setTypeForm({
@@ -4480,7 +4481,7 @@ export function SessionTypesPage() {
                                 {minutes} min
                               </option>
                             ))}
-                          </select>
+                          </DesktopSelect>
                         ) : null}
                         {!typeForm.breakMinutesOverridden ? (
                           <small>
@@ -4802,12 +4803,12 @@ export function SessionTypesPage() {
                       <div className="session-type-consumable-add-panel">
                         {consumableEditorMode === "existing" ? (
                           <>
-                            <select value={selectedConsumableId} onChange={(event) => setSelectedConsumableId(event.target.value)}>
+                            <DesktopSelect value={selectedConsumableId} onChange={(event) => setSelectedConsumableId(event.target.value)}>
                               <option value="">{locale === "sl" ? "Izberite artikel …" : "Select an item…"}</option>
                               {consumableItems
                                 .filter((item) => !typeForm.consumableLines.some((line) => line.consumableId === item.id))
                                 .map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                            </select>
+                            </DesktopSelect>
                             <button type="button" className="primary small-btn" disabled={!selectedConsumableId} onClick={addSelectedConsumableToType}>
                               {locale === "sl" ? "Dodaj artikel" : "Add item"}
                             </button>
@@ -4852,10 +4853,10 @@ export function SessionTypesPage() {
                                 <input type="number" min="0" step="0.01" value={line.defaultQuantity} disabled={!canEditConsumables} onChange={(event) => setTypeForm((current) => ({ ...current, consumableLines: current.consumableLines.map((row, rowIndex) => rowIndex === idx ? { ...row, defaultQuantity: event.target.value } : row) }))} />
                                 <span>{item?.unit || "kos"}</span>
                               </div>
-                              <select value={line.quantityMode} disabled={!canEditConsumables} onChange={(event) => setTypeForm((current) => ({ ...current, consumableLines: current.consumableLines.map((row, rowIndex) => rowIndex === idx ? { ...row, quantityMode: event.target.value as TypeConsumableLine["quantityMode"] } : row) }))}>
+                              <DesktopSelect value={line.quantityMode} disabled={!canEditConsumables} onChange={(event) => setTypeForm((current) => ({ ...current, consumableLines: current.consumableLines.map((row, rowIndex) => rowIndex === idx ? { ...row, quantityMode: event.target.value as TypeConsumableLine["quantityMode"] } : row) }))}>
                                 <option value="PER_SESSION">{locale === "sl" ? "Na termin" : "Per appointment"}</option>
                                 <option value="PER_PARTICIPANT">{locale === "sl" ? "Na udeleženca" : "Per participant"}</option>
-                              </select>
+                              </DesktopSelect>
                               <label className="switch session-type-consumable-switch">
                                 <input type="checkbox" checked={line.billableOverride === true} disabled={!canEditConsumables} onChange={(event) => setTypeForm((current) => ({ ...current, consumableLines: current.consumableLines.map((row, rowIndex) => rowIndex === idx ? { ...row, billableOverride: event.target.checked } : row) }))} />
                                 <span className="slider" />

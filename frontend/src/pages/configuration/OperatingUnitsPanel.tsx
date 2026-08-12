@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../../components/DesktopSelect'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '../../api'
 import { useToast } from '../../components/Toast'
@@ -519,9 +520,9 @@ export function OperatingUnitsPanel({
                 {showCompanySelector ? (
                   <label className="ou-field ou-field-wide">
                     <span>{sl ? 'Podjetje (povezano)' : 'Linked company'}</span>
-                    <select value={draft.defaultLegalEntityId ?? ''} onChange={(event) => setDraft((current) => ({ ...current, defaultLegalEntityId: event.target.value ? Number(event.target.value) : null }))}>
+                    <DesktopSelect value={draft.defaultLegalEntityId ?? ''} onChange={(event) => setDraft((current) => ({ ...current, defaultLegalEntityId: event.target.value ? Number(event.target.value) : null }))}>
                       {issuers.map((issuer) => <option key={issuer.id} value={issuer.id}>{issuer.name}</option>)}
-                    </select>
+                    </DesktopSelect>
                     <small>{sl ? 'Eno podjetje je lahko povezano z več lokacijami.' : 'One company can be linked to multiple locations.'}</small>
                   </label>
                 ) : (
@@ -531,10 +532,10 @@ export function OperatingUnitsPanel({
                 <label className="ou-field"><span>{sl ? 'Ulica in hišna št.' : 'Street and number'}</span><input value={draft.address} onChange={(event) => setDraft((current) => ({ ...current, address: event.target.value }))} /></label>
                 <label className="ou-field"><span>{sl ? 'Poštna številka' : 'Postal code'}</span><input value={draft.postalCode} onChange={(event) => setDraft((current) => ({ ...current, postalCode: event.target.value }))} /></label>
                 <label className="ou-field"><span>{sl ? 'Mesto' : 'City'}</span><input value={draft.city} onChange={(event) => setDraft((current) => ({ ...current, city: event.target.value }))} /></label>
-                <label className="ou-field"><span>{sl ? 'Država' : 'Country'}</span><select value={draft.country} onChange={(event) => setDraft((current) => ({ ...current, country: event.target.value }))}>{countries.map((country) => <option key={country.code} value={country.code}>{country.label}</option>)}</select></label>
+                <label className="ou-field"><span>{sl ? 'Država' : 'Country'}</span><DesktopSelect value={draft.country} onChange={(event) => setDraft((current) => ({ ...current, country: event.target.value }))}>{countries.map((country) => <option key={country.code} value={country.code}>{country.label}</option>)}</DesktopSelect></label>
                 <label className="ou-field"><span>{sl ? 'Telefon' : 'Phone'}</span><input value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} /></label>
                 <label className="ou-field"><span>{sl ? 'E-pošta' : 'Email'}</span><input type="email" value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} /></label>
-                <label className="ou-field ou-field-wide"><span>{sl ? 'Časovni pas' : 'Time zone'}</span><select value={draft.timezone} onChange={(event) => setDraft((current) => ({ ...current, timezone: event.target.value }))}>{timezones.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}</select><small>{sl ? 'Določa pravilen prikaz datumov in ur v vseh delih aplikacije za to lokacijo.' : 'Controls date and time display throughout the app for this location.'}</small></label>
+                <label className="ou-field ou-field-wide"><span>{sl ? 'Časovni pas' : 'Time zone'}</span><DesktopSelect value={draft.timezone} onChange={(event) => setDraft((current) => ({ ...current, timezone: event.target.value }))}>{timezones.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}</DesktopSelect><small>{sl ? 'Določa pravilen prikaz datumov in ur v vseh delih aplikacije za to lokacijo.' : 'Controls date and time display throughout the app for this location.'}</small></label>
               </section>
 
               <section className="ou-form-section ou-fiscal-section">
@@ -551,7 +552,7 @@ export function OperatingUnitsPanel({
                 <label className="ou-field"><span>{sl ? 'Oznaka elektronske naprave' : 'Electronic device ID'}</span><input value={draft.invoiceElectronicDeviceId} onChange={(event) => setDraft((current) => ({ ...current, invoiceElectronicDeviceId: event.target.value }))} /><small>{sl ? 'Oznaka tiskalnika ali POS naprave za izdajanje računov.' : 'Printer or POS device identifier used for invoices.'}</small></label>
                 <label className="ou-field"><span>{sl ? 'Naslednja številka' : 'Next number'}</span><input value={draft.invoiceNextNumber} onChange={(event) => setDraft((current) => ({ ...current, invoiceNextNumber: event.target.value }))} /></label>
                 <label className="ou-field"><span>{sl ? 'Začetna številka ob ponastavitvi' : 'Initial number on reset'}</span><input value={draft.invoiceInitialNumber} onChange={(event) => setDraft((current) => ({ ...current, invoiceInitialNumber: event.target.value }))} /></label>
-                <label className="ou-field"><span>{sl ? 'Ponastavitev' : 'Reset'}</span><select value={draft.invoiceResetPolicy} onChange={(event) => setDraft((current) => ({ ...current, invoiceResetPolicy: event.target.value === 'YEARLY' ? 'YEARLY' : 'NONE' }))}><option value="NONE">{sl ? 'Brez' : 'None'}</option><option value="YEARLY">{sl ? 'Letno' : 'Yearly'}</option></select></label>
+                <label className="ou-field"><span>{sl ? 'Ponastavitev' : 'Reset'}</span><DesktopSelect value={draft.invoiceResetPolicy} onChange={(event) => setDraft((current) => ({ ...current, invoiceResetPolicy: event.target.value === 'YEARLY' ? 'YEARLY' : 'NONE' }))}><option value="NONE">{sl ? 'Brez' : 'None'}</option><option value="YEARLY">{sl ? 'Letno' : 'Yearly'}</option></DesktopSelect></label>
               </section>
             </div>
 

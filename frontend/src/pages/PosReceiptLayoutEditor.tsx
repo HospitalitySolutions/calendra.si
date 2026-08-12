@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../components/DesktopSelect'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api } from '../api'
 import { useLocale } from '../locale'
@@ -390,10 +391,10 @@ export function PosReceiptLayoutEditor({ hidePreview = false, onSaved }: { hideP
           </div>
 
           <div className="pos58-card pos58-form-card">
-            <label><span>{copy.font}</span><select value={layout.fontSize} onChange={(event) => patch('fontSize', event.target.value as PosReceiptFontSize)}><option value="COMPACT">{copy.compact}</option><option value="STANDARD">{copy.standard}</option><option value="LARGE">{copy.large}</option></select></label>
+            <label><span>{copy.font}</span><DesktopSelect value={layout.fontSize} onChange={(event) => patch('fontSize', event.target.value as PosReceiptFontSize)}><option value="COMPACT">{copy.compact}</option><option value="STANDARD">{copy.standard}</option><option value="LARGE">{copy.large}</option></DesktopSelect></label>
             <label>
               <span>{copy.taxClauses}</span>
-              <select
+              <DesktopSelect
                 value=""
                 onChange={(event) => {
                   const clause = event.target.value
@@ -405,7 +406,7 @@ export function PosReceiptLayoutEditor({ hidePreview = false, onSaved }: { hideP
                 {TAX_CLAUSE_OPTIONS.filter((clause) => !layout.taxClauses.includes(clause)).map((clause) => (
                   <option key={clause} value={clause}>{clause}</option>
                 ))}
-              </select>
+              </DesktopSelect>
               <small>{copy.taxClausesHint}</small>
             </label>
             <div className="pos58-tax-clause-list">

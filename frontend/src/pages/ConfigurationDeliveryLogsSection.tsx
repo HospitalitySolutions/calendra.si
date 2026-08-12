@@ -1,3 +1,4 @@
+import { DesktopSelect } from "../components/DesktopSelect";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useLocale } from "../locale";
@@ -263,16 +264,16 @@ export function ConfigurationDeliveryLogsSection({
       <div className="delivery-logs-card">
         <div className="delivery-logs-filter-row">
           <strong>{copy.filters}</strong>
-          <select value={channel} onChange={(event) => setFilterPage(() => setChannel(event.target.value as "" | DeliveryChannel))}>
+          <DesktopSelect value={channel} onChange={(event) => setFilterPage(() => setChannel(event.target.value as "" | DeliveryChannel))}>
             {visibleChannels.map((entry) => (
               <option key={entry.id || "all"} value={entry.id}>{sl ? entry.labelSl : entry.labelEn}</option>
             ))}
-          </select>
-          <select value={status} onChange={(event) => setFilterPage(() => setStatus(event.target.value as "" | DeliveryStatus))}>
+          </DesktopSelect>
+          <DesktopSelect value={status} onChange={(event) => setFilterPage(() => setStatus(event.target.value as "" | DeliveryStatus))}>
             {STATUSES.map((entry) => (
               <option key={entry.id || "all"} value={entry.id}>{sl ? entry.labelSl : entry.labelEn}</option>
             ))}
-          </select>
+          </DesktopSelect>
           <label>
             <span>{copy.from}</span>
             <input type="date" value={fromDate} onChange={(event) => setFilterPage(() => setFromDate(event.target.value))} />

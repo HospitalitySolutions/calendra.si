@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../../components/DesktopSelect'
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../../api'
 import { useToast } from '../../components/Toast'
@@ -240,16 +241,16 @@ export function WorkspaceSubscriptionPanel() {
           <div className="account-plan-header"><h3>{sl ? 'Plačnik naročnine' : 'Subscription payer'}</h3></div>
           <label className="workspace-subscription-field">
             <span>{sl ? 'Obračunska poslovna enota' : 'Subscription billing owner'}</span>
-            <select value={data.billingOwnerCompanyId || ''} onChange={e => void changeBillingOwner(e.target.value)} disabled={saving}>
+            <DesktopSelect value={data.billingOwnerCompanyId || ''} onChange={e => void changeBillingOwner(e.target.value)} disabled={saving}>
               {data.units.map(unit => <option value={unit.companyId} key={unit.companyId}>{unit.companyName}</option>)}
-            </select>
+            </DesktopSelect>
           </label>
           <label className="workspace-subscription-field">
             <span>{sl ? 'Pravna oseba plačnika' : 'Payer legal entity'}</span>
-            <select value={data.payerLegalEntityId || ''} onChange={e => void changePayer(e.target.value)} disabled={saving}>
+            <DesktopSelect value={data.payerLegalEntityId || ''} onChange={e => void changePayer(e.target.value)} disabled={saving}>
               <option value="">{sl ? 'Ni izbrano' : 'Not selected'}</option>
               {issuers.filter(i => i.active).map(i => <option value={i.id} key={i.id}>{i.name}</option>)}
-            </select>
+            </DesktopSelect>
           </label>
           <div className="workspace-subscription-form-grid">
             {([
@@ -278,7 +279,7 @@ export function WorkspaceSubscriptionPanel() {
           {canCreateUnit ? (
             <>
               <label className="workspace-subscription-field"><span>{sl ? 'Ime enote' : 'Unit name'}</span><input value={newUnitName} onChange={e => setNewUnitName(e.target.value)} placeholder={sl ? 'npr. Ljubljana Center' : 'e.g. Ljubljana Center'} /></label>
-              {canCopyConfiguration && <label className="workspace-subscription-field"><span>{sl ? 'Predloga za kopiranje (neobvezno)' : 'Copy template (optional)'}</span><select value={copySourceId} onChange={e => setCopySourceId(e.target.value ? Number(e.target.value) : '')}><option value="">{sl ? 'Brez kopiranja' : 'Do not copy'}</option>{data.units.map(unit => <option key={unit.companyId} value={unit.companyId}>{unit.companyName}</option>)}</select></label>}
+              {canCopyConfiguration && <label className="workspace-subscription-field"><span>{sl ? 'Predloga za kopiranje (neobvezno)' : 'Copy template (optional)'}</span><DesktopSelect value={copySourceId} onChange={e => setCopySourceId(e.target.value ? Number(e.target.value) : '')}><option value="">{sl ? 'Brez kopiranja' : 'Do not copy'}</option>{data.units.map(unit => <option key={unit.companyId} value={unit.companyId}>{unit.companyName}</option>)}</DesktopSelect></label>}
               <button type="button" className="account-button-secondary" onClick={createUnit} disabled={saving || !newUnitName.trim()}>{sl ? 'Ustvari enoto' : 'Create unit'}</button>
             </>
           ) : (

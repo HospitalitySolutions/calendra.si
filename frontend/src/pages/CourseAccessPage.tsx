@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../components/DesktopSelect'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
 import { api } from '../api'
@@ -1006,11 +1007,11 @@ export function CourseAccessPage() {
                     {accessibleCourses.length > 1 && (
                       <label>
                         <span>{copy.sortBy}</span>
-                        <select value={sortBy} onChange={(event) => setSortBy(event.target.value as CourseSort)}>
+                        <DesktopSelect value={sortBy} onChange={(event) => setSortBy(event.target.value as CourseSort)}>
                           <option value="recent">{copy.recentlyAdded}</option>
                           <option value="title">{copy.titleAsc}</option>
                           <option value="duration">{copy.durationSort}</option>
-                        </select>
+                        </DesktopSelect>
                       </label>
                     )}
                   </div>

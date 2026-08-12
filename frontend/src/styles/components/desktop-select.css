@@ -1,0 +1,386 @@
+/*
+ * Calendra desktop select standard (>= 1025px)
+ * Visual source of truth: Calendar -> Osebje / Lokacije rich dropdowns.
+ * The native <select> remains the actual form control; DesktopSelect replaces
+ * only the opened browser menu with a consistent app-owned listbox on desktop.
+ */
+
+@media (min-width: 1025px) {
+  select.app-desktop-select:not([multiple]) {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    min-height: 38px;
+    padding: 8px 38px 8px 12px !important;
+    border: 1px solid rgba(22, 114, 243, 0.42) !important;
+    border-radius: 10px !important;
+    background-color: var(--color-surface, #ffffff) !important;
+    background-image:
+      linear-gradient(45deg, transparent 50%, rgba(22, 114, 243, 0.72) 50%),
+      linear-gradient(135deg, rgba(22, 114, 243, 0.72) 50%, transparent 50%) !important;
+    background-position:
+      calc(100% - 17px) calc(50% - 1px),
+      calc(100% - 12px) calc(50% - 1px) !important;
+    background-size: 5px 5px, 5px 5px !important;
+    background-repeat: no-repeat !important;
+    color: var(--color-text, #0f172a) !important;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.25;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  select.app-desktop-select:not([multiple]):hover:not(:disabled) {
+    border-color: rgba(22, 114, 243, 0.62) !important;
+    background-color: rgba(22, 114, 243, 0.035) !important;
+  }
+
+  select.app-desktop-select:not([multiple]):focus,
+  select.app-desktop-select:not([multiple]):focus-visible,
+  select.app-desktop-select:not([multiple])[aria-expanded='true'] {
+    outline: none !important;
+    border-color: rgba(22, 114, 243, 0.76) !important;
+    box-shadow: 0 0 0 3px rgba(22, 114, 243, 0.11), 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+  }
+
+  select.app-desktop-select:not([multiple]):disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+    background-color: rgba(148, 163, 184, 0.08) !important;
+  }
+
+  [data-theme='dark'] select.app-desktop-select:not([multiple]) {
+    border-color: rgba(96, 165, 250, 0.45) !important;
+    background-color: rgba(15, 23, 42, 0.72) !important;
+    color: var(--color-text, #e5e7eb) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.32) !important;
+    background-image:
+      linear-gradient(45deg, transparent 50%, rgba(147, 197, 253, 0.82) 50%),
+      linear-gradient(135deg, rgba(147, 197, 253, 0.82) 50%, transparent 50%) !important;
+  }
+
+  [data-theme='dark'] select.app-desktop-select:not([multiple]):hover:not(:disabled) {
+    background-color: rgba(96, 165, 250, 0.1) !important;
+  }
+}
+
+.app-desktop-select-panel {
+  box-sizing: border-box;
+  max-width: calc(100vw - 16px);
+  padding: 7px;
+  overflow: hidden;
+  border: 1px solid var(--border, #dbe3ef);
+  border-radius: 14px;
+  background: var(--color-surface, #ffffff);
+  color: var(--color-text, #0f172a);
+  box-shadow:
+    0 18px 42px rgba(15, 23, 42, 0.16),
+    0 0 0 1px rgba(15, 23, 42, 0.035);
+  animation: app-desktop-select-in 0.12s ease-out;
+}
+
+@keyframes app-desktop-select-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.app-desktop-select-panel__search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  margin-bottom: 5px;
+  padding: 5px 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.05);
+  color: var(--color-text-muted, #64748b);
+}
+
+.app-desktop-select-panel__search-wrap > svg {
+  flex: 0 0 auto;
+  opacity: 0.55;
+}
+
+.app-desktop-select-panel__search {
+  flex: 1;
+  min-width: 0;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 1px 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: none !important;
+  background: transparent !important;
+  color: var(--color-text, #0f172a) !important;
+  box-shadow: none !important;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.app-desktop-select-panel__search:focus,
+.app-desktop-select-panel__search:focus-visible {
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.app-desktop-select-panel__search::-webkit-search-cancel-button {
+  opacity: 0.55;
+}
+
+.app-desktop-select-panel__search::placeholder {
+  color: var(--color-text-muted, #64748b);
+  opacity: 0.82;
+  font-weight: 400;
+}
+
+.app-desktop-select-panel__scroll {
+  max-height: min(330px, 48vh);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1px;
+  scrollbar-width: thin;
+}
+
+.app-desktop-select-panel__option-block + .app-desktop-select-panel__option-block {
+  margin-top: 1px;
+}
+
+.app-desktop-select-panel__group {
+  padding: 9px 10px 5px;
+  color: var(--color-text-muted, #64748b);
+  font-size: 0.69rem;
+  font-weight: 750;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.app-desktop-select-panel__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 0 !important;
+  border-radius: 10px;
+  outline: none;
+  background: transparent;
+  color: var(--color-text, #334155);
+  box-shadow: none !important;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.3;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.app-desktop-select-panel__option:hover:not(:disabled),
+.app-desktop-select-panel__option--active:not(.app-desktop-select-panel__option--selected):not(:disabled) {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.app-desktop-select-panel__option--selected,
+.app-desktop-select-panel__option--selected:hover,
+.app-desktop-select-panel__option--selected.app-desktop-select-panel__option--active {
+  background: var(--color-primary, #1672f3) !important;
+  color: #ffffff !important;
+}
+
+.app-desktop-select-panel__option:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.app-desktop-select-panel__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-desktop-select-panel__check,
+.app-desktop-select-panel__check-spacer {
+  flex: 0 0 18px;
+  width: 18px;
+}
+
+.app-desktop-select-panel__check {
+  color: currentColor;
+}
+
+.app-desktop-select-panel__empty {
+  padding: 14px 10px;
+  color: var(--color-text-muted, #64748b);
+  text-align: center;
+  font-size: 0.875rem;
+}
+
+[data-theme='dark'] .app-desktop-select-panel {
+  border-color: rgba(71, 85, 105, 0.82);
+  background: var(--color-surface, #0f172a);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.48),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+[data-theme='dark'] .app-desktop-select-panel__search-wrap {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme='dark'] .app-desktop-select-panel__option:hover:not(:disabled),
+[data-theme='dark'] .app-desktop-select-panel__option--active:not(.app-desktop-select-panel__option--selected):not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 1024px) {
+  .app-desktop-select-panel {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-desktop-select-panel {
+    animation: none;
+  }
+}
+
+/* Existing app-owned listboxes use the same desktop visual language. */
+@media (min-width: 1025px) {
+  .clients-owner-filter__button {
+    height: 38px !important;
+    min-height: 38px;
+    padding: 0 12px !important;
+    border-color: rgba(22, 114, 243, 0.42) !important;
+    border-radius: 10px !important;
+    background: var(--color-surface, #ffffff) !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
+    color: var(--color-text, #334155) !important;
+    font-weight: 600 !important;
+  }
+
+  .clients-owner-filter__button:hover,
+  .clients-owner-filter__button--active {
+    border-color: rgba(22, 114, 243, 0.62) !important;
+    background: rgba(22, 114, 243, 0.035) !important;
+    color: var(--color-primary, #1672f3) !important;
+  }
+
+  .clients-owner-filter__button--active {
+    box-shadow: 0 0 0 3px rgba(22, 114, 243, 0.11), 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+  }
+
+  .clients-owner-filter__menu,
+  .client-dropdown-panel,
+  .guest-booking-select-menu,
+  .calendar-view-dropdown-panel {
+    padding: 7px !important;
+    border: 1px solid var(--border, #dbe3ef) !important;
+    border-radius: 14px !important;
+    background: var(--color-surface, #ffffff) !important;
+    box-shadow:
+      0 18px 42px rgba(15, 23, 42, 0.16),
+      0 0 0 1px rgba(15, 23, 42, 0.035) !important;
+  }
+
+  .clients-owner-filter__option,
+  .client-list-item,
+  .calendar-view-dropdown-item {
+    min-height: 42px;
+    padding: 9px 11px !important;
+    border-radius: 10px !important;
+    font-size: 0.9rem !important;
+    font-weight: 600 !important;
+  }
+
+  .clients-owner-filter__option:hover:not(.active),
+  .client-list-item:hover:not(.selected),
+  .calendar-view-dropdown-item:hover {
+    background: rgba(15, 23, 42, 0.06) !important;
+    color: var(--color-text, #334155) !important;
+  }
+
+  .clients-owner-filter__option.active,
+  .client-list-item.selected {
+    background: var(--color-primary, #1672f3) !important;
+    color: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  .client-list-item.selected *,
+  .clients-owner-filter__option.active * {
+    color: #ffffff !important;
+  }
+
+  .guest-booking-select-trigger {
+    border-color: rgba(22, 114, 243, 0.42) !important;
+    border-radius: 10px !important;
+    background: var(--color-surface, #ffffff) !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
+  }
+
+  .guest-booking-select-trigger:hover,
+  .guest-booking-select.is-open .guest-booking-select-trigger {
+    border-color: rgba(22, 114, 243, 0.62) !important;
+    background: rgba(22, 114, 243, 0.035) !important;
+  }
+
+  .guest-booking-select.is-open .guest-booking-select-trigger {
+    box-shadow: 0 0 0 3px rgba(22, 114, 243, 0.11), 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+  }
+
+  .guest-booking-select-option {
+    border-radius: 10px !important;
+  }
+
+  .guest-booking-select-option:hover:not(.is-selected) {
+    background: rgba(15, 23, 42, 0.06) !important;
+  }
+
+  .guest-booking-select-option.is-selected {
+    background: var(--color-primary, #1672f3) !important;
+    color: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  .guest-booking-select-option.is-selected .guest-booking-select-option-label,
+  .guest-booking-select-option.is-selected .guest-booking-select-option-line {
+    color: #ffffff !important;
+  }
+
+  [data-theme='dark'] .clients-owner-filter__button,
+  [data-theme='dark'] .clients-owner-filter__menu,
+  [data-theme='dark'] .client-dropdown-panel,
+  [data-theme='dark'] .guest-booking-select-trigger,
+  [data-theme='dark'] .guest-booking-select-menu,
+  [data-theme='dark'] .calendar-view-dropdown-panel {
+    border-color: rgba(96, 165, 250, 0.35) !important;
+    background: #0f172a !important;
+  }
+
+  [data-theme='dark'] .clients-owner-filter__option:hover:not(.active),
+  [data-theme='dark'] .client-list-item:hover:not(.selected),
+  [data-theme='dark'] .guest-booking-select-option:hover:not(.is-selected),
+  [data-theme='dark'] .calendar-view-dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: var(--color-text, #e5e7eb) !important;
+  }
+}

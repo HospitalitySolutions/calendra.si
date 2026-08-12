@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../../components/DesktopSelect'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -8415,7 +8416,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           <label className="calendar-header-location-filter">
             <span>{locale === 'sl' ? 'Poslovalnica' : locale === 'sr' ? 'Lokacija' : 'Location'}</span>
             <span className="calendar-header-location-select-wrap">
-              <select
+              <DesktopSelect
                 value={locationFilterId ?? ''}
                 onChange={(event) => setLocationFilterId(event.target.value ? Number(event.target.value) : null)}
                 aria-label={locale === 'sl' ? 'Izberi poslovalnico' : locale === 'sr' ? 'Izaberi lokaciju' : 'Select location'}
@@ -8424,7 +8425,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 {activeMetaLocations.map((item: any) => (
                   <option key={item.id} value={item.id}>{item.name}</option>
                 ))}
-              </select>
+              </DesktopSelect>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="m6 9 6 6 6-6" />
               </svg>
@@ -12588,12 +12589,12 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           {compactCalendarFormLayout && calendarScope === 'unit' && activeMetaLocations.length > 1 ? (
             <label className="calendar-location-filter">
               <span>{locale === 'sl' ? 'Poslovalnica' : locale === 'sr' ? 'Lokacija' : 'Location'}</span>
-              <select value={locationFilterId ?? ''} onChange={(event) => setLocationFilterId(event.target.value ? Number(event.target.value) : null)}>
+              <DesktopSelect value={locationFilterId ?? ''} onChange={(event) => setLocationFilterId(event.target.value ? Number(event.target.value) : null)}>
                 <option value="">{locale === 'sl' ? 'Vse poslovalnice' : locale === 'sr' ? 'Sve lokacije' : 'All locations'}</option>
                 {activeMetaLocations.map((item: any) => (
                   <option key={item.id} value={item.id}>{item.name}</option>
                 ))}
-              </select>
+              </DesktopSelect>
             </label>
           ) : null}
           {workspaceCalendarReadOnly ? (

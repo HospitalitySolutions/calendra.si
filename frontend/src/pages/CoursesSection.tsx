@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../components/DesktopSelect'
 import {
   forwardRef,
   useCallback,
@@ -658,14 +659,14 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                   <Field label={locale === 'sl' ? 'Tip medija' : 'Media type'}>
                     <span className="course-edit-select-wrap">
                       <span className="course-edit-select-icon" aria-hidden><CourseModalIcon /></span>
-                      <select
+                      <DesktopSelect
                         className="course-edit-select"
                         value={form.mediaType}
                         onChange={(e) => setForm((f) => ({ ...f, mediaType: e.target.value as CourseMediaType }))}
                       >
                         <option value="VIDEO">Video</option>
                         <option value="AUDIO">Audio</option>
-                      </select>
+                      </DesktopSelect>
                     </span>
                   </Field>
                 </div>

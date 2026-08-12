@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../../components/DesktopSelect'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '../../api'
 import { useAuthenticatedUser } from '../../authUserContext'
@@ -945,7 +946,7 @@ export function BillingIssuersSection({
             {!companiesOnly && (
               <label>
                 <span>{sl ? 'Fiskalno okolje' : 'Fiscal environment'}</span>
-                <select
+                <DesktopSelect
                   value={issuerDraft.fiscalEnvironment}
                   onChange={(e) =>
                     setIssuerDraft({
@@ -956,7 +957,7 @@ export function BillingIssuersSection({
                 >
                   <option value="TEST">TEST</option>
                   <option value="PROD">PROD</option>
-                </select>
+                </DesktopSelect>
               </label>
             )}
             <label>
@@ -1007,7 +1008,7 @@ export function BillingIssuersSection({
           <div className="billing-issuer-fields">
             <label>
               <span>{sl ? 'Izdajatelj' : 'Issuer'}</span>
-              <select
+              <DesktopSelect
                 value={seriesDraft.legalEntityId ?? ''}
                 disabled={editingSeriesId !== -1}
                 onChange={(e) =>
@@ -1024,11 +1025,11 @@ export function BillingIssuersSection({
                       {x.name}
                     </option>
                   ))}
-              </select>
+              </DesktopSelect>
             </label>
             <label>
               <span>{sl ? 'Obseg števca' : 'Counter scope'}</span>
-              <select
+              <DesktopSelect
                 value={seriesDraft.companyId == null ? 'SHARED' : 'UNIT'}
                 onChange={(e) =>
                   setSeriesDraft({
@@ -1049,7 +1050,7 @@ export function BillingIssuersSection({
                     ? 'Skupen med dodeljenimi enotami'
                     : 'Shared across assigned units'}
                 </option>
-              </select>
+              </DesktopSelect>
             </label>
             <label>
               <span>{sl ? 'Naziv serije' : 'Series name'}</span>

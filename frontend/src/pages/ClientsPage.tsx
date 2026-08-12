@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../components/DesktopSelect'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
@@ -3073,7 +3074,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         ) : (
           <div className="clients-detail-inline-edit" onClick={(e) => e.stopPropagation()}>
             {key === 'billingCompanyId' ? (
-              <select
+              <DesktopSelect
                 autoFocus
                 value={detailEditDraft.billingCompanyId ?? ''}
                 onChange={(e) => setDetailEditDraft({ ...detailEditDraft, billingCompanyId: e.target.value ? Number(e.target.value) : null })}
@@ -3082,7 +3083,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 {companiesForClientBillingSelect.map((company) => (
                   <option key={company.id} value={company.id}>{company.name}</option>
                 ))}
-              </select>
+              </DesktopSelect>
             ) : key === 'assignedToId' ? (
               <div
                 className="clients-assigned-multi-editor"
@@ -3281,7 +3282,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         ) : (
           <div className="clients-detail-inline-edit" onClick={(e) => e.stopPropagation()}>
             {key === 'billingCompanyId' ? (
-              <select
+              <DesktopSelect
                 autoFocus
                 value={groupDetailEditDraft.billingCompanyId ?? ''}
                 onChange={(e) => setGroupDetailEditDraft({ ...groupDetailEditDraft, billingCompanyId: e.target.value ? Number(e.target.value) : null })}
@@ -3290,7 +3291,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 {companiesForGroupBillingSelect.map((company) => (
                   <option key={company.id} value={company.id}>{company.name}</option>
                 ))}
-              </select>
+              </DesktopSelect>
             ) : (
               <input
                 autoFocus
@@ -3351,10 +3352,10 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         return (
           <label key={field.id} className={commonClass}>
             <span>{label}</span>
-            <select value={value} onChange={(e) => onChange(fieldId, e.target.value)} required={field.required}>
+            <DesktopSelect value={value} onChange={(e) => onChange(fieldId, e.target.value)} required={field.required}>
               <option value="">—</option>
               {(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
+            </DesktopSelect>
           </label>
         )
       }
@@ -3363,7 +3364,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         return (
           <label key={field.id} className={commonClass}>
             <span>{label}</span>
-            <select
+            <DesktopSelect
               multiple
               value={selected}
               onChange={(e) => {
@@ -3372,7 +3373,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
               }}
             >
               {(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
+            </DesktopSelect>
           </label>
         )
       }

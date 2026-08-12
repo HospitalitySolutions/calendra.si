@@ -1,3 +1,4 @@
+import { DesktopSelect } from './DesktopSelect'
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api'
 import type {
@@ -332,7 +333,7 @@ export function WorkspaceServiceManager({
           <div className="workspace-services-body workspace-copy-body">
             <div className="workspace-copy-grid">
               <label>{sl ? 'Izvorna enota' : 'Source unit'}
-                <select value={sourceUnitId ?? ''} onChange={(e) => {
+                <DesktopSelect value={sourceUnitId ?? ''} onChange={(e) => {
                   const nextSourceId = Number(e.target.value)
                   setSourceUnitId(nextSourceId)
                   setTargetUnitId((currentTargetId) => currentTargetId === nextSourceId
@@ -341,12 +342,12 @@ export function WorkspaceServiceManager({
                   setPreview(null)
                 }}>
                   {units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
-                </select>
+                </DesktopSelect>
               </label>
               <label>{sl ? 'Ciljna enota' : 'Target unit'}
-                <select value={targetUnitId ?? ''} onChange={(e) => { setTargetUnitId(Number(e.target.value)); setPreview(null) }}>
+                <DesktopSelect value={targetUnitId ?? ''} onChange={(e) => { setTargetUnitId(Number(e.target.value)); setPreview(null) }}>
                   {units.filter((unit) => unit.id !== sourceUnitId).map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
-                </select>
+                </DesktopSelect>
               </label>
             </div>
             <div className="workspace-copy-categories">
@@ -424,10 +425,10 @@ export function WorkspaceServiceManager({
             <div className="workspace-services-submodal-card">
               <h3>{sl ? 'Poveži storitev trenutne enote' : 'Link current-unit service'}</h3>
               <label>{sl ? 'Lokalna storitev' : 'Unit service'}
-                <select value={linkSessionTypeId} onChange={(e) => setLinkSessionTypeId(e.target.value)}>
+                <DesktopSelect value={linkSessionTypeId} onChange={(e) => setLinkSessionTypeId(e.target.value)}>
                   <option value="">—</option>
                   {linkableTypes.map((type) => <option key={type.id} value={type.id}>{type.description || type.name}</option>)}
-                </select>
+                </DesktopSelect>
               </label>
               <label className="workspace-copy-overwrite"><input type="checkbox" checked={applyDefaults} onChange={(e) => setApplyDefaults(e.target.checked)} /><span>{sl ? 'Uporabi skupno ime, trajanje in barvo' : 'Apply shared name, duration and color'}</span></label>
               <div className="workspace-copy-actions"><button type="button" onClick={() => setLinkTemplateId(null)}>{sl ? 'Prekliči' : 'Cancel'}</button><button type="button" className="primary" onClick={linkOffering}>{sl ? 'Poveži' : 'Link'}</button></div>

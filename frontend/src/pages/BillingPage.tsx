@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../components/DesktopSelect'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
@@ -6211,7 +6212,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <span className="billing-invoice-payment-icon" aria-hidden>
                   {isEntitlement ? entitlementPaymentIcon() : selectedMethod ? paymentTypeIcon(selectedMethod.paymentType, selectedMethod.name) : paymentTypeIcon(undefined)}
                 </span>
-                <select
+                <DesktopSelect
                   value={isEntitlement ? ENTITLEMENT_PAYMENT_OPTION_VALUE : (split.paymentMethodId ?? '')}
                   onChange={(e) => {
                     if (e.target.value === ENTITLEMENT_PAYMENT_OPTION_VALUE) {
@@ -6241,7 +6242,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <option key={method.id} value={method.id}>{localizedPaymentMethodName(method, locale)}</option>
                   ))}
                   {effectiveType === 'INVOICE' && entitlementsEnabled && <option value={ENTITLEMENT_PAYMENT_OPTION_VALUE}>{entitlementPaymentLabel()}</option>}
-                </select>
+                </DesktopSelect>
                 <input
                   className="billing-invoice-payment-amount-input"
                   type="text"
@@ -6892,7 +6893,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <span className="billing-invoice-drag-handle" aria-hidden>⠿</span>
         </span>
         <div className="billing-bill-modal-field billing-bill-modal-field--service">
-          <select
+          <DesktopSelect
             value={item.transactionServiceId}
             onChange={(e) => {
               const id = Number(e.target.value)
@@ -6905,7 +6906,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             {billServices.map((service) => (
               <option key={service.id} value={service.id}>{serviceOptionLabel(service)}</option>
             ))}
-          </select>
+          </DesktopSelect>
         </div>
         {options?.showClientColumn && (
           <div className="billing-invoice-client-chip" title={options.clientLabel}>{options.clientLabel || '—'}</div>
@@ -7010,7 +7011,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       <div key={index} className={`billing-invoice-item-row billing-invoice-item-row--compact-create${billForm.billType === 'ADVANCE' ? ' billing-invoice-item-row--advance' : ''}`}>
         <span className="billing-invoice-drag-handle" aria-hidden>⠿</span>
         <div className="billing-bill-modal-field billing-bill-modal-field--service">
-          <select
+          <DesktopSelect
             value={item.transactionServiceId}
             onChange={(e) => {
               const id = Number(e.target.value)
@@ -7023,7 +7024,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             {availableBillServices.map((service) => (
               <option key={service.id} value={service.id}>{serviceOptionLabel(service)}</option>
             ))}
-          </select>
+          </DesktopSelect>
         </div>
         <div className="billing-bill-modal-field billing-bill-modal-field--qty">
           <input
@@ -7113,7 +7114,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <span className="billing-invoice-payment-icon" aria-hidden>
                   {selectedMethod ? paymentTypeIcon(selectedMethod.paymentType, selectedMethod.name) : paymentTypeIcon(undefined)}
                 </span>
-                <select
+                <DesktopSelect
                   value={split.paymentMethodId ?? ''}
                   onChange={(e) => {
                     const paymentMethodId = Number(e.target.value)
@@ -7131,7 +7132,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   {methodOptions.map((method) => (
                     <option key={method.id} value={method.id}>{localizedPaymentMethodName(method, locale)}</option>
                   ))}
-                </select>
+                </DesktopSelect>
                 <input
                   className="billing-invoice-payment-amount-input"
                   type="text"
@@ -7335,16 +7336,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                 </Field>
                 <Field label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'}>
-                  <select value={billForm.consultantId ?? ''} onChange={(e) => setBillForm({ ...billForm, consultantId: e.target.value === '' ? undefined : Number(e.target.value) })}>
+                  <DesktopSelect value={billForm.consultantId ?? ''} onChange={(e) => setBillForm({ ...billForm, consultantId: e.target.value === '' ? undefined : Number(e.target.value) })}>
                     <option value="">{locale === 'sl' ? 'Privzeto: trenutni uporabnik' : 'Default: current user'}</option>
                     {(isAdmin ? users : [me]).map((user) => (
                       <option key={user.id} value={user.id}>{fullName(user)}</option>
                     ))}
-                  </select>
+                  </DesktopSelect>
                 </Field>
                 {clientsLinkedToInvoiceCompany.length > 0 && (
                   <Field label={billingCopy.clientOptional}>
-                    <select
+                    <DesktopSelect
                       value={billForm.clientId ?? ''}
                       onChange={(e) => {
                         const nextClientId = e.target.value === '' ? undefined : Number(e.target.value)
@@ -7360,7 +7361,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       {clientsLinkedToInvoiceCompany.map((client) => (
                         <option key={client.id} value={client.id}>{fullName(client)}</option>
                       ))}
-                    </select>
+                    </DesktopSelect>
                   </Field>
                 )}
                 <Field label={locale === 'sl' ? 'Podjetje' : 'Company'}>
@@ -7389,7 +7390,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               <>
                 <Field label={locale === 'sl' ? 'Prejemnik' : 'Recipient'}>
                   <div className="billing-payee-client-picker-row">
-                    <select
+                    <DesktopSelect
                       value={billForm.clientId ?? ''}
                       onChange={(e) => {
                         const nextClientId = e.target.value === '' ? undefined : Number(e.target.value)
@@ -7404,7 +7405,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       {clients.filter((client) => client.active !== false).map((client) => (
                         <option key={client.id} value={client.id}>{fullName(client)}</option>
                       ))}
-                    </select>
+                    </DesktopSelect>
                     <button
                       type="button"
                       className="secondary client-add-btn billing-payee-inline-add-btn"
@@ -7416,12 +7417,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                 </Field>
                 <Field label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'}>
-                  <select value={billForm.consultantId ?? ''} onChange={(e) => setBillForm({ ...billForm, consultantId: e.target.value === '' ? undefined : Number(e.target.value) })}>
+                  <DesktopSelect value={billForm.consultantId ?? ''} onChange={(e) => setBillForm({ ...billForm, consultantId: e.target.value === '' ? undefined : Number(e.target.value) })}>
                     <option value="">{locale === 'sl' ? 'Privzeto: trenutni uporabnik' : 'Default: current user'}</option>
                     {(isAdmin ? users : [me]).map((user) => (
                       <option key={user.id} value={user.id}>{fullName(user)}</option>
                     ))}
-                  </select>
+                  </DesktopSelect>
                 </Field>
                 <Field label={locale === 'sl' ? 'Ime' : 'First name'}>
                   <input value={selectedPayeeClientEdit.firstName} onChange={(e) => updatePayeeClientEdit(selectedPayeeClient, { firstName: e.target.value })} disabled={!selectedPayeeClient} />
@@ -7508,7 +7509,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <div className="billing-payee-modal-grid">
             {ctx.billingTarget === 'COMPANY' && (
               <Field label={billingCopy.recipientCompany}>
-                <select
+                <DesktopSelect
                   value={ctx.recipientCompanyId ?? ''}
                   onChange={(e) => setAddOpenBillContext({
                     ...ctx,
@@ -7520,11 +7521,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   {companies.filter((company) => company.active !== false).map((company) => (
                     <option key={company.id} value={company.id}>{company.name}</option>
                   ))}
-                </select>
+                </DesktopSelect>
               </Field>
             )}
             <Field label={ctx.billingTarget === 'COMPANY' ? billingCopy.clientOptional : billingCopy.client}>
-              <select
+              <DesktopSelect
                 value={ctx.clientId ?? ''}
                 onChange={(e) => setAddOpenBillContext({
                   ...ctx,
@@ -7537,10 +7538,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     {fullName(client)}{peerClientIds.has(client.id) ? ` · ${locale === 'sl' ? 'v terminu' : 'in session'}` : ''}
                   </option>
                 ))}
-              </select>
+              </DesktopSelect>
             </Field>
             <Field label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'}>
-              <select
+              <DesktopSelect
                 value={ctx.consultantId ?? ''}
                 onChange={(e) => setAddOpenBillContext({
                   ...ctx,
@@ -7551,7 +7552,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 {(isAdmin ? users : [me]).map((user) => (
                   <option key={user.id} value={user.id}>{fullName(user)}</option>
                 ))}
-              </select>
+              </DesktopSelect>
             </Field>
           </div>
           <div className="billing-payee-modal-footer">
@@ -7793,7 +7794,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                 </Field>
                 <Field label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'}>
-                  <select
+                  <DesktopSelect
                     value={draft.consultantId ?? ''}
                     onChange={(e) => updateDialogDetails({
                       consultantId: e.target.value === '' ? undefined : Number(e.target.value),
@@ -7803,10 +7804,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     {(isAdmin ? users : [me]).map((user) => (
                       <option key={user.id} value={user.id}>{fullName(user)}</option>
                     ))}
-                  </select>
+                  </DesktopSelect>
                 </Field>
                 <Field label={billingCopy.clientOptional}>
-                  <select
+                  <DesktopSelect
                     value={draft.clientId ?? ''}
                     onChange={(e) => updateDialogDetails({
                       clientId: e.target.value === '' ? undefined : Number(e.target.value),
@@ -7816,7 +7817,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     {payeeClientOptions.map((client) => (
                       <option key={client.id} value={client.id}>{fullName(client)}</option>
                     ))}
-                  </select>
+                  </DesktopSelect>
                 </Field>
                 <Field label={locale === 'sl' ? 'Podjetje' : 'Company'}>
                   <input value={draftCompanyEdit.name} onChange={(e) => updateDialogCompanyEdit(draftCompany, { name: e.target.value })} disabled={!draftCompany} />
@@ -7844,7 +7845,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               <>
                 <Field label={locale === 'sl' ? 'Prejemnik' : 'Recipient'}>
                   <div className="billing-payee-client-picker-row">
-                    <select
+                    <DesktopSelect
                       value={draft.clientId ?? ''}
                       onChange={(e) => updateDialogDetails({
                         clientId: e.target.value === '' ? undefined : Number(e.target.value),
@@ -7854,7 +7855,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       {clients.filter((client) => client.active !== false).map((client) => (
                         <option key={client.id} value={client.id}>{fullName(client)}</option>
                       ))}
-                    </select>
+                    </DesktopSelect>
                     <button
                       type="button"
                       className="secondary client-add-btn billing-payee-inline-add-btn"
@@ -7866,7 +7867,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                 </Field>
                 <Field label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'}>
-                  <select
+                  <DesktopSelect
                     value={draft.consultantId ?? ''}
                     onChange={(e) => updateDialogDetails({
                       consultantId: e.target.value === '' ? undefined : Number(e.target.value),
@@ -7876,7 +7877,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     {(isAdmin ? users : [me]).map((user) => (
                       <option key={user.id} value={user.id}>{fullName(user)}</option>
                     ))}
-                  </select>
+                  </DesktopSelect>
                 </Field>
                 <Field label={locale === 'sl' ? 'Ime' : 'First name'}>
                   <input value={draftClientEdit.firstName} onChange={(e) => updateDialogClientEdit(draftClient, { firstName: e.target.value })} disabled={!draftClient} />
@@ -8212,7 +8213,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <span aria-hidden>→</span>
                 <label>
                   <span>{locale === 'sl' ? 'Premakni v račun' : 'Move to bill'}</span>
-                  <select
+                  <DesktopSelect
                     value={selectedMoveTargetId ?? ''}
                     onChange={(event) => setMoveSelectedTargetOpenBillId(event.target.value === '' ? null : Number(event.target.value))}
                   >
@@ -8220,7 +8221,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       const meta = openBillEditorTabMeta(entry)
                       return <option key={entry.id} value={entry.id}>{temporaryOpenBillIdSet.has(entry.id) ? (locale === 'sl' ? `Za prenos · ${meta.label}` : `For transfer · ${meta.label}`) : meta.label}</option>
                     })}
-                  </select>
+                  </DesktopSelect>
                 </label>
                 <button
                   type="button"
@@ -9982,7 +9983,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     </label>
                     <label>
                       <span>{locale === 'sl' ? 'Status bona' : 'Voucher status'}</span>
-                      <select value={giftCardFilterDraft.status} onChange={(e) => setGiftCardFilterDraft((value) => ({ ...value, status: e.target.value as BillingGiftCardStatus }))}>
+                      <DesktopSelect value={giftCardFilterDraft.status} onChange={(e) => setGiftCardFilterDraft((value) => ({ ...value, status: e.target.value as BillingGiftCardStatus }))}>
                         <option value="all">{locale === 'sl' ? 'Vsi statusi' : 'All statuses'}</option>
                         <option value="active">{locale === 'sl' ? 'Aktivni' : 'Active'}</option>
                         <option value="partially_used">{locale === 'sl' ? 'Delno porabljeni' : 'Partially used'}</option>
@@ -9990,7 +9991,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         <option value="expired">{locale === 'sl' ? 'Potekli' : 'Expired'}</option>
                         <option value="pending_payment">{locale === 'sl' ? 'Čaka plačilo' : 'Pending payment'}</option>
                         <option value="cancelled">{locale === 'sl' ? 'Preklicani' : 'Cancelled'}</option>
-                      </select>
+                      </DesktopSelect>
                     </label>
                   </div>
                   <div className="billing-filter-modal__footer">
@@ -10020,33 +10021,33 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     </label>
                     <label>
                       <span>{billingCopy.historyFilterStatusAria}</span>
-                      <select value={historyFilterDraft.status} onChange={(e) => setHistoryFilterDraft((value) => ({ ...value, status: e.target.value as HistoryPaymentStatusFilter }))}>
+                      <DesktopSelect value={historyFilterDraft.status} onChange={(e) => setHistoryFilterDraft((value) => ({ ...value, status: e.target.value as HistoryPaymentStatusFilter }))}>
                         <option value="all">{billingCopy.historyStatusAll}</option>
                         <option value="paid">{billingCopy.historyStatusPaid}</option>
                         <option value="payment_pending">{billingCopy.historyStatusPending}</option>
                         <option value="open">{billingCopy.historyStatusOpen}</option>
                         <option value="cancelled">{billingCopy.historyStatusCancelled}</option>
-                      </select>
+                      </DesktopSelect>
                     </label>
                     {fiscalCashRegisterEnabled ? (
                       <label>
                         <span>{billingCopy.historyFilterFiscalStatusAria}</span>
-                        <select value={historyFilterDraft.fiscalStatus} onChange={(e) => setHistoryFilterDraft((value) => ({ ...value, fiscalStatus: e.target.value as HistoryFiscalStatusFilter }))}>
+                        <DesktopSelect value={historyFilterDraft.fiscalStatus} onChange={(e) => setHistoryFilterDraft((value) => ({ ...value, fiscalStatus: e.target.value as HistoryFiscalStatusFilter }))}>
                           <option value="all">{billingCopy.historyFiscalStatusAll}</option>
                           <option value="SENT">{billingCopy.historyFiscalStatusSent}</option>
                           <option value="FAILED">{billingCopy.historyFiscalStatusFailed}</option>
                           <option value="NOT_SENT">{billingCopy.historyFiscalStatusNotSent}</option>
-                        </select>
+                        </DesktopSelect>
                       </label>
                     ) : null}
                     <label>
                       <span>{billingCopy.historyFilterBillTypeAria}</span>
-                      <select value={historyFilterDraft.billType} onChange={(e) => setHistoryFilterDraft((value) => ({ ...value, billType: e.target.value as HistoryInvoiceTypeFilter }))}>
+                      <DesktopSelect value={historyFilterDraft.billType} onChange={(e) => setHistoryFilterDraft((value) => ({ ...value, billType: e.target.value as HistoryInvoiceTypeFilter }))}>
                         <option value="all">{billingCopy.historyBillTypeAll}</option>
                         <option value="INVOICE">{billingCopy.historyBillTypeInvoice}</option>
                         <option value="ADVANCE">{billingCopy.historyBillTypeAdvance}</option>
                         <option value="REFUND">{billingCopy.historyBillTypeRefund}</option>
-                      </select>
+                      </DesktopSelect>
                     </label>
                   </div>
                   <div className="billing-filter-modal__footer">
@@ -10529,7 +10530,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     </div>
                     <div className="billing-invoice-issuer-grid">
                       <Field label={locale === 'sl' ? 'Izdajatelj računa' : 'Invoice issuer'}>
-                        <select
+                        <DesktopSelect
                           value={billForm.legalEntityId ?? ''}
                           onChange={(event) => setBillForm((current) => ({
                             ...current,
@@ -10544,10 +10545,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                               {issuer.name}{issuer.vatId ? ` · ${issuer.vatId}` : issuer.taxNumber ? ` · ${issuer.taxNumber}` : ''}
                             </option>
                           ))}
-                        </select>
+                        </DesktopSelect>
                       </Field>
                       <Field label={locale === 'sl' ? 'Fizična lokacija' : 'Physical location'}>
-                        <select
+                        <DesktopSelect
                           value={billForm.locationId ?? ''}
                           onChange={(event) => {
                             const locationId = event.target.value ? Number(event.target.value) : undefined
@@ -10566,10 +10567,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                           {invoiceLocations.map((location) => (
                             <option key={location.id} value={location.id}>{location.name}</option>
                           ))}
-                        </select>
+                        </DesktopSelect>
                       </Field>
                       <Field label={locale === 'sl' ? 'Števec računov lokacije' : 'Location invoice counter'}>
-                        <select
+                        <DesktopSelect
                           value={billForm.invoiceSeriesId ?? ''}
                           onChange={(event) => setBillForm((current) => ({
                             ...current,
@@ -10585,7 +10586,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                                 : `${series.name}${series.sharedAcrossUnits ? ` · ${locale === 'sl' ? 'skupna' : 'shared'}` : ''}`}
                             </option>
                           ))}
-                        </select>
+                        </DesktopSelect>
                       </Field>
                     </div>
                     {invoiceIssuers.length === 0 || invoiceLocations.length === 0 || compatibleInvoiceSeries.length === 0 ? (

@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../../../components/DesktopSelect'
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../../../api'
 import type { CalendarServiceDraft, CalendarServiceSegment } from '../calendarTypes'
@@ -696,10 +697,10 @@ export function CalendarServiceChainEditor({
                       <div className="calendar-service-chain__meta calendar-service-chain__meta--cards">
                         <label className="calendar-service-chain__meta-block calendar-service-chain__meta-block--space">
                           <span>{copy.space}</span>
-                          <select value={service.spaceId ?? ''} onChange={(event) => updateAt(index, { spaceId: event.target.value ? Number(event.target.value) : null })}>
+                          <DesktopSelect value={service.spaceId ?? ''} onChange={(event) => updateAt(index, { spaceId: event.target.value ? Number(event.target.value) : null })}>
                             <option value="">{copy.noSpace}</option>
                             {spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
-                          </select>
+                          </DesktopSelect>
                         </label>
                         <div className="calendar-service-chain__metric">
                           <small>{copy.duration}</small>
@@ -730,7 +731,7 @@ export function CalendarServiceChainEditor({
             <span className="calendar-service-chain__single-label">{copy.service}</span>
             <div className={`calendar-service-chain__single-row${canAddServices ? '' : ' calendar-service-chain__single-row--single-only'}${showSingleEditButton ? ' calendar-service-chain__single-row--with-edit' : ''}`}>
               <div className={`calendar-service-chain__single-select-wrap${singleServiceGross != null ? ' calendar-service-chain__single-select-wrap--with-price' : ''}`}>
-                <select
+                <DesktopSelect
                   className="calendar-service-chain__single-select calendar-service-chain__single-select--desktop"
                   value={services[0]?.typeId ?? ''}
                   aria-label={copy.service}
@@ -740,8 +741,8 @@ export function CalendarServiceChainEditor({
                   {sortedSessionTypes.map((entry) => (
                     <option key={entry.id} value={entry.id}>{serviceName(entry, locale)}</option>
                   ))}
-                </select>
-                <select
+                </DesktopSelect>
+                <DesktopSelect
                   className="calendar-service-chain__single-select calendar-service-chain__single-select--mobile"
                   value={services[0]?.typeId ?? ''}
                   aria-label={copy.service}
@@ -751,7 +752,7 @@ export function CalendarServiceChainEditor({
                   {sortedSessionTypes.map((entry) => (
                     <option key={entry.id} value={entry.id}>{serviceName(entry, locale)}</option>
                   ))}
-                </select>
+                </DesktopSelect>
                 {singleServiceGross != null ? (
                   <span className="calendar-service-chain__single-price" aria-hidden>{currency(singleServiceGross)}</span>
                 ) : null}
@@ -831,12 +832,12 @@ export function CalendarServiceChainEditor({
             </div>
             <div className="calendar-consumables-editor__toolbar">
               <div className="calendar-consumables-editor__add">
-                <select value={consumableToAdd} onChange={(event) => setConsumableToAdd(event.target.value)}>
+                <DesktopSelect value={consumableToAdd} onChange={(event) => setConsumableToAdd(event.target.value)}>
                   <option value="">{locale === 'sl' ? 'Dodaj artikel …' : 'Add item…'}</option>
                   {consumableCatalog.filter((item) => !workingConsumables.some((row) => row.consumableId === item.id)).map((item) => (
                     <option key={item.id} value={item.id}>{item.name}</option>
                   ))}
-                </select>
+                </DesktopSelect>
                 <button type="button" className="secondary slim-btn" disabled={!consumableToAdd} onClick={() => {
                   const item = consumableCatalog.find((entry) => String(entry.id) === consumableToAdd)
                   if (!item) return
@@ -854,10 +855,10 @@ export function CalendarServiceChainEditor({
                 <div className="calendar-consumables-editor__row" key={`${row.consumableId}-${index}`}>
                   <strong>{row.itemName}</strong>
                   <div className="calendar-consumables-editor__quantity"><input type="number" min="0" step="0.01" value={row.quantity} onChange={(event) => mutateWorkingConsumables(workingConsumables.map((item, rowIndex) => rowIndex === index ? { ...item, quantity: Number(event.target.value) } : item))} /><span>{row.unit}</span></div>
-                  <select value={row.quantityMode} onChange={(event) => mutateWorkingConsumables(workingConsumables.map((item, rowIndex) => rowIndex === index ? { ...item, quantityMode: event.target.value === 'PER_PARTICIPANT' ? 'PER_PARTICIPANT' : 'PER_SESSION' } : item))}>
+                  <DesktopSelect value={row.quantityMode} onChange={(event) => mutateWorkingConsumables(workingConsumables.map((item, rowIndex) => rowIndex === index ? { ...item, quantityMode: event.target.value === 'PER_PARTICIPANT' ? 'PER_PARTICIPANT' : 'PER_SESSION' } : item))}>
                     <option value="PER_SESSION">{locale === 'sl' ? 'Na termin' : 'Per appointment'}</option>
                     <option value="PER_PARTICIPANT">{locale === 'sl' ? 'Na udeleženca' : 'Per participant'}</option>
-                  </select>
+                  </DesktopSelect>
                   <label className="switch calendar-consumables-editor__switch"><input type="checkbox" checked={row.billable} onChange={(event) => mutateWorkingConsumables(workingConsumables.map((item, rowIndex) => rowIndex === index ? { ...item, billable: event.target.checked } : item))} /><span className="slider" /></label>
                   <span className="calendar-consumables-editor__price">{row.billable ? currency(Number(row.salePriceSnapshot ?? 0)) : '—'}</span>
                   <button type="button" className="calendar-consumables-editor__remove" aria-label={locale === 'sl' ? 'Odstrani' : 'Remove'} onClick={() => mutateWorkingConsumables(workingConsumables.filter((_, rowIndex) => rowIndex !== index))}><TrashIcon /></button>
@@ -949,9 +950,9 @@ export function CalendarServiceChainEditor({
               </label>
               <label className="calendar-service-edit-modal__field">
                 <span>{copy.duration}</span>
-                <select className="calendar-service-edit-modal__duration-select" value={editingServiceDuration} onChange={(event) => setEditingServiceDuration(event.target.value)}>
+                <DesktopSelect className="calendar-service-edit-modal__duration-select" value={editingServiceDuration} onChange={(event) => setEditingServiceDuration(event.target.value)}>
                   {durationOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
+                </DesktopSelect>
                 <div className="calendar-service-edit-modal__duration-stepper" role="group" aria-label={copy.duration}>
                   <button
                     type="button"

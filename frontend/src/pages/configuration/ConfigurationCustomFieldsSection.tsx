@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../../components/DesktopSelect'
 import { useEffect, useMemo, useState } from 'react'
 import { api, getApiErrorMessage } from '../../api'
 import type { CustomFieldAppliesTo, CustomFieldDefinition, CustomFieldType } from '../../lib/types'
@@ -716,9 +717,9 @@ export function ConfigurationCustomFieldsSection() {
               </label>
               <label className="custom-fields-field">
                 {copy.fieldType}
-                <select value={draft.fieldType} onChange={(e) => setDraft({ ...draft, fieldType: e.target.value as CustomFieldType })}>
+                <DesktopSelect value={draft.fieldType} onChange={(e) => setDraft({ ...draft, fieldType: e.target.value as CustomFieldType })}>
                   {fieldTypes.map((type) => <option key={type.id} value={type.id}>{locale === 'sl' ? type.sl : type.en}</option>)}
-                </select>
+                </DesktopSelect>
               </label>
               <label className="custom-fields-field">
                 {copy.sortOrder}

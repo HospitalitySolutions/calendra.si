@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../../components/DesktopSelect'
 import { useEffect, useMemo, useState } from 'react'
 import { api, getApiErrorMessage } from '../../api'
 
@@ -93,8 +94,8 @@ export function WorkspacePublicBookingSettingsSection({ locale }: { locale: stri
     <div className="wpb-head"><div><h2>{text.title}</h2><p>{text.subtitle}</p></div><label className="wpb-toggle"><input type="checkbox" checked={value.enabled} onChange={e => update('enabled', e.target.checked)} />{text.enabled}</label></div>
     <div className="wpb-grid">
       <div className="wpb-field"><label>{text.slug}</label><input value={value.slug} onChange={e => update('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} /></div>
-      <div className="wpb-field"><label>{text.language}</label><select value={value.defaultLanguage} onChange={e => update('defaultLanguage', e.target.value as Settings['defaultLanguage'])}><option value="sl">Slovenščina</option><option value="en">English</option><option value="sr">Srpski</option></select></div>
-      <div className="wpb-field"><label>{text.flow}</label><select value={value.locationSelectionMode} onChange={e => update('locationSelectionMode', e.target.value as Settings['locationSelectionMode'])}><option value="LOCATION_FIRST">{text.locationFirst}</option><option value="SERVICE_FIRST">{text.serviceFirst}</option></select></div>
+      <div className="wpb-field"><label>{text.language}</label><DesktopSelect value={value.defaultLanguage} onChange={e => update('defaultLanguage', e.target.value as Settings['defaultLanguage'])}><option value="sl">Slovenščina</option><option value="en">English</option><option value="sr">Srpski</option></DesktopSelect></div>
+      <div className="wpb-field"><label>{text.flow}</label><DesktopSelect value={value.locationSelectionMode} onChange={e => update('locationSelectionMode', e.target.value as Settings['locationSelectionMode'])}><option value="LOCATION_FIRST">{text.locationFirst}</option><option value="SERVICE_FIRST">{text.serviceFirst}</option></DesktopSelect></div>
       <div className="wpb-field full"><label>{text.url}</label><div className="wpb-url"><input readOnly value={publicUrl} /><button type="button" className="wpb-secondary" onClick={() => navigator.clipboard?.writeText(publicUrl)}>{text.copy}</button></div></div>
       <div className="wpb-field"><label>{text.titleLabel}</label><input value={value.pageTitle || ''} onChange={e => update('pageTitle', e.target.value)} /></div>
       <div className="wpb-field"><label>{text.color}</label><input type="color" value={value.primaryColor || '#1672f3'} onChange={e => update('primaryColor', e.target.value)} /></div>

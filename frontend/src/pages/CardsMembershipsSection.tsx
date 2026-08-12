@@ -1,3 +1,4 @@
+import { DesktopSelect } from "../components/DesktopSelect";
 import {
   forwardRef,
   useCallback,
@@ -1973,7 +1974,7 @@ export const CardsMembershipsSection = forwardRef<
                   locale === "sl" ? "Tip ugodnosti *" : "Entitlement type *"
                 }
               >
-                <select
+                <DesktopSelect
                   value={guestProductForm.productType}
                   onChange={(e) => {
                     const pt = e.target.value as GuestAdminProductType;
@@ -1998,7 +1999,7 @@ export const CardsMembershipsSection = forwardRef<
                       {productTypeLabel(productType, locale)}
                     </option>
                   ))}
-                </select>
+                </DesktopSelect>
               </Field>
               <Field
                 label={locale === "sl" ? "Lokacije *" : "Locations *"}
@@ -2008,7 +2009,7 @@ export const CardsMembershipsSection = forwardRef<
                     : "Choose the locations where this entitlement can be purchased and redeemed."
                 }
               >
-                <select
+                <DesktopSelect
                   value={guestProductForm.availableAllLocations ? "ALL" : "SELECTED"}
                   onChange={(event) =>
                     setGuestProductForm((current) => ({
@@ -2020,7 +2021,7 @@ export const CardsMembershipsSection = forwardRef<
                 >
                   <option value="ALL">{locale === "sl" ? "Vse lokacije" : "All locations"}</option>
                   <option value="SELECTED">{locale === "sl" ? "Izbrane lokacije" : "Selected locations"}</option>
-                </select>
+                </DesktopSelect>
               </Field>
               {!guestProductForm.availableAllLocations && (
                 <Field label={locale === "sl" ? "Izbrane lokacije *" : "Selected locations *"}>
@@ -2107,7 +2108,7 @@ export const CardsMembershipsSection = forwardRef<
                         : "Choose whether the voucher can be used for all or only selected services."
                     }
                   >
-                    <select
+                    <DesktopSelect
                       value={guestProductForm.voucherServiceScope}
                       onChange={(e) => {
                         const scope = e.target.value as VoucherServiceScope;
@@ -2127,7 +2128,7 @@ export const CardsMembershipsSection = forwardRef<
                       <option value="SELECTED_SERVICES">
                         {locale === "sl" ? "Izbrane storitve" : "Selected services"}
                       </option>
-                    </select>
+                    </DesktopSelect>
                   </Field>
                   {guestProductForm.voucherServiceScope === "SELECTED_SERVICES" && (
                     <Field
@@ -2433,7 +2434,7 @@ export const CardsMembershipsSection = forwardRef<
                         ? "Ugodnost bo veljala za vse trenutne in prihodnje storitve, ki pripadajo izbrani skupini."
                         : "The entitlement applies to all current and future services assigned to the selected group."}
                     >
-                      <select
+                      <DesktopSelect
                         required
                         value={guestProductForm.serviceGroupId}
                         onChange={(event) =>
@@ -2446,7 +2447,7 @@ export const CardsMembershipsSection = forwardRef<
                             {group.name} · {group.serviceCount}
                           </option>
                         ))}
-                      </select>
+                      </DesktopSelect>
                     </Field>
                   )}
                 </>
@@ -2459,7 +2460,7 @@ export const CardsMembershipsSection = forwardRef<
                     : "Defines the transaction service, VAT and line description shown on the invoice when this entitlement is purchased."
                 }
               >
-                <select
+                <DesktopSelect
                   required
                   value={guestProductForm.transactionServiceId}
                   onChange={(e) =>
@@ -2475,7 +2476,7 @@ export const CardsMembershipsSection = forwardRef<
                       {transactionServiceLabel(service)}
                     </option>
                   ))}
-                </select>
+                </DesktopSelect>
               </Field>
               {activeTransactionServices.length === 0 && (
                 <p className="muted cards-product-modal-note">
@@ -3023,7 +3024,7 @@ export const CardsMembershipsSection = forwardRef<
                       <span className="course-edit-select-icon" aria-hidden>
                         <CourseSectionIcon />
                       </span>
-                      <select
+                      <DesktopSelect
                         className="course-edit-select"
                         value={courseForm.mediaType}
                         onChange={(e) =>
@@ -3035,7 +3036,7 @@ export const CardsMembershipsSection = forwardRef<
                       >
                         <option value="VIDEO">Video</option>
                         <option value="AUDIO">Audio</option>
-                      </select>
+                      </DesktopSelect>
                     </span>
                   </Field>
                 </div>

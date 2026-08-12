@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../components/DesktopSelect'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '../api'
 import { Card, Field, SectionTitle } from '../components/ui'
@@ -781,7 +782,7 @@ export function GoogleCalendarIntegrationSection({ me }: { me: User }) {
 
                 <div className="google-calendar-form">
                   <Field label="Google calendar">
-                    <select
+                    <DesktopSelect
                       value={draft.calendarId}
                       onChange={(e) => {
                         const selected = calendars.find((entry) => entry.id === e.target.value)
@@ -792,33 +793,33 @@ export function GoogleCalendarIntegrationSection({ me }: { me: User }) {
                       {calendars.map((calendar) => (
                         <option key={calendar.id} value={calendar.id}>{calendar.summary}{calendar.primary ? ' · primary' : ''}</option>
                       ))}
-                    </select>
+                    </DesktopSelect>
                   </Field>
                   <Field label="Sync direction">
-                    <select
+                    <DesktopSelect
                       value={draft.syncDirection}
                       onChange={(e) => setDrafts((prev) => ({ ...prev, [connection.id]: { ...draft, syncDirection: e.target.value as SyncDirection } }))}
                     >
                       {(Object.keys(syncDirectionLabels) as SyncDirection[]).map((key) => <option key={key} value={key}>{syncDirectionLabels[key]}</option>)}
-                    </select>
+                    </DesktopSelect>
                   </Field>
                   <Field label="External Google events">
-                    <select
+                    <DesktopSelect
                       value={draft.importGoogleEventsAs}
                       onChange={(e) => setDrafts((prev) => ({ ...prev, [connection.id]: { ...draft, importGoogleEventsAs: e.target.value } }))}
                     >
                       <option value="BOOKED_SESSION">Import as booked sessions</option>
                       <option value="PERSONAL_BLOCK">Import as personal busy blocks</option>
                       <option value="IGNORE">Do not import</option>
-                    </select>
+                    </DesktopSelect>
                   </Field>
                   <Field label="When Google deletes a Calendra booking">
-                    <select
+                    <DesktopSelect
                       value={draft.bookingDeletePolicy}
                       onChange={(e) => setDrafts((prev) => ({ ...prev, [connection.id]: { ...draft, bookingDeletePolicy: e.target.value as BookingDeletePolicy } }))}
                     >
                       {(Object.keys(bookingDeletePolicyLabels) as BookingDeletePolicy[]).map((key) => <option key={key} value={key}>{bookingDeletePolicyLabels[key]}</option>)}
-                    </select>
+                    </DesktopSelect>
                   </Field>
                   <div className="google-calendar-checklist">
                     <label className="google-calendar-checkbox">

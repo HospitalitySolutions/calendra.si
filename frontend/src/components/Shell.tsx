@@ -1,3 +1,4 @@
+import { DesktopSelect } from './DesktopSelect'
 import { isNativeAndroid } from '../lib/platform'
 import { PropsWithChildren, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -778,7 +779,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       <span className="sr-only">
         {locale === 'sl' ? 'Aktivna enota' : locale === 'sr' ? 'Aktivna jedinica' : 'Active unit'}
       </span>
-      <select
+      <DesktopSelect
         className="unit-switcher-select"
         value={activeUnitId ?? ''}
         disabled={unitSwitching}
@@ -788,7 +789,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
         {availableUnits.map((unit) => (
           <option key={unit.id} value={unit.id}>{unit.name}</option>
         ))}
-      </select>
+      </DesktopSelect>
       <svg className="unit-switcher-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="m6 9 6 6 6-6" />
       </svg>
@@ -800,7 +801,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const locationBrand = activeBusinessLocations.length > 1 ? (
     <label className="unit-switcher location-switcher" title={locale === 'sl' ? 'Izberi poslovalnico' : 'Select location'}>
       <span className="sr-only">{locale === 'sl' ? 'Aktivna poslovalnica' : 'Active location'}</span>
-      <select
+      <DesktopSelect
         className="unit-switcher-select location-switcher-select"
         value={selectedLocationId ?? ''}
         onChange={(event) => setSelectedLocationId(event.target.value ? Number(event.target.value) : null)}
@@ -810,7 +811,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
         {activeBusinessLocations.map((item) => (
           <option key={item.id} value={item.id}>{item.name}</option>
         ))}
-      </select>
+      </DesktopSelect>
       <svg className="unit-switcher-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="m6 9 6 6 6-6" />
       </svg>

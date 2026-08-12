@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { DesktopSelect } from '../../../components/DesktopSelect'
 import { useEffect, useRef, useState } from 'react'
 import { BrowserQRCodeReader } from '@zxing/browser'
 import { createPortal } from 'react-dom'
@@ -3132,7 +3133,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <div className="form-row form-row-infield calendar-booking-field--consultant">
                   <span className="form-field-inline-label">{t('formConsultant')}</span>
                   <div className="form-field-inline-control">
-                  <select
+                  <DesktopSelect
                     value={selectedBookedSession.consultant?.id ?? ''}
                     onChange={(e) => {
                       const val = e.target.value
@@ -3147,7 +3148,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     {bookedConsultants.map((c: any) => (
                       <option key={c.id} value={c.id}>{fullName(c)}</option>
                     ))}
-                  </select>
+                  </DesktopSelect>
                   </div>
                 </div>
               )}
@@ -3155,7 +3156,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <div className="form-row form-row-infield calendar-booking-field--space">
                   <span className="form-field-inline-label">{t('formCalendarBookingSpace')}</span>
                   <div className="form-field-inline-control">
-                  <select
+                  <DesktopSelect
                     value={selectedBookedSession.space?.id ?? ''}
                     onChange={(e) => {
                       const nextSpaceId = Number(e.target.value) || null
@@ -3166,7 +3167,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   >
                     <option value="">{t('formNoSpace')}</option>
                     {bookedSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
+                  </DesktopSelect>
                   </div>
                 </div>
               )}
@@ -3276,7 +3277,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                             value={repeatInterval}
                             onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatInterval: Math.max(1, Number(e.target.value) || 1) })}
                           />
-                          <select
+                          <DesktopSelect
                             className="form-repeats-select"
                             value={repeatUnit}
                             onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatUnit: e.target.value })}
@@ -3284,12 +3285,12 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                             <option value="days">{t('formRepeatUnitDays')}</option>
                             <option value="weeks">{t('formRepeatUnitWeeks')}</option>
                             <option value="months">{t('formRepeatUnitMonths')}</option>
-                          </select>
+                          </DesktopSelect>
                         </div>
                         {repeatUnit === 'weeks' && (
                           <div className="form-repeats-row">
                             <span className="form-repeats-label">{t('formRepeatsOnDay')}</span>
-                            <select
+                            <DesktopSelect
                               className="form-repeats-select"
                               value={selectedBookedSession.repeatDay ?? sessionDay}
                               onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatDay: e.target.value })}
@@ -3297,19 +3298,19 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               {REPEAT_WEEKDAY_EN.map((d) => (
                                 <option key={d} value={d}>{formatRepeatWeekdayLabel(locale, d)}</option>
                               ))}
-                            </select>
+                            </DesktopSelect>
                           </div>
                         )}
                         <div className="form-repeats-row">
                           <span className="form-repeats-label">{t('formRepeatsEnds')}</span>
-                          <select
+                          <DesktopSelect
                             className="form-repeats-select"
                             value={repeatEndType}
                             onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatEndType: e.target.value })}
                           >
                             <option value="after">{t('formRepeatEndAfter')}</option>
                             <option value="on">{t('formRepeatEndOnDate')}</option>
-                          </select>
+                          </DesktopSelect>
                           {repeatEndType === 'after' && (
                             <input
                               type="number"
@@ -4780,7 +4781,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     <div className="form-row form-row-infield">
                       <span className="form-field-inline-label">{locale === 'sl' ? 'Lokacija' : 'Location'}</span>
                       <div className="form-field-inline-control">
-                        <select
+                        <DesktopSelect
                           value={availabilitySelection.locationId || ''}
                           onChange={(e) => {
                             const nextLocationId = Number(e.target.value) || null
@@ -4801,7 +4802,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           {metaLocations.filter((item: any) => item?.active !== false).map((item: any) => (
                             <option key={item.id} value={item.id}>{item.name}{item.city ? ` – ${item.city}` : ''}</option>
                           ))}
-                        </select>
+                        </DesktopSelect>
                       </div>
                     </div>
                   )}
@@ -4809,7 +4810,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     <div className="form-row form-row-infield">
                       <span className="form-field-inline-label">{t('formConsultant')}</span>
                       <div className="form-field-inline-control">
-                      <select
+                      <DesktopSelect
                         value={availabilitySelection.consultantId || ''}
                         onChange={(e) => setAvailabilitySelection({ ...availabilitySelection, consultantId: Number(e.target.value) || null })}
                       >
@@ -4821,7 +4822,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           .map((c: any) => (
                             <option key={c.id} value={c.id}>{fullName(c)}</option>
                           ))}
-                      </select>
+                      </DesktopSelect>
                       </div>
                     </div>
                   )}
@@ -5578,7 +5579,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <div className="form-row form-row-infield calendar-booking-field--consultant">
                   <span className="form-field-inline-label">{t('formConsultant')}</span>
                   <div className="form-field-inline-control">
-                  <select disabled={form.todo || form.personal} value={form.consultantId ?? ''} onChange={(e) => setForm({ ...form, consultantId: e.target.value === '' ? null : Number(e.target.value) })}><option value="">{t('formUnassigned')}</option>{formConsultants.map((c: any) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}                  </select>
+                  <DesktopSelect disabled={form.todo || form.personal} value={form.consultantId ?? ''} onChange={(e) => setForm({ ...form, consultantId: e.target.value === '' ? null : Number(e.target.value) })}><option value="">{t('formUnassigned')}</option>{formConsultants.map((c: any) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}                  </DesktopSelect>
                   </div>
                 </div>
               )}
@@ -5586,7 +5587,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <div className="form-row form-row-infield calendar-booking-field--space">
                   <span className="form-field-inline-label">{t('formCalendarBookingSpace')}</span>
                   <div className="form-field-inline-control">
-                  <select
+                  <DesktopSelect
                     value={form.spaceId || ''}
                     onChange={(e) => {
                       const nextSpaceId = Number(e.target.value) || null
@@ -5594,7 +5595,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         index === 0 ? { ...service, spaceId: nextSpaceId } : service
                       )))
                     }}
-                  ><option value="">{t('formNoSpace')}</option>{formSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+                  ><option value="">{t('formNoSpace')}</option>{formSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</DesktopSelect>
                   </div>
                 </div>
               )}
@@ -5699,7 +5700,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                             value={repeatInterval}
                             onChange={(e) => setForm({ ...form, repeatInterval: Math.max(1, Number(e.target.value) || 1) })}
                           />
-                          <select
+                          <DesktopSelect
                             className="form-repeats-select"
                             value={repeatUnit}
                             onChange={(e) => setForm({ ...form, repeatUnit: e.target.value })}
@@ -5707,12 +5708,12 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                             <option value="days">{t('formRepeatUnitDays')}</option>
                             <option value="weeks">{t('formRepeatUnitWeeks')}</option>
                             <option value="months">{t('formRepeatUnitMonths')}</option>
-                          </select>
+                          </DesktopSelect>
                         </div>
                         {repeatUnit === 'weeks' && (
                           <div className="form-repeats-row">
                             <span className="form-repeats-label">{t('formRepeatsOnDay')}</span>
-                            <select
+                            <DesktopSelect
                               className="form-repeats-select"
                               value={form.repeatDay ?? sessionDay}
                               onChange={(e) => setForm({ ...form, repeatDay: e.target.value })}
@@ -5720,19 +5721,19 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               {REPEAT_WEEKDAY_EN.map((d) => (
                                 <option key={d} value={d}>{formatRepeatWeekdayLabel(locale, d)}</option>
                               ))}
-                            </select>
+                            </DesktopSelect>
                           </div>
                         )}
                         <div className="form-repeats-row">
                           <span className="form-repeats-label">{t('formRepeatsEnds')}</span>
-                          <select
+                          <DesktopSelect
                             className="form-repeats-select"
                             value={repeatEndType}
                             onChange={(e) => setForm({ ...form, repeatEndType: e.target.value })}
                           >
                             <option value="after">{t('formRepeatEndAfter')}</option>
                             <option value="on">{t('formRepeatEndOnDate')}</option>
-                          </select>
+                          </DesktopSelect>
                           {repeatEndType === 'after' && (
                             <input
                               type="number"

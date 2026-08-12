@@ -1,3 +1,4 @@
+import { DesktopSelect } from '../components/DesktopSelect'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -1046,30 +1047,30 @@ export function AnalyticsPage() {
             )}
             <div className="analytics-select-filters analytics-select-filters--desktop">
               {isAdmin && (
-                <select value={consultantId} onChange={(e) => setConsultantId(e.target.value)}>
+                <DesktopSelect value={consultantId} onChange={(e) => setConsultantId(e.target.value)}>
                   <option value="">{text.allConsultants}</option>
                   {filteredConsultantOptions.map((u) => <option key={u.id} value={u.id}>{fullName(u)}</option>)}
-                </select>
+                </DesktopSelect>
               )}
-              <select value={spaceId} onChange={(e) => setSpaceId(e.target.value)}>
+              <DesktopSelect value={spaceId} onChange={(e) => setSpaceId(e.target.value)}>
                 <option value="">{text.allSpaces}</option>
                 {filteredSpaceOptions.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
-              </select>
+              </DesktopSelect>
               {serviceGroupsReportsEnabled && (
-                <select value={serviceGroupId} onChange={(e) => setServiceGroupId(e.target.value)}>
+                <DesktopSelect value={serviceGroupId} onChange={(e) => setServiceGroupId(e.target.value)}>
                   <option value="">{groupText.allGroups}</option>
                   <option value="-1">{groupText.ungrouped}</option>
                   {(filterData?.serviceGroups ?? []).map((group) => <option key={group.id} value={group.id}>{group.name}{group.active ? '' : ` · ${groupText.inactive}`}</option>)}
-                </select>
+                </DesktopSelect>
               )}
-              <select value={typeId} onChange={(e) => setTypeId(e.target.value)}>
+              <DesktopSelect value={typeId} onChange={(e) => setTypeId(e.target.value)}>
                 <option value="">{text.allTypes}</option>
                 {filteredTypeOptions.map((item) => {
                   const visibleName = item.description || item.name
                   const internalDescription = String(item.internalDescription || '').trim()
                   return <option key={item.id} value={item.id}>{internalDescription ? `${visibleName} — ${internalDescription}` : visibleName}</option>
                 })}
-              </select>
+              </DesktopSelect>
             </div>
           </div>
         )}
@@ -1098,30 +1099,30 @@ export function AnalyticsPage() {
           </div>
           <div className="analytics-select-filters">
             {isAdmin && (
-              <select value={consultantId} onChange={(e) => setConsultantId(e.target.value)}>
+              <DesktopSelect value={consultantId} onChange={(e) => setConsultantId(e.target.value)}>
                 <option value="">{text.allConsultants}</option>
                 {filteredConsultantOptions.map((u) => <option key={u.id} value={u.id}>{fullName(u)}</option>)}
-              </select>
+              </DesktopSelect>
             )}
-            <select value={spaceId} onChange={(e) => setSpaceId(e.target.value)}>
+            <DesktopSelect value={spaceId} onChange={(e) => setSpaceId(e.target.value)}>
               <option value="">{text.allSpaces}</option>
               {filteredSpaceOptions.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
-            </select>
+            </DesktopSelect>
             {serviceGroupsReportsEnabled && (
-              <select value={serviceGroupId} onChange={(e) => setServiceGroupId(e.target.value)}>
+              <DesktopSelect value={serviceGroupId} onChange={(e) => setServiceGroupId(e.target.value)}>
                 <option value="">{groupText.allGroups}</option>
                 <option value="-1">{groupText.ungrouped}</option>
                 {(filterData?.serviceGroups ?? []).map((group) => <option key={group.id} value={group.id}>{group.name}{group.active ? '' : ` · ${groupText.inactive}`}</option>)}
-              </select>
+              </DesktopSelect>
             )}
-            <select value={typeId} onChange={(e) => setTypeId(e.target.value)}>
+            <DesktopSelect value={typeId} onChange={(e) => setTypeId(e.target.value)}>
               <option value="">{text.allTypes}</option>
               {filteredTypeOptions.map((item) => {
                 const visibleName = item.description || item.name
                 const internalDescription = String(item.internalDescription || '').trim()
                 return <option key={item.id} value={item.id}>{internalDescription ? `${visibleName} — ${internalDescription}` : visibleName}</option>
               })}
-            </select>
+            </DesktopSelect>
           </div>
         </div>
           {periodPreset === 'custom' && (

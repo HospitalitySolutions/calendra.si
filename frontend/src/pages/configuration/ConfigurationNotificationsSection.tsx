@@ -1,3 +1,4 @@
+import { DesktopSelect } from "../../components/DesktopSelect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type * as React from "react";
 import type { AppLocale } from "../../locale";
@@ -3716,7 +3717,7 @@ export function ConfigurationNotificationsSection({
                                             }
                                           >
                                             <label>Privzeti čas opomnika</label>
-                                            <select
+                                            <DesktopSelect
                                               className="notif-reminder-select"
                                               value={reminderValue}
                                               onChange={(changeEvent) =>
@@ -3734,7 +3735,7 @@ export function ConfigurationNotificationsSection({
                                                   {option}
                                                 </option>
                                               ))}
-                                            </select>
+                                            </DesktopSelect>
                                           </span>
                                         ) : (
                                           <span
@@ -3830,7 +3831,7 @@ export function ConfigurationNotificationsSection({
                               {event.reminder && checked ? (
                                 <span className="notif-reminder-select-wrap">
                                   <label>Privzeti čas opomnika</label>
-                                  <select
+                                  <DesktopSelect
                                     className="notif-reminder-select"
                                     value={reminderValue}
                                     onChange={(changeEvent) =>
@@ -3845,7 +3846,7 @@ export function ConfigurationNotificationsSection({
                                         {option}
                                       </option>
                                     ))}
-                                  </select>
+                                  </DesktopSelect>
                                 </span>
                               ) : (
                                 <span
@@ -4054,7 +4055,7 @@ export function ConfigurationNotificationsSection({
                         >
                           {channel !== "email" ? (
                             <>
-                              <select
+                              <DesktopSelect
                                 className="notif-template-format"
                                 aria-label="Slog besedila"
                                 value="normal"
@@ -4072,7 +4073,7 @@ export function ConfigurationNotificationsSection({
                                 <option value="heading">Naslov</option>
                                 <option value="subheading">Podnaslov</option>
                                 <option value="small">Drobno</option>
-                              </select>
+                              </DesktopSelect>
                               <span
                                 className="notif-template-toolbar-divider"
                                 aria-hidden

@@ -1,3 +1,4 @@
+import { DesktopSelect } from "../../components/DesktopSelect";
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocale } from "../../locale";
@@ -336,13 +337,13 @@ export function ReservationRulesSettingsSection({
           <div className="general-settings-form-grid">
             <label className="general-settings-field">
               <span>{text.noShowMode}</span>
-              <select
+              <DesktopSelect
                 value={rules.noShowMode}
                 onChange={(event) => update({ noShowMode: event.target.value === "AUTOMATIC" ? "AUTOMATIC" : "MANUAL" })}
               >
                 <option value="MANUAL">{text.manualNoShow}</option>
                 <option value="AUTOMATIC">{text.automaticNoShow}</option>
-              </select>
+              </DesktopSelect>
             </label>
             <NumericField
               label={text.noShowAfter}

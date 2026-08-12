@@ -1,3 +1,4 @@
+import { DesktopSelect } from "../components/DesktopSelect";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import axios from "axios";
@@ -1777,7 +1778,7 @@ function PlanPricesAdminPanel() {
     value: number | null | undefined,
     onChange: (value: number | null) => void,
   ) => (
-    <select
+    <DesktopSelect
       id={id}
       value={value ? String(value) : ""}
       onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
@@ -1790,7 +1791,7 @@ function PlanPricesAdminPanel() {
           {service.description || `Service ${service.id}`}
         </option>
       ))}
-    </select>
+    </DesktopSelect>
   );
 
   return (
@@ -2270,7 +2271,7 @@ function PlanPricesAdminPanel() {
                     <label htmlFor={`pa-feature-min-${index}`}>
                       Minimum plan
                     </label>
-                    <select
+                    <DesktopSelect
                       id={`pa-feature-min-${index}`}
                       value={item.minPlan}
                       onChange={(e) =>
@@ -2291,7 +2292,7 @@ function PlanPricesAdminPanel() {
                       <option value="basic">Basic</option>
                       <option value="pro">Professional</option>
                       <option value="business">Premium</option>
-                    </select>
+                    </DesktopSelect>
                   </div>
                   <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-feature-name-${index}`}>Title EN</label>
@@ -3773,7 +3774,7 @@ function TimeSimulatorPanel() {
 
           <label style={{ display: "block", marginTop: 10, fontWeight: 700 }}>
             Tenant
-            <select
+            <DesktopSelect
               style={{ display: "block", width: "100%", marginTop: 6 }}
               value={selectedTenantId}
               onChange={(e) =>
@@ -3788,7 +3789,7 @@ function TimeSimulatorPanel() {
                   {t.name} (#{t.id})
                 </option>
               ))}
-            </select>
+            </DesktopSelect>
           </label>
 
           <div
@@ -4977,11 +4978,11 @@ function PlatformAnnouncementsPanel() {
             </label>
             <label className="platform-admin-field">
               <span>Severity</span>
-              <select value={severity} onChange={(event) => setSeverity(event.target.value)}>
+              <DesktopSelect value={severity} onChange={(event) => setSeverity(event.target.value)}>
                 <option value="NORMAL">Normal</option>
                 <option value="IMPORTANT">Important</option>
                 <option value="CRITICAL">Critical</option>
-              </select>
+              </DesktopSelect>
             </label>
             <label className="platform-admin-field">
               <span>Starts</span>
@@ -5238,8 +5239,8 @@ function DemoCallsAdminPanel() {
           </div>
           <div className="platform-admin-form-grid">
             <label className="platform-admin-field platform-admin-span-2"><span>Meeting title</span><input value={profile.title} onChange={(event) => patchProfile("title", event.target.value)} /></label>
-            <label className="platform-admin-field"><span>Host</span><select value={profile.hostUserId ?? ""} onChange={(event) => patchProfile("hostUserId", event.target.value ? Number(event.target.value) : null)}><option value="">Select host</option>{hosts.map((host) => <option key={host.id} value={host.id}>{host.name || host.email}</option>)}</select></label>
-            <label className="platform-admin-field"><span>Meeting provider</span><select value={profile.meetingProvider} onChange={(event) => patchProfile("meetingProvider", event.target.value)}><option value="GOOGLE_MEET">Google Meet</option><option value="ZOOM">Zoom</option></select></label>
+            <label className="platform-admin-field"><span>Host</span><DesktopSelect value={profile.hostUserId ?? ""} onChange={(event) => patchProfile("hostUserId", event.target.value ? Number(event.target.value) : null)}><option value="">Select host</option>{hosts.map((host) => <option key={host.id} value={host.id}>{host.name || host.email}</option>)}</DesktopSelect></label>
+            <label className="platform-admin-field"><span>Meeting provider</span><DesktopSelect value={profile.meetingProvider} onChange={(event) => patchProfile("meetingProvider", event.target.value)}><option value="GOOGLE_MEET">Google Meet</option><option value="ZOOM">Zoom</option></DesktopSelect></label>
             <label className="platform-admin-field"><span>Duration (minutes)</span><input type="number" min={15} max={180} value={profile.durationMinutes} onChange={(event) => patchProfile("durationMinutes", Number(event.target.value))} /></label>
             <label className="platform-admin-field"><span>Slot interval (minutes)</span><input type="number" min={5} max={180} value={profile.slotStepMinutes} onChange={(event) => patchProfile("slotStepMinutes", Number(event.target.value))} /></label>
             <label className="platform-admin-field"><span>Buffer before</span><input type="number" min={0} max={180} value={profile.bufferBeforeMinutes} onChange={(event) => patchProfile("bufferBeforeMinutes", Number(event.target.value))} /></label>
@@ -6852,7 +6853,7 @@ export function PlatformAdminPage() {
                                       <div className="platform-admin-manual-grid platform-admin-email-sender-form-grid">
                                         <div className="platform-admin-manual-field">
                                           <label>Mode</label>
-                                          <select
+                                          <DesktopSelect
                                             value={emailSenderDraft.mode === "CUSTOM_DOMAIN" ? "CUSTOM_DOMAIN" : "DEFAULT_CALENDRA"}
                                             onChange={(e) =>
                                               updateEmailSenderDraft({
@@ -6862,7 +6863,7 @@ export function PlatformAdminPage() {
                                           >
                                             <option value="DEFAULT_CALENDRA">Calendra domain</option>
                                             <option value="CUSTOM_DOMAIN">Custom domain</option>
-                                          </select>
+                                          </DesktopSelect>
                                         </div>
                                         <div className="platform-admin-manual-field">
                                           <label>Verified domain</label>
@@ -6876,7 +6877,7 @@ export function PlatformAdminPage() {
                                         </div>
                                         <div className="platform-admin-manual-field">
                                           <label>Verification status</label>
-                                          <select
+                                          <DesktopSelect
                                             value={emailSenderDraft.verificationStatus as TenantEmailSenderVerificationStatus}
                                             onChange={(e) =>
                                               updateEmailSenderDraft({
@@ -6890,7 +6891,7 @@ export function PlatformAdminPage() {
                                                 {option.label}
                                               </option>
                                             ))}
-                                          </select>
+                                          </DesktopSelect>
                                         </div>
                                       </div>
                                       <div
@@ -7186,7 +7187,7 @@ export function PlatformAdminPage() {
                 </div>
                 <div className="platform-admin-manual-field">
                   <label htmlFor="trialFollowUpLanguage">Email language</label>
-                  <select
+                  <DesktopSelect
                     id="trialFollowUpLanguage"
                     value={trialFollowUpLanguage}
                     disabled={trialFollowUpSending}
@@ -7197,7 +7198,7 @@ export function PlatformAdminPage() {
                     <option value="sl">Slovenian</option>
                     <option value="sr">Serbian</option>
                     <option value="en">English</option>
-                  </select>
+                  </DesktopSelect>
                 </div>
                 <div className="platform-admin-follow-up-note">
                   The email includes the phone number <strong>040 641 644</strong> and a
@@ -7308,7 +7309,7 @@ export function PlatformAdminPage() {
                   </div>
                   <div className="platform-admin-manual-field">
                     <label>Tip podjetja</label>
-                    <select
+                    <DesktopSelect
                       value={manualTenantForm.companyType}
                       onChange={(e) => updateManualTenantField("companyType", e.target.value)}
                     >
@@ -7317,7 +7318,7 @@ export function PlatformAdminPage() {
                           {option.labelSl}
                         </option>
                       ))}
-                    </select>
+                    </DesktopSelect>
                   </div>
                   <div className="platform-admin-manual-field">
                     <label>VAT ID</label>
@@ -7356,14 +7357,14 @@ export function PlatformAdminPage() {
                   </div>
                   <div className="platform-admin-manual-field">
                     <label>Language</label>
-                    <select
+                    <DesktopSelect
                       value={manualTenantForm.language}
                       onChange={(e) => updateManualTenantField("language", e.target.value)}
                     >
                       <option value="sl">Slovenian</option>
                       <option value="sr">Serbian</option>
                       <option value="en">English</option>
-                    </select>
+                    </DesktopSelect>
                   </div>
                 </div>
               </section>
@@ -7373,7 +7374,7 @@ export function PlatformAdminPage() {
                 <div className="platform-admin-manual-grid">
                   <div className="platform-admin-manual-field">
                     <label>Package</label>
-                    <select
+                    <DesktopSelect
                       value={manualTenantForm.packageName}
                       onChange={(e) => updateManualTenantField("packageName", e.target.value)}
                     >
@@ -7381,17 +7382,17 @@ export function PlatformAdminPage() {
                       <option value="PROFESSIONAL">Profesionalno</option>
                       <option value="PREMIUM">Premium</option>
                       <option value="CUSTOM">Custom</option>
-                    </select>
+                    </DesktopSelect>
                   </div>
                   <div className="platform-admin-manual-field">
                     <label>Billing interval</label>
-                    <select
+                    <DesktopSelect
                       value={manualTenantForm.billingInterval}
                       onChange={(e) => updateManualTenantField("billingInterval", e.target.value)}
                     >
                       <option value="MONTHLY">Monthly</option>
                       <option value="YEARLY">Yearly</option>
-                    </select>
+                    </DesktopSelect>
                   </div>
                   <div className="platform-admin-manual-field">
                     <label>Users</label>
@@ -7413,35 +7414,35 @@ export function PlatformAdminPage() {
                   </div>
                   <div className="platform-admin-manual-field">
                     <label>Payment method</label>
-                    <select
+                    <DesktopSelect
                       value={manualTenantForm.paymentMethod}
                       onChange={(e) => updateManualTenantField("paymentMethod", e.target.value)}
                     >
                       <option value="BANK_TRANSFER">Bank transfer</option>
                       <option value="CARD">Stripe / credit card</option>
-                    </select>
+                    </DesktopSelect>
                   </div>
                   <div className="platform-admin-manual-field">
                     <label>Access status</label>
-                    <select
+                    <DesktopSelect
                       value={manualTenantForm.accessStatus}
                       onChange={(e) => updateManualTenantField("accessStatus", e.target.value)}
                     >
                       <option value="ACTIVE">Active</option>
                       <option value="SUSPENDED">Suspended</option>
                       <option value="CANCELLED">Cancelled</option>
-                    </select>
+                    </DesktopSelect>
                   </div>
                   <div className="platform-admin-manual-field">
                     <label>Billing status</label>
-                    <select
+                    <DesktopSelect
                       value={manualTenantForm.billingStatus}
                       onChange={(e) => updateManualTenantField("billingStatus", e.target.value)}
                     >
                       <option value="PENDING_PAYMENT">Pending payment</option>
                       <option value="PAID">Paid</option>
                       <option value="PAST_DUE">Past due</option>
-                    </select>
+                    </DesktopSelect>
                   </div>
                   <div className="platform-admin-manual-field">
                     <label>Subscription start</label>
@@ -7631,15 +7632,15 @@ export function PlatformAdminPage() {
             </p>
             <div className="platform-admin-select-row" id="modalPlanRow">
               <label htmlFor="actionSelect">Action</label>
-              <select id="actionSelect">
+              <DesktopSelect id="actionSelect">
                 <option>Upgrade immediately</option>
-              </select>
+              </DesktopSelect>
             </div>
             {activeModalKind === "plan" && selected ? (
               <div id="planChangeExtras" className="platform-admin-plan-change-extras" hidden>
                 <div className="platform-admin-select-row">
                   <label htmlFor="planTargetSelect">New plan</label>
-                  <select id="planTargetSelect" />
+                  <DesktopSelect id="planTargetSelect" />
                 </div>
                 <p
                   id="planEffectiveDateHint"
