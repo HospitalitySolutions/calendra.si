@@ -1928,9 +1928,8 @@
     .calendar-edit-session-panel .form-row-layout.form-row-layout--booking > .calendar-booking-field--source {
         grid-column: 1 / -1;
     }
-}
 
-@media (max-width: 1024px) {
+
     .calendar-edit-session-panel .calendar-booking-source-card {
         min-height: 50px;
         gap: 10px;
@@ -4851,18 +4850,8 @@
         font-size: clamp(0.67rem, 2.9vw, 0.76rem);
     }
 
-    .calendar-edit-session-panel--new-create .booking-type-btn-label {
-        gap: 4px;
+    
     }
-
-    .calendar-edit-session-panel--new-create .booking-type-btn-icon,
-    .calendar-edit-session-panel--new-create .booking-type-btn-label > svg {
-        width: 16px;
-        min-width: 16px;
-        height: 16px;
-        flex-basis: 16px;
-    }
-}
 
 /* --------------------------------------------------------------------------
    Mobile add appointment: compact full-screen layout to match Uredi termin.
@@ -6653,12 +6642,6 @@
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.045);
 }
 
-.calendar-service-chain__head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
 
 .calendar-service-chain__head strong {
     color: #1e293b;
@@ -6949,9 +6932,8 @@
         grid-column: 2 / -1;
         justify-self: start;
     }
-}
 
-@media (max-width: 1024px) {
+
     .calendar-service-chain {
         gap: 10px;
         padding: 10px;
@@ -7068,14 +7050,6 @@
 }
 
 /* Single-service fallback + add-service picker for Dodaj/Uredi termin */
-.calendar-service-chain--single {
-    gap: 8px;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-}
 
 .calendar-service-chain--single .calendar-service-chain__single-field {
     display: grid;
@@ -7083,11 +7057,6 @@
     min-width: 0;
 }
 
-.calendar-service-chain__single-label {
-    color: #475569;
-    font-size: 0.88rem;
-    font-weight: 760;
-}
 
 .calendar-service-chain__single-row {
     display: grid;
@@ -7097,247 +7066,50 @@
     min-width: 0;
 }
 
-.calendar-edit-session-panel .calendar-service-chain__single-select {
-    width: 100%;
-    min-width: 0;
-    min-height: 46px;
-    padding: 9px 36px 9px 12px;
-    border: 1px solid #d8e0ea;
-    border-radius: 14px;
-    background: #fff;
-    color: #0f172a;
-    font-size: 0.98rem;
-    font-weight: 700;
-    outline: none;
-}
 
-.calendar-edit-session-panel .calendar-service-chain__single-select:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.11);
-}
 
 .calendar-service-chain__head {
     align-items: center;
 }
 
-.calendar-service-chain__head-copy {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-    flex-wrap: wrap;
-}
 
 .calendar-service-chain__head-copy strong {
     min-width: 0;
 }
 
-.calendar-edit-session-panel .calendar-service-chain__head-add {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-}
 
-.calendar-edit-session-panel .calendar-service-chain__head-add > span {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: #1d6ff2;
-}
 
-.calendar-service-picker-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 1200;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    background: rgba(15, 23, 42, 0.45);
-    backdrop-filter: blur(2px);
-}
 
-.calendar-service-picker-modal {
-    width: min(560px, 100%);
-    max-height: min(78vh, 720px);
-    overflow: hidden;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    border-radius: 24px;
-    border: 1px solid #dbe5f0;
-    background: #fff;
-    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
-}
 
-.calendar-service-picker-modal__header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 18px 20px 14px;
-    border-bottom: 1px solid #e2e8f0;
-}
 
-.calendar-service-picker-modal__header h3 {
-    margin: 0;
-    color: #0f172a;
-    font-size: 1.1rem;
-    font-weight: 850;
-    letter-spacing: -0.02em;
-}
 
-.calendar-service-picker-modal__header p {
-    margin: 5px 0 0;
-    color: #64748b;
-    font-size: 0.88rem;
-    line-height: 1.4;
-}
 
-.calendar-service-picker-modal__close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    min-width: 40px;
-    height: 40px;
-    border: 1px solid #dbe5f0;
-    border-radius: 12px;
-    background: #fff;
-    color: #475569;
-    cursor: pointer;
-}
 
-.calendar-service-picker-modal__close:hover {
-    background: #f8fafc;
-    border-color: #cbd5e1;
-}
 
-.calendar-service-picker-modal__list {
-    display: grid;
-    gap: 10px;
-    padding: 16px 20px 20px;
-    overflow: auto;
-}
 
-.calendar-service-picker-modal__item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    width: 100%;
-    padding: 14px 16px;
-    border: 1px solid #dbe5f0;
-    border-radius: 16px;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-    text-align: left;
-    cursor: pointer;
-    transition: border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
-}
 
-.calendar-service-picker-modal__item:hover {
-    border-color: #bfdbfe;
-    box-shadow: 0 8px 24px rgba(29, 78, 216, 0.08);
-    transform: translateY(-1px);
-}
 
-.calendar-service-picker-modal__item-copy {
-    display: grid;
-    gap: 4px;
-    min-width: 0;
-}
 
-.calendar-service-picker-modal__item-copy strong {
-    color: #0f172a;
-    font-size: 0.96rem;
-    font-weight: 820;
-}
 
-.calendar-service-picker-modal__item-copy span,
-.calendar-service-picker-modal__empty {
-    color: #64748b;
-    font-size: 0.84rem;
-    line-height: 1.35;
-}
 
-.calendar-service-picker-modal__item-action {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 36px;
-    padding: 6px 12px;
-    border-radius: 999px;
-    background: #eaf2ff;
-    color: #1267d8;
-    font-size: 0.82rem;
-    font-weight: 820;
-    white-space: nowrap;
-}
 
-.calendar-service-picker-modal__empty {
-    padding: 8px 2px;
-}
 
 @media (max-width: 1024px) {
-    .calendar-edit-session-panel .calendar-service-chain__single-select {
-        min-height: 44px;
-        font-size: 0.92rem;
-        border-radius: 13px;
-    }
-
+    
     .calendar-service-chain__single-label {
         font-size: 0.84rem;
     }
 
-    .calendar-service-chain__head-copy {
-        gap: 8px;
+    
+    
+    
+    
+    
+    
+    
+    
+    
     }
-
-    .calendar-service-picker-backdrop {
-        align-items: flex-end;
-        padding: 0;
-    }
-
-    .calendar-service-picker-modal {
-        width: 100%;
-        max-height: 82vh;
-        border-radius: 22px 22px 0 0;
-        border-bottom-left-radius: 0;
-        border-bottom-right-radius: 0;
-    }
-
-    .calendar-service-picker-modal__header {
-        padding: 16px 16px 12px;
-    }
-
-    .calendar-service-picker-modal__header h3 {
-        font-size: 1rem;
-    }
-
-    .calendar-service-picker-modal__header p {
-        font-size: 0.82rem;
-    }
-
-    .calendar-service-picker-modal__list {
-        padding: 14px 16px 18px;
-        gap: 8px;
-    }
-
-    .calendar-service-picker-modal__item {
-        padding: 12px 14px;
-        border-radius: 14px;
-    }
-
-    .calendar-service-picker-modal__item-copy strong {
-        font-size: 0.9rem;
-    }
-
-    .calendar-service-picker-modal__item-copy span,
-    .calendar-service-picker-modal__item-action,
-    .calendar-service-picker-modal__empty {
-        font-size: 0.78rem;
-    }
-}
 
 .calendar-service-chain__head-copy > span {
     display: inline-flex;
@@ -7353,12 +7125,7 @@
 }
 
 @media (max-width: 1024px) {
-    .calendar-service-chain__head-copy > span {
-        min-height: 25px;
-        padding: 3px 8px;
-        font-size: 0.75rem;
     }
-}
 
 /* Final Storitev redesign for single vs multiple service modes */
 .calendar-service-chain--multi {
@@ -8026,10 +7793,6 @@
 }
 
 /* The end time is derived from selected services; do not draw a lock square beside Datum. */
-.calendar-timespan-row--end-locked .calendar-timespan-field:nth-child(2)::after {
-    content: none !important;
-    display: none !important;
-}
 
 /* Final medium/desktop appointment layout.
    Apply from tablet/desktop widths so 940–980px browser windows do not fall back
@@ -10039,9 +9802,8 @@
         color: #020617 !important;
         outline: none !important;
     }
-}
 
-@media (min-width: 1025px) {
+
     .calendar-edit-session-panel .calendar-service-chain__single-row--with-edit {
         grid-template-columns: minmax(0, 1fr) 48px 48px !important;
         align-items: center !important;
