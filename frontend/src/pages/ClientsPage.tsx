@@ -1,4 +1,5 @@
 import { DesktopSelect } from '../components/DesktopSelect'
+import './clients/group-session-sync-dialog.css'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
