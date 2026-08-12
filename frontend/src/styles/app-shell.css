@@ -3585,8 +3585,10 @@ a.credentials-popover-action-btn {
     color: #ea580c;
 }
 
-/* Desktop content canvas: keep the management/reporting sections on the same white surface as their data cards.
- * Mobile/tablet (<= 1024px) intentionally keeps its existing page backgrounds and responsive treatment.
+
+/* Desktop canvas tint for management/reporting pages.
+ * Keep cards and data blocks white, but use the approved very light blue page background (#F7FAFF)
+ * on desktop only. Mobile/tablet styling remains unchanged.
  */
 @media (min-width: 1025px) {
     html:not([data-theme="dark"]) .main-area--clients,
@@ -3601,6 +3603,6 @@ a.credentials-popover-action-btn {
     html:not([data-theme="dark"]) .main-area--analytics > .content.content--analytics,
     html:not([data-theme="dark"]) .main-area--services > .content.content--services,
     html:not([data-theme="dark"]) .main-area--employees > .content.content--employees {
-        background: #ffffff;
+        background: #F7FAFF;
     }
 }
