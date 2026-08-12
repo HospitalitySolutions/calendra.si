@@ -3606,3 +3606,27 @@ a.credentials-popover-action-btn {
         background: #F7FAFF;
     }
 }
+
+
+/* Extend the desktop light-blue canvas to waitlist, configuration sections, and the consumables module.
+ * Cards remain white; only the page/canvas surface changes.
+ */
+@media (min-width: 1025px) {
+    html:not([data-theme="dark"]) .main-area--waitlist,
+    html:not([data-theme="dark"]) .main-area--configuration-account,
+    html:not([data-theme="dark"]) .main-area--configuration-notifications,
+    html:not([data-theme="dark"]) .main-area--configuration-reservation-rules,
+    html:not([data-theme="dark"]) .main-area--configuration-billing,
+    html:not([data-theme="dark"]) .main-area--configuration-detail-white,
+    html:not([data-theme="dark"]) .main-area--waitlist > .content.content--waitlist,
+    html:not([data-theme="dark"]) .main-area--configuration-account > .content.content--configuration-account,
+    html:not([data-theme="dark"]) .main-area--configuration-notifications > .content.content--configuration-notifications,
+    html:not([data-theme="dark"]) .main-area--configuration-reservation-rules > .content.content--configuration-reservation-rules,
+    html:not([data-theme="dark"]) .main-area--configuration-billing > .content.content--configuration-billing,
+    html:not([data-theme="dark"]) .main-area--configuration-detail-white > .content.content--configuration-detail-white,
+    html:not([data-theme="dark"]) .main-area:has(> .content .consumables-page),
+    html:not([data-theme="dark"]) .content:has(.consumables-page),
+    html:not([data-theme="dark"]) .consumables-page {
+        background: #F7FAFF;
+    }
+}
