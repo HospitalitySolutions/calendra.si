@@ -2,6 +2,12 @@
 	encode gzip
 	root * /usr/share/caddy
 
+	# Transactional application routes should be crawlable so search engines can
+	# see the noindex directive, but they must not appear in search results.
+	# Keep /narocanje itself indexable; only tenant booking flows are excluded.
+	@noindex_routes path /login /signup /signup/* /narocanje/*
+	header @noindex_routes X-Robots-Tag "noindex, follow"
+
 	# Vite build assets use content hashes in their filenames. Serve them as
 	# immutable files, and importantly: never fall back to index.html when an
 	# asset is missing. Returning index.html for a missing .js file produces a
