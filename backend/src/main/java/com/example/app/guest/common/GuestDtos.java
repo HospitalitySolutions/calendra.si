@@ -46,7 +46,7 @@ public final class GuestDtos {
             boolean modificationAllowed,
             /** Enables ordered multi-service selection in public booking channels. */
             boolean multipleServicesEnabled,
-            /** Concrete Guest App provider location. Membership remains company-level. */
+            /** Concrete Guest App provider location. Provider subscriptions are location-level. */
             String locationId,
             /** Stable UI identity for one company/location pair. */
             String providerId,

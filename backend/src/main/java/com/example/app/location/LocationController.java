@@ -111,6 +111,7 @@ public class LocationController {
 
     public record LocationResponse(
             Long id,
+            String locationCode,
             String name,
             String address,
             String postalCode,
@@ -481,10 +482,18 @@ public class LocationController {
         return normalized == null ? fallback : normalized;
     }
 
+    private static String locationCode(Location location) {
+        if (location == null || location.getId() == null || location.getCompany() == null) return null;
+        String tenantCode = location.getCompany().getTenantCode();
+        if (tenantCode == null || tenantCode.isBlank()) return null;
+        return tenantCode.trim() + "-" + location.getId();
+    }
+
     private static LocationResponse response(Location l) {
         InvoiceSeries series = l.getDefaultInvoiceSeries();
         return new LocationResponse(
                 l.getId(),
+                locationCode(l),
                 l.getName(),
                 l.getAddress(),
                 l.getPostalCode(),

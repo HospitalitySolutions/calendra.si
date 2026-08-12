@@ -13,8 +13,9 @@ import org.springframework.web.server.ResponseStatusException;
 /**
  * Single source of truth for Guest App location discovery and booking access.
  *
- * <p>Membership stays company-level. A provider shown/booked in the Guest App is a
- * concrete Location, and every booking path must resolve through the same rules.</p>
+ * <p>The company/client link stays as the shared identity bridge, while provider
+ * subscriptions and Guest App discovery are location-level. Every booking path must
+ * resolve through the same location rules.</p>
  */
 @Service
 public class GuestLocationAccessService {

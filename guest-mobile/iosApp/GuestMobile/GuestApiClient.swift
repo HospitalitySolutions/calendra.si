@@ -205,10 +205,16 @@ final class GuestApiClient {
         try await post(path: "api/guest/tenants/resolve-code", body: TenantCodePayload(tenantCode: code))
     }
 
-    func joinTenant(code: String) async throws {
+    func joinTenant(code: String, locationId: String? = nil) async throws {
         let _: EmptyResponse = try await post(
             path: "api/guest/tenants/join",
-            body: JoinTenantPayload(joinMethod: "TENANT_CODE", tenantCode: code, inviteCode: nil, companyId: nil)
+            body: JoinTenantPayload(
+                joinMethod: "TENANT_CODE",
+                tenantCode: code,
+                inviteCode: nil,
+                companyId: nil,
+                locationId: locationId
+            )
         )
     }
 

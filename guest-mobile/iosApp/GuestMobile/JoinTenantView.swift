@@ -161,7 +161,7 @@ struct JoinTenantView: View {
 
     private var modeButtons: some View {
         HStack(spacing: 10) {
-            JoinTenantModeButton(title: isSl ? "Vnesi kodo" : "Enter tenant code", mode: .code, selected: selectedMode == .code) {
+            JoinTenantModeButton(title: isSl ? "Vnesi kodo" : "Enter location code", mode: .code, selected: selectedMode == .code) {
                 selectedMode = .code
                 showCodePopup = true
             }
@@ -308,10 +308,10 @@ private struct JoinCodePopup: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(isSl ? "Pridružitev s kodo ponudnika" : "Join with tenant code")
+            Text(isSl ? "Pridružitev s kodo lokacije" : "Join with location code")
                 .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(actionBlue)
-            Text(isSl ? "Vnesite kodo, ki vam jo je posredoval ponudnik." : "Enter the code provided by the tenant.")
+            Text(isSl ? "Vnesite kodo lokacije, ki vam jo je posredoval ponudnik." : "Enter the location code provided by the provider.")
                 .font(.system(size: 14))
                 .foregroundStyle(mutedBlue)
 
@@ -319,7 +319,7 @@ private struct JoinCodePopup: View {
                 CodeModeGlyph()
                     .foregroundStyle(actionBlue)
                     .frame(width: 26, height: 20)
-                TextField("e.g. TEN-7X9K", text: $tenantCode)
+                TextField("e.g. 12AVI-3", text: $tenantCode)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(actionBlue)
                     .tint(actionBlue)

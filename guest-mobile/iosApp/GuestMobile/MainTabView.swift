@@ -1177,9 +1177,9 @@ private struct TenantCodeEntrySheet: View {
 
                 Text(isSl ? "Dodaj ponudnika s kodo" : "Add tenancy with code")
                     .font(.title2.weight(.bold))
-                Text(isSl ? "Vnesite kodo, ki ste jo prejeli od podjetja." : "Enter the tenancy code you received from the company.")
+                Text(isSl ? "Vnesite kodo lokacije, ki ste jo prejeli od ponudnika." : "Enter the location code you received from the provider.")
                     .foregroundColor(.secondary)
-                TextField(isSl ? "Koda ponudnika" : "Tenant code", text: $tenantCode)
+                TextField(isSl ? "Koda lokacije" : "Location code", text: $tenantCode)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
                     .padding(.horizontal, 16)

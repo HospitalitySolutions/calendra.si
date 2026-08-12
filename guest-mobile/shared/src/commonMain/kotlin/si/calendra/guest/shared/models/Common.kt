@@ -30,7 +30,7 @@ data class TenantSummary(
     val acceptedPaymentMethods: List<String> = emptyList(),
     /** Enables ordered multi-service selection for this tenant. */
     val multipleServicesEnabled: Boolean = false,
-    /** Concrete public provider branch. Company membership remains company-level. */
+    /** Concrete public provider branch. Provider subscriptions are location-level. */
     val locationId: String? = null,
     /** Stable identity for a company/location provider card. */
     val providerId: String? = null,

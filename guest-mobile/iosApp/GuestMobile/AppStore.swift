@@ -545,35 +545,29 @@ final class AppStore: ObservableObject {
     func joinTenant(code: String) async {
         let normalizedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedCode.isEmpty else {
-            errorMessage = "The QR code does not contain a tenancy code."
+            errorMessage = "The QR code does not contain a provider code."
             return
         }
         guard !usePreviewData else { applyPreview(); return }
         await run {
             let tenant = try await self.api.resolveTenant(code: normalizedCode)
-            try await self.api.joinTenant(code: normalizedCode)
-            if self.linkedTenants.contains(where: { $0.id == tenant.companyId }) == false {
-                // The lookup payload only carries public fields; billing/payment settings are
-                // filled in by refreshTenant(companyId:) below.
-                self.linkedTenants.append(
-                    TenantModel(
-                        id: tenant.companyId,
-                        name: tenant.companyName,
-                        description: tenant.publicDescription,
-                        city: tenant.publicCity,
-                        phone: tenant.publicPhone,
-                        status: "ACTIVE",
-                        companyAddress: tenant.companyAddress,
-                        tenantType: tenant.tenantType,
-                        employeeSelectionStep: tenant.employeeSelectionStep,
-                        useEmployeeContact: tenant.useEmployeeContact,
-                        cardImageUrl: tenant.cardImageUrl,
-                        logoImageUrl: tenant.logoImageUrl,
-                        iconImageUrl: tenant.iconImageUrl
-                    )
+            let locations = tenant.locations ?? []
+            let selectedLocationId: String?
+            if locations.count == 1 {
+                selectedLocationId = locations[0].locationId
+            } else if locations.count > 1 {
+                throw NSError(
+                    domain: "CalendraGuest",
+                    code: 400,
+                    userInfo: [NSLocalizedDescriptionKey: "This provider code has multiple locations. Enter or scan the code of the location you want to add."]
                 )
+            } else {
+                selectedLocationId = nil
             }
-            try await self.refreshTenant(companyId: tenant.companyId)
+            try await self.api.joinTenant(code: normalizedCode, locationId: selectedLocationId)
+            try await self.refreshAllTenantsThrowing()
+            self.selectedTenantId = nil
+            self.walletSelectedTenantId = self.linkedTenants.first?.id
         }
     }
 
@@ -584,13 +578,17 @@ final class AppStore: ObservableObject {
 
         guard !usePreviewData else {
             return previewPublicTenants(query: normalizedQuery, tenantType: normalizedType)
-                .filter { previewTenant in self.linkedTenants.contains(where: { $0.id == previewTenant.companyId }) == false }
+                .filter { previewTenant in
+                    let key = self.providerKey(previewTenant)
+                    return self.providerLocations.contains(where: { self.providerKey($0) == key }) == false
+                }
         }
 
         do {
             let tenants = try await api.searchTenants(query: normalizedQuery, tenantType: normalizedType)
             return tenants.filter { candidate in
-                self.linkedTenants.contains(where: { $0.id == candidate.companyId }) == false
+                let key = self.providerKey(candidate)
+                return self.providerLocations.contains(where: { self.providerKey($0) == key }) == false
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -1201,6 +1199,23 @@ final class AppStore: ObservableObject {
         }
     }
 
+    private func scopedProducts(companyId: String) async throws -> [ProductModel] {
+        let subscribedProviders = providerLocations.filter {
+            $0.companyId == companyId && !($0.locationId?.isEmpty ?? true)
+        }
+        var seen = Set<String>()
+        var products: [ProductModel] = []
+        for provider in subscribedProviders {
+            guard let locationId = provider.locationId, !locationId.isEmpty else { continue }
+            for product in try await api.products(companyId: companyId, locationId: locationId) {
+                if seen.insert(product.id).inserted {
+                    products.append(product)
+                }
+            }
+        }
+        return products
+    }
+
     private func fetchTenantDashboard(companyId: String) async throws -> TenantDashboardModel {
         if usePreviewData {
             return preview.dashboard(for: companyId)
@@ -1209,7 +1224,7 @@ final class AppStore: ObservableObject {
         let wallet = try await api.wallet(companyId: companyId)
         let history = try await api.history(companyId: companyId)
         let feed = try await api.notifications(companyId: companyId)
-        let catalog = try await api.products(companyId: companyId)
+        let catalog = try await scopedProducts(companyId: companyId)
         let inboxThread = (try await api.inboxThreads(companyId: companyId)).first
         return TenantDashboardModel(
             tenant: home.tenant,
@@ -1235,9 +1250,9 @@ final class AppStore: ObservableObject {
         } else if self.walletSelectedTenantId == nil {
             self.walletSelectedTenantId = linkedTenants.first?.id
         }
-        for tenant in linkedTenants {
-            try await refreshTenant(companyId: tenant.id)
-        }
+
+        // Provider subscriptions are location-level. Load them before company dashboards so
+        // every catalog request is scoped to the locations the guest actually subscribed to.
         if usePreviewData {
             providerLocations = linkedTenants.map { tenant in
                 TenantSummaryModel(
@@ -1263,11 +1278,19 @@ final class AppStore: ObservableObject {
                     publicBookingEnabled: true
                 )
             }
+        } else {
+            providerLocations = try await api.providerLocations()
+        }
+
+        for tenant in linkedTenants {
+            try await refreshTenant(companyId: tenant.id)
+        }
+
+        if usePreviewData {
             providerProducts = Dictionary(uniqueKeysWithValues: providerLocations.map { provider in
                 (providerKey(provider), tenantDashboards[provider.companyId]?.products ?? [])
             })
         } else {
-            providerLocations = try await api.providerLocations()
             var scopedProducts: [String: [ProductModel]] = [:]
             for provider in providerLocations where provider.publicBookingEnabled != false {
                 scopedProducts[providerKey(provider)] = try await api.products(companyId: provider.companyId, locationId: provider.locationId)

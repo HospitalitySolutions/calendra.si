@@ -8,6 +8,7 @@ import './operating-units.css'
 
 type OperatingLocation = {
   id: number
+  locationCode?: string | null
   name: string
   address?: string | null
   postalCode?: string | null
@@ -565,6 +566,11 @@ export function OperatingUnitsPanel({
               </div>
 
               <div className="ou-public-fields">
+                <label className="ou-field">
+                  <span>{sl ? 'Koda lokacije' : 'Location code'}</span>
+                  <input value={selectedLocation?.locationCode || '—'} readOnly />
+                  <small>{sl ? 'Gostje uporabijo to kodo za povezavo neposredno s to lokacijo v mobilni aplikaciji.' : 'Guests use this code to connect directly to this location in the mobile app.'}</small>
+                </label>
                 <label className="ou-field">
                   <span>{sl ? 'Javno ime' : 'Public name'}</span>
                   <input

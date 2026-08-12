@@ -14200,26 +14200,6 @@ export function ConfigurationPage() {
                             <GuestField
                               label={
                                 locale === "sl"
-                                  ? "Koda podjetja"
-                                  : "Tenant code"
-                              }
-                              hint={
-                                locale === "sl"
-                                  ? "Gostje uporabijo to kodo za pridružitev vašemu podjetju v mobilni aplikaciji."
-                                  : "Guests use this code to join your tenant from the mobile app."
-                              }
-                            >
-                              <input
-                                className="gapp-input"
-                                value={me.tenantCode || ""}
-                                readOnly
-                              />
-                            </GuestField>
-                          </div>
-                          <div className="gapp-column">
-                            <GuestField
-                              label={
-                                locale === "sl"
                                   ? "Uporabi kontakt zaposlenega"
                                   : "Use employee contact"
                               }

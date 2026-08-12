@@ -45,6 +45,13 @@ public class GuestTenantService {
     private final GuestLocationAccessService guestLocations;
     private final LocationPublicPresentationService locationPresentations;
 
+    /**
+     * Location subscription persistence is optional only to keep isolated unit tests/backwards
+     * compatibility constructors working. In the application context it is always present.
+     */
+    @Autowired(required = false)
+    private GuestLocationSubscriptionRepository locationSubscriptions;
+
     @Autowired(required = false)
     private PaymentMethodRepository paymentMethods;
 
@@ -80,9 +87,12 @@ public class GuestTenantService {
 
 
     public GuestDtos.TenantLookupResponse resolveByCode(String tenantCode) {
-        Company company = companies.findByTenantCodeIgnoreCase(tenantCode)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant not found."));
+        CodeResolution resolution = resolveCodeTarget(tenantCode);
+        Company company = resolution.company();
         var settings = guestSettings.publicSettings(company.getId());
+        List<GuestDtos.TenantSummaryResponse> locations = resolution.location() == null
+                ? locationSummaries(company, "ACTIVE")
+                : List.of(toLocationSummary(resolution.location(), settings, "ACTIVE"));
         return new GuestDtos.TenantLookupResponse(
                 String.valueOf(company.getId()),
                 GuestMapper.displayCompanyName(company, settings),
@@ -100,7 +110,7 @@ public class GuestTenantService {
                 settings.useEmployeeContact(),
                 settings.cancellationAllowed(),
                 settings.modificationAllowed(),
-                locationSummaries(company, "ACTIVE")
+                locations
         );
     }
 
@@ -164,7 +174,8 @@ public class GuestTenantService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest app is disabled for this tenant.");
         }
 
-        Long selectedLocationId = resolveJoinLocationId(company, request.locationId());
+        Location selectedLocation = resolveJoinLocation(company, joinMethod, request);
+        Long selectedLocationId = selectedLocation == null ? null : selectedLocation.getId();
 
         GuestTenantLink existing = links.findByGuestUserIdAndCompanyId(guestUser.getId(), company.getId()).orElse(null);
         MatchResult match = existing == null
@@ -182,6 +193,7 @@ public class GuestTenantService {
         link.setJoinedAt(existing != null ? existing.getJoinedAt() : Instant.now());
         link.setLastUsedAt(Instant.now());
         link = links.save(link);
+        activateLocationSubscription(link, selectedLocation, joinMethod);
 
         if (joinMethod == GuestJoinMethod.INVITE_LINK || joinMethod == GuestJoinMethod.QR_CODE) {
             String inviteCode = request.inviteCode();
@@ -204,6 +216,7 @@ public class GuestTenantService {
     public List<GuestDtos.TenantSummaryResponse> linkedTenants(GuestUser guestUser) {
         return links.findAllByGuestUserIdOrderByUpdatedAtDesc(guestUser.getId()).stream()
                 .filter(link -> link.getStatus() == GuestTenantLinkStatus.ACTIVE)
+                .filter(this::hasActiveLocationSubscription)
                 .map(link -> {
                     var settings = guestSettings.publicSettings(link.getCompany().getId());
                     var rules = guestSettings.bookingRules(link.getCompany().getId());
@@ -220,35 +233,52 @@ public class GuestTenantService {
     }
 
     /**
-     * Location-level providers available to the signed-in guest. The membership itself
-     * remains company-level, so one active link may expose several discoverable branches.
+     * Concrete provider locations subscribed by the signed-in guest. The company/client
+     * bridge remains internal so wallet, inbox and billing can keep one client identity per
+     * company, while Guest App discovery is strictly location-scoped.
      */
     public List<GuestDtos.TenantSummaryResponse> providers(GuestUser guestUser) {
-        List<GuestTenantLink> activeLinks = links.findAllByGuestUserIdOrderByUpdatedAtDesc(guestUser.getId()).stream()
-                .filter(link -> link.getStatus() == GuestTenantLinkStatus.ACTIVE)
-                .toList();
-        List<Long> companyIds = activeLinks.stream()
-                .map(link -> link.getCompany() == null ? null : link.getCompany().getId())
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        if (companyIds.isEmpty()) return List.of();
-        java.util.Map<Long, GuestTenantLink> linkByCompany = activeLinks.stream()
-                .filter(link -> link.getCompany() != null && link.getCompany().getId() != null)
-                .collect(java.util.stream.Collectors.toMap(
-                        link -> link.getCompany().getId(),
-                        link -> link,
-                        (first, ignored) -> first,
-                        java.util.LinkedHashMap::new
-                ));
+        if (locationSubscriptions == null) {
+            // Compatibility path for isolated tests/older contexts.
+            List<GuestTenantLink> activeLinks = links.findAllByGuestUserIdOrderByUpdatedAtDesc(guestUser.getId()).stream()
+                    .filter(link -> link.getStatus() == GuestTenantLinkStatus.ACTIVE)
+                    .toList();
+            List<Long> companyIds = activeLinks.stream()
+                    .map(link -> link.getCompany() == null ? null : link.getCompany().getId())
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .toList();
+            if (companyIds.isEmpty()) return List.of();
+            java.util.Map<Long, GuestTenantLink> linkByCompany = activeLinks.stream()
+                    .filter(link -> link.getCompany() != null && link.getCompany().getId() != null)
+                    .collect(java.util.stream.Collectors.toMap(
+                            link -> link.getCompany().getId(),
+                            link -> link,
+                            (first, ignored) -> first,
+                            java.util.LinkedHashMap::new
+                    ));
+            List<GuestDtos.TenantSummaryResponse> out = new ArrayList<>();
+            for (Location location : guestLocations.discoverableLocations(companyIds)) {
+                if (location.getCompany() == null) continue;
+                GuestTenantLink link = linkByCompany.get(location.getCompany().getId());
+                if (link == null) continue;
+                var settings = guestSettings.publicSettings(location.getCompany().getId());
+                if (!settings.guestAppEnabled()) continue;
+                out.add(toLocationSummary(location, settings, link.getStatus().name()));
+            }
+            return out;
+        }
+
         List<GuestDtos.TenantSummaryResponse> out = new ArrayList<>();
-        for (Location location : guestLocations.discoverableLocations(companyIds)) {
-            if (location.getCompany() == null) continue;
-            GuestTenantLink link = linkByCompany.get(location.getCompany().getId());
-            if (link == null) continue;
+        java.util.Set<Long> seenLocations = new java.util.LinkedHashSet<>();
+        for (GuestLocationSubscription subscription : locationSubscriptions.findAllActiveForGuest(
+                guestUser.getId(), GuestTenantLinkStatus.ACTIVE, GuestTenantLinkStatus.ACTIVE)) {
+            Location location = subscription.getLocation();
+            if (location == null || location.getId() == null || !seenLocations.add(location.getId())) continue;
+            if (!location.isActive() || !location.isGuestAppDiscoverable() || location.getCompany() == null) continue;
             var settings = guestSettings.publicSettings(location.getCompany().getId());
             if (!settings.guestAppEnabled()) continue;
-            out.add(toLocationSummary(location, settings, link.getStatus().name()));
+            out.add(toLocationSummary(location, settings, GuestTenantLinkStatus.ACTIVE.name()));
         }
         return out;
     }
@@ -259,6 +289,7 @@ public class GuestTenantService {
         enforceClientRemovalAllowed(link.getClient(), "Cannot unsubscribe while active sessions or entitlements exist.");
         link.setStatus(GuestTenantLinkStatus.LEFT);
         link.setLastUsedAt(Instant.now());
+        deactivateLocationSubscriptions(link);
         Client client = link.getClient();
         client.setActive(false);
         links.save(link);
@@ -279,6 +310,7 @@ public class GuestTenantService {
         link.setClient(client);
         link.setStatus(GuestTenantLinkStatus.LEFT);
         link.setLastUsedAt(Instant.now());
+        deactivateLocationSubscriptions(link);
         links.save(link);
         return new GuestDtos.TenantLinkResponse(
                 String.valueOf(link.getCompany().getId()),
@@ -291,7 +323,38 @@ public class GuestTenantService {
     public GuestTenantLink requireLink(GuestUser guestUser, Long companyId) {
         return links.findByGuestUserIdAndCompanyId(guestUser.getId(), companyId)
                 .filter(link -> link.getStatus() == GuestTenantLinkStatus.ACTIVE)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant membership not found."));
+                .filter(this::hasActiveLocationSubscription)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Provider subscription not found."));
+    }
+
+    public GuestTenantLink requireLocationSubscription(GuestUser guestUser, Long companyId, Long locationId) {
+        GuestTenantLink link = requireLink(guestUser, companyId);
+        if (locationId == null || locationSubscriptions == null) return link;
+        if (!locationSubscriptions.existsByTenantLinkIdAndLocationIdAndStatus(
+                link.getId(), locationId, GuestTenantLinkStatus.ACTIVE)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This location is not subscribed in the guest app.");
+        }
+        return link;
+    }
+
+    public List<Long> subscribedLocationIds(GuestUser guestUser, Long companyId) {
+        if (guestUser == null || companyId == null) return List.of();
+        GuestTenantLink link = links.findByGuestUserIdAndCompanyId(guestUser.getId(), companyId)
+                .filter(row -> row.getStatus() == GuestTenantLinkStatus.ACTIVE)
+                .orElse(null);
+        if (link == null) return List.of();
+        if (locationSubscriptions == null) {
+            return guestLocations.discoverableLocations(companyId).stream().map(Location::getId).toList();
+        }
+        return locationSubscriptions.findAllByTenantLinkIdAndStatusOrderByUpdatedAtDesc(
+                        link.getId(), GuestTenantLinkStatus.ACTIVE).stream()
+                .map(GuestLocationSubscription::getLocation)
+                .filter(Objects::nonNull)
+                .filter(location -> location.isActive() && location.isGuestAppDiscoverable())
+                .map(Location::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
     }
 
 
@@ -322,14 +385,22 @@ public class GuestTenantService {
         );
     }
 
-    private Long resolveJoinLocationId(Company company, String rawLocationId) {
+    private Location resolveJoinLocation(Company company, GuestJoinMethod joinMethod, GuestDtos.JoinTenantRequest request) {
         if (company == null) return null;
-        if (rawLocationId != null && !rawLocationId.isBlank()) {
-            Long locationId = parseId(rawLocationId);
-            return guestLocations.requireDiscoverable(company.getId(), locationId).getId();
+        if (request.locationId() != null && !request.locationId().isBlank()) {
+            return guestLocations.requireDiscoverable(company.getId(), parseId(request.locationId()));
+        }
+        if (joinMethod == GuestJoinMethod.TENANT_CODE) {
+            CodeResolution resolution = resolveCodeTarget(request.tenantCode());
+            if (resolution.location() != null) return resolution.location();
         }
         List<Location> visible = guestLocations.discoverableLocations(company.getId());
-        return visible.size() == 1 ? visible.get(0).getId() : null;
+        if (visible.size() == 1) return visible.get(0);
+        // Before location subscriptions were introduced a company code could create a company-wide
+        // membership. Keep that only for isolated legacy/unit-test contexts; production requires
+        // an unambiguous concrete location.
+        if (locationSubscriptions == null) return null;
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location selection is required.");
     }
 
     private static boolean matchesLocationSearch(
@@ -395,8 +466,7 @@ public class GuestTenantService {
 
     private Company resolveCompanyForJoin(GuestJoinMethod joinMethod, GuestDtos.JoinTenantRequest request) {
         return switch (joinMethod) {
-            case TENANT_CODE -> companies.findByTenantCodeIgnoreCase(safeText(request.tenantCode()))
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant not found."));
+            case TENANT_CODE -> resolveCodeTarget(request.tenantCode()).company();
             case INVITE_LINK, QR_CODE -> invites.findByCodeIgnoreCase(safeText(request.inviteCode()))
                     .filter(TenantInvite::isActive)
                     .map(TenantInvite::getCompany)
@@ -405,6 +475,73 @@ public class GuestTenantService {
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant not found."));
         };
     }
+
+    private CodeResolution resolveCodeTarget(String rawCode) {
+        String code = safeText(rawCode);
+        if (code.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Provider not found.");
+        }
+        Company direct = companies.findByTenantCodeIgnoreCase(code).orElse(null);
+        if (direct != null) return new CodeResolution(direct, null);
+
+        int separator = code.lastIndexOf('-');
+        if (separator <= 0 || separator >= code.length() - 1) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Provider not found.");
+        }
+        String companyCode = code.substring(0, separator);
+        Company company = companies.findByTenantCodeIgnoreCase(companyCode)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Provider not found."));
+        Long locationId = parseId(code.substring(separator + 1));
+        Location location = guestLocations.requireDiscoverable(company.getId(), locationId);
+        String expected = locationCode(location);
+        if (!expected.equalsIgnoreCase(code)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Provider not found.");
+        }
+        return new CodeResolution(company, location);
+    }
+
+    private static String locationCode(Location location) {
+        if (location == null || location.getId() == null || location.getCompany() == null) return "";
+        String tenantCode = safeText(location.getCompany().getTenantCode());
+        return tenantCode.isBlank() ? "" : tenantCode + "-" + location.getId();
+    }
+
+    private void activateLocationSubscription(GuestTenantLink link, Location location, GuestJoinMethod joinMethod) {
+        if (locationSubscriptions == null || link == null || link.getId() == null || location == null) return;
+        GuestLocationSubscription subscription = locationSubscriptions
+                .findByTenantLinkIdAndLocationId(link.getId(), location.getId())
+                .orElseGet(GuestLocationSubscription::new);
+        boolean newSubscription = subscription.getId() == null;
+        subscription.setTenantLink(link);
+        subscription.setLocation(location);
+        subscription.setStatus(GuestTenantLinkStatus.ACTIVE);
+        subscription.setJoinedVia(joinMethod == null ? GuestJoinMethod.TENANT_CODE : joinMethod);
+        if (newSubscription || subscription.getJoinedAt() == null) subscription.setJoinedAt(Instant.now());
+        subscription.setLastUsedAt(Instant.now());
+        locationSubscriptions.save(subscription);
+    }
+
+    private void deactivateLocationSubscriptions(GuestTenantLink link) {
+        if (locationSubscriptions == null || link == null || link.getId() == null) return;
+        List<GuestLocationSubscription> subscriptions = locationSubscriptions
+                .findAllByTenantLinkIdAndStatusOrderByUpdatedAtDesc(link.getId(), GuestTenantLinkStatus.ACTIVE);
+        if (subscriptions.isEmpty()) return;
+        Instant now = Instant.now();
+        subscriptions.forEach(subscription -> {
+            subscription.setStatus(GuestTenantLinkStatus.LEFT);
+            subscription.setLastUsedAt(now);
+        });
+        locationSubscriptions.saveAll(subscriptions);
+    }
+
+    private boolean hasActiveLocationSubscription(GuestTenantLink link) {
+        if (locationSubscriptions == null) return true;
+        if (link == null || link.getId() == null) return false;
+        return !locationSubscriptions.findAllByTenantLinkIdAndStatusOrderByUpdatedAtDesc(
+                link.getId(), GuestTenantLinkStatus.ACTIVE).isEmpty();
+    }
+
+    private record CodeResolution(Company company, Location location) {}
 
     private MatchResult matchOrCreateClient(Company company, GuestUser guestUser) {
         companies.findByIdForUpdate(company.getId())

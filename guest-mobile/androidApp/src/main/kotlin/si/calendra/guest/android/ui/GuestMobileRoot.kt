@@ -263,6 +263,9 @@ fun GuestMobileRoot() {
         )
     }
 
+    suspend fun scopedProductsForCompany(companyId: String): List<ProductSummary> =
+        loadScopedProviderProducts(repo, state.uiState.providerLocations, companyId)
+
     suspend fun refreshTenant(companyId: String) {
         if (state.uiState.linkedTenants.none { it.companyId == companyId }) return
         val home = repo.home(companyId)
@@ -271,7 +274,7 @@ fun GuestMobileRoot() {
         val dashboard = TenantDashboard(
             tenant = freshTenant,
             home = home,
-            products = repo.products(companyId),
+            products = scopedProductsForCompany(companyId),
             wallet = repo.wallet(companyId),
             history = repo.bookingHistory(companyId),
             notifications = repo.notifications(companyId).items,
@@ -317,8 +320,9 @@ fun GuestMobileRoot() {
                     tenantDashboards = state.uiState.tenantDashboards.filterKeys { activeTenantIds.contains(it) }
                 )
             }
-            state.uiState.linkedTenants.forEach { refreshTenant(it.companyId) }
             val providers = repo.providerLocations()
+            state.uiState = state.uiState.copy(providerLocations = providers)
+            state.uiState.linkedTenants.forEach { refreshTenant(it.companyId) }
             val providerProducts = linkedMapOf<String, List<ProductSummary>>()
             for (provider in providers) {
                 if (!provider.publicBookingEnabled) continue
@@ -955,7 +959,7 @@ fun GuestMobileRoot() {
                 JoinTenantScreen(
                     repository = repo,
                     languageCode = appUiLocale,
-                    subscribedTenantIds = state.uiState.linkedTenants.map { it.companyId }.toSet(),
+                    subscribedProviderIds = state.uiState.providerLocations.map(::providerKey).toSet(),
                     onJoinWithCode = { code ->
                         scope.launch {
                             runCatching {
@@ -1001,7 +1005,7 @@ fun GuestMobileRoot() {
                                     .onFailure { statusMessage = it.message ?: "Tenant join failed" }
                             }
                         } else {
-                            statusMessage = "The QR code does not contain a tenancy code."
+                            statusMessage = "The QR code does not contain a location code."
                         }
                     },
                     onBack = {
@@ -2870,9 +2874,23 @@ private suspend fun joinTenantWithCode(
     onPersistToken: (String) -> Unit = {}
 ) {
     val normalizedCode = extractTenantCode(code)
-        ?: throw IllegalArgumentException("The QR code does not contain a tenancy code.")
+        ?: throw IllegalArgumentException("The QR code does not contain a provider code.")
     val tenantLookup = repo.resolveTenant(normalizedCode)
-    repo.joinTenant(JoinTenantRequest(joinMethod = "TENANT_CODE", tenantCode = normalizedCode))
+    val selectedLocation = when (tenantLookup.locations.size) {
+        1 -> tenantLookup.locations.first()
+        0 -> null
+        else -> throw IllegalArgumentException(
+            "This provider code has multiple locations. Enter or scan the code of the location you want to add."
+        )
+    }
+    val selectedLocationId = selectedLocation?.locationId
+    repo.joinTenant(
+        JoinTenantRequest(
+            joinMethod = "TENANT_CODE",
+            tenantCode = normalizedCode,
+            locationId = selectedLocationId
+        )
+    )
     val updatedSession = repo.me()
     val token = state.uiState.session?.token.orEmpty()
     GuestSessionStore.authToken = token
@@ -2888,18 +2906,19 @@ private suspend fun joinTenantWithCode(
             status = "ACTIVE"
         )
     val home = repo.home(tenant.companyId)
+    val providerLocations = repo.providerLocations()
+    val dashboardProducts = loadScopedProviderProducts(repo, providerLocations, tenant.companyId)
     val dashboard = TenantDashboard(
         tenant = home.tenant,
         home = home,
-        products = repo.products(tenant.companyId),
+        products = dashboardProducts,
         wallet = repo.wallet(tenant.companyId),
         history = repo.bookingHistory(tenant.companyId),
         notifications = repo.notifications(tenant.companyId).items,
         inboxThread = repo.inboxThreads(tenant.companyId).firstOrNull()
     )
-    val providerLocations = repo.providerLocations()
     val providerProducts = providerLocations
-        .filter { it.publicBookingEnabled }
+        .filter { it.publicBookingEnabled && !it.locationId.isNullOrBlank() }
         .associate { provider ->
             providerKey(provider) to repo.products(provider.companyId, provider.locationId)
         }
@@ -2956,18 +2975,17 @@ private suspend fun joinPublicTenant(
         )
 
     val home = repo.home(tenant.companyId)
-
+    val providerLocations = repo.providerLocations()
     val dashboard = TenantDashboard(
         tenant = home.tenant,
         home = home,
-        products = repo.products(tenant.companyId),
+        products = loadScopedProviderProducts(repo, providerLocations, tenant.companyId),
         wallet = repo.wallet(tenant.companyId),
         history = repo.bookingHistory(tenant.companyId),
         notifications = repo.notifications(tenant.companyId).items,
         inboxThread = repo.inboxThreads(tenant.companyId).firstOrNull()
     )
 
-    val providerLocations = repo.providerLocations()
     val providerProducts = providerLocations
         .filter { it.publicBookingEnabled }
         .associate { provider ->
@@ -3261,6 +3279,22 @@ private fun aggregatedAccesses(state: GuestUiState): List<AccessCard> =
             }
         }
     }
+
+private suspend fun loadScopedProviderProducts(
+    repo: si.calendra.guest.shared.repository.GuestRepository,
+    providers: List<TenantSummary>,
+    companyId: String
+): List<ProductSummary> {
+    val merged = linkedMapOf<String, ProductSummary>()
+    for (provider in providers) {
+        if (provider.companyId != companyId) continue
+        val locationId = provider.locationId?.takeIf { it.isNotBlank() } ?: continue
+        repo.products(companyId, locationId).forEach { product ->
+            merged.putIfAbsent(product.productId, product)
+        }
+    }
+    return merged.values.toList()
+}
 
 private fun providerKey(provider: TenantSummary): String =
     provider.providerId?.takeIf { it.isNotBlank() }

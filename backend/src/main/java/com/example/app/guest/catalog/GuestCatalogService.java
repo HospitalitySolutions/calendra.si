@@ -13,6 +13,7 @@ import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.model.ProductType;
 import com.example.app.guest.model.VoucherRules;
 import com.example.app.guest.tenant.GuestLocationAccessService;
+import com.example.app.guest.tenant.GuestTenantService;
 import com.example.app.location.Location;
 import com.example.app.session.AvailabilityWindowGrid;
 import com.example.app.session.BookableSlot;
@@ -80,6 +81,9 @@ public class GuestCatalogService {
     private GuestLocationAccessService guestLocations;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private GuestTenantService guestTenantService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ConsultantLocationService consultantLocations;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
@@ -127,9 +131,31 @@ public class GuestCatalogService {
 
     @Transactional(readOnly = true)
     public List<GuestDtos.ProductResponse> products(Long companyId, Long locationId, GuestUser guestUser) {
+        if (guestUser != null && guestTenantService != null) {
+            if (locationId != null) {
+                guestTenantService.requireLocationSubscription(guestUser, companyId, locationId);
+            } else {
+                // Old mobile clients did not send locationId on the dashboard products call.
+                // Keep that endpoint compatible, but scope it to the guest's subscribed locations
+                // instead of falling back to the entire company.
+                guestTenantService.requireLink(guestUser, companyId);
+                List<Long> subscribedLocations = guestTenantService.subscribedLocationIds(guestUser, companyId);
+                java.util.LinkedHashMap<String, GuestDtos.ProductResponse> merged = new java.util.LinkedHashMap<>();
+                for (Long subscribedLocationId : subscribedLocations) {
+                    for (GuestDtos.ProductResponse product : productsForScope(companyId, subscribedLocationId, guestUser)) {
+                        merged.putIfAbsent(product.productId(), product);
+                    }
+                }
+                return List.copyOf(merged.values());
+            }
+        }
+        return productsForScope(companyId, locationId, guestUser);
+    }
+
+    private List<GuestDtos.ProductResponse> productsForScope(Long companyId, Long locationId, GuestUser guestUser) {
         SimulatedTimeContext.set(companyId);
         Location selectedLocation = locationId == null || guestLocations == null
-                ? null : guestLocations.resolveBookable(companyId, locationId);
+                ? null : guestLocations.requireDiscoverable(companyId, locationId);
         List<GuestDtos.ProductResponse> out = new ArrayList<>();
         boolean billingEnabled = !Boolean.FALSE.equals(guestSettings.billingEnabled(companyId));
         boolean coursesEnabled = courseModuleAccessService == null || courseModuleAccessService.isEnabled(companyId);
@@ -306,6 +332,7 @@ public class GuestCatalogService {
         if (guestLocations == null) {
             return availability(companyId, sessionTypeIds, dateText, consultantId, guestUser);
         }
+        requireSubscribedLocation(companyId, locationId, guestUser);
         Location location = guestLocations.resolveBookable(companyId, locationId);
         List<SessionType> chain = resolveGuestServiceChain(companyId, sessionTypeIds, guestUser);
         chain.forEach(type -> guestLocations.requireServiceAvailableAt(type, location));
@@ -498,6 +525,7 @@ public class GuestCatalogService {
             Long companyId, List<Long> sessionTypeIds, Long locationId, GuestUser guestUser
     ) {
         if (guestLocations == null) return consultants(companyId, sessionTypeIds, guestUser);
+        requireSubscribedLocation(companyId, locationId, guestUser);
         Location location = guestLocations.resolveBookable(companyId, locationId);
         List<SessionType> chain = resolveGuestServiceChain(companyId, sessionTypeIds, guestUser);
         chain.forEach(type -> guestLocations.requireServiceAvailableAt(type, location));
@@ -514,6 +542,7 @@ public class GuestCatalogService {
             Long companyId, Long locationId, List<Long> sessionTypeIds, GuestUser guestUser
     ) {
         if (guestLocations == null) return locationId;
+        requireSubscribedLocation(companyId, locationId, guestUser);
         Location location = guestLocations.resolveBookable(companyId, locationId);
         List<SessionType> chain = resolveGuestServiceChain(companyId, sessionTypeIds, guestUser);
         chain.forEach(type -> guestLocations.requireServiceAvailableAt(type, location));
@@ -779,6 +808,7 @@ public class GuestCatalogService {
 
     @Transactional(readOnly = true)
     public ResolvedProduct resolveProduct(Long companyId, String productId, Long locationId, GuestUser guestUser) {
+        requireSubscribedLocation(companyId, locationId, guestUser);
         if (productId == null || productId.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing product identifier.");
         if (productId.startsWith("session-")) {
             Long typeId = parseId(productId.substring("session-".length()));
@@ -1157,6 +1187,11 @@ public class GuestCatalogService {
 
     private ZoneId tenantZoneId(Long companyId) {
         return zoneId;
+    }
+
+    private void requireSubscribedLocation(Long companyId, Long locationId, GuestUser guestUser) {
+        if (guestUser == null || locationId == null || guestTenantService == null) return;
+        guestTenantService.requireLocationSubscription(guestUser, companyId, locationId);
     }
 
     private boolean isActuallyGuestBookable(Long companyId, Long consultantId, LocalDateTime start, LocalDateTime end, Long typeId, Long locationId) {

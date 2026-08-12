@@ -127,7 +127,7 @@ private val TitleText = Color(0xFF13264A)
 fun JoinTenantScreen(
     repository: GuestRepository,
     languageCode: String,
-    subscribedTenantIds: Set<String> = emptySet(),
+    subscribedProviderIds: Set<String> = emptySet(),
     onJoinWithCode: (String) -> Unit,
     onJoinPublicTenant: (String, String?) -> Unit,
     onQrScanned: (String) -> Unit,
@@ -145,10 +145,16 @@ fun JoinTenantScreen(
 
     BackHandler(onBack = onBack)
 
-    LaunchedEffect(selectedType.id, subscribedTenantIds, tenantQuery) {
+    LaunchedEffect(selectedType.id, subscribedProviderIds, tenantQuery) {
         loading = true
         tenants = runCatching { repository.searchTenants(tenantQuery.trim(), selectedType.id) }
-            .map { list -> list.filterNot { tenant -> subscribedTenantIds.contains(tenant.companyId) } }
+            .map { list ->
+                list.filterNot { tenant ->
+                    val providerId = tenant.providerId?.takeIf { it.isNotBlank() }
+                        ?: "${tenant.companyId}:${tenant.locationId.orEmpty()}"
+                    subscribedProviderIds.contains(providerId)
+                }
+            }
             .getOrElse { emptyList() }
         loading = false
     }
@@ -192,7 +198,7 @@ fun JoinTenantScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     JoinModeTile(
-                        label = if (isSl) "Vnesi kodo" else "Enter tenant code",
+                        label = if (isSl) "Vnesi kodo" else "Enter location code",
                         mode = JoinMode.Code,
                         selected = mode == JoinMode.Code,
                         modifier = Modifier.weight(1f),
@@ -802,7 +808,7 @@ private fun JoinWithCodePopup(
         ) {
             Column(modifier = Modifier.padding(horizontal = 22.dp, vertical = 24.dp)) {
                 Text(
-                    text = if (isSl) "Pridružitev s kodo ponudnika" else "Join with tenant code",
+                    text = if (isSl) "Pridružitev s kodo lokacije" else "Join with location code",
                     color = titleColor,
                     fontSize = 22.sp,
                     lineHeight = 27.sp,
@@ -810,7 +816,7 @@ private fun JoinWithCodePopup(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = if (isSl) "Vnesite kodo, ki vam jo je posredoval ponudnik." else "Enter the code provided by the tenant.",
+                    text = if (isSl) "Vnesite kodo lokacije, ki vam jo je posredoval ponudnik." else "Enter the location code provided by the provider.",
                     color = bodyColor,
                     fontSize = 13.sp,
                     lineHeight = 20.sp
@@ -823,7 +829,7 @@ private fun JoinWithCodePopup(
                         .fillMaxWidth()
                         .height(50.dp),
                     singleLine = true,
-                    placeholder = { Text("e.g. TEN-7X9K", color = placeholderColor, fontSize = 13.sp) },
+                    placeholder = { Text("e.g. 12AVI-3", color = placeholderColor, fontSize = 13.sp) },
                     leadingIcon = { PopupCodeGlyph() },
                     shape = RoundedCornerShape(18.dp),
                     textStyle = MaterialTheme.typography.bodyLarge.copy(
@@ -1044,7 +1050,7 @@ private fun JoinWithCodeSection(code: String, isSl: Boolean, onCodeChange: (Stri
         shadowElevation = 3.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(if (isSl) "Pridružitev s kodo ponudnika" else "Join with tenant code", color = TitleText, style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp), fontWeight = FontWeight.Bold)
+            Text(if (isSl) "Pridružitev s kodo lokacije" else "Join with location code", color = TitleText, style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp), fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(2.dp))
             Text(if (isSl) "Že imate kodo? Vnesite jo spodaj." else "Already have a code? Enter it below.", color = SoftText, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp))
             Spacer(Modifier.height(10.dp))
@@ -1054,7 +1060,7 @@ private fun JoinWithCodeSection(code: String, isSl: Boolean, onCodeChange: (Stri
                     onValueChange = onCodeChange,
                     modifier = Modifier.weight(1f).height(54.dp),
                     singleLine = true,
-                    placeholder = { Text("e.g. TEN-7X9K", fontSize = 14.sp) },
+                    placeholder = { Text("e.g. 12AVI-3", fontSize = 14.sp) },
                     shape = RoundedCornerShape(16.dp)
                 )
                 Button(
