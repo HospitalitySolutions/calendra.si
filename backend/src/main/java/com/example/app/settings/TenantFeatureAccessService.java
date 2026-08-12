@@ -5,6 +5,8 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -20,6 +22,11 @@ public class TenantFeatureAccessService {
     }
 
     public boolean isWaitlistEnabled(Long companyId) {
+        // Platform admins can inspect and manage tenant waitlist configuration even when
+        // the tenant itself is not entitled to the module. This mirrors the frontend
+        // platform-admin visibility rule, while public/background calls (without a
+        // SUPER_ADMIN security context) still enforce the tenant subscription.
+        if (isPlatformAdminRequest()) return true;
         return isPremiumOrSelectedCustomFeature(companyId, SettingKey.WAITLIST_ENABLED)
                 && isEnabled(companyId, SettingKey.WAITLIST_ENABLED, false);
     }
@@ -73,6 +80,13 @@ public class TenantFeatureAccessService {
                 .map(TenantFeatureAccessService::parseFeatureKeys)
                 .orElse(Set.of());
         return selected.contains(featureKey.name());
+    }
+
+    private static boolean isPlatformAdminRequest() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) return false;
+        return authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_SUPER_ADMIN".equals(authority.getAuthority()));
     }
 
     private static String normalizePackage(String value) {

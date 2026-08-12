@@ -75,6 +75,7 @@ public class ManualTenantService {
             new FeatureDefinition("LOCATIONS_ENABLED", "Multiple locations", SettingKey.LOCATIONS_ENABLED),
             new FeatureDefinition("SPACES_ENABLED", "Spaces / resources", SettingKey.SPACES_ENABLED),
             new FeatureDefinition("TYPES_ENABLED", "Services", SettingKey.TYPES_ENABLED),
+            new FeatureDefinition("CONSUMABLES_ENABLED", "Porabni material", SettingKey.CONSUMABLES_ENABLED),
             new FeatureDefinition("SERVICE_GROUPS_ENABLED", "Service groups", SettingKey.SERVICE_GROUPS_ENABLED),
             new FeatureDefinition("ENTITLEMENTS_ENABLED", "Entitlements", SettingKey.ENTITLEMENTS_ENABLED),
             new FeatureDefinition("COURSES_ENABLED", "Courses", SettingKey.COURSES_ENABLED),
@@ -655,6 +656,9 @@ public class ManualTenantService {
         }
         if (!out.contains("MULTIPLE_CLIENTS_PER_SESSION_ENABLED")) {
             out.remove("GROUP_BOOKING_ENABLED");
+        }
+        if (!out.contains("TYPES_ENABLED")) {
+            out.remove("CONSUMABLES_ENABLED");
         }
         if (!out.contains("BILLING_ENABLED")) {
             out.remove("MULTIPLE_COMPANIES_ENABLED");

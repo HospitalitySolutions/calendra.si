@@ -394,7 +394,9 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const isBillingRoute = location.pathname === '/billing' || location.pathname.startsWith('/billing/')
   const isScannerRoute = location.pathname === '/scanner' || location.pathname.startsWith('/scanner/')
   const isConfigurationRoute = location.pathname === '/configuration' || location.pathname.startsWith('/configuration/')
-  const configurationTab = isConfigurationRoute ? new URLSearchParams(location.search).get('tab') : null
+  const configurationTab = isConfigurationRoute
+    ? (new URLSearchParams(location.search).get('tab') ?? 'company')
+    : null
   const isGuestAppConfigurationRoute = isConfigurationRoute && configurationTab === 'guestApp'
   const isIntegrationsConfigurationRoute = isConfigurationRoute && configurationTab === 'integrations'
   const isAccountManagementRoute = isConfigurationRoute && configurationTab === 'company'
