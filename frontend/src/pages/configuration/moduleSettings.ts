@@ -156,7 +156,7 @@ export const normalizeModuleVisibilityPackage = (
     .trim()
     .toUpperCase()
     .replace(/[\s-]+/g, "_");
-  if (normalized === "PREMIUM") return "PREMIUM";
+  if (normalized === "PREMIUM" || normalized === "BUSINESS") return "PREMIUM";
   if (normalized === "PROFESSIONAL" || normalized === "PRO")
     return "PROFESSIONAL";
   return "BASIC";

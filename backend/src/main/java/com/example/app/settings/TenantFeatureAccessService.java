@@ -24,6 +24,11 @@ public class TenantFeatureAccessService {
                 && isEnabled(companyId, SettingKey.WAITLIST_ENABLED, false);
     }
 
+    public boolean areConsumablesEnabled(Long companyId) {
+        return isPremiumOrSelectedCustomFeature(companyId, SettingKey.CONSUMABLES_ENABLED)
+                && isEnabled(companyId, SettingKey.CONSUMABLES_ENABLED, false);
+    }
+
     public boolean areCustomFieldsEnabled(Long companyId) {
         return isPremiumOrSelectedCustomFeature(companyId, SettingKey.CUSTOM_FIELDS_ENABLED)
                 && isEnabled(companyId, SettingKey.CUSTOM_FIELDS_ENABLED, false);
@@ -49,7 +54,8 @@ public class TenantFeatureAccessService {
         if (companyId == null) return defaultValue;
         return settings.findByCompanyIdAndKey(companyId, key)
                 .map(AppSetting::getValue)
-                .map(value -> "true".equalsIgnoreCase(String.valueOf(value).trim()))
+                .map(value -> String.valueOf(value).trim())
+                .map(value -> "true".equalsIgnoreCase(value) || "1".equals(value))
                 .orElse(defaultValue);
     }
 
@@ -72,7 +78,7 @@ public class TenantFeatureAccessService {
     private static String normalizePackage(String value) {
         String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
         return switch (normalized) {
-            case "PREMIUM" -> "PREMIUM";
+            case "PREMIUM", "BUSINESS" -> "PREMIUM";
             case "CUSTOM" -> "CUSTOM";
             case "PROFESSIONAL", "PRO", "TRIAL" -> "PROFESSIONAL";
             default -> "BASIC";

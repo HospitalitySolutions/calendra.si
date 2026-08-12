@@ -11,6 +11,8 @@ export function normalizePackageType(raw?: string | null): PackageType {
       return normalized
     case 'PRO':
       return 'PROFESSIONAL'
+    case 'BUSINESS':
+      return 'PREMIUM'
     default:
       return 'CUSTOM'
   }

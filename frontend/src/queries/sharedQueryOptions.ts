@@ -5,6 +5,7 @@ import { queryKeys } from './queryKeys'
 type ScopeId = number | null | undefined
 
 type ModuleCapabilities = {
+  waitlistEnabled?: boolean
   consumablesEnabled?: boolean
   [key: string]: unknown
 }

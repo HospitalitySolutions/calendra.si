@@ -478,7 +478,6 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
         settingsData.ENTITLEMENTS_ENABLED !== 'false' &&
         settingsData.SCANNER_MODULE_ENABLED !== 'false',
       )
-      setWaitlistModuleEnabled(settingsData.WAITLIST_ENABLED === 'true')
       setSettingsLoaded(true)
     } else if (shellSettingsQuery.isError) {
       setSettingsLoaded(true)
@@ -487,8 +486,10 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
 
   useEffect(() => {
     if (shellModuleCapabilitiesQuery.data) {
-      setConsumablesModuleEnabled(shellModuleCapabilitiesQuery.data.consumablesEnabled !== false)
+      setWaitlistModuleEnabled(shellModuleCapabilitiesQuery.data.waitlistEnabled === true)
+      setConsumablesModuleEnabled(shellModuleCapabilitiesQuery.data.consumablesEnabled === true)
     } else if (shellModuleCapabilitiesQuery.isError) {
+      setWaitlistModuleEnabled(false)
       setConsumablesModuleEnabled(false)
     }
   }, [shellModuleCapabilitiesQuery.data, shellModuleCapabilitiesQuery.isError])

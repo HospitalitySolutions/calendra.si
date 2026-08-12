@@ -118,6 +118,7 @@ public class SettingsController {
     private final TenantFileS3Service fileStorage;
     private final GlobalPaymentProviderService globalPaymentProviders;
     private final GlobalConsumablesFeatureService globalConsumablesFeatureService;
+    private final TenantFeatureAccessService tenantFeatureAccessService;
     private final PlatformTenantAccountLinkService platformTenantAccountLinkService;
     private final CourseModuleAccessService courseModuleAccessService;
     private final TenantSmsQuotaService tenantSmsQuotaService;
@@ -138,6 +139,7 @@ public class SettingsController {
             TenantFileS3Service fileStorage,
             GlobalPaymentProviderService globalPaymentProviders,
             GlobalConsumablesFeatureService globalConsumablesFeatureService,
+            TenantFeatureAccessService tenantFeatureAccessService,
             PlatformTenantAccountLinkService platformTenantAccountLinkService,
             CourseModuleAccessService courseModuleAccessService,
             TenantSmsQuotaService tenantSmsQuotaService,
@@ -150,6 +152,7 @@ public class SettingsController {
         this.fileStorage = fileStorage;
         this.globalPaymentProviders = globalPaymentProviders;
         this.globalConsumablesFeatureService = globalConsumablesFeatureService;
+        this.tenantFeatureAccessService = tenantFeatureAccessService;
         this.platformTenantAccountLinkService = platformTenantAccountLinkService;
         this.courseModuleAccessService = courseModuleAccessService;
         this.tenantSmsQuotaService = tenantSmsQuotaService;
@@ -167,7 +170,20 @@ public class SettingsController {
             GlobalConsumablesFeatureService globalConsumablesFeatureService,
             PlatformTenantAccountLinkService platformTenantAccountLinkService
     ) {
-        this(repository, crypto, fileStorage, globalPaymentProviders, globalConsumablesFeatureService, platformTenantAccountLinkService, null, null, null, null, null);
+        this(
+                repository,
+                crypto,
+                fileStorage,
+                globalPaymentProviders,
+                globalConsumablesFeatureService,
+                new TenantFeatureAccessService(repository),
+                platformTenantAccountLinkService,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
     }
 
     @Autowired(required = false)
@@ -185,7 +201,7 @@ public class SettingsController {
     }
 
     public record PaymentProviderCapabilitiesResponse(boolean stripeEnabled, boolean paypalEnabled) {}
-    public record ModuleCapabilitiesResponse(boolean consumablesEnabled) {}
+    public record ModuleCapabilitiesResponse(boolean waitlistEnabled, boolean consumablesEnabled) {}
     public record SmsQuotaResponse(int quota, int used, int remaining, boolean warning, boolean exhausted) {}
 
     @GetMapping("/reservation-rules")
@@ -409,7 +425,11 @@ public class SettingsController {
 
     @GetMapping("/module-capabilities")
     public ModuleCapabilitiesResponse moduleCapabilities(@AuthenticationPrincipal User me) {
-        return new ModuleCapabilitiesResponse(globalConsumablesFeatureService.isEnabledForUser(me));
+        Long companyId = me == null || me.getCompany() == null ? null : me.getCompany().getId();
+        return new ModuleCapabilitiesResponse(
+                tenantFeatureAccessService.isWaitlistEnabled(companyId),
+                globalConsumablesFeatureService.isEnabledForCompany(companyId)
+        );
     }
 
     private TenantReservationRulesService.TenantReservationRules resolveReservationRules(Long companyId) {
@@ -912,7 +932,7 @@ public class SettingsController {
     private static int packageRank(String value) {
         String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
         return switch (normalized) {
-            case "PREMIUM", "CUSTOM" -> 3;
+            case "PREMIUM", "BUSINESS", "CUSTOM" -> 3;
             case "PROFESSIONAL", "PRO", "TRIAL" -> 2;
             default -> 1;
         };
@@ -922,7 +942,7 @@ public class SettingsController {
         String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
         return switch (normalized) {
             case "CUSTOM" -> "CUSTOM";
-            case "PREMIUM" -> "PREMIUM";
+            case "PREMIUM", "BUSINESS" -> "PREMIUM";
             case "PROFESSIONAL", "PRO", "TRIAL" -> "PROFESSIONAL";
             default -> "BASIC";
         };
@@ -940,7 +960,7 @@ public class SettingsController {
     private static String normalizeModuleVisibilityPackage(Object raw) {
         String normalized = raw == null ? "" : String.valueOf(raw).trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
         return switch (normalized) {
-            case "PREMIUM" -> "PREMIUM";
+            case "PREMIUM", "BUSINESS" -> "PREMIUM";
             case "PROFESSIONAL", "PRO" -> "PROFESSIONAL";
             default -> "BASIC";
         };

@@ -327,7 +327,6 @@ export default function App() {
         appSettingsQuery.data.ENTITLEMENTS_ENABLED !== 'false' &&
         appSettingsQuery.data.SCANNER_MODULE_ENABLED !== 'false',
       )
-      setWaitlistModuleEnabled(appSettingsQuery.data.WAITLIST_ENABLED === 'true')
     } else if (appSettingsQuery.isError) {
       setBillingModuleEnabled(true)
       setInboxModuleEnabled(true)
@@ -338,12 +337,15 @@ export default function App() {
 
   useEffect(() => {
     if (!user) {
+      setWaitlistModuleEnabled(false)
       setConsumablesModuleEnabled(false)
       return
     }
     if (moduleCapabilitiesQuery.data) {
-      setConsumablesModuleEnabled(moduleCapabilitiesQuery.data.consumablesEnabled !== false)
+      setWaitlistModuleEnabled(moduleCapabilitiesQuery.data.waitlistEnabled === true)
+      setConsumablesModuleEnabled(moduleCapabilitiesQuery.data.consumablesEnabled === true)
     } else if (moduleCapabilitiesQuery.isError) {
+      setWaitlistModuleEnabled(false)
       setConsumablesModuleEnabled(false)
     }
   }, [moduleCapabilitiesQuery.data, moduleCapabilitiesQuery.isError, user])
