@@ -1,0 +1,303 @@
+/*
+ * Desktop dropdown design system
+ * ------------------------------
+ * Keeps selection controls visually aligned with the "Skrbnik" dropdown on
+ * Pregled strank. This file is intentionally loaded last so desktop-only
+ * selection styling can normalize older page-specific dropdown variants
+ * without changing the mobile/tablet UI.
+ *
+ * Native <select> elements progressively opt into Chromium's customizable
+ * select UI (appearance: base-select). Browsers that do not support it retain
+ * their native picker while still receiving the matching closed-control style.
+ */
+
+@media (min-width: 1025px) {
+  :root {
+    --desktop-dropdown-border: #dbe3ef;
+    --desktop-dropdown-border-active: rgba(22, 114, 243, 0.45);
+    --desktop-dropdown-surface: #ffffff;
+    --desktop-dropdown-surface-hover: #f8fbff;
+    --desktop-dropdown-option-hover: #eff6ff;
+    --desktop-dropdown-text: #334155;
+    --desktop-dropdown-muted: #64748b;
+    --desktop-dropdown-primary: var(--color-primary, #1672f3);
+    --desktop-dropdown-control-radius: 14px;
+    --desktop-dropdown-option-radius: 10px;
+    --desktop-dropdown-control-shadow: 0 3px 10px rgba(15, 23, 42, 0.03);
+    --desktop-dropdown-menu-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+  }
+
+  /* Closed native selects: same surface/border language as Skrbnik. */
+  select:not([multiple]) {
+    border-color: var(--desktop-dropdown-border) !important;
+    border-radius: var(--desktop-dropdown-control-radius) !important;
+    background-color: var(--desktop-dropdown-surface) !important;
+    color: var(--desktop-dropdown-text) !important;
+    box-shadow: var(--desktop-dropdown-control-shadow) !important;
+    font-weight: 650;
+    cursor: pointer;
+    transition:
+      border-color 0.16s ease,
+      background-color 0.16s ease,
+      box-shadow 0.16s ease,
+      color 0.16s ease;
+  }
+
+  select:not([multiple]):hover:not(:disabled),
+  select:not([multiple]):focus,
+  select:not([multiple]):focus-visible,
+  select:not([multiple]):open {
+    border-color: var(--desktop-dropdown-border-active) !important;
+    background-color: var(--desktop-dropdown-surface-hover) !important;
+    color: var(--desktop-dropdown-primary) !important;
+    box-shadow: var(--desktop-dropdown-control-shadow) !important;
+    outline: none;
+  }
+
+  select:not([multiple]):disabled {
+    cursor: not-allowed;
+  }
+
+  /* Fully styled native picker where customizable <select> is supported. */
+  @supports (appearance: base-select) {
+    select:not([multiple]),
+    select:not([multiple])::picker(select) {
+      appearance: base-select !important;
+    }
+
+    select:not([multiple])::picker-icon {
+      color: var(--desktop-dropdown-muted);
+      margin-inline-start: auto;
+      transition: transform 0.16s ease, color 0.16s ease;
+    }
+
+    select:not([multiple]):open::picker-icon {
+      color: var(--desktop-dropdown-primary);
+      transform: rotate(180deg);
+    }
+
+    select:not([multiple])::picker(select) {
+      max-height: min(330px, calc(100vh - 48px));
+      margin-block-start: 8px;
+      padding: 7px;
+      border: 1px solid var(--desktop-dropdown-border);
+      border-radius: var(--desktop-dropdown-control-radius);
+      background: var(--desktop-dropdown-surface);
+      box-shadow: var(--desktop-dropdown-menu-shadow);
+      overflow-y: auto;
+    }
+
+    select:not([multiple]) option {
+      min-height: 42px;
+      padding: 8px 10px;
+      border: 0;
+      border-radius: var(--desktop-dropdown-option-radius);
+      background: transparent;
+      color: var(--desktop-dropdown-text);
+      font: inherit;
+      font-weight: 650;
+      line-height: 1.25;
+      cursor: pointer;
+    }
+
+    select:not([multiple]) option:hover,
+    select:not([multiple]) option:focus-visible {
+      background: var(--desktop-dropdown-option-hover);
+      color: var(--desktop-dropdown-primary);
+      outline: none;
+    }
+
+    select:not([multiple]) option:checked {
+      background: var(--desktop-dropdown-primary);
+      color: #ffffff;
+    }
+
+    select:not([multiple]) option::checkmark {
+      margin-inline-start: auto;
+      color: currentColor;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+
+    /* Avoid duplicate chevrons on legacy wrappers that already draw one. */
+    .unit-switcher-chevron,
+    .calendar-header-location-select-wrap > svg {
+      display: none !important;
+    }
+  }
+
+  /* Custom React selection dropdown triggers. Action menus are left alone. */
+  button[aria-haspopup="listbox"],
+  [role="button"][aria-haspopup="listbox"] {
+    border-color: var(--desktop-dropdown-border) !important;
+    border-radius: var(--desktop-dropdown-control-radius) !important;
+    background: var(--desktop-dropdown-surface) !important;
+    color: var(--desktop-dropdown-text) !important;
+    box-shadow: var(--desktop-dropdown-control-shadow) !important;
+    transition:
+      border-color 0.16s ease,
+      background-color 0.16s ease,
+      box-shadow 0.16s ease,
+      color 0.16s ease;
+  }
+
+  button[aria-haspopup="listbox"]:hover:not(:disabled),
+  button[aria-haspopup="listbox"][aria-expanded="true"],
+  [role="button"][aria-haspopup="listbox"]:hover,
+  [role="button"][aria-haspopup="listbox"][aria-expanded="true"] {
+    border-color: var(--desktop-dropdown-border-active) !important;
+    background: var(--desktop-dropdown-surface-hover) !important;
+    color: var(--desktop-dropdown-primary) !important;
+    box-shadow: var(--desktop-dropdown-control-shadow) !important;
+    transform: none;
+  }
+
+  /* Open custom listboxes: same radius, padding and floating shadow. */
+  [role="listbox"] {
+    border: 1px solid var(--desktop-dropdown-border) !important;
+    border-radius: var(--desktop-dropdown-control-radius) !important;
+    background: var(--desktop-dropdown-surface) !important;
+    box-shadow: var(--desktop-dropdown-menu-shadow) !important;
+    padding: 7px !important;
+  }
+
+  [role="listbox"] [role="option"] {
+    min-height: 42px;
+    border: 0 !important;
+    border-radius: var(--desktop-dropdown-option-radius) !important;
+    background: transparent !important;
+    color: var(--desktop-dropdown-text) !important;
+    box-shadow: none !important;
+    font-weight: 650;
+    transition: background-color 0.14s ease, color 0.14s ease;
+    transform: none !important;
+  }
+
+  [role="listbox"] [role="option"]:hover,
+  [role="listbox"] [role="option"]:focus-visible {
+    background: var(--desktop-dropdown-option-hover) !important;
+    color: var(--desktop-dropdown-primary) !important;
+    box-shadow: none !important;
+    outline: none;
+    transform: none !important;
+  }
+
+  [role="listbox"] [role="option"][aria-selected="true"],
+  [role="listbox"] [role="option"].active,
+  [role="listbox"] [role="option"].is-selected,
+  [role="listbox"] [role="option"].calendar-filter-dropdown-item--selected,
+  [role="listbox"] [role="option"].calendar-rail-filter-popup-item--selected {
+    background: var(--desktop-dropdown-primary) !important;
+    color: #ffffff !important;
+  }
+
+  [role="listbox"] [role="option"][aria-selected="true"] *,
+  [role="listbox"] [role="option"].active *,
+  [role="listbox"] [role="option"].is-selected *,
+  [role="listbox"] [role="option"].calendar-filter-dropdown-item--selected *,
+  [role="listbox"] [role="option"].calendar-rail-filter-popup-item--selected * {
+    color: inherit !important;
+  }
+
+  /* Legacy/custom selection pickers that predate the ARIA listbox pattern. */
+  .client-dropdown-panel,
+  .clients-location-picker-menu,
+  .cards-product-service-dropdown-menu {
+    border: 1px solid var(--desktop-dropdown-border) !important;
+    border-radius: var(--desktop-dropdown-control-radius) !important;
+    background: var(--desktop-dropdown-surface) !important;
+    box-shadow: var(--desktop-dropdown-menu-shadow) !important;
+    padding: 7px !important;
+  }
+
+  .clients-location-picker > summary,
+  .cards-product-service-dropdown > summary {
+    border-color: var(--desktop-dropdown-border) !important;
+    border-radius: var(--desktop-dropdown-control-radius) !important;
+    background: var(--desktop-dropdown-surface) !important;
+    color: var(--desktop-dropdown-text) !important;
+    box-shadow: var(--desktop-dropdown-control-shadow) !important;
+  }
+
+  .clients-location-picker > summary:hover,
+  .clients-location-picker[open] > summary,
+  .cards-product-service-dropdown > summary:hover,
+  .cards-product-service-dropdown[open] > summary,
+  .cards-product-service-dropdown > summary:focus-visible {
+    border-color: var(--desktop-dropdown-border-active) !important;
+    background: var(--desktop-dropdown-surface-hover) !important;
+    color: var(--desktop-dropdown-primary) !important;
+    box-shadow: var(--desktop-dropdown-control-shadow) !important;
+    outline: none;
+  }
+
+  .client-dropdown-panel .client-list-item,
+  .clients-location-picker-menu > button,
+  .cards-product-service-dropdown-option {
+    min-height: 42px;
+    border: 0 !important;
+    border-radius: var(--desktop-dropdown-option-radius) !important;
+    background: transparent !important;
+    color: var(--desktop-dropdown-text) !important;
+    box-shadow: none !important;
+    font-weight: 650;
+    transform: none !important;
+  }
+
+  .client-dropdown-panel .client-list-item:hover,
+  .clients-location-picker-menu > button:hover,
+  .cards-product-service-dropdown-option:hover {
+    background: var(--desktop-dropdown-option-hover) !important;
+    color: var(--desktop-dropdown-primary) !important;
+  }
+
+  .client-dropdown-panel .client-list-item.selected {
+    background: var(--desktop-dropdown-primary) !important;
+    color: #ffffff !important;
+  }
+
+  .client-dropdown-panel .client-list-item.selected * {
+    color: inherit !important;
+  }
+
+  /* Multi-select rows keep the same hover language but stay readable as a set. */
+  .clients-location-picker-menu > button.is-selected,
+  .cards-product-service-dropdown-option.is-selected {
+    background: var(--desktop-dropdown-option-hover) !important;
+    color: var(--desktop-dropdown-primary) !important;
+  }
+
+  /* Search fields inside dropdowns get the same restrained treatment. */
+  [role="listbox"] input[type="search"],
+  [role="listbox"] input[type="text"] {
+    border-color: var(--desktop-dropdown-border) !important;
+    border-radius: 10px !important;
+    background: #f8fafc !important;
+    color: var(--desktop-dropdown-text) !important;
+    box-shadow: none !important;
+  }
+
+  [role="listbox"] input[type="search"]:focus,
+  [role="listbox"] input[type="text"]:focus {
+    border-color: var(--desktop-dropdown-border-active) !important;
+    background: #ffffff !important;
+    box-shadow: 0 0 0 3px rgba(22, 114, 243, 0.10) !important;
+  }
+
+  /* Dark theme equivalent, retaining the same hierarchy. */
+  [data-theme="dark"] {
+    --desktop-dropdown-border: rgba(148, 163, 184, 0.28);
+    --desktop-dropdown-border-active: rgba(96, 165, 250, 0.62);
+    --desktop-dropdown-surface: #162033;
+    --desktop-dropdown-surface-hover: #1b2940;
+    --desktop-dropdown-option-hover: #203451;
+    --desktop-dropdown-text: #e2e8f0;
+    --desktop-dropdown-muted: #94a3b8;
+    --desktop-dropdown-menu-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
+  }
+
+  [data-theme="dark"] [role="listbox"] input[type="search"],
+  [data-theme="dark"] [role="listbox"] input[type="text"] {
+    background: #111c2e !important;
+  }
+}
