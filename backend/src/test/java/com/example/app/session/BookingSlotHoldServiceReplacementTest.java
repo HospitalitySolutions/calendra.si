@@ -68,8 +68,6 @@ class BookingSlotHoldServiceReplacementTest {
         previousHold.setHoldToken("old-token");
 
         when(companies.findByIdForUpdate(7L)).thenReturn(Optional.of(company));
-        when(locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(7L))
-                .thenReturn(List.of(location));
         for (long serviceTypeId : List.of(4L, 1L)) {
             SessionType type = new SessionType();
             type.setId(serviceTypeId);
@@ -84,6 +82,8 @@ class BookingSlotHoldServiceReplacementTest {
 
     @Test
     void replacementValidatesBeforeDeletingPreviousHold() {
+        when(locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(7L))
+                .thenReturn(List.of(location));
         LocalDateTime start = LocalDateTime.of(2026, 8, 13, 9, 0);
         LocalDateTime end = start.plusMinutes(90);
         LocalDateTime busyEnd = end.plusMinutes(10);
@@ -137,6 +137,8 @@ class BookingSlotHoldServiceReplacementTest {
 
     @Test
     void failedReplacementKeepsPreviousHold() {
+        when(locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(7L))
+                .thenReturn(List.of(location));
         LocalDateTime start = LocalDateTime.of(2026, 8, 13, 9, 0);
         when(bookingCreationService.validateServiceChainWindowAtLocation(
                 eq(7L),
@@ -165,6 +167,7 @@ class BookingSlotHoldServiceReplacementTest {
 
     @Test
     void guestHoldValidationCarriesClientAndLocation() {
+        when(locations.findByIdAndCompanyId(3L, 7L)).thenReturn(Optional.of(location));
         LocalDateTime start = LocalDateTime.of(2026, 8, 13, 9, 0);
         LocalDateTime end = start.plusMinutes(90);
         SessionServicePlanService.Plan plan = new SessionServicePlanService.Plan(
