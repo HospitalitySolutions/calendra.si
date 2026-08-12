@@ -194,6 +194,7 @@ private fun walletProductTypeLabel(type: String, languageCode: String, voucherMo
 
 data class WalletOfferCard(
     val companyId: String,
+    val locationId: String? = null,
     val productId: String,
     val name: String,
     val productType: String,

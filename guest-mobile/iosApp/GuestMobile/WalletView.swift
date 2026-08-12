@@ -858,7 +858,8 @@ struct WalletView: View {
                 companyId: offer.companyId,
                 productId: offer.productId,
                 slotId: nil,
-                paymentMethod: paymentMethod
+                paymentMethod: paymentMethod,
+                locationId: offer.locationId
             )
             switch paymentMethod {
             case "BANK_TRANSFER":

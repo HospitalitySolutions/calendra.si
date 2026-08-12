@@ -325,9 +325,9 @@ fun GuestMobileRoot() {
             state.uiState.linkedTenants.forEach { refreshTenant(it.companyId) }
             val providerProducts = linkedMapOf<String, List<ProductSummary>>()
             for (provider in providers) {
-                if (!provider.publicBookingEnabled) continue
+                val locationId = provider.locationId?.takeIf { it.isNotBlank() } ?: continue
                 val key = providerKey(provider)
-                providerProducts[key] = repo.products(provider.companyId, provider.locationId)
+                providerProducts[key] = repo.products(provider.companyId, locationId)
             }
             state.uiState = state.uiState.copy(
                 providerLocations = providers,
@@ -1482,7 +1482,8 @@ fun GuestMobileRoot() {
                                                 companyId = offer.companyId,
                                                 productId = offer.productId,
                                                 paymentMethodType = paymentMethod,
-                                                locale = appUiLocale
+                                                locale = appUiLocale,
+                                                locationId = offer.locationId
                                             )
                                         )
                                         repo.checkout(
@@ -3025,9 +3026,9 @@ private suspend fun refreshAfterSuccessfulJoin(
     if (effectiveProviders.isNotEmpty()) {
         val providerProducts = state.uiState.providerProducts.toMutableMap()
         for (provider in effectiveProviders) {
-            if (!provider.publicBookingEnabled || provider.locationId.isNullOrBlank()) continue
+            val locationId = provider.locationId?.takeIf { it.isNotBlank() } ?: continue
             val key = providerKey(provider)
-            runCatching { repo.products(provider.companyId, provider.locationId) }
+            runCatching { repo.products(provider.companyId, locationId) }
                 .onSuccess { providerProducts[key] = it }
                 .onFailure {
                     if (BuildConfig.DEBUG) Log.w(
@@ -3128,12 +3129,54 @@ private fun walletAccessesForTenant(state: GuestUiState, tenantId: String): List
     }
 }
 
-private fun walletOffersForTenant(state: GuestUiState, tenantId: String): List<WalletOfferCard> =
-    state.tenantDashboards[tenantId]?.products.orEmpty()
+private fun walletOffersForTenant(state: GuestUiState, tenantId: String): List<WalletOfferCard> {
+    val providers = state.providerLocations.filter { provider ->
+        provider.companyId == tenantId && !provider.locationId.isNullOrBlank()
+    }
+    val scopedOffers = providers.flatMap { provider ->
+        val key = providerKey(provider)
+        state.providerProducts[key].orEmpty()
+            .filter { product -> isWalletBuyOfferProduct(product.bookable, product.productType) }
+            .map { product ->
+                WalletOfferCard(
+                    companyId = tenantId,
+                    locationId = provider.locationId,
+                    productId = product.productId,
+                    name = product.name,
+                    productType = product.productType,
+                    priceGross = product.priceGross,
+                    currency = product.currency,
+                    description = product.description,
+                    sessionTypeName = product.sessionTypeName,
+                    promoText = product.promoText,
+                    validityDays = product.validityDays,
+                    usageLimit = product.usageLimit,
+                    voucherRedemptionMode = product.voucherRedemptionMode,
+                    voucherServiceScope = product.voucherServiceScope,
+                    voucherFaceValueGross = product.voucherFaceValueGross,
+                    voucherSessionTypeIds = product.voucherSessionTypeIds,
+                    voucherSessionTypeNames = product.voucherSessionTypeNames
+                )
+            }
+    }
+    if (scopedOffers.isNotEmpty()) {
+        return scopedOffers
+            .distinctBy { offer -> "${offer.locationId}:${offer.productId}" }
+            .sortedBy { it.name }
+    }
+
+    // Transitional/preview fallback: if providerProducts has not been hydrated yet, retain
+    // a location only when this tenant has exactly one subscribed branch. Never guess when
+    // multiple branches are subscribed.
+    val fallbackLocationId = providers.mapNotNull { it.locationId?.takeIf { value -> value.isNotBlank() } }
+        .distinct()
+        .singleOrNull()
+    return state.tenantDashboards[tenantId]?.products.orEmpty()
         .filter { product -> isWalletBuyOfferProduct(product.bookable, product.productType) }
         .map { product ->
             WalletOfferCard(
                 companyId = tenantId,
+                locationId = fallbackLocationId,
                 productId = product.productId,
                 name = product.name,
                 productType = product.productType,
@@ -3143,10 +3186,16 @@ private fun walletOffersForTenant(state: GuestUiState, tenantId: String): List<W
                 sessionTypeName = product.sessionTypeName,
                 promoText = product.promoText,
                 validityDays = product.validityDays,
-                usageLimit = product.usageLimit
+                usageLimit = product.usageLimit,
+                voucherRedemptionMode = product.voucherRedemptionMode,
+                voucherServiceScope = product.voucherServiceScope,
+                voucherFaceValueGross = product.voucherFaceValueGross,
+                voucherSessionTypeIds = product.voucherSessionTypeIds,
+                voucherSessionTypeNames = product.voucherSessionTypeNames
             )
         }
         .sortedBy { it.name }
+}
 
 
 private fun isWalletBuyOfferProduct(bookable: Boolean, productType: String): Boolean {
@@ -3407,30 +3456,9 @@ private fun aggregatedRedeemableEntitlements(state: GuestUiState): List<Redeemab
     }
 
 private fun aggregatedWalletOffers(state: GuestUiState): List<WalletOfferCard> =
-    selectedTenantIds(state).flatMap { tenantId ->
-        state.tenantDashboards[tenantId]?.products.orEmpty()
-            .filter { product -> isWalletBuyOfferProduct(product.bookable, product.productType) }
-            .map { product ->
-                WalletOfferCard(
-                    companyId = tenantId,
-                    productId = product.productId,
-                    name = product.name,
-                    productType = product.productType,
-                    priceGross = product.priceGross,
-                    currency = product.currency,
-                    description = product.description,
-                    sessionTypeName = product.sessionTypeName,
-                    promoText = product.promoText,
-                    validityDays = product.validityDays,
-                    usageLimit = product.usageLimit,
-                    voucherRedemptionMode = product.voucherRedemptionMode,
-                    voucherServiceScope = product.voucherServiceScope,
-                    voucherFaceValueGross = product.voucherFaceValueGross,
-                    voucherSessionTypeIds = product.voucherSessionTypeIds,
-                    voucherSessionTypeNames = product.voucherSessionTypeNames
-                )
-            }
-    }.sortedBy { it.name }
+    selectedTenantIds(state)
+        .flatMap { tenantId -> walletOffersForTenant(state, tenantId) }
+        .sortedBy { it.name }
 
 private fun findTenantForEntitlement(state: GuestUiState, entitlementId: String): String? =
     state.tenantDashboards.entries.firstOrNull { (_, dashboard) ->

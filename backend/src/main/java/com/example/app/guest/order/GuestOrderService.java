@@ -217,12 +217,29 @@ public class GuestOrderService {
         Long companyId = parseId(request.companyId());
         GuestTenantLink link = guestTenantService.requireLink(guestUser, companyId);
         ClientOnlineAccessGuard.requireAllowed(link.getClient(), guestUser == null ? null : guestUser.getLanguage());
+
+        Long requestedLocationId = parseNullableLocationId(request.locationId());
+        Long orderLocationHint = requestedLocationId;
+        if (orderLocationHint == null && channel == PaymentChannel.GUEST) {
+            List<Long> subscribedLocationIds = guestTenantService.subscribedLocationIds(guestUser, companyId);
+            if (subscribedLocationIds.size() == 1) {
+                orderLocationHint = subscribedLocationIds.getFirst();
+            }
+        }
+        if (orderLocationHint == null && locations != null && channel != PaymentChannel.GUEST) {
+            List<Location> activeLocations = locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(companyId);
+            if (activeLocations.size() == 1) {
+                orderLocationHint = activeLocations.getFirst().getId();
+            }
+        }
+
         List<OrderServiceLine> serviceLines = resolveOrderServiceLines(
                 companyId,
                 request,
                 guestUser,
                 link.getClient(),
-                channel
+                channel,
+                orderLocationHint
         );
         boolean entitlementRequested = normalizeId(request.entitlementId()) != null
                 || (request.services() != null && request.services().stream()
@@ -235,7 +252,7 @@ public class GuestOrderService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Entitlements are disabled for this tenant.");
         }
         var product = serviceLines.get(0).product();
-        String resolvedLocationId = request.locationId();
+        String resolvedLocationId = orderLocationHint == null ? request.locationId() : String.valueOf(orderLocationHint);
         if (channel == PaymentChannel.GUEST && request.slotId() != null && !request.slotId().isBlank()
                 && serviceLines.stream().anyMatch(line -> isSessionLikeProductType(line.product().productType()))) {
             List<Long> bookingServiceTypeIds = serviceLines.stream()
@@ -246,12 +263,12 @@ public class GuestOrderService {
                     .filter(Objects::nonNull)
                     .toList();
             Long selectedLocationId = catalogService.requireGuestBookableLocation(
-                    companyId, parseNullableLocationId(request.locationId()), bookingServiceTypeIds, guestUser
+                    companyId, parseNullableLocationId(resolvedLocationId), bookingServiceTypeIds, guestUser
             );
             resolvedLocationId = selectedLocationId == null ? null : String.valueOf(selectedLocationId);
         }
         Location resolvedOrderLocation = resolveOrderLocation(
-                companyId, parseNullableLocationId(resolvedLocationId), serviceLines);
+                companyId, parseNullableLocationId(resolvedLocationId), serviceLines, guestUser, channel);
         if (resolvedOrderLocation != null) {
             resolvedLocationId = String.valueOf(resolvedOrderLocation.getId());
             validateSelectedEntitlementLines(
@@ -332,16 +349,33 @@ public class GuestOrderService {
         return new GuestDtos.CreateOrderResponse(toOrder(order), bookingSummary, "CHECKOUT");
     }
 
-    private Location resolveOrderLocation(Long companyId, Long requestedLocationId, List<OrderServiceLine> serviceLines) {
+    private Location resolveOrderLocation(
+            Long companyId,
+            Long requestedLocationId,
+            List<OrderServiceLine> serviceLines,
+            GuestUser guestUser,
+            PaymentChannel channel
+    ) {
         if (locations == null) return null; // Backwards-compatible unit-test wiring; runtime always injects LocationRepository.
         List<Location> active = locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(companyId);
         Location selected = null;
         if (requestedLocationId != null) {
+            if (channel == PaymentChannel.GUEST) {
+                guestTenantService.requireLocationSubscription(guestUser, companyId, requestedLocationId);
+            }
             selected = locations.findByIdAndCompanyId(requestedLocationId, companyId)
                     .filter(Location::isActive)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location is not available."));
         } else {
-            List<Location> eligible = active.stream()
+            List<Location> candidates = active;
+            if (channel == PaymentChannel.GUEST) {
+                java.util.Set<Long> subscribedLocationIds = new LinkedHashSet<>(
+                        guestTenantService.subscribedLocationIds(guestUser, companyId));
+                candidates = active.stream()
+                        .filter(location -> location.getId() != null && subscribedLocationIds.contains(location.getId()))
+                        .toList();
+            }
+            List<Location> eligible = candidates.stream()
                     .filter(location -> serviceLines == null || serviceLines.stream().allMatch(line -> {
                         GuestProduct persisted = line == null || line.product() == null ? null : line.product().persistedProduct();
                         return persisted == null || commerceLocations == null
@@ -508,14 +542,10 @@ public class GuestOrderService {
             GuestDtos.CreateOrderRequest request,
             GuestUser guestUser,
             Client client,
-            PaymentChannel channel
+            PaymentChannel channel,
+            Long orderLocationId
     ) {
         List<GuestDtos.SelectedServiceRequest> requested = request.services();
-        Long orderLocationId = parseNullableLocationId(request.locationId());
-        if (orderLocationId == null && locations != null) {
-            List<Location> activeLocations = locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(companyId);
-            if (activeLocations.size() == 1) orderLocationId = activeLocations.getFirst().getId();
-        }
         if (requested == null || requested.isEmpty()) {
             String productId = normalizeId(request.productId());
             GuestCatalogService.ResolvedProduct product;

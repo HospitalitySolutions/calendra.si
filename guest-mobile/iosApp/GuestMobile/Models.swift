@@ -953,6 +953,7 @@ struct AccessCardModel: Identifiable, Hashable {
 struct WalletOfferModel: Identifiable, Hashable {
     let id: String
     let companyId: String
+    let locationId: String?
     let productId: String
     let name: String
     let productType: String

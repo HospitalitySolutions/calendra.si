@@ -231,32 +231,7 @@ final class AppStore: ObservableObject {
 
     var walletScopedOffers: [WalletOfferModel] {
         guard let tenantId = walletScopedTenantId else { return [] }
-        guard let dashboard = tenantDashboards[tenantId] else { return [] }
-        guard dashboard.tenant.billingEnabled != false else { return [] }
-        return dashboard.products
-            .filter { isWalletBuyOfferProduct($0) }
-            .map {
-                WalletOfferModel(
-                    id: "\(tenantId)-\($0.id)",
-                    companyId: tenantId,
-                    productId: $0.id,
-                    name: $0.name,
-                    productType: normalizedWalletProductType($0.productType),
-                    priceGross: $0.priceGross,
-                    currency: $0.currency,
-                    description: $0.description,
-                    sessionTypeName: $0.sessionTypeName,
-                    promoText: $0.promoText,
-                    validityDays: $0.validityDays,
-                    usageLimit: $0.usageLimit,
-                    voucherRedemptionMode: $0.voucherRedemptionMode,
-                    voucherServiceScope: $0.voucherServiceScope,
-                    voucherFaceValueGross: $0.voucherFaceValueGross,
-                    voucherSessionTypeIds: $0.voucherSessionTypeIds ?? [],
-                    voucherSessionTypeNames: $0.voucherSessionTypeNames
-                )
-            }
-            .sorted { $0.name < $1.name }
+        return walletOffersForTenant(tenantId)
     }
 
     var walletScopedOrderCards: [WalletOrderCardModel] {
@@ -290,34 +265,85 @@ final class AppStore: ObservableObject {
     }
 
     var walletOffers: [WalletOfferModel] {
-        activeTenantIds.flatMap { tenantId -> [WalletOfferModel] in
-            guard let dashboard = tenantDashboards[tenantId] else { return [] }
-            guard dashboard.tenant.billingEnabled != false else { return [] }
-            return dashboard.products
+        activeTenantIds
+            .flatMap { tenantId in walletOffersForTenant(tenantId) }
+            .sorted { $0.name < $1.name }
+    }
+
+    private func walletOffersForTenant(_ tenantId: String) -> [WalletOfferModel] {
+        guard let dashboard = tenantDashboards[tenantId] else { return [] }
+        guard dashboard.tenant.billingEnabled != false else { return [] }
+
+        let providers = providerLocations.filter { provider in
+            provider.companyId == tenantId && !(provider.locationId?.isEmpty ?? true)
+        }
+        let scopedOffers = providers.flatMap { provider -> [WalletOfferModel] in
+            let key = providerKey(provider)
+            return (providerProducts[key] ?? [])
                 .filter { isWalletBuyOfferProduct($0) }
-                .map {
+                .map { product in
                     WalletOfferModel(
-                        id: "\(tenantId)-\($0.id)",
+                        id: "\(key)-\(product.id)",
                         companyId: tenantId,
-                        productId: $0.id,
-                        name: $0.name,
-                        productType: normalizedWalletProductType($0.productType),
-                        priceGross: $0.priceGross,
-                        currency: $0.currency,
-                        description: $0.description,
-                        sessionTypeName: $0.sessionTypeName,
-                        promoText: $0.promoText,
-                        validityDays: $0.validityDays,
-                        usageLimit: $0.usageLimit,
-                        voucherRedemptionMode: $0.voucherRedemptionMode,
-                        voucherServiceScope: $0.voucherServiceScope,
-                        voucherFaceValueGross: $0.voucherFaceValueGross,
-                        voucherSessionTypeIds: $0.voucherSessionTypeIds ?? [],
-                        voucherSessionTypeNames: $0.voucherSessionTypeNames
+                        locationId: provider.locationId,
+                        productId: product.id,
+                        name: product.name,
+                        productType: normalizedWalletProductType(product.productType),
+                        priceGross: product.priceGross,
+                        currency: product.currency,
+                        description: product.description,
+                        sessionTypeName: product.sessionTypeName,
+                        promoText: product.promoText,
+                        validityDays: product.validityDays,
+                        usageLimit: product.usageLimit,
+                        voucherRedemptionMode: product.voucherRedemptionMode,
+                        voucherServiceScope: product.voucherServiceScope,
+                        voucherFaceValueGross: product.voucherFaceValueGross,
+                        voucherSessionTypeIds: product.voucherSessionTypeIds ?? [],
+                        voucherSessionTypeNames: product.voucherSessionTypeNames
                     )
                 }
         }
-        .sorted { $0.name < $1.name }
+        if !scopedOffers.isEmpty {
+            var seen = Set<String>()
+            return scopedOffers
+                .filter { offer in seen.insert("\(offer.locationId ?? ""):\(offer.productId)").inserted }
+                .sorted { $0.name < $1.name }
+        }
+
+        // Transitional/preview fallback: before providerProducts is hydrated, attach a
+        // branch only when there is exactly one subscribed location. Never guess between
+        // multiple subscribed branches.
+        let locationIds = Array(Set(providers.compactMap { provider in
+            guard let locationId = provider.locationId, !locationId.isEmpty else { return nil }
+            return locationId
+        }))
+        let fallbackLocationId = locationIds.count == 1 ? locationIds[0] : nil
+        return dashboard.products
+            .filter { isWalletBuyOfferProduct($0) }
+            .map { product in
+                WalletOfferModel(
+                    id: "\(tenantId)-\(product.id)",
+                    companyId: tenantId,
+                    locationId: fallbackLocationId,
+                    productId: product.id,
+                    name: product.name,
+                    productType: normalizedWalletProductType(product.productType),
+                    priceGross: product.priceGross,
+                    currency: product.currency,
+                    description: product.description,
+                    sessionTypeName: product.sessionTypeName,
+                    promoText: product.promoText,
+                    validityDays: product.validityDays,
+                    usageLimit: product.usageLimit,
+                    voucherRedemptionMode: product.voucherRedemptionMode,
+                    voucherServiceScope: product.voucherServiceScope,
+                    voucherFaceValueGross: product.voucherFaceValueGross,
+                    voucherSessionTypeIds: product.voucherSessionTypeIds ?? [],
+                    voucherSessionTypeNames: product.voucherSessionTypeNames
+                )
+            }
+            .sorted { $0.name < $1.name }
     }
 
     private func providerKey(_ provider: TenantSummaryModel) -> String {
@@ -1292,8 +1318,9 @@ final class AppStore: ObservableObject {
             })
         } else {
             var scopedProducts: [String: [ProductModel]] = [:]
-            for provider in providerLocations where provider.publicBookingEnabled != false {
-                scopedProducts[providerKey(provider)] = try await api.products(companyId: provider.companyId, locationId: provider.locationId)
+            for provider in providerLocations {
+                guard let locationId = provider.locationId, !locationId.isEmpty else { continue }
+                scopedProducts[providerKey(provider)] = try await api.products(companyId: provider.companyId, locationId: locationId)
             }
             providerProducts = scopedProducts
         }

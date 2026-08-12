@@ -24,6 +24,8 @@ import com.example.app.guest.model.GuestTenantLink;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.notifications.GuestNotificationService;
 import com.example.app.guest.tenant.GuestTenantService;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.paypal.PayPalClient;
 import com.example.app.reminder.ReminderService;
 import com.example.app.settings.GlobalPaymentProviderService;
@@ -37,6 +39,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.test.util.ReflectionTestUtils;
 import com.example.app.billing.PaymentMethodRepository;
 import com.example.app.guest.model.GuestPaymentMethodType;
 
@@ -238,9 +241,65 @@ class GuestOrderServicePaymentRulesTest {
                 )
         );
 
-        return new Fixture(service, orders, catalogService, guestUser, companies, paymentMethods, globalPaymentProviders, "11|2026-06-01T10:00:00|2026-06-01T11:00:00");
+        return new Fixture(service, orders, catalogService, tenantService, guestUser, companies, paymentMethods, globalPaymentProviders, "11|2026-06-01T10:00:00|2026-06-01T11:00:00");
     }
 
+
+
+    @Test
+    void createOrder_oldGuestClientWithoutLocationUsesItsSingleSubscribedLocation() {
+        Fixture fixture = fixtureWith(
+                false,
+                List.of("PAYPAL"),
+                "none",
+                20,
+                "PACK",
+                BigDecimal.valueOf(80)
+        );
+        LocationRepository locations = mock(LocationRepository.class);
+        ReflectionTestUtils.setField(fixture.service, "locations", locations);
+
+        Company company = new Company();
+        company.setId(10L);
+        Location location = new Location();
+        location.setId(7L);
+        location.setCompany(company);
+        location.setName("Subscribed branch");
+        location.setActive(true);
+
+        when(fixture.tenantService.subscribedLocationIds(fixture.guestUser, 10L)).thenReturn(List.of(7L));
+        when(locations.findAllByCompanyIdAndActiveTrueOrderByDefaultLocationDescNameAscIdAsc(10L))
+                .thenReturn(List.of(location));
+        when(locations.findByIdAndCompanyId(7L, 10L)).thenReturn(java.util.Optional.of(location));
+        when(fixture.catalogService.resolveProduct(eq(10L), eq("product-1"), eq(7L), eq(fixture.guestUser))).thenReturn(
+                new GuestCatalogService.ResolvedProduct(
+                        null,
+                        null,
+                        "Pack",
+                        "PACK",
+                        BigDecimal.valueOf(80),
+                        "EUR",
+                        false
+                )
+        );
+        when(fixture.catalogService.bookingRules(10L, 7L)).thenReturn(
+                new GuestSettingsService.GuestBookingRules(
+                        24, 12, true, true, false, false,
+                        List.of(), List.of(), List.of(), false, "none", 20
+                )
+        );
+
+        fixture.service.createOrder(
+                fixture.guestUser,
+                new GuestDtos.CreateOrderRequest("10", "product-1", null, GuestPaymentMethodType.PAYPAL.name(), null),
+                GuestOrderService.PaymentChannel.GUEST
+        );
+
+        org.mockito.ArgumentCaptor<GuestOrder> orderCaptor = org.mockito.ArgumentCaptor.forClass(GuestOrder.class);
+        verify(fixture.orders).save(orderCaptor.capture());
+        assertThat(orderCaptor.getValue().getLocation()).isSameAs(location);
+        verify(fixture.tenantService).requireLocationSubscription(fixture.guestUser, 10L, 7L);
+    }
 
     @Test
     void createOrder_combinesOrderedWebsiteServicesIntoOneOrderTotal() {
@@ -468,6 +527,7 @@ class GuestOrderServicePaymentRulesTest {
             GuestOrderService service,
             GuestOrderRepository orders,
             GuestCatalogService catalogService,
+            GuestTenantService tenantService,
             GuestUser guestUser,
             CompanyRepository companies,
             PaymentMethodRepository paymentMethods,
