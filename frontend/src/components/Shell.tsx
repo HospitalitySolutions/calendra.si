@@ -392,8 +392,11 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const isAnalyticsRoute = location.pathname === '/analytics' || location.pathname.startsWith('/analytics/')
   const isInboxRoute = location.pathname === '/inbox' || location.pathname.startsWith('/inbox/')
   const isBillingRoute = location.pathname === '/billing' || location.pathname.startsWith('/billing/')
+  const isScannerRoute = location.pathname === '/scanner' || location.pathname.startsWith('/scanner/')
   const isConfigurationRoute = location.pathname === '/configuration' || location.pathname.startsWith('/configuration/')
   const configurationTab = isConfigurationRoute ? new URLSearchParams(location.search).get('tab') : null
+  const isGuestAppConfigurationRoute = isConfigurationRoute && configurationTab === 'guestApp'
+  const isIntegrationsConfigurationRoute = isConfigurationRoute && configurationTab === 'integrations'
   const isAccountManagementRoute = isConfigurationRoute && configurationTab === 'company'
   const isNotificationsConfigurationRoute = isConfigurationRoute && configurationTab === 'notifications'
   const isReservationRulesConfigurationRoute = isConfigurationRoute && configurationTab === 'reservationRules'
@@ -1514,7 +1517,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
       </div>
       <div
         ref={mainAreaRef}
-        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isInboxRoute ? 'main-area main-area--inbox' : isWaitlistRoute ? 'main-area main-area--waitlist' : isServicesRoute ? 'main-area main-area--services' : isEmployeesRoute ? 'main-area main-area--employees' : isAnalyticsRoute ? 'main-area main-area--analytics' : isBillingRoute ? 'main-area main-area--billing' : isAccountManagementRoute ? 'main-area main-area--configuration-account' : isNotificationsConfigurationRoute ? 'main-area main-area--configuration-notifications' : isReservationRulesConfigurationRoute ? 'main-area main-area--configuration-reservation-rules' : isBillingConfigurationRoute ? 'main-area main-area--configuration-billing' : isWhiteConfigurationDetailRoute ? 'main-area main-area--configuration-detail-white' : 'main-area'}
+        className={isCalendarRoute ? 'main-area main-area--calendar' : isClientsRoute ? 'main-area main-area--clients' : isInboxRoute ? 'main-area main-area--inbox' : isWaitlistRoute ? 'main-area main-area--waitlist' : isServicesRoute ? 'main-area main-area--services' : isEmployeesRoute ? 'main-area main-area--employees' : isAnalyticsRoute ? 'main-area main-area--analytics' : isBillingRoute ? 'main-area main-area--billing' : isScannerRoute ? 'main-area main-area--scanner' : isGuestAppConfigurationRoute ? 'main-area main-area--configuration-guest-app' : isIntegrationsConfigurationRoute ? 'main-area main-area--configuration-integrations' : isAccountManagementRoute ? 'main-area main-area--configuration-account' : isNotificationsConfigurationRoute ? 'main-area main-area--configuration-notifications' : isReservationRulesConfigurationRoute ? 'main-area main-area--configuration-reservation-rules' : isBillingConfigurationRoute ? 'main-area main-area--configuration-billing' : isWhiteConfigurationDetailRoute ? 'main-area main-area--configuration-detail-white' : 'main-area'}
       >
         <header
           ref={headerRef}
@@ -1640,7 +1643,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
             </>
           )}
         </header>
-        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isInboxRoute ? 'content content--inbox' : isWaitlistRoute ? 'content content--waitlist' : isServicesRoute ? 'content content--services' : isEmployeesRoute ? 'content content--employees' : isAnalyticsRoute ? 'content content--analytics' : isBillingRoute ? 'content content--billing' : isAccountManagementRoute ? 'content content--configuration-account' : isNotificationsConfigurationRoute ? 'content content--configuration-notifications' : isReservationRulesConfigurationRoute ? 'content content--configuration-reservation-rules' : isBillingConfigurationRoute ? 'content content--configuration-billing' : isWhiteConfigurationDetailRoute ? 'content content--configuration-detail-white' : 'content'}>{children}</main>
+        <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isInboxRoute ? 'content content--inbox' : isWaitlistRoute ? 'content content--waitlist' : isServicesRoute ? 'content content--services' : isEmployeesRoute ? 'content content--employees' : isAnalyticsRoute ? 'content content--analytics' : isBillingRoute ? 'content content--billing' : isScannerRoute ? 'content content--scanner' : isGuestAppConfigurationRoute ? 'content content--configuration-guest-app' : isIntegrationsConfigurationRoute ? 'content content--configuration-integrations' : isAccountManagementRoute ? 'content content--configuration-account' : isNotificationsConfigurationRoute ? 'content content--configuration-notifications' : isReservationRulesConfigurationRoute ? 'content content--configuration-reservation-rules' : isBillingConfigurationRoute ? 'content content--configuration-billing' : isWhiteConfigurationDetailRoute ? 'content content--configuration-detail-white' : 'content'}>{children}</main>
       </div>
       {mobileNavOverlay}
       {globalVoiceButton}
