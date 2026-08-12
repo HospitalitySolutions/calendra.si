@@ -3548,7 +3548,7 @@ export function ConfigurationNotificationsSection({
       <div className="notif-card">
         <div className="notif-card-content">
           <div
-            className="notif-tabs desktop-standard-tabs"
+            className="notif-tabs"
             role="tablist"
             aria-label="Obvestila"
             style={{
@@ -3568,16 +3568,16 @@ export function ConfigurationNotificationsSection({
                   key={id}
                   type="button"
                   className={
-                    channel === id ? "notif-tab desktop-standard-tab is-active" : "notif-tab desktop-standard-tab"
+                    channel === id ? "notif-tab is-active" : "notif-tab"
                   }
                   onClick={() => setChannel(id)}
                   role="tab"
                   aria-selected={channel === id}
                 >
-                  <span className="notif-tab-icon desktop-standard-tab__icon" aria-hidden>
+                  <span className="notif-tab-icon" aria-hidden>
                     <NotificationChannelTabIcon channel={id} />
                   </span>
-                  <span className="notif-tab-label desktop-standard-tab__label">{label}</span>
+                  <span className="notif-tab-label">{label}</span>
                 </button>
               ))}
           </div>
@@ -3881,7 +3881,7 @@ export function ConfigurationNotificationsSection({
                                 type="button"
                                 className={
                                   isEditing
-                                    ? "notif-row-action is-active"
+                                    ? "notif-row-action"
                                     : "notif-row-action"
                                 }
                                 aria-label={`${channelCopy[channel].editLabel}: ${event.title}`}
@@ -4009,7 +4009,7 @@ export function ConfigurationNotificationsSection({
                           type="button"
                           className={
                             selectedTemplateVariant === "regular"
-                              ? "notif-template-variant-tab is-active"
+                              ? "notif-template-variant-tab"
                               : "notif-template-variant-tab"
                           }
                           onClick={() => {
@@ -4025,7 +4025,7 @@ export function ConfigurationNotificationsSection({
                           type="button"
                           className={
                             selectedTemplateVariant === "online"
-                              ? "notif-template-variant-tab is-active"
+                              ? "notif-template-variant-tab"
                               : "notif-template-variant-tab"
                           }
                           onClick={() => {
@@ -4214,7 +4214,7 @@ export function ConfigurationNotificationsSection({
                             type="button"
                             className={
                               previewTemplate
-                                ? "notif-template-preview-button is-active"
+                                ? "notif-template-preview-button"
                                 : "notif-template-preview-button"
                             }
                             aria-label="Predogled"
@@ -4369,7 +4369,7 @@ export function ConfigurationNotificationsSection({
                   type="button"
                   className={
                     effectiveEmailSenderMode === "DEFAULT_CALENDRA"
-                      ? "notif-sender-option is-active"
+                      ? "notif-sender-option"
                       : "notif-sender-option"
                   }
                   onClick={() => selectEmailSenderMode("DEFAULT_CALENDRA")}
@@ -4384,7 +4384,7 @@ export function ConfigurationNotificationsSection({
                   type="button"
                   className={[
                     effectiveEmailSenderMode === "CUSTOM_DOMAIN"
-                      ? "notif-sender-option is-active"
+                      ? "notif-sender-option"
                       : "notif-sender-option",
                     customDomainVerified ? "" : "is-disabled",
                   ]

@@ -701,18 +701,18 @@ export function ConfigurationCustomFieldsSection() {
       </div>
 
       <div className="custom-fields-card">
-        <div className="custom-fields-tabs desktop-standard-tabs" role="tablist" aria-label={copy.title}>
+        <div className="custom-fields-tabs" role="tablist" aria-label={copy.title}>
           {appliesTabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
               role="tab"
               aria-selected={activeTab === tab.id}
-              className={activeTab === tab.id ? 'custom-fields-tab desktop-standard-tab active' : 'custom-fields-tab desktop-standard-tab'}
+              className={activeTab === tab.id ? 'custom-fields-tab active' : 'custom-fields-tab'}
               onClick={() => setActiveTab(tab.id)}
             >
-              <span className="desktop-standard-tab__label">{locale === 'sl' ? tab.sl : tab.en}</span>
-              <strong className="custom-fields-tab-count desktop-standard-tab__count">{tabCounts[tab.id]}</strong>
+              <span >{locale === 'sl' ? tab.sl : tab.en}</span>
+              <strong className="custom-fields-tab-count">{tabCounts[tab.id]}</strong>
             </button>
           ))}
         </div>

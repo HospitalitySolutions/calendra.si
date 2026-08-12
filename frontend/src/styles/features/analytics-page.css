@@ -1833,6 +1833,44 @@
    Analytics desktop redesign — matches the approved Pregled / Poročila comps
    -------------------------------------------------------------------------- */
 @media (min-width: 1025px) {
+    .analytics-tabs-header .clients-entity-tabs {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        gap: 10px;
+        margin: 0 0 10px;
+        padding: 0;
+        border-bottom: 1px solid #edf2f7;
+        border-radius: 0;
+        background: transparent;
+    }
+
+    .analytics-tabs-header .clients-session-tab {
+        min-height: 44px;
+        padding: 10px 14px;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #334155;
+        font-size: 15px;
+        font-weight: 700;
+        line-height: 1.2;
+        box-shadow: none;
+        transition: color .18s ease, background .18s ease, box-shadow .18s ease;
+    }
+
+    .analytics-tabs-header .clients-session-tab:hover {
+        background: #fff;
+        color: #0f172a;
+        box-shadow: inset 0 0 0 1px rgba(148,163,184,.22), 0 6px 16px rgba(15,23,42,.08);
+    }
+
+    .analytics-tabs-header .clients-session-tab.active {
+        background: #eaf2ff;
+        color: var(--color-primary);
+        box-shadow: inset 0 0 0 1px rgba(37,99,235,.16), 0 3px 10px rgba(37,99,235,.18);
+    }
+
     .analytics-page.stack.gap-lg {
         gap: 14px;
         padding-bottom: 26px;

@@ -1007,13 +1007,13 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
 
   const employeeTabs = (
     <div className="employees-page-tabs-shell clients-entity-tabs-shell">
-      <div className="employee-page-tabs clients-session-tabs clients-entity-tabs desktop-standard-tabs" role="tablist" aria-label={t('employeesSubtabsAria')}>
+      <div className="employee-page-tabs clients-session-tabs clients-entity-tabs" role="tablist" aria-label={t('employeesSubtabsAria')}>
         {canViewEmployeesTab && (
           <button
             type="button"
             role="tab"
             aria-selected={employeesTab === 'employees'}
-            className={`clients-session-tab employee-page-tab desktop-standard-tab${employeesTab === 'employees' ? ' active is-active employee-page-tab--active' : ''}`}
+            className={`clients-session-tab employee-page-tab${employeesTab === 'employees' ? ' active employee-page-tab--active' : ''}`}
             onClick={() => {
               setEmployeesTab('employees')
               void loadConsultants(false)
@@ -1029,7 +1029,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
             type="button"
             role="tab"
             aria-selected={employeesTab === 'roles'}
-            className={`clients-session-tab employee-page-tab desktop-standard-tab${employeesTab === 'roles' ? ' active is-active employee-page-tab--active' : ''}`}
+            className={`clients-session-tab employee-page-tab${employeesTab === 'roles' ? ' active employee-page-tab--active' : ''}`}
             onClick={() => setEmployeesTab('roles')}
           >
             <EmployeePageTabIcon name="roles" />

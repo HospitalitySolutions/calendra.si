@@ -106,28 +106,28 @@ export function InboxPage({ inboxModuleEnabled = true }: InboxPageProps) {
   return (
     <div className="inbox-page-shell">
       {canViewMessages && canViewDeliveryLogs ? (
-        <nav className="inbox-page-tabs desktop-standard-tabs" role="tablist" aria-label={locale === 'sl' ? 'Komunikacijski zavihki' : 'Communication tabs'}>
+        <nav className="inbox-page-tabs" role="tablist" aria-label={locale === 'sl' ? 'Komunikacijski zavihki' : 'Communication tabs'}>
           <button
             type="button"
             role="tab"
             aria-selected={requestedTab === 'messages'}
-            className={`inbox-page-tab desktop-standard-tab${requestedTab === 'messages' ? ' active is-active' : ''}`}
+            className={`inbox-page-tab${requestedTab === 'messages' ? ' active' : ''}`}
             aria-current={requestedTab === 'messages' ? 'page' : undefined}
             onClick={() => openTab('messages')}
           >
-            <span className="inbox-page-tab-icon desktop-standard-tab__icon" aria-hidden><InboxPageTabIcon name="messages" /></span>
-            <span className="desktop-standard-tab__label">{labels.messages}</span>
+            <span className="inbox-page-tab-icon" aria-hidden><InboxPageTabIcon name="messages" /></span>
+            <span >{labels.messages}</span>
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={requestedTab === 'deliveryLogs'}
-            className={`inbox-page-tab desktop-standard-tab${requestedTab === 'deliveryLogs' ? ' active is-active' : ''}`}
+            className={`inbox-page-tab${requestedTab === 'deliveryLogs' ? ' active' : ''}`}
             aria-current={requestedTab === 'deliveryLogs' ? 'page' : undefined}
             onClick={() => openTab('deliveryLogs')}
           >
-            <span className="inbox-page-tab-icon desktop-standard-tab__icon" aria-hidden><InboxPageTabIcon name="deliveryLogs" /></span>
-            <span className="desktop-standard-tab__label">{labels.deliveryLogs}</span>
+            <span className="inbox-page-tab-icon" aria-hidden><InboxPageTabIcon name="deliveryLogs" /></span>
+            <span >{labels.deliveryLogs}</span>
           </button>
         </nav>
       ) : null}

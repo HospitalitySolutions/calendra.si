@@ -995,11 +995,11 @@ export function AnalyticsPage() {
 
       <div className="clients-page-header analytics-tabs-header">
         <div className="clients-page-header__entity clients-entity-tabs-shell">
-          <div className="clients-session-tabs clients-entity-tabs desktop-standard-tabs" role="tablist" aria-label={text.title}>
-            <button type="button" role="tab" aria-selected={activeTab === 'overview'} className={`clients-session-tab desktop-standard-tab${activeTab === 'overview' ? ' active is-active' : ''}`} onClick={() => setActiveTab('overview')}>
+          <div className="clients-session-tabs clients-entity-tabs" role="tablist" aria-label={text.title}>
+            <button type="button" role="tab" aria-selected={activeTab === 'overview'} className={`clients-session-tab${activeTab === 'overview' ? ' active' : ''}`} onClick={() => setActiveTab('overview')}>
               {text.tabOverview}
             </button>
-            <button type="button" role="tab" aria-selected={activeTab === 'reports'} className={`clients-session-tab desktop-standard-tab${activeTab === 'reports' ? ' active is-active' : ''}`} onClick={() => setActiveTab('reports')}>
+            <button type="button" role="tab" aria-selected={activeTab === 'reports'} className={`clients-session-tab${activeTab === 'reports' ? ' active' : ''}`} onClick={() => setActiveTab('reports')}>
               {text.tabReports}
             </button>
           </div>
