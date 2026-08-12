@@ -309,6 +309,7 @@ public class GuestCatalogService {
         }
         Long requestedConsultantId = rules.employeeSelectionAllowed() ? consultantId : null;
         int durationMinutes = type.getDurationMinutes() == null ? 60 : type.getDurationMinutes();
+        List<Long> clientIds = guestClientIds(companyId, guestUser);
 
         if (isGuestGroupService(type)) {
             List<GuestDtos.AvailabilitySlotResponse> groupSlots = guestGroupSessionSlots(companyId, type, date, requestedConsultantId, guestUser);
@@ -316,8 +317,8 @@ public class GuestCatalogService {
         }
 
         Map<String, GuestDtos.AvailabilitySlotResponse> merged = new LinkedHashMap<>();
-        addSlotsFromBookableWindows(companyId, type, date, durationMinutes, requestedConsultantId, merged, rules);
-        addSlotsFromWorkingHours(companyId, type, date, durationMinutes, requestedConsultantId, merged, rules);
+        addSlotsFromBookableWindows(companyId, type, date, durationMinutes, requestedConsultantId, merged, rules, null, clientIds);
+        addSlotsFromWorkingHours(companyId, type, date, durationMinutes, requestedConsultantId, merged, rules, null, clientIds);
 
         List<GuestDtos.AvailabilitySlotResponse> sorted = merged.values().stream()
                 .sorted(Comparator.comparing(GuestDtos.AvailabilitySlotResponse::startsAt).thenComparing(GuestDtos.AvailabilitySlotResponse::endsAt))
@@ -341,6 +342,7 @@ public class GuestCatalogService {
         Location location = guestLocations.resolveBookable(companyId, locationId);
         List<SessionType> chain = resolveGuestServiceChain(companyId, sessionTypeIds, guestUser);
         chain.forEach(type -> guestLocations.requireServiceAvailableAt(type, location));
+        List<Long> clientIds = guestClientIds(companyId, guestUser);
 
         SimulatedTimeContext.set(companyId);
         LocalDate date = LocalDate.parse(dateText);
@@ -380,8 +382,8 @@ public class GuestCatalogService {
         Map<String, GuestDtos.AvailabilitySlotResponse> merged = new LinkedHashMap<>();
         if (chain.size() == 1) {
             int durationMinutes = Math.max(1, first.getDurationMinutes() == null ? 60 : first.getDurationMinutes());
-            addSlotsFromBookableWindows(companyId, first, date, durationMinutes, requestedConsultantId, merged, rules, location.getId());
-            addSlotsFromWorkingHours(companyId, first, date, durationMinutes, requestedConsultantId, merged, rules, location.getId());
+            addSlotsFromBookableWindows(companyId, first, date, durationMinutes, requestedConsultantId, merged, rules, location.getId(), clientIds);
+            addSlotsFromWorkingHours(companyId, first, date, durationMinutes, requestedConsultantId, merged, rules, location.getId(), clientIds);
         } else {
             List<SessionBookingController.BookingServiceRequest> requests = new ArrayList<>();
             for (int i = 0; i < chain.size(); i++) {
@@ -398,7 +400,7 @@ public class GuestCatalogService {
                             || !consultantAvailableAt(candidateConsultantId, companyId, location.getId())) continue;
                     LocalDateTime startsAt = LocalDateTime.parse(parts[1]);
                     SessionServicePlanService.Plan plan = bookingCreationService.validateServiceChainWindowAtLocation(
-                            companyId, List.of(), candidateConsultantId, startsAt, requests,
+                            companyId, clientIds, candidateConsultantId, startsAt, requests,
                             SessionBookingCreationService.bookingExcludeIds((Long) null), location.getId()
                     );
                     merged.putIfAbsent(
@@ -474,6 +476,7 @@ public class GuestCatalogService {
             );
         }
         Long requestedConsultantId = rules.employeeSelectionAllowed() ? consultantId : null;
+        List<Long> clientIds = guestClientIds(companyId, guestUser);
         List<SessionBookingController.BookingServiceRequest> requests = new ArrayList<>();
         for (int i = 0; i < chain.size(); i++) {
             requests.add(new SessionBookingController.BookingServiceRequest(chain.get(i).getId(), i, null));
@@ -496,7 +499,7 @@ public class GuestCatalogService {
                 if (candidateConsultantId == null || !consultantSupportsAll(candidateConsultantId, chain, companyId)) continue;
                 LocalDateTime startsAt = LocalDateTime.parse(parts[1]);
                 SessionServicePlanService.Plan plan = bookingCreationService.validateServiceChainWindow(
-                        companyId, List.of(), candidateConsultantId, startsAt, requests,
+                        companyId, clientIds, candidateConsultantId, startsAt, requests,
                         SessionBookingCreationService.bookingExcludeIds((Long) null)
                 );
                 slots.putIfAbsent(
@@ -935,7 +938,7 @@ public class GuestCatalogService {
         try {
             bookingCreationService.validateBookingWindowAtLocation(
                     companyId,
-                    List.of(),
+                    guestClientIds(companyId, guestUser),
                     consultant.getId(),
                     null,
                     slot.startsAt(),
@@ -1023,6 +1026,15 @@ public class GuestCatalogService {
                                              Map<String, GuestDtos.AvailabilitySlotResponse> merged,
                                              GuestSettingsService.GuestBookingRules rules,
                                              Long locationId) {
+        addSlotsFromBookableWindows(companyId, type, date, durationMinutes, requiredConsultantId, merged, rules, locationId, List.of());
+    }
+
+    private void addSlotsFromBookableWindows(Long companyId, SessionType type, LocalDate date, int durationMinutes,
+                                             Long requiredConsultantId,
+                                             Map<String, GuestDtos.AvailabilitySlotResponse> merged,
+                                             GuestSettingsService.GuestBookingRules rules,
+                                             Long locationId,
+                                             List<Long> clientIds) {
         int availabilityMinutes = durationMinutes + serviceBreakMinutes(type, locationId);
         DayOfWeek dayOfWeek = date.getDayOfWeek();
         List<BookableSlot> windows = (locationId == null ? bookableSlots.findAllForWidgetByCompanyId(companyId) : bookableSlots.findAllForWidgetByCompanyIdAndLocationId(companyId, locationId)).stream()
@@ -1044,7 +1056,7 @@ public class GuestCatalogService {
                 if (!slotAllowedByReservationRules(companyId, start, rules)) {
                     continue;
                 }
-                if (isActuallyGuestBookable(companyId, window.getConsultant().getId(), start, end, type.getId(), locationId)) {
+                if (isActuallyGuestBookable(companyId, window.getConsultant().getId(), start, end, type.getId(), locationId, clientIds)) {
                     String id = slotToken(window.getConsultant().getId(), start, end);
                     merged.putIfAbsent(availabilityMergeKey(start, end), new GuestDtos.AvailabilitySlotResponse(id, start.toString(), end.toString(), true));
                 }
@@ -1064,6 +1076,15 @@ public class GuestCatalogService {
                                           Map<String, GuestDtos.AvailabilitySlotResponse> merged,
                                           GuestSettingsService.GuestBookingRules rules,
                                           Long locationId) {
+        addSlotsFromWorkingHours(companyId, type, date, durationMinutes, requiredConsultantId, merged, rules, locationId, List.of());
+    }
+
+    private void addSlotsFromWorkingHours(Long companyId, SessionType type, LocalDate date, int durationMinutes,
+                                          Long requiredConsultantId,
+                                          Map<String, GuestDtos.AvailabilitySlotResponse> merged,
+                                          GuestSettingsService.GuestBookingRules rules,
+                                          Long locationId,
+                                          List<Long> clientIds) {
         int availabilityMinutes = durationMinutes + serviceBreakMinutes(type, locationId);
         for (User consultant : supportedGuestConsultants(companyId, type, locationId)) {
             if (requiredConsultantId != null && !Objects.equals(consultant.getId(), requiredConsultantId)) {
@@ -1079,7 +1100,7 @@ public class GuestCatalogService {
                 if (!slotAllowedByReservationRules(companyId, start, rules)) {
                     continue;
                 }
-                if (isActuallyGuestBookable(companyId, consultant.getId(), start, end, type.getId(), locationId)) {
+                if (isActuallyGuestBookable(companyId, consultant.getId(), start, end, type.getId(), locationId, clientIds)) {
                     String id = slotToken(consultant.getId(), start, end);
                     merged.putIfAbsent(availabilityMergeKey(start, end), new GuestDtos.AvailabilitySlotResponse(id, start.toString(), end.toString(), true));
                 }
@@ -1199,11 +1220,31 @@ public class GuestCatalogService {
         guestTenantService.requireLocationSubscription(guestUser, companyId, locationId);
     }
 
+    private List<Long> guestClientIds(Long companyId, GuestUser guestUser) {
+        if (guestUser == null || companyId == null || guestTenantService == null) return List.of();
+        var link = guestTenantService.requireLink(guestUser, companyId);
+        return link.getClient() == null || link.getClient().getId() == null
+                ? List.of()
+                : List.of(link.getClient().getId());
+    }
+
     private boolean isActuallyGuestBookable(Long companyId, Long consultantId, LocalDateTime start, LocalDateTime end, Long typeId, Long locationId) {
+        return isActuallyGuestBookable(companyId, consultantId, start, end, typeId, locationId, List.of());
+    }
+
+    private boolean isActuallyGuestBookable(
+            Long companyId,
+            Long consultantId,
+            LocalDateTime start,
+            LocalDateTime end,
+            Long typeId,
+            Long locationId,
+            List<Long> clientIds
+    ) {
         try {
             bookingCreationService.validateBookingWindowAtLocation(
                     companyId,
-                    List.of(),
+                    clientIds == null ? List.of() : clientIds,
                     consultantId,
                     null,
                     start,

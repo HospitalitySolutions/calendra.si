@@ -344,11 +344,19 @@ class RemoteGuestApi(
     suspend fun checkout(orderId: String, request: CheckoutRequest): CheckoutResponse {
         val scope = checkoutScope(orderId, request)
         val key = checkoutIdempotencyKeys.getOrPut(scope) { newIdempotencyKey("guest-checkout") }
-        return parse(client.post("${config.baseUrl}/api/guest/orders/$orderId/checkout") {
+        val response = client.post("${config.baseUrl}/api/guest/orders/$orderId/checkout") {
             jsonRequest()
             idempotencyHeader(key)
             setBody(request)
-        })
+        }
+        // Once the server has definitively rejected this checkout attempt, its idempotency
+        // record is FAILED and that key can never succeed on a retry. Rotate the key only for
+        // known HTTP failures; transport failures keep the same key so a retry remains safely
+        // idempotent if the first request actually reached the server.
+        if (!response.status.isSuccess()) {
+            checkoutIdempotencyKeys.remove(scope)
+        }
+        return parse(response)
     }
 
     suspend fun cancelCheckout(orderId: String, checkoutSessionId: String? = null): CheckoutResponse =

@@ -57,7 +57,15 @@ public class BookingSlotHoldService {
 
     @Transactional
     public HoldResponse create(Long companyId, HoldRequest request) {
+        return create(companyId, request, List.of());
+    }
+
+    @Transactional
+    public HoldResponse create(Long companyId, HoldRequest request, List<Long> clientIds) {
         if (companyId == null) throw badRequest("Company is required.");
+        List<Long> validatedClientIds = clientIds == null
+                ? List.of()
+                : clientIds.stream().filter(id -> id != null && id > 0).distinct().toList();
         Company company = companies.findByIdForUpdate(companyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found."));
         String slotId = clean(request == null ? null : request.slotId(), 500);
@@ -131,15 +139,16 @@ public class BookingSlotHoldService {
             for (int index = 0; index < serviceTypeIds.size(); index++) {
                 services.add(new SessionBookingController.BookingServiceRequest(serviceTypeIds.get(index), index, null));
             }
-            SessionServicePlanService.Plan plan = bookingCreationService.validateServiceChainWindow(
+            SessionServicePlanService.Plan plan = bookingCreationService.validateServiceChainWindowAtLocation(
                     companyId,
-                    List.of(),
+                    validatedClientIds,
                     consultant.getId(),
                     slot.startsAt(),
                     services,
                     List.of(),
                     false,
-                    excludedPreviousToken
+                    excludedPreviousToken,
+                    location.getId()
             );
             if (!Objects.equals(plan.endTime(), slot.endsAt())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This time no longer matches the selected services.");

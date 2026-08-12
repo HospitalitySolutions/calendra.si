@@ -89,7 +89,7 @@ class BookingSlotHoldServiceReplacementTest {
         LocalDateTime busyEnd = end.plusMinutes(10);
         SessionServicePlanService.Plan plan = new SessionServicePlanService.Plan(
                 List.of(), start, end, busyEnd, true);
-        when(bookingCreationService.validateServiceChainWindow(
+        when(bookingCreationService.validateServiceChainWindowAtLocation(
                 eq(7L),
                 eq(List.of()),
                 eq(6L),
@@ -97,7 +97,8 @@ class BookingSlotHoldServiceReplacementTest {
                 anyList(),
                 eq(List.of()),
                 eq(false),
-                eq("old-token")
+                eq("old-token"),
+                eq(3L)
         )).thenReturn(plan);
         when(holds.saveAndFlush(any(BookingSlotHold.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -111,7 +112,7 @@ class BookingSlotHoldServiceReplacementTest {
         );
 
         InOrder order = inOrder(bookingCreationService, holds);
-        order.verify(bookingCreationService).validateServiceChainWindow(
+        order.verify(bookingCreationService).validateServiceChainWindowAtLocation(
                 eq(7L),
                 eq(List.of()),
                 eq(6L),
@@ -119,7 +120,8 @@ class BookingSlotHoldServiceReplacementTest {
                 anyList(),
                 eq(List.of()),
                 eq(false),
-                eq("old-token")
+                eq("old-token"),
+                eq(3L)
         );
         order.verify(holds).delete(previousHold);
         order.verify(holds).saveAndFlush(any(BookingSlotHold.class));
@@ -136,7 +138,7 @@ class BookingSlotHoldServiceReplacementTest {
     @Test
     void failedReplacementKeepsPreviousHold() {
         LocalDateTime start = LocalDateTime.of(2026, 8, 13, 9, 0);
-        when(bookingCreationService.validateServiceChainWindow(
+        when(bookingCreationService.validateServiceChainWindowAtLocation(
                 eq(7L),
                 eq(List.of()),
                 eq(6L),
@@ -144,7 +146,8 @@ class BookingSlotHoldServiceReplacementTest {
                 anyList(),
                 eq(List.of()),
                 eq(false),
-                eq("old-token")
+                eq("old-token"),
+                eq(3L)
         )).thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "Slot conflict"));
 
         assertThrows(ResponseStatusException.class, () -> service.create(
@@ -158,5 +161,48 @@ class BookingSlotHoldServiceReplacementTest {
 
         verify(holds, never()).delete(previousHold);
         verify(holds, never()).saveAndFlush(any(BookingSlotHold.class));
+    }
+
+    @Test
+    void guestHoldValidationCarriesClientAndLocation() {
+        LocalDateTime start = LocalDateTime.of(2026, 8, 13, 9, 0);
+        LocalDateTime end = start.plusMinutes(90);
+        SessionServicePlanService.Plan plan = new SessionServicePlanService.Plan(
+                List.of(), start, end, end, true);
+        when(bookingCreationService.validateServiceChainWindowAtLocation(
+                eq(7L),
+                eq(List.of(55L)),
+                eq(6L),
+                eq(start),
+                anyList(),
+                eq(List.of()),
+                eq(false),
+                eq("old-token"),
+                eq(3L)
+        )).thenReturn(plan);
+        when(holds.saveAndFlush(any(BookingSlotHold.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.create(
+                7L,
+                new BookingSlotHoldService.HoldRequest(
+                        3L,
+                        "6|2026-08-13T09:00|2026-08-13T10:30",
+                        List.of(4L, 1L),
+                        "old-token"
+                ),
+                List.of(55L)
+        );
+
+        verify(bookingCreationService).validateServiceChainWindowAtLocation(
+                eq(7L),
+                eq(List.of(55L)),
+                eq(6L),
+                eq(start),
+                anyList(),
+                eq(List.of()),
+                eq(false),
+                eq("old-token"),
+                eq(3L)
+        );
     }
 }

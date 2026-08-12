@@ -1746,8 +1746,26 @@ public class SessionBookingCreationService {
             List<Long> excludeIds,
             Long locationId
     ) {
+        return validateServiceChainWindowAtLocation(
+                companyId, clientIds, consultantId, start, services, excludeIds,
+                false, null, locationId
+        );
+    }
+
+    public SessionServicePlanService.Plan validateServiceChainWindowAtLocation(
+            Long companyId,
+            List<Long> clientIds,
+            Long consultantId,
+            LocalDateTime start,
+            List<SessionBookingController.BookingServiceRequest> services,
+            List<Long> excludeIds,
+            boolean allowAvailabilityBlockOverlap,
+            String excludedBookingHoldToken,
+            Long locationId
+    ) {
         return validateServiceChainWindowInternal(
-                companyId, clientIds, consultantId, start, services, excludeIds, false, null, locationId
+                companyId, clientIds, consultantId, start, services, excludeIds,
+                allowAvailabilityBlockOverlap, excludedBookingHoldToken, locationId
         );
     }
 

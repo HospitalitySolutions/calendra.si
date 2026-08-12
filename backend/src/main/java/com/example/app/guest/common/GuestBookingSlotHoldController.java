@@ -57,12 +57,15 @@ public class GuestBookingSlotHoldController {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.BAD_REQUEST, "Company is required.");
         }
-        tenants.requireLink(guest, companyId);
+        var link = tenants.requireLink(guest, companyId);
         Long locationId = parseOptionalLocationId(request.locationId());
         Long resolvedLocationId = catalog.requireGuestBookableLocation(companyId, locationId, request.serviceTypeIds(), guest);
+        java.util.List<Long> clientIds = link.getClient() == null || link.getClient().getId() == null
+                ? java.util.List.of()
+                : java.util.List.of(link.getClient().getId());
         return holds.create(companyId, new BookingSlotHoldService.HoldRequest(
                 resolvedLocationId, request.slotId(), request.serviceTypeIds(), request.previousHoldToken()
-        ));
+        ), clientIds);
     }
 
     private static Long parseOptionalLocationId(String raw) {
