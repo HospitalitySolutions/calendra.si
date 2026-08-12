@@ -451,7 +451,7 @@ const pageStyles = `
   .public-offer-choice strong { font-size: 1rem; }
   .public-offer-choice span { color: #64748b; line-height: 1.45; }
   .public-offer-choice:disabled { cursor: wait; opacity: .65; }
-  @media (max-width: 860px) {
+  @media (max-width: 1024px) {
     .public-offer-illustration { position: relative; top: 0; right: 0; margin: 0 0 10px auto; }
     .public-offer-summary { grid-template-columns: 1fr; }
   }

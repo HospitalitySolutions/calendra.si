@@ -405,7 +405,7 @@ button.cards-product-delete-btn {
     color: #fca5a5 !important;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
     .cards-product-modal-backdrop.booking-side-panel-backdrop {
         padding: 0;
         align-items: stretch;
@@ -812,7 +812,7 @@ button.cards-product-modal-close.booking-side-panel-close:hover {
     border-color: rgba(148, 163, 184, 0.35);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
     .cards-product-modal-heading {
         gap: 14px;
     }
@@ -892,7 +892,7 @@ button.cards-product-modal-close.booking-side-panel-close:hover {
     background: #091220;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
     .cards-product-course-picker-modal.modal.large-modal.booking-side-panel {
         max-width: min(100vw - 16px, 840px);
     }
@@ -1144,7 +1144,7 @@ button.cards-product-modal-close.booking-side-panel-close:hover {
     background: rgba(37, 99, 235, 0.16);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
     .cards-product-scope-options {
         grid-template-columns: 1fr;
     }

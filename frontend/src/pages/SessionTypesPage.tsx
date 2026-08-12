@@ -939,7 +939,7 @@ export function SessionTypesPage() {
 
   const [isSessionTypesNarrow, setIsSessionTypesNarrow] = useState(() =>
     typeof window !== "undefined"
-      ? window.matchMedia("(max-width: 720px)").matches
+      ? window.matchMedia("(max-width: 1024px)").matches
       : false,
   );
   const [openTypeMenuId, setOpenTypeMenuId] = useState<number | null>(null);
@@ -1146,7 +1146,7 @@ export function SessionTypesPage() {
   );
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 720px)");
+    const mq = window.matchMedia("(max-width: 1024px)");
     const apply = () => setIsSessionTypesNarrow(mq.matches);
     apply();
     mq.addEventListener("change", apply);

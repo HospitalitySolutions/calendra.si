@@ -795,7 +795,7 @@
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .content.content-android-native {
         padding-top: var(--content-padding);
     }

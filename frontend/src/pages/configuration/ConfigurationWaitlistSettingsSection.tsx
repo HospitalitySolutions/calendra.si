@@ -211,7 +211,7 @@ export function ConfigurationWaitlistSettingsSection({ locationId }: { locationI
           .waitlist-settings-savebar button{width:100%;min-height:52px;border-radius:14px}
           .waitlist-settings-message{justify-self:center}
         }
-        @media(max-width:900px){
+        @media(max-width: 1024px){
           .waitlist-settings-grid{grid-template-columns:1fr}
         }
         @media(max-width:640px){

@@ -259,8 +259,8 @@
 }
 
 
-/* Wide header (≥940px): Staff / Locations rich dropdowns */
-@media (min-width: 940px) {
+/* Wide header (≥1025px): Staff / Locations rich dropdowns */
+@media (min-width: 1025px) {
     .calendar-header-filters--rich {
         align-items: center;
         gap: 14px;

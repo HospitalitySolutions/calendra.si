@@ -385,7 +385,7 @@
 
 
 /* Mobile login: keep the full block on one viewport without making the form feel cramped. */
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .login-wrap {
         min-height: 100dvh;
         height: 100dvh;

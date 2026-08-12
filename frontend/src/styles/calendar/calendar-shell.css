@@ -309,7 +309,7 @@
 }
 
 /*
- * Pin the timegrid header while the calendar scrollport moves (usually <main> on desktop, window on ≤780px).
+ * Pin the timegrid header while the calendar scrollport moves (usually <main> on desktop, window on ≤1024px).
  * FullCalendar uses .fc-scrollgrid-section-sticky > th (the section’s single cell), not <tr>, for sticky.
  * Desktop and mobile use `top: 0` relative to the calendar scrollport. On mobile the calendar content
  * box already begins below the sticky blue app header, so adding the app-header height here would apply
@@ -327,7 +327,7 @@
     background: var(--color-surface);
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     /*
      * Mobile web scrolls the document/window, while the blue calendar app header is itself sticky.
      * Therefore the FullCalendar header must stick below that blue row rather than at viewport top.
@@ -556,7 +556,7 @@
  * order compared with the 3-day view. Mobile therefore always uses the fallback row above the
  * FullCalendar table and hides only the misplaced native day row below.
  */
-@media (min-width: 781px) {
+@media (min-width: 1025px) {
     .calendar-fc-shell:has(.fc-resourceTimeGridDay-view .fc-timegrid .fc-col-header .fc-day-header-stack) .calendar-resource-day-header-fallback {
         display: none !important;
     }
@@ -585,7 +585,7 @@
     box-sizing: border-box;
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     /*
      * Match resource 3-day header order on phones: date/day first, employee or space labels second.
      * The React fallback already sits before FullCalendar in the DOM, so keep it visible and remove
@@ -971,16 +971,7 @@
     box-shadow: none;
 }
 
-@media (min-width: 781px) and (max-width: 939px) {
-    .calendar-bottom-panel.calendar-bottom-panel--fixed {
-        left: var(--sidebar-width);
-        padding-left: 0;
-    }
 
-    .layout:has(.sidebar-shell:hover) .calendar-bottom-panel.calendar-bottom-panel--fixed {
-        left: var(--sidebar-rail-expanded);
-    }
-}
 
 .calendar-bottom-panel__start,
 .calendar-bottom-panel__center,
@@ -1480,7 +1471,7 @@
     border-left: none;
 }
 
-@media (min-width: 940px) {
+@media (min-width: 1025px) {
     .calendar-mode-toolbar--rail {
         padding-right: 10px;
     }
@@ -1549,7 +1540,7 @@
     background: rgba(255, 255, 255, 0.08);
 }
 
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     .calendar-web-inner--bottom-panel {
         --calendar-rail-controls-shift-x: 4px;
     }
@@ -1568,7 +1559,7 @@
     }
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     .calendar-web-inner {
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr);
@@ -2206,7 +2197,7 @@
    Horizontal gestures navigate Day / 3-day / Week / Work week / Month.
    Vertical movement remains native inside FullCalendar's scroll containers.
    -------------------------------------------------------------------------- */
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     .calendar-swipe-navigation-enabled {
         touch-action: pan-y pinch-zoom;
         overscroll-behavior-x: contain;
@@ -2235,7 +2226,7 @@
     }
 }
 
-@media (max-width: 939px) and (prefers-reduced-motion: reduce) {
+@media (max-width: 1024px) and (prefers-reduced-motion: reduce) {
     .calendar-swipe-navigation-enabled.calendar-not-swiping .fc-col-header-cell:not(.fc-timegrid-axis),
     .calendar-swipe-navigation-enabled.calendar-not-swiping .fc-timegrid-col,
     .calendar-swipe-navigation-enabled.calendar-not-swiping .fc-daygrid-day,
@@ -2253,7 +2244,7 @@
    example SUN 2) to disappear while the adjacent period followed the finger.
    Move the complete column-header table instead and leave its cells unshifted.
    -------------------------------------------------------------------------- */
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     .calendar-swipe-navigation-enabled.calendar-sliding-enabled .fc-col-header-cell:not(.fc-timegrid-axis),
     .calendar-swipe-navigation-enabled.calendar-sliding-enabled .calendar-snapshot-layer .fc-col-header-cell:not(.fc-timegrid-axis) {
         transform: none !important;
@@ -2284,7 +2275,7 @@
     }
 }
 
-@media (max-width: 939px) and (prefers-reduced-motion: reduce) {
+@media (max-width: 1024px) and (prefers-reduced-motion: reduce) {
     .calendar-swipe-navigation-enabled.calendar-sliding-enabled.calendar-not-swiping .fc-col-header,
     .calendar-swipe-navigation-enabled.calendar-sliding-enabled.calendar-not-swiping .calendar-snapshot-layer .fc-col-header {
         transition-duration: 1ms !important;
@@ -2296,7 +2287,7 @@
    Calendar remains one-third wide while the right side uses the visual language
    of the approved "Pregled dneva" preview.
    -------------------------------------------------------------------------- */
-@media (min-width: 940px) {
+@media (min-width: 1025px) {
     .calendar-web-inner.calendar-web-inner--dashboard {
         grid-template-columns: minmax(330px, 1fr) minmax(0, 2fr) var(--calendar-rail-w);
         background: #f8fafc;
@@ -3165,7 +3156,7 @@ button.calendar-dashboard-client-row {
     gap: 9px;
 }
 
-@media (max-width: 1380px) and (min-width: 940px) {
+@media (max-width: 1380px) and (min-width: 1025px) {
     .calendar-day-dashboard__scroll { padding: 18px 17px 30px; }
     .calendar-dashboard-analytics { grid-template-columns: 1.25fr repeat(4, 1fr); }
     .calendar-dashboard-analytics__date, .calendar-dashboard-stat { padding: 15px 12px; }
@@ -3177,7 +3168,7 @@ button.calendar-dashboard-client-row {
     .calendar-dashboard-billing-line { grid-template-columns: minmax(130px, 1fr) 60px 100px 34px; }
 }
 
-@media (max-width: 1160px) and (min-width: 940px) {
+@media (max-width: 1160px) and (min-width: 1025px) {
     .calendar-web-inner.calendar-web-inner--dashboard {
         grid-template-columns: minmax(300px, 1fr) minmax(0, 2fr) var(--calendar-rail-w);
     }
@@ -3281,7 +3272,7 @@ button.calendar-dashboard-client-row {
 
 /* On desktop, move the complete date-header table just like the compact layout.
    Translating individual <th> cells clips incoming dates at cell boundaries. */
-@media (min-width: 940px) {
+@media (min-width: 1025px) {
     .calendar-swipe-navigation-enabled.calendar-sliding-enabled .fc-col-header-cell:not(.fc-timegrid-axis),
     .calendar-swipe-navigation-enabled.calendar-sliding-enabled .calendar-snapshot-layer .fc-col-header-cell:not(.fc-timegrid-axis) {
         transform: none !important;

@@ -314,7 +314,7 @@ function setPaymentMethodIdEnabled(
   return ids.filter((entry) => entry !== id);
 }
 
-const BILLING_MOBILE_HIDDEN_SUBTAB_MAX_WIDTH = 800;
+const BILLING_MOBILE_HIDDEN_SUBTAB_MAX_WIDTH = 1024;
 const SERVICE_BREAK_MINUTE_OPTIONS = Array.from({ length: 37 }, (_, index) => index * 5);
 
 function billingPaymentTypeLabel(
@@ -1072,7 +1072,7 @@ function AccountManagementSubtabs({
         .account-subtabs {display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid rgba(226,232,240,.95);padding-bottom:10px;margin-bottom:18px;}
         .account-subtab {appearance:none;border:1px solid transparent;background:transparent;color:#475569;font-weight:700;font-size:15px;padding:10px 14px;border-radius:10px;cursor:pointer;box-shadow:none;outline:none;transition:color .18s ease,background .18s ease,box-shadow .18s ease,border-color .18s ease;}
         .account-subtab>svg {display:none}.account-subtab:hover{color:#0f172a;background:#f8fafc}.account-subtab.active{color:#2563eb;background:#eaf2ff;border-color:rgba(37,99,235,.16);box-shadow:inset 0 0 0 1px rgba(37,99,235,.1),0 3px 10px rgba(37,99,235,.18)}
-        @media(max-width:720px){
+        @media(max-width: 1024px){
           .account-management-shell{width:100%;max-width:none;background:#fff}
           .account-subtabs{width:100%;min-height:76px;display:flex;align-items:stretch;gap:0;flex-wrap:nowrap;margin:0 0 14px;padding:0 4px;border:0;border-radius:0;background:linear-gradient(135deg,#0b71ee 0%,#0865db 100%);overflow-x:auto;scrollbar-width:none;box-shadow:none}
           .account-subtabs::-webkit-scrollbar{display:none}
@@ -1486,7 +1486,7 @@ export function ConfigurationPage() {
   tabRef.current = tab;
   const [isCompactConfigViewport, setIsCompactConfigViewport] = useState(() =>
     typeof window !== "undefined" && typeof window.matchMedia === "function"
-      ? window.matchMedia("(max-width: 920px)").matches
+      ? window.matchMedia("(max-width: 1024px)").matches
       : false,
   );
   const [isTabletConfigViewport, setIsTabletConfigViewport] = useState(() =>
@@ -2615,7 +2615,7 @@ export function ConfigurationPage() {
       typeof window.matchMedia !== "function"
     )
       return;
-    const mq = window.matchMedia("(max-width: 920px)");
+    const mq = window.matchMedia("(max-width: 1024px)");
     const syncCompactViewport = () => setIsCompactConfigViewport(mq.matches);
     syncCompactViewport();
     mq.addEventListener("change", syncCompactViewport);
@@ -8113,7 +8113,7 @@ export function ConfigurationPage() {
               .account-plan-preview-selected { flex-direction: column; align-items: flex-start; }
               .account-plan-preview-price { text-align: left; }
             }
-            @media (max-width: 720px) {
+            @media (max-width: 1024px) {
               .account-management-shell {
                 width: 100%;
                 max-width: none;
@@ -10695,7 +10695,7 @@ export function ConfigurationPage() {
             .invoice-layout-editor-card { padding:0 !important; overflow:hidden; }
             .invoice-layout-editor-card .fle-format-shell { padding:20px; }
             .invoice-layout-editor-card .pos58-editor-header { padding-top:2px; }
-            @media (max-width: 860px) {
+            @media (max-width: 1024px) {
               .invoice-printing-header { align-items:stretch; flex-direction:column; }
               .invoice-format-switch { width:100%; min-width:0; }
               .invoice-default-mode-card { align-items:stretch; flex-direction:column; }
@@ -11476,7 +11476,7 @@ export function ConfigurationPage() {
                 padding: 0 16px 16px;
               }
             }
-            @media (max-width: 780px) {
+            @media (max-width: 1024px) {
               .billing-main-panel { padding: 0 14px 14px; }
               .billing-settings-grid,
               .billing-form-grid,
@@ -11551,66 +11551,11 @@ export function ConfigurationPage() {
             }
 
             /* Tablet layout: retain useful table structure while using the redesigned cards. */
-            @media (min-width: 701px) and (max-width: 1024px) {
-              .billing-method-head {
-                display: grid;
-                grid-template-columns: minmax(0, 1.2fr) minmax(0, .72fr) minmax(0, .8fr) minmax(0, 1.15fr) 52px;
-                gap: 12px;
-                padding: 16px 16px 12px;
-                font-size: 11.5px;
-              }
-              .billing-method-head--no-fiscal {
-                grid-template-columns: minmax(0, 1.25fr) minmax(0, .72fr) minmax(0, 1.2fr) 52px;
-              }
-              .billing-method-row {
-                grid-template-columns: minmax(0, 1.2fr) minmax(0, .72fr) minmax(0, .8fr) minmax(0, 1.15fr) 52px;
-                gap: 12px;
-                align-items: center;
-                min-height: 86px;
-                padding: 15px 16px;
-              }
-              .billing-method-row--no-fiscal {
-                grid-template-columns: minmax(0, 1.25fr) minmax(0, .72fr) minmax(0, 1.2fr) 52px;
-              }
-              .billing-method-name {
-                gap: 11px;
-                min-width: 0;
-              }
-              .billing-method-name > span:last-child {
-                min-width: 0;
-                overflow-wrap: anywhere;
-              }
-              .billing-method-icon {
-                width: 42px;
-                height: 42px;
-              }
-              .billing-pill {
-                max-width: 100%;
-                overflow: hidden;
-                text-overflow: ellipsis;
-              }
-              .billing-availability-select {
-                width: 100%;
-                min-width: 0;
-              }
-              .billing-action-btn {
-                width: 44px;
-                height: 44px;
-              }
-              .billing-row-actions {
-                justify-content: flex-end;
-              }
-              .billing-channel-settings-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-              }
-              .billing-channel-settings-actions .billing-primary-button {
-                min-width: 228px;
-              }
-            }
+
 
             /* Phone layout: stacked payment cards with chips, full-width actions and
                a combined settings card, matching the approved first preview. */
-            @media (max-width: 700px) {
+            @media (max-width: 1024px) {
               .billing-subtab {
                 min-height: 64px;
                 padding-top: 17px;
@@ -13429,7 +13374,7 @@ export function ConfigurationPage() {
                             .pos-printing-shell { grid-template-columns:1fr; }
                             .pos-preview-card { position:relative; top:auto; }
                           }
-                          @media (max-width: 860px) {
+                          @media (max-width: 1024px) {
                             .pos-mode-grid, .pos-settings-grid, .pos-settings-controls, .pos-first-use { grid-template-columns:1fr; }
                             .pos-sync-panel { flex-direction:column; }
                             .pos-footer-actions { flex-direction:column; align-items:stretch; }
@@ -14210,7 +14155,7 @@ export function ConfigurationPage() {
             .gapp-qr-caption { margin-top: 4px; font-weight: 800; color: #1e3a8a; }
             .gapp-qr-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
             .gapp-qr-actions .gapp-outline-button { min-height: 42px; padding: 0 14px; }
-            @media (max-width: 980px) {
+            @media (max-width: 1024px) {
               .gapp-grid,
               .gapp-form-grid,
               .gapp-payment-layout,
@@ -14693,7 +14638,7 @@ export function ConfigurationPage() {
                       cursor: pointer;
                       box-shadow: 0 12px 24px rgba(37, 99, 235, .25);
                     }
-                    @media (max-width: 760px) {
+                    @media (max-width: 1024px) {
                       .website-payment-settings-moved { padding: 22px; }
                       .website-payment-moved-content { grid-template-columns: 1fr; }
                       .website-payment-moved-button { width: 100%; }
@@ -14811,7 +14756,7 @@ export function ConfigurationPage() {
             .integrations-mobile-detail-row { min-width:0; padding:4px 14px 14px 0; }
             .integrations-mobile-manage-button { grid-column:1 / -1; display:inline-flex; align-items:center; justify-content:center; margin-top:8px; min-height:46px; border:0; border-radius:15px; background:linear-gradient(180deg,#1c78ff 0%,#0f62fe 100%); color:#fff; font-size:15px; font-weight:900; cursor:pointer; box-shadow:0 14px 30px rgba(37,99,235,.24); }
             @media (max-width:1180px) { .integrations-status-row { grid-template-columns:1fr; } .integrations-status-pill { justify-self:start; } }
-            @media (max-width:780px) {
+            @media (max-width: 1024px) {
               .integrations-modern-shell { width:100%; }
               .integrations-modern-shell .integrations-card.integrations-main-panel { border:0; border-radius:0; background:transparent; box-shadow:none; overflow:visible; padding:0 14px 30px; }
               .integrations-tabs-card { display:block; padding-bottom:0; margin-bottom:18px; border-bottom:0; }

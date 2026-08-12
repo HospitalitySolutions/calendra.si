@@ -500,7 +500,7 @@ export function ConfigurationGiftCardSection({
           .billing-gift-card-section { grid-template-columns: 1fr; }
           .billing-gift-card-preview-content { width: min(500px, 70%); }
         }
-        @media (max-width: 780px) {
+        @media (max-width: 1024px) {
           .billing-gift-card-form-card,
           .billing-gift-card-preview-card { padding: 22px; }
           .billing-gift-card-heading { align-items: stretch; flex-direction: column; }

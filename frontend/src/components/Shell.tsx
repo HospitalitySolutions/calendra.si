@@ -404,9 +404,9 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
     ['booking', 'website', 'customFields', 'modules', 'activityLog'].includes(configurationTab ?? '')
   const [clientsMobileHeader, setClientsMobileHeader] = useState<{ title: string; count: number }>({ title: '', count: 0 })
   const calendarFiltersBottomBar = useCalendarFiltersBottomBar()
-  /** Matches app-shell ≤780px: hamburger + compact header row. */
+  /** Matches app-shell ≤1024px: hamburger + compact header row. */
   const appHeaderMobileRow = useCalendarMobileHeaderNav()
-  /** ≤939px: same band as calendar bottom strip; non-calendar still uses sticky header with todo. */
+  /** ≤1024px: same band as calendar bottom strip; non-calendar still uses sticky header with todo. */
   const narrowWebHeaderForVoice = appHeaderMobileRow || calendarFiltersBottomBar
   const calendarFormUsesRoutes = true
   const overdueLoadInFlightRef = useRef<Promise<void> | null>(null)

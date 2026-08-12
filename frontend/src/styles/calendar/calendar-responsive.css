@@ -17,7 +17,7 @@
     }
 }
 
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     /* Keep shell overflow visible for sticky weekday header; grid is already width-constrained by table rules below. */
     .calendar-fc-shell:has(.fc-timeGridDay-view),
     .calendar-fc-shell:has(.fc-timeGridThreeDay-view),
@@ -163,12 +163,12 @@
 }
 
 /*
- * Compaction below 939px: use `.fc.fc-timeGridDay-view` (etc.) on the same element as FullCalendar’s
+ * Compaction through 1024px: use `.fc.fc-timeGridDay-view` (etc.) on the same element as FullCalendar’s
  * own rules — not `:has()`, which is lower-specificity and loses to the 48px col + 56px sticky axis
  * rules, so widths never actually shrink on phones.
  */
-/* Day / 3-day only: narrower sticky time axis than week (shell uses 56px ≤780px). */
-@media (max-width: 780px) {
+/* Day / 3-day only: narrower sticky time axis than week (shell uses 56px ≤1024px). */
+@media (max-width: 1024px) {
     .calendar-fc-shell .fc.fc-timeGridDay-view .fc-timegrid .fc-scrollgrid-shrink,
     .calendar-fc-shell .fc.fc-timeGridThreeDay-view .fc-timegrid .fc-scrollgrid-shrink,
     .calendar-fc-shell .fc.fc-resourceTimeGridDay-view .fc-timegrid .fc-scrollgrid-shrink,
@@ -184,7 +184,7 @@
     /*
      * Do not set overflow-x: auto on the shell or .fc-scroller here — nested horizontal
      * scroll breaks sticky time-axis alignment and often clips the left edge of the grid.
-     * Keep the ≤939px overflow-x: hidden on these views; compaction is via col widths + margins.
+     * Keep the ≤1024px overflow-x: hidden on these views; compaction is via col widths + margins.
      */
     /*
      * FC sets pixel width/minWidth on .fc-timegrid-slots and .fc-timegrid-cols tables; without

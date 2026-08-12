@@ -3151,7 +3151,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
          * element remains in flow as a height placeholder, so the native resource row keeps
          * its measured second offset and the calendar does not jump while scrolling.
          */
-        const isCompactMobile = window.matchMedia('(max-width: 780px)').matches
+        const isCompactMobile = window.matchMedia('(max-width: 1024px)').matches
         const stickyOffsetValue = window
           .getComputedStyle(shell)
           .getPropertyValue('--calendar-shell-header-sticky-below')
@@ -8398,7 +8398,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         </svg>
       </button>
     ) : null
-    // Between 940px and 1749px the centered date title is intentionally hidden by the
+    // Between 1025px and 1749px the centered date title is intentionally hidden by the
     // compact shell layout. Keep the month visible in the left toolbar for the whole
     // compact range, not only when the bottom filter bar/mobile header is active.
     const showWebToolbarMonthChip =
@@ -12356,7 +12356,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   }
 
   const openSessionQuickActionMenu = (_info: any) => {
-    // Compact mobile (<=939px) now uses inline "+" and "+N" buttons on the block itself,
+    // Compact mobile (<=1024px) now uses inline "+" and "+N" buttons on the block itself,
     // so the floating Novo/Odpri quick-action menu is no longer opened on click.
     return false
   }
@@ -13537,7 +13537,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 info.view.type === 'timeGridThreeDay') &&
               (k === 'booked' || k === 'waitlist-offer' || k === 'personal' || k === 'todo' || k === 'draft-preview')
             ) {
-              const isNarrowMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 780px)').matches
+              const isNarrowMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 1024px)').matches
               const harness = info.el.closest('.fc-timegrid-event-harness') as HTMLElement | null
               if (harness) harness.style.setProperty('right', isNarrowMobile ? '0' : '34px', 'important')
             } else if (

@@ -1,5 +1,5 @@
 /* Nova/Uredi storitev — mobile/tablet full-width design matching the approved preview. */
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     .session-type-config-modal-backdrop.booking-side-panel-backdrop {
         padding: 0;
         align-items: stretch;

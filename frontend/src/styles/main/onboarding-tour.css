@@ -233,7 +233,7 @@
   box-shadow: 0 14px 26px rgba(22, 114, 243, 0.28);
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
   .onboarding-tour__veil {
     display: none;
   }

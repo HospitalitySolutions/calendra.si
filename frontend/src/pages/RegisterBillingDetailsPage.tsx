@@ -778,7 +778,7 @@ const registerBillingDetailsStyles = `
     padding: 0 2px;
   }
 
-  @media (max-width: 980px) {
+  @media (max-width: 1024px) {
     .register-billing-card {
       grid-template-columns: 1fr;
       gap: 18px;
@@ -790,7 +790,7 @@ const registerBillingDetailsStyles = `
     }
   }
 
-  @media (max-width: 720px) {
+  @media (max-width: 1024px) {
     .register-flow.register-billing-details-page .topbar {
       padding-left: 0;
       padding-right: 0;

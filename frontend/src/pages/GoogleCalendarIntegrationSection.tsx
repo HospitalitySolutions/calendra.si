@@ -628,7 +628,7 @@ export function GoogleCalendarIntegrationSection({ me }: { me: User }) {
         .google-calendar-button-grid .google-calendar-secondary,
         .google-calendar-button-grid .google-calendar-danger { width:100%; }
         .google-calendar-button-grid .span-2 { grid-column:1 / -1; }
-        @media (max-width: 900px) {
+        @media (max-width: 1024px) {
           .google-calendar-hero,
           .google-calendar-connection-head { flex-direction:column; }
           .google-calendar-actions--hero { width:100%; min-width:0; }
@@ -636,7 +636,7 @@ export function GoogleCalendarIntegrationSection({ me }: { me: User }) {
           .google-calendar-actions--hero .google-calendar-secondary { width:100%; }
           .google-calendar-link-row { grid-template-columns:1fr; }
         }
-        @media (max-width: 780px) {
+        @media (max-width: 1024px) {
           .google-calendar-shell { gap:16px; }
           .google-calendar-hero {
             padding:24px 20px;

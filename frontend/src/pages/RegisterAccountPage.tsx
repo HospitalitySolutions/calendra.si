@@ -984,7 +984,7 @@ const registerAccountPageStyles = `
     font-size: 1rem;
   }
 
-  @media (min-width: 861px) {
+  @media (min-width: 1025px) {
     .register-flow.register-account-page .register-footer-toolbar-lead {
       visibility: hidden;
     }
@@ -1018,7 +1018,7 @@ const registerAccountPageStyles = `
     }
   }
 
-  @media (max-width: 860px) {
+  @media (max-width: 1024px) {
     .register-flow.register-account-page .register-account-page-stack {
       grid-template-columns: 1fr;
     }
@@ -1036,7 +1036,7 @@ const registerAccountPageStyles = `
     }
   }
 
-  @media (max-width: 760px) {
+  @media (max-width: 1024px) {
     .register-flow.register-account-page .topbar {
       min-height: 60px;
     }

@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
 
-/** Shell: below 1750px date nav moves left; from 940px up labeled Consultant/Space in header; under 940px icons + mic in bottom strip. */
+/** Shell: below 1750px date nav moves left; from 1025px up labeled Consultant/Space in header; through 1024px icons + mic in bottom strip. */
 const CALENDAR_COMPACT_HEADER_MAX_PX = 1749
-/** ≤939px: Consultant/Space as icon popups in bottom strip; mic centered (labeled selects stay in header above 940px). */
-export const CALENDAR_FILTERS_BOTTOM_BAR_MAX_PX = 939
+/** ≤1024px: Consultant/Space as icon popups in bottom strip; mic centered (labeled selects stay in header above 1024px). */
+export const CALENDAR_FILTERS_BOTTOM_BAR_MAX_PX = 1024
 /** Appointment create/edit forms use dedicated full-screen pages on phones and tablets. */
 export const CALENDAR_FORM_PAGE_MAX_PX = 1024
 /** Prev/next move from header to the right rail (narrow phones). */
 const CALENDAR_DATE_NAV_RAIL_MAX_PX = 419
-/** ≤780px: keep arrows + view selector grouped on the right side in the header. */
-const CALENDAR_MOBILE_HEADER_NAV_MAX_PX = 780
+/** ≤1024px: keep arrows + view selector grouped on the right side in the header. */
+const CALENDAR_MOBILE_HEADER_NAV_MAX_PX = 1024
 /** ≤1100px: bookings “all consultants” resource columns show initials instead of full names. */
 const CALENDAR_CONSULTANT_RESOURCE_INITIALS_MAX_PX = 1100
 

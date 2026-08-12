@@ -764,7 +764,7 @@
     border-radius: 14px;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1024px) {
     .billing-bill-modal.modal.large-modal.booking-side-panel {
         width: min(760px, calc(100vw - 28px)) !important;
         max-width: min(760px, calc(100vw - 28px)) !important;
@@ -780,7 +780,7 @@
     }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-bill-modal-backdrop.booking-side-panel-backdrop {
         padding: 0 !important;
         align-items: stretch !important;
@@ -1363,7 +1363,7 @@
     margin-top: 16px;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1024px) {
     .billing-multi-bill-tabs { grid-template-columns: 1fr; }
     .billing-multi-bill-editor-grid { grid-template-columns: 1fr; }
     .billing-multi-bill-payment-panel { border-left: none; padding-left: 0; border-top: 1px solid rgba(148, 163, 184, 0.28); padding-top: 16px; }
@@ -2619,7 +2619,7 @@
     }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-advance-picker-head {
         padding: 22px 20px 16px;
     }
@@ -2776,7 +2776,7 @@
     color: #fdba74;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-invoice-modern-body--create .billing-invoice-tabs-row--create {
         grid-template-columns: 1fr;
     }
@@ -3723,7 +3723,7 @@
     }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-invoice-bill-tab--bookmark,
     .billing-invoice-add-tab-wrap {
         flex-basis: 100%;
@@ -3750,7 +3750,7 @@
     border-color: var(--border);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-invoice-table-head {
         display: none;
     }
@@ -3912,7 +3912,7 @@
     }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-invoice-items-panel,
     .billing-invoice-payment-panel {
         padding: 14px;
@@ -3925,7 +3925,7 @@
 }
 
 /* Mobile redesign for edit invoice popup (smaller resolutions) */
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-bill-modal-header {
         padding: 18px 16px 14px;
         gap: 12px;
@@ -4755,7 +4755,7 @@
     border: 0;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-invoice-discount-controls {
         grid-template-columns: 1fr;
     }
@@ -5114,7 +5114,7 @@
     background: rgba(37, 99, 235, 0.18);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-invoice-table-head {
         display: none;
     }
@@ -5293,7 +5293,7 @@
     display: none;
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1024px) {
     .billing-bill-modal-backdrop--advance-create.booking-side-panel-backdrop {
         align-items: stretch !important;
         justify-content: stretch !important;
@@ -5880,7 +5880,7 @@
 }
 
 /* Mobile open-bill create/edit: use the full screen width like a native sheet. */
-@media (max-width: 820px) {
+@media (max-width: 1024px) {
     .billing-bill-modal-backdrop.booking-side-panel-backdrop {
         align-items: stretch !important;
         justify-content: stretch !important;
@@ -5912,7 +5912,7 @@
 
 
 /* Requested mobile create-advance header simplification. */
-@media (max-width: 820px) {
+@media (max-width: 1024px) {
     :is(.billing-create-panel--advance, .billing-create-panel--open) .billing-bill-modal-mobile-back,
     :is(.billing-create-panel--advance, .billing-create-panel--open) .billing-bill-modal-status--draft {
         display: none !important;
@@ -5928,7 +5928,7 @@
     }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-invoice-compact-summary {
         display: none !important;
     }
@@ -6096,7 +6096,7 @@
     justify-content: center;
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1024px) {
     .billing-create-panel:not(.billing-create-panel--advance) .billing-invoice-management-head--create-open,
     .billing-open-detail-panel .billing-invoice-management-head--edit-open {
         display: none !important;
@@ -6262,7 +6262,7 @@
   font-size: 14px;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
   .billing-open-detail-grid {
     grid-template-columns: 1fr;
   }
@@ -6599,7 +6599,7 @@
   resize: vertical;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
   .billing-folio-modal-backdrop.modal-backdrop {
     padding: 0;
     align-items: stretch;
@@ -6682,7 +6682,7 @@
 }
 
 /* Mobile Novo predplačilo — compact visual parity with approved preview */
-@media (max-width: 820px) {
+@media (max-width: 1024px) {
   :is(.billing-create-panel--advance, .billing-create-panel--open).billing-bill-modal.modal.large-modal.booking-side-panel {
     background: #f7faff !important;
   }
@@ -7343,7 +7343,7 @@
   display: none;
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1024px) {
   .billing-open-detail-panel.billing-bill-modal.modal.large-modal.booking-side-panel {
     background: #f7faff !important;
   }
@@ -8200,7 +8200,7 @@
 
 /* Final mobile Novo predplačilo refinements: match Uredi termin header,
    keep the summary/actions visible, and compact the editable rows. */
-@media (max-width: 820px) {
+@media (max-width: 1024px) {
   :is(.billing-create-panel--advance, .billing-create-panel--open).billing-bill-modal.modal.large-modal.booking-side-panel {
     display: flex !important;
     flex-direction: column;
@@ -8616,7 +8616,7 @@
 }
 
 /* Mobile Novo predplačilo: uniform item typography and full-width payment rows. */
-@media (max-width: 820px) {
+@media (max-width: 1024px) {
   /* Keep every visible Postavke header label the same size as Cena. */
   :is(.billing-create-panel--advance, .billing-create-panel--open) .billing-invoice-table-head--advance > span:not(:first-child) {
     font-size: .52rem !important;
@@ -8657,7 +8657,7 @@
 }
 
 /* Mobile Novo predplačilo: reduce only the text inside Količina and Cena inputs. */
-@media (max-width: 820px) {
+@media (max-width: 1024px) {
   :is(.billing-create-panel--advance, .billing-create-panel--open) .billing-invoice-item-row--advance .billing-bill-modal-field--qty input,
   :is(.billing-create-panel--advance, .billing-create-panel--open) .billing-invoice-item-row--advance .billing-bill-modal-field--price input {
     font-size: 0.46rem !important;
@@ -8898,7 +8898,7 @@
 
 
 /* Mobile Novo predplačilo: align editable numeric text and hide the fixed footer under the keyboard. */
-@media (max-width: 820px) {
+@media (max-width: 1024px) {
   :is(.billing-create-panel--advance, .billing-create-panel--open) .billing-invoice-item-row--advance .billing-bill-modal-field--qty input,
   :is(.billing-create-panel--advance, .billing-create-panel--open) .billing-invoice-item-row--advance .billing-bill-modal-field--price input,
   :is(.billing-create-panel--advance, .billing-create-panel--open) .billing-invoice-item-row--advance .billing-invoice-row-amount,
@@ -10622,7 +10622,7 @@
   border-color: rgba(148, 163, 184, 0.2);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .billing-invoice-issuer-grid {
     grid-template-columns: 1fr;
   }
@@ -10733,7 +10733,7 @@
   margin-left: auto;
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1024px) {
   .billing-create-panel--open .billing-bill-modal-save-btn--create-open-anchor {
     display: none;
   }

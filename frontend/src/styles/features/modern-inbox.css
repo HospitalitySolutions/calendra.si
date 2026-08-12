@@ -692,7 +692,7 @@
     }
 }
 
-@media (max-width: 920px) {
+@media (max-width: 1024px) {
     .analytics-inbox-main-shell,
     .analytics-inbox-kpi-grid {
         grid-template-columns: 1fr;

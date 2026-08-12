@@ -69,7 +69,7 @@
     flex: 1;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .analytics-inbox-channel-switch--modern {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -1456,7 +1456,7 @@ button.analytics-inbox-b-add-attachment:disabled {
     }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
     .analytics-inbox-b-header,
     .analytics-inbox-b-toolbar,
     .analytics-inbox-b-left-card,
@@ -1503,7 +1503,7 @@ button.analytics-inbox-b-add-attachment:disabled {
 
 /* Inbox details popup alignment tweaks */
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
     .analytics-inbox-b-conversation-actions {
         margin-right: 0;
     }

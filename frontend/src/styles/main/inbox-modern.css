@@ -924,7 +924,7 @@
     }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .analytics-inbox-hero--modern {
         padding: 20px;
     }

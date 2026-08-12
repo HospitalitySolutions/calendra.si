@@ -1355,7 +1355,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const billingPollInFlightRef = useRef<Promise<unknown> | null>(null)
   const [creatingManualOpenBill, setCreatingManualOpenBill] = useState(false)
   const [isOpenBillsMobile, setIsOpenBillsMobile] = useState(() =>
-    typeof window !== 'undefined' ? window.matchMedia('(max-width: 760px)').matches : false,
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 1024px)').matches : false,
   )
   const [isBillingMobileOrTablet, setIsBillingMobileOrTablet] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 1024px)').matches : false,
@@ -2259,7 +2259,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }, [clients])
 
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 760px)')
+    const mq = window.matchMedia('(max-width: 1024px)')
     const apply = () => setIsOpenBillsMobile(mq.matches)
     apply()
     mq.addEventListener('change', apply)
@@ -4729,7 +4729,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       ? new File([blob], fileName, { type: 'application/pdf' })
       : null
     const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-      || (typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 800px)').matches)
+      || (typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1024px)').matches)
     const shareNavigator = navigator as Navigator & { canShare?: (data: ShareData) => boolean }
 
     if (isMobileDevice && printableFile && navigator.share

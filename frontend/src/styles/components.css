@@ -390,13 +390,13 @@ button.danger.secondary { background: var(--color-danger-soft); color: var(--col
     }
 }
 
-@media (max-width: 940px) {
+@media (max-width: 1024px) {
     .billing-open-session-id-col {
         display: none;
     }
 }
 
-@media (max-width: 880px) {
+@media (max-width: 1024px) {
     .billing-open-consultant-col {
         display: none;
     }
@@ -906,7 +906,7 @@ tr:hover td { background: rgba(22, 114, 243, 0.03); }
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .inline-form,
     .billing-row {
         grid-template-columns: 1fr 1fr;

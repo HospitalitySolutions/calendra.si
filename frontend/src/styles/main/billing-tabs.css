@@ -1388,7 +1388,7 @@
     }
 }
 
-@media (max-width: 880px) {
+@media (max-width: 1024px) {
     .billing-open-bills-table {
         min-width: 760px;
     }
@@ -1414,7 +1414,7 @@
     }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-modern-card.card {
         padding: 16px;
         border-radius: 18px;
@@ -2341,7 +2341,7 @@
     --billing-mobile-shadow: rgba(219, 39, 119, 0.19);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-page-main-stack {
         gap: 0;
     }
@@ -2712,7 +2712,7 @@
     --billing-mobile-soft-strong: rgba(30, 41, 59, 0.72);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     [data-theme="dark"] .billing-modern-card.card {
         border-color: rgba(148, 163, 184, 0.20);
         background: linear-gradient(180deg, #0f172a 0%, #101827 100%);
@@ -2754,7 +2754,7 @@
     }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
     .billing-modern-tabs.clients-session-tabs {
         overflow: auto;
         padding-bottom: 2px;
@@ -2820,7 +2820,7 @@
     display: none;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-modern-card.card {
         overflow: hidden;
     }
@@ -2950,7 +2950,7 @@
 }
 
 /* Mobile invoice history — full-detail card design */
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
     .billing-modern-card--history .billing-modern-content {
         gap: 14px;
     }
@@ -3306,7 +3306,7 @@
     }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
     [data-theme="dark"] .billing-history-mobile-card {
         border-color: rgba(148, 163, 184, .20);
         background: rgba(15, 23, 42, .90);
@@ -3339,7 +3339,7 @@
     display: none;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-page-main-stack,
     .billing-page-main-stack > .billing-modern-card.card,
     .billing-mobile-shell.billing-modern-card.card {
@@ -4155,7 +4155,7 @@
 
 /* Mobile History and Gift Cards toolbar alignment. Keep the History action as
    the same blue bottom-right FAB used on Open bills; Gift cards has no FAB. */
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-mobile-shell.billing-modern-card--history .billing-modern-filter-row--toolbar,
     .billing-mobile-shell.billing-modern-card--giftCards .billing-modern-filter-row--toolbar {
         display: grid;
@@ -4230,7 +4230,7 @@
     }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-open-mobile-sort-wrap {
         display: block;
         position: relative;
@@ -4476,7 +4476,7 @@
     }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .billing-mobile-shell .billing-modern-header {
         margin: -1px 0 0;
         padding: 0;

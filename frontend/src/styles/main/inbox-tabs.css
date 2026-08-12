@@ -89,7 +89,7 @@
   background: rgba(37, 99, 235, 0.2);
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
   .inbox-page-tabs {
     display: flex;
     width: 100%;

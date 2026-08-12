@@ -517,7 +517,7 @@ export function CompanyBillingEntitiesSection({
         .company-billing-fields .wide{grid-column:1/-1}
         .company-billing-editor-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:14px}
         .company-billing-entities .danger{color:#a12b2b;border-color:#fecaca;background:#fff7f7}
-        @media(max-width:900px){.company-billing-grid{grid-template-columns:1fr}.company-billing-heading,.company-billing-toolbar,.company-billing-certificate{align-items:flex-start;flex-direction:column}.company-billing-actions,.company-billing-certificate-actions{justify-content:flex-start}.company-billing-summary,.company-billing-fields{grid-template-columns:1fr}.company-billing-fields .wide{grid-column:auto}}
+        @media(max-width: 1024px){.company-billing-grid{grid-template-columns:1fr}.company-billing-heading,.company-billing-toolbar,.company-billing-certificate{align-items:flex-start;flex-direction:column}.company-billing-actions,.company-billing-certificate-actions{justify-content:flex-start}.company-billing-summary,.company-billing-fields{grid-template-columns:1fr}.company-billing-fields .wide{grid-column:auto}}
       `}</style>
 
       <div className="company-billing-heading">

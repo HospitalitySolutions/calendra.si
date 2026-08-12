@@ -742,7 +742,7 @@
     }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .analytics-inbox-hero--preview-a,
     .analytics-inbox-client-header--preview-a,
     .analytics-inbox-panel-header--preview-a {

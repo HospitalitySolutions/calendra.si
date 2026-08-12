@@ -610,7 +610,7 @@ const pageStyles = `
   }
 
 
-  @media (min-width: 901px) {
+  @media (min-width: 1025px) {
     .public-manage-page {
       padding: clamp(14px, 2vh, 24px) 18px;
     }
@@ -812,13 +812,13 @@ const pageStyles = `
     }
   }
 
-  @media (min-width: 901px) and (max-width: 1120px) {
+  @media (min-width: 1025px) and (max-width: 1120px) {
     .public-manage-slots {
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 1024px) {
     .public-manage-illustration { display: none; }
     .public-manage-heading { max-width: none; }
     .public-manage-brand { margin-bottom: 34px; }

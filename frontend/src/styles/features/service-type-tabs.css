@@ -470,7 +470,7 @@
     background: #f1f5f9;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1024px) {
     .service-config-card.card {
         padding: 18px;
         border-radius: 20px;
@@ -520,7 +520,7 @@
     }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .clients-modern-page--mobile .service-config-card.clients-modern-card.card {
         padding: 18px;
         border-radius: 28px;
@@ -676,7 +676,7 @@
 /* Mobile visual implementation matching the approved Storitve preview. */
 .service-config-tab-label--mobile { display: none; }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .clients-modern-page--mobile.stack.gap-lg {
         gap: 0;
         padding: 0 !important;
@@ -1136,7 +1136,7 @@
     }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .clients-modern-page--mobile .service-config-card.clients-modern-card.card {
         padding-top: 0;
     }

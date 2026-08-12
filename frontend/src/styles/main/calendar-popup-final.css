@@ -166,7 +166,7 @@
     align-items: center !important;
 }
 
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     .calendar-edit-session-panel--design-match.booking-side-panel.modal.large-modal {
         max-height: 97dvh;
         border-radius: 28px 28px 0 0;
@@ -190,7 +190,7 @@
     }
 }
 
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     .calendar-edit-session-panel--design-match .booking-side-panel-header {
         padding: 38px 18px 12px !important;
     }

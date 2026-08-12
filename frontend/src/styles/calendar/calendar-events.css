@@ -228,7 +228,7 @@
     align-items: flex-start;
 }
 
-/* Booked sessions: last name only on small screens; "Last, first" from 781px up */
+/* Booked sessions: last name only on small screens; "Last, first" from 1025px up */
 .fc .calendar-event-booked-label--wide {
     display: none;
 }
@@ -237,7 +237,7 @@
     display: block;
 }
 
-@media (min-width: 781px) {
+@media (min-width: 1025px) {
     .fc .calendar-event-booked-visual .calendar-event-booked-label--narrow {
         display: none;
     }
@@ -305,8 +305,8 @@
     color: var(--calendar-session-muted, #c2410c);
 }
 
-/* .calendar-event-mobile-title sets display:-webkit-box after .calendar-event-booked-label--wide { display:none }; restore hide so only one label shows below 781px. */
-@media (max-width: 780px) {
+/* .calendar-event-mobile-title sets display:-webkit-box after .calendar-event-booked-label--wide { display:none }; restore hide so only one label shows below 1025px. */
+@media (max-width: 1024px) {
     .fc .calendar-event-mobile-title.calendar-event-booked-label--wide {
         display: none;
     }
@@ -354,7 +354,7 @@
     filter: brightness(0.93);
 }
 
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     .fc .calendar-event-booked-visual .calendar-event-mobile-title,
     .fc .calendar-event-personal-visual .calendar-event-mobile-title {
         font-size: 0.76rem;
@@ -377,7 +377,7 @@
     }
 }
 
-@media (min-width: 981px) {
+@media (min-width: 1025px) {
     .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-time--below,
     .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-main-time--below {
         display: inline-flex;
@@ -396,7 +396,7 @@
     }
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     .fc .calendar-event-booked-visual,
     .fc .calendar-event-personal-visual,
     .fc .calendar-event-todo-visual {
@@ -1026,7 +1026,7 @@
     line-height: 1.12;
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     .fc .calendar-event-partial-label-row {
         padding: 4px 8px;
         gap: 6px;
@@ -1046,14 +1046,14 @@
    The short-block container rules change `.calendar-event-mobile-title` to `display:block`,
    so without these stronger selectors both the narrow last-name label and wide "Last, First"
    label can become visible at the same time. */
-@media (min-width: 781px) {
+@media (min-width: 1025px) {
     .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-title.calendar-event-booked-label--narrow,
     .fc .calendar-event-booked-visual .calendar-event-mobile-title.calendar-event-booked-label--narrow {
         display: none !important;
     }
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-title.calendar-event-booked-label--wide,
     .fc .calendar-event-booked-visual .calendar-event-mobile-title.calendar-event-booked-label--wide {
         display: none !important;
@@ -1827,14 +1827,14 @@
     color: #ffffff;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1024px) {
     .calendar-overlap-drawer {
         width: min(340px, calc(100vw - 68px));
         padding: 18px 14px 14px;
     }
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     .calendar-overlap-drawer {
         top: var(--calendar-shell-header-sticky-below, calc(env(safe-area-inset-top, 0px) + 61px));
     }
@@ -1934,7 +1934,7 @@
 
 /* Bold glyphs can extend fractionally to the left of their CSS text box.
    Expand the clipping area by 1px without changing the visible text position. */
-@media (min-width: 940px) {
+@media (min-width: 1025px) {
     .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-main-title-wrap,
     .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-main-title-wrap {
         box-sizing: border-box;
@@ -2104,7 +2104,7 @@
 }
 
 /* Wide viewports: tighter typography for session name + time in blocks and overlap lists */
-@media (min-width: 981px) {
+@media (min-width: 1025px) {
     .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-title.calendar-event-personal-title--full,
     .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-title.calendar-event-personal-title--short {
         font-size: 0.7rem;
@@ -2209,7 +2209,7 @@
 }
 
 /* Desktop: booked “last name · service” stays smaller than generic short-slot rule above */
-@media (min-width: 981px) {
+@media (min-width: 1025px) {
     @container calendar-timegrid-event (max-height: 34px) {
         .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-title.calendar-event-booked-label--narrow,
         .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-title.calendar-event-booked-label--wide {
@@ -2315,7 +2315,7 @@
 
 /* Keep the desktop "+X more" control fully visible at the bottom of session blocks.
    Inline overlap pills may be clipped first, but the drawer button must remain readable/clickable. */
-@media (min-width: 781px) {
+@media (min-width: 1025px) {
     .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-content:has(.calendar-event-overlap-more:not(.calendar-event-overlap-more--mobile-count)),
     .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-content:has(.calendar-event-overlap-more:not(.calendar-event-overlap-more--mobile-count)) {
         position: relative;
@@ -2349,14 +2349,14 @@
 }
 
 /* Small-screen session actions: quick add + hidden-session count.
-   Hidden by default; the <=939px media block below makes them visible on the block. */
+   Hidden by default; the <=1024px media block below makes them visible on the block. */
 .fc .calendar-event-quick-add,
 .fc .calendar-event-overlap-mobile-count,
 .fc .calendar-event-overlap-more--mobile-count {
     display: none !important;
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-content,
     .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual .calendar-event-mobile-content,
     .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual .calendar-event-todo-row {
@@ -2659,7 +2659,7 @@
     font-weight: 850;
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual.calendar-event-quick-actions-active,
     .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual.calendar-event-quick-actions-active,
     .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual.calendar-event-quick-actions-active {
@@ -3017,7 +3017,7 @@
     color: #bfdbfe;
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     [data-theme="dark"] .calendar-overlap-session-card__time {
         background: transparent;
         color: #94a3b8;
@@ -3025,13 +3025,13 @@
 }
 
 /* ============================================================== */
-/* Mobile session block redesign (<= 939px)                         */
+/* Mobile session block redesign (<= 1024px)                         */
 /* Modern white card, colored left accent, multi-line centered      */
 /* title that fills the block, + button top-right (new session),    */
 /* +N button bottom-left (opens overlap drawer).                    */
 /* ============================================================== */
 
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     /* --- Block surface: white card with full-width colored top/bottom panels --- */
     .calendar-fc-shell .fc-event.calendar-event-booked-visual,
     .calendar-fc-shell .fc-event.calendar-event-personal-visual,
@@ -3324,7 +3324,7 @@
 
 /* --- Mobile weekly calendar: fourth design preview implementation ---
    Compact colored cards, session name only, and "+ X more" displayed below the card. */
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     .calendar-fc-shell .fc-timegrid-event-harness:has(.calendar-event-booked-visual .calendar-event-overlap-mobile-count),
     .calendar-fc-shell .fc-timegrid-event-harness:has(.calendar-event-personal-visual .calendar-event-overlap-mobile-count),
     .calendar-fc-shell .fc-timegrid-event-harness:has(.calendar-event-todo-visual .calendar-event-overlap-mobile-count) {
@@ -3947,7 +3947,7 @@
     display: none !important;
 }
 
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual,
     .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual,
     .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual {
@@ -4007,7 +4007,7 @@
     display: none !important;
 }
 
-@media (min-width: 781px) {
+@media (min-width: 1025px) {
     .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-title.calendar-event-booked-label--narrow {
         display: none !important;
     }
@@ -4017,7 +4017,7 @@
     }
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual .calendar-event-mobile-title.calendar-event-booked-label--wide {
         display: none !important;
     }
@@ -4030,7 +4030,7 @@
 
 /* Mobile session blocks: compact Google Calendar-like spacing, natural wrapping,
    and no time label inside the block. The calendar grid already communicates time. */
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual,
     .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual,
     .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual {
@@ -4084,7 +4084,7 @@
     }
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual,
     .calendar-fc-shell .fc-timegrid-event.calendar-event-personal-visual,
     .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual {
@@ -4115,7 +4115,7 @@
    from 45 minutes upward. The content stays close to the card edges and wraps
    naturally, while overflow clipping keeps the service visible only when the
    block has enough vertical room. */
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     .calendar-fc-shell .fc-timegrid-event.calendar-event-booked-visual
     .calendar-event-mobile-title.calendar-event-booked-label--wide {
         display: none !important;
@@ -4197,7 +4197,7 @@
     height: 100%;
 }
 
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     .calendar-fc-shell .fc-timegrid-event.calendar-event-todo-visual .calendar-event-todo-row,
     .fc .calendar-event-todo-visual .calendar-event-todo-row {
         padding: 4px 5px !important;
@@ -4431,7 +4431,7 @@
     color: #e2e8f0;
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     .calendar-fc-shell .fc .calendar-event-continuous-all-day {
         min-height: 28px !important;
     }

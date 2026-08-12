@@ -305,7 +305,7 @@
   }
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
   .scanner-options-header h1,
   .scanner-manual-card h2,
   .scanner-advice-header h3 {

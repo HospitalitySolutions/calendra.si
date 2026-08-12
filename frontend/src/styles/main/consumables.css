@@ -123,7 +123,7 @@
   .consumables-kpi-grid, .consumables-kpi-grid.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .consumables-two-col, .consumables-three-col, .consumables-main-with-side { grid-template-columns: 1fr; }
 }
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
   .consumables-page { padding: 12px; }
   .consumables-panel { padding: 18px 14px; }
   .consumables-filter-row > input { min-width: 100%; }
@@ -165,7 +165,7 @@
 .consumables-filter-row .btn { align-self: end; }
 .consumables-card td > .consumables-row-actions { vertical-align: middle; }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
   .consumables-modal-wide { width: 100%; }
   .consumables-stock-preview { grid-template-columns: 1fr; }
   .consumables-inline-form { grid-template-columns: 1fr; align-items: stretch; }
@@ -215,7 +215,7 @@
 .icon-btn.danger { color: #ef4444; }
 .btn.wide { width: 100%; }
 
-@media (max-width: 920px) {
+@media (max-width: 1024px) {
   .procurement-header-grid { grid-template-columns: 1fr 1fr; }
   .procurement-receipt-card { grid-template-columns: 1fr; }
 }
@@ -266,7 +266,7 @@
 .inventory-empty-state strong { display: block; color: #263550; font-size: 15px; margin-bottom: 6px; }
 .inventory-empty-state p { margin: 0 auto; max-width: 520px; line-height: 1.5; }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
   .inventory-session-banner { display: grid; }
   .inventory-session-banner p { max-width: none; }
   .inventory-actions { align-items: stretch; flex-direction: column; }
@@ -314,7 +314,7 @@
 .low-stock-alert-banner{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:0 0 16px;padding:14px 16px;border:1px solid #fed7aa;border-radius:14px;background:#fff7ed}
 .low-stock-alert-banner>div{display:flex;flex-direction:column;gap:3px}.low-stock-alert-banner strong{color:#9a3412}.low-stock-alert-banner span{color:#7c2d12;font-size:13px}
 .consumables-card tr.highlighted-low-stock td{background:#fff7ed}
-@media(max-width:720px){.low-stock-alert-banner{align-items:stretch;flex-direction:column}.low-stock-alert-banner .btn{width:100%}}
+@media(max-width: 1024px){.low-stock-alert-banner{align-items:stretch;flex-direction:column}.low-stock-alert-banner .btn{width:100%}}
 
 /* Barcode / scanner workflows */
 .barcode-action { white-space: nowrap; }
@@ -419,7 +419,7 @@
 .consumables-report-loading { padding: 28px; text-align: center; color: #64748b; }
 .consumables-report-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 1px solid #eef0f4; color: #64748b; font-size: 12px; }
 .consumables-report-footer > div { display: flex; gap: 8px; }
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .consumables-report-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .consumables-report-toolbar label { min-width: calc(50% - 8px); flex: 1 1 calc(50% - 8px); }
   .consumables-report-footer { align-items: stretch; flex-direction: column; }

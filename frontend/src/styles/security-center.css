@@ -1056,7 +1056,7 @@
   }
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1024px) {
   .security-hero-v2 {
     grid-template-columns: 1fr;
   }
@@ -1067,7 +1067,7 @@
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
   .security-hero-v2,
   .security-card-v2,
   .security-card-v2--large {

@@ -1623,7 +1623,7 @@
   padding: 0 18px;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
   .booking-payee-summary-card,
   .booking-payee-master-detail {
     grid-template-columns: 1fr;
@@ -2385,7 +2385,7 @@
   color: #e2ebf8;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
   .calendar-waitlist-match-card {
     margin: 14px 0 16px;
     padding: 17px;
@@ -2527,7 +2527,7 @@
     height: 22px;
 }
 
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     .calendar-edit-session-panel--design-match .booking-side-panel-header-toolbar--session-edit-booked {
         grid-template-columns: 44px minmax(0, 1fr) auto;
         gap: 12px;
@@ -2546,7 +2546,7 @@
 }
 
 /* Precision pass: match the approved mobile header with a round delete action and a labelled blue save pill. */
-@media (max-width: 939px) {
+@media (max-width: 1024px) {
     .calendar-edit-session-panel--design-match .booking-side-panel-header-toolbar--session-edit-booked .booking-side-panel-header-ico-group {
         gap: 10px;
     }

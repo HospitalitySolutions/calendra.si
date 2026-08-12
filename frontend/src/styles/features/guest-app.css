@@ -150,7 +150,7 @@
     background: #fff;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1024px) {
     .guest-qr-layout {
         grid-template-columns: 1fr;
         justify-items: start;

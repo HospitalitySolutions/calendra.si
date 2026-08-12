@@ -605,7 +605,7 @@ a.config-nav-item {
     box-sizing: border-box;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .config-shell--detail {
         padding: 18px;
         box-sizing: border-box;
@@ -1386,7 +1386,7 @@ a.config-nav-item {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
     .modules-design-card.settings-card { padding: 20px; border-radius: 18px; }
     .modules-design-shell { gap: 18px; }
     .modules-design-page-header h2 { font-size: 28px; }
@@ -2113,7 +2113,7 @@ a.config-nav-item {
     .general-settings-grid { grid-template-columns: 1fr; }
     .general-settings-preview { grid-column: auto; grid-row: auto; }
 }
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .general-settings-header { flex-direction: column; padding: 20px; border-radius: 20px; }
     .general-settings-save-button { width: 100%; }
     .general-settings-form-grid,
@@ -2201,13 +2201,13 @@ a.config-nav-item {
 [data-theme='dark'] .reservation-rules-number-input span {
     color: #94a3b8;
 }
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
     .reservation-rules-card--wide { grid-column: 1 / -1; }
     .reservation-rules-toggle-row { grid-template-columns: 1fr; }
 }
 
 /* Upravljanje računa uses a full-width mobile layout; the tab band sits directly under the shell header. */
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .config-shell--detail.config-shell--account-mobile {
         width: 100%;
         max-width: none;
@@ -2229,7 +2229,7 @@ a.config-nav-item {
   gap: 20px;
 }
 
-@media (max-width: 920px) {
+@media (max-width: 1024px) {
   .reservation-rules-page-stack {
     gap: 16px;
   }
@@ -2748,15 +2748,7 @@ a.config-nav-item {
     }
 }
 
-@media (min-width: 760px) and (max-width: 1024px) {
-    .reservation-rules-tab-panel {
-        padding: 20px clamp(20px, 3vw, 32px);
-    }
 
-    .reservation-rules-card.general-settings-card {
-        padding: 24px;
-    }
-}
 
 @media (max-width: 640px) {
     .reservation-rules-compact-tab {
@@ -3400,7 +3392,7 @@ a.config-nav-item {
     }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
     .activity-log-shell { gap: 10px; }
     .activity-log-filter-fields,
     .activity-log-filter-fields.is-open { grid-template-columns: 1fr; }

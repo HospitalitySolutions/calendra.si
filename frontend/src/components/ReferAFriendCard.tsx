@@ -280,7 +280,7 @@ const referCardStyles = `
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
-  @media (max-width: 820px) {
+  @media (max-width: 1024px) {
     .refer-page,
     .refer-main-card,
     .refer-stat-card,

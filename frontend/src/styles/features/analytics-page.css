@@ -772,7 +772,7 @@
     background: rgba(255, 255, 255, 0.035);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
     .analytics-service-groups-card {
         padding: 14px;
     }
@@ -795,7 +795,7 @@
     display: block;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .analytics-page.stack.gap-lg {
         width: 100%;
         gap: 0;
@@ -1832,7 +1832,7 @@
 /* --------------------------------------------------------------------------
    Analytics desktop redesign — matches the approved Pregled / Poročila comps
    -------------------------------------------------------------------------- */
-@media (min-width: 721px) {
+@media (min-width: 1025px) {
     .analytics-page.stack.gap-lg {
         gap: 14px;
         padding-bottom: 26px;
@@ -2525,7 +2525,7 @@
     }
 }
 
-@media (max-width: 1280px) and (min-width: 721px) {
+@media (max-width: 1280px) and (min-width: 1025px) {
     .analytics-desktop-control-main {
         grid-template-columns: minmax(290px, auto) 1fr auto;
         gap: 14px;
@@ -2562,35 +2562,9 @@
     }
 }
 
-@media (max-width: 980px) and (min-width: 721px) {
-    .analytics-desktop-control-main {
-        grid-template-columns: 1fr auto;
-    }
 
-    .analytics-filter-group--desktop {
-        grid-column: 1 / -1;
-        grid-row: 2;
-    }
 
-    .analytics-desktop-primary-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .analytics-desktop-days-panel {
-        grid-column: auto;
-    }
-
-    .analytics-desktop-day-list {
-        grid-template-columns: 1fr;
-        min-height: 220px;
-    }
-
-    .analytics-select-filters--desktop {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .analytics-desktop-control-card {
         display: none !important;
     }

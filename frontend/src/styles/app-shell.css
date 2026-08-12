@@ -514,7 +514,7 @@
     flex-shrink: 0;
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     .app-header-calendar-right .calendar-header-mode-group {
         padding: 3px;
         gap: 2px;
@@ -889,7 +889,7 @@ a.credentials-popover-action-btn {
 }
 
 /* Folio layout editor is impractical on narrow viewports (matches editor CSS breakpoint). */
-@media (max-width: 800px) {
+@media (max-width: 1024px) {
     .config-billing-tab--folio-layout {
         display: none !important;
     }
@@ -1269,7 +1269,7 @@ a.credentials-popover-action-btn {
 }
 
 /* --- Responsive: Tablet portrait & mobile --- */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .layout {
         grid-template-columns: 1fr;
     }
@@ -1314,8 +1314,8 @@ a.credentials-popover-action-btn {
     .sidebar .logout-btn { order: 2; }
 }
 
-/* --- ≤780px: hide left rail; hamburger opens full-screen nav --- */
-@media (max-width: 780px) {
+/* --- ≤1024px: hide left rail; hamburger opens full-screen nav --- */
+@media (max-width: 1024px) {
     .layout {
         grid-template-columns: 1fr;
     }
@@ -1354,7 +1354,7 @@ a.credentials-popover-action-btn {
         padding-top: 0;
         overflow: visible;
         /*
-         * Fallback until Shell measures the real header (see Shell.tsx). JS sets an exact pixel bottom edge on ≤780px.
+         * Fallback until Shell measures the real header (see Shell.tsx). JS sets an exact pixel bottom edge on ≤1024px.
          */
         --calendar-shell-header-sticky-below: calc(env(safe-area-inset-top, 0px) + 61px);
     }
@@ -2051,7 +2051,7 @@ a.credentials-popover-action-btn {
     }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
     .referral-modal-backdrop {
         align-items: flex-end;
         justify-content: center;
@@ -2408,7 +2408,7 @@ a.credentials-popover-action-btn {
 [data-theme="dark"] .staff-notification-new-count { border-color: var(--border); }
 [data-theme="dark"] .staff-notification-view-all { border-color: var(--border); background: rgba(255,255,255,.04); }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     .staff-notification-panel {
         position: fixed;
         top: var(--calendar-shell-header-sticky-below, 64px);
@@ -2637,7 +2637,7 @@ a.credentials-popover-action-btn {
     background: rgba(255, 255, 255, .04);
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     .staff-notification-panel--unified {
         max-height: calc(100dvh - var(--calendar-shell-header-sticky-below, 64px) - 16px);
     }
@@ -2698,7 +2698,7 @@ a.credentials-popover-action-btn {
     display: none;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .app-header.app-header--clients {
         min-height: 62px;
         box-sizing: border-box;
@@ -2814,7 +2814,7 @@ a.credentials-popover-action-btn {
     display: none;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .app-header.app-header--waitlist,
     .app-header.app-header--services,
     .app-header.app-header--employees,
@@ -3076,7 +3076,7 @@ a.credentials-popover-action-btn {
 }
 
 /* Account management mobile page: flush blue header/tabs and white page background. */
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .main-area--configuration-account {
         background: #ffffff;
     }
@@ -3088,7 +3088,7 @@ a.credentials-popover-action-btn {
 }
 
 /* Mobile navigation density: keep more destinations visible without changing desktop navigation. */
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
     .mobile-nav-overlay-header {
         padding: 10px 14px;
     }
@@ -3364,7 +3364,7 @@ a.credentials-popover-action-btn {
   white-space: nowrap;
 }
 
-@media (max-width: 780px) {
+@media (max-width: 1024px) {
   .unit-switcher {
     max-width: min(190px, 48vw);
   }
@@ -3473,7 +3473,7 @@ a.credentials-popover-action-btn {
 }
 .calendar-workspace-scope-button.is-active { border-color: #bfdbfe; background: #dbeafe; color: #1d4ed8; }
 .calendar-workspace-readonly-note { color: #64748b; font-size: 13px; }
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
   .booking-locations-heading-row,
   .booking-location-card,
   .calendar-workspace-scope-bar { align-items: stretch; flex-direction: column; }
@@ -3499,7 +3499,7 @@ a.credentials-popover-action-btn {
   color: #0f172a;
   font: inherit;
 }
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
   .calendar-location-filter { align-items: stretch; flex-direction: column; }
   .calendar-location-filter select { width: 100%; }
 }

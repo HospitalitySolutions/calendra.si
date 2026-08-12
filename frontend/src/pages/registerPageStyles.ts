@@ -226,7 +226,7 @@ export const registerPageStyles = `
       width: 100%;
     }
 
-    @media (min-width: 900px) {
+    @media (min-width: 1025px) {
       .register-flow .register-stepper-row {
         flex-wrap: nowrap;
       }
@@ -842,7 +842,7 @@ export const registerPageStyles = `
       justify-content: center;
     }
 
-    @media (min-width: 721px) {
+    @media (min-width: 1025px) {
       .register-flow .register-footer-toolbar {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -880,7 +880,7 @@ export const registerPageStyles = `
       }
     }
 
-    @media (min-width: 900px) {
+    @media (min-width: 1025px) {
       .register-flow .register-footer-toolbar {
         gap: 14px 20px;
       }
@@ -1297,11 +1297,11 @@ export const registerPageStyles = `
       }
     }
 
-    @media (max-width: 960px) {
+    @media (max-width: 1024px) {
       .register-flow .plans-grid { grid-template-columns: 1fr; }
     }
 
-    @media (max-width: 860px) {
+    @media (max-width: 1024px) {
       .register-flow {
         padding-top: 0;
         padding-right: var(--register-gutter-right);
@@ -1668,13 +1668,13 @@ export const registerPageStyles = `
   transform: translateY(-1px);
 }
 
-@media (max-width: 860px) {
+@media (max-width: 1024px) {
   .register-flow .custom-cta.custom-cta--footer-toolbar {
     margin-bottom: 0;
   }
 }
 
-@media (min-width: 861px) {
+@media (min-width: 1025px) {
   .register-flow .custom-cta--footer-toolbar {
     display: none;
   }
@@ -2275,7 +2275,7 @@ export const registerPageStyles = `
   cursor: not-allowed;
 }
 
-@media (max-width: 860px) {
+@media (max-width: 1024px) {
   .register-flow .feature-addons-list {
     grid-template-columns: 1fr;
   }
@@ -2696,7 +2696,7 @@ export const registerPageStyles = `
   outline-offset: 2px;
 }
 
-@media (max-width: 1040px) and (min-width: 861px) {
+@media (max-width: 1040px) and (min-width: 1025px) {
   .register-flow.register-plan-selection-page .custom-solution-banner {
     grid-template-columns: auto minmax(0, 1fr);
   }
@@ -3242,7 +3242,7 @@ export const registerPageStyles = `
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
   .register-flow.register-plan-selection-page .topbar {
     min-height: 60px;
   }

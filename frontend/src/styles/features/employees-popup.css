@@ -427,7 +427,7 @@
     box-shadow: none;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .employees-form-popup-backdrop.booking-side-panel-backdrop {
         padding: 0;
         align-items: flex-end;

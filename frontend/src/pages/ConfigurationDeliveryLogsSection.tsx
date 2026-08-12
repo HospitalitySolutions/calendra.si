@@ -541,6 +541,6 @@ const deliveryLogsStyles = `
 .delivery-logs-preview-block p { margin:0; color:#334155; line-height:1.55; white-space:pre-wrap; word-break:break-word; }
 .delivery-logs-preview-block.is-error { border-color:#fecaca; background:#fff7f7; }
 .delivery-logs-preview-block.is-error p { color:#991b1b; }
-@media (max-width: 980px) { .delivery-logs-summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .delivery-logs-channel-row { align-items:flex-start; flex-direction:column; } }
+@media (max-width: 1024px) { .delivery-logs-summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .delivery-logs-channel-row { align-items:flex-start; flex-direction:column; } }
 @media (max-width: 640px) { .delivery-logs-summary-grid { grid-template-columns:1fr; } .delivery-logs-modal-grid { grid-template-columns:1fr; } .delivery-logs-filter-row { align-items:stretch; } .delivery-logs-filter-row select, .delivery-logs-filter-row input, .delivery-logs-filter-row label { width:100%; } }
 `;

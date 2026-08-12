@@ -293,7 +293,7 @@ function CalendarResourceFilterDropdown({
   )
 }
 
-/** Icon + portaled list — used in bottom bar below ~940px (layout footer: popups anchor above buttons). */
+/** Icon + portaled list — used in bottom bar at tablet/mobile widths (layout footer: popups anchor above buttons). */
 export function CalendarRailIconFilters({
   showConsultant,
   showSpace,

@@ -484,7 +484,7 @@
     background: rgba(15, 23, 42, 0.56);
 }
 
-@media (max-width: 880px) {
+@media (max-width: 1024px) {
     .billing-open-bills-table {
         min-width: 560px;
     }
@@ -2018,7 +2018,7 @@ a.clients-contact-link:hover {
     font-size: 0.82rem;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .clients-detail-sessions-card--modern .clients-detail-sessions-tab-count {
         color: #64748b;
         font-size: 0.78rem;
@@ -2127,7 +2127,7 @@ a.clients-contact-link:hover {
     width: 100%;
 }
 
-@media (min-width: 769px) {
+@media (min-width: 1025px) {
     .clients-detail-footer--client-save-only .clients-detail-footer-center {
         justify-content: flex-end;
     }
@@ -2340,7 +2340,7 @@ a.clients-contact-link:hover {
 }
 
 /* Match clients toolbar count chip (pill) on wider viewports */
-@media (min-width: 721px) {
+@media (min-width: 1025px) {
     .clients-detail-sessions-tab-count {
         padding: 8px 12px;
         border-radius: 999px;
@@ -2577,7 +2577,7 @@ a.clients-contact-link:hover {
     color: #b91c1c;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .clients-detail-file-item {
         flex-direction: column;
         align-items: stretch;
@@ -2695,7 +2695,7 @@ a.clients-contact-link:hover {
     border-color: rgba(148, 163, 184, 0.32);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     [data-theme="dark"] .clients-detail-sessions-card--modern .clients-detail-sessions-tab-count {
         color: #94a3b8;
     }

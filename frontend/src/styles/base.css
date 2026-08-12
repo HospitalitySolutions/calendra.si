@@ -812,7 +812,7 @@ html[data-modern-time-picker-open="true"] body > .modern-time-picker-popover {
 }
 
 /* --- Responsive: Tablet portrait & mobile --- */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     :root {
         --sidebar-width: 100%;
         --content-padding: 16px;

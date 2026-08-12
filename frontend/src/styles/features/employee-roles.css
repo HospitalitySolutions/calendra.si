@@ -794,7 +794,7 @@
     }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
     .employee-page-tabs {
         gap: 18px;
         overflow-x: auto;
@@ -1133,7 +1133,7 @@
 }
 
 /* Mobile employees header/tabs: same two-row blue treatment as Clients. */
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .employees-page-root.stack.gap-lg {
         gap: 0;
         padding: 0 !important;
@@ -1277,7 +1277,7 @@
     color: var(--color-primary);
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1024px) {
     .employees-page-root .employee-page-tab .employees-tab-count {
         min-width: 23px;
         height: 23px;
@@ -1515,7 +1515,7 @@
   color: #2563eb;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .employee-roles-special-permissions-grid {
     grid-template-columns: 1fr;
   }
@@ -1648,7 +1648,7 @@
     }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1024px) {
     .employees-page-root .employees-page-tabs-shell.clients-entity-tabs-shell {
         width: 100%;
         margin: -1px 0 0;
