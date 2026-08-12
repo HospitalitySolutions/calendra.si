@@ -13,6 +13,7 @@ import {
 import { Navigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
+import "./SessionTypesPage.mobile.css";
 import { api } from "../api";
 import { useAuthenticatedUser } from "../authUserContext";
 import type {
