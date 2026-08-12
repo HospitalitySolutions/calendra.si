@@ -74,8 +74,10 @@ public final class SessionBillingSupport {
             }
         } else {
             // Legacy single-service bookings do not have session_service rows.
-            for (SessionType type : SessionServiceSupport.orderedTypes(booking)) {
-                addTypeCharges(charges, type, excludedTransactions, locationId, resolver);
+            List<SessionType> types = SessionServiceSupport.orderedTypes(booking);
+            for (int position = 0; position < types.size(); position++) {
+                if (excludedPositions.contains(position)) continue;
+                addTypeCharges(charges, types.get(position), excludedTransactions, locationId, resolver);
             }
         }
         return new ArrayList<>(charges.values());

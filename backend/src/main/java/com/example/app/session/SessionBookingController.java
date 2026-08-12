@@ -18,6 +18,7 @@ import com.example.app.billing.OpenBillSyncService;
 import com.example.app.billing.OpenBillRepository;
 import com.example.app.guest.model.GuestEntitlementUsage;
 import com.example.app.guest.model.GuestEntitlementUsageRepository;
+import com.example.app.guest.model.VoucherRules;
 import com.example.app.reminder.ReminderService;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
@@ -1285,7 +1286,6 @@ public class SessionBookingController {
             BigDecimal paidGross = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
             BigDecimal pendingGross = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
             boolean hasBankTransferInvoice = false;
-            boolean entitlementCoversSession = false;
             List<BookingPaymentAllocationResponse> allocations = new ArrayList<>();
 
             for (Bill bill : lookup.linkedBillsBySessionId().getOrDefault(row.getId(), List.of())) {
@@ -1342,7 +1342,7 @@ public class SessionBookingController {
             for (GuestEntitlementUsage usage : lookup.usagesBySessionId().getOrDefault(row.getId(), List.of())) {
                 var entitlement = usage.getEntitlement();
                 var product = entitlement == null ? null : entitlement.getProduct();
-                entitlementCoversSession = true;
+                BigDecimal coveredByUsage = entitlementCoverageGross(row, usage, priceResolver, totalGross);
                 allocations.add(new BookingPaymentAllocationResponse(
                         "ENTITLEMENT",
                         null,
@@ -1350,7 +1350,7 @@ public class SessionBookingController {
                         null,
                         null,
                         null,
-                        totalGross,
+                        coveredByUsage,
                         null,
                         entitlement == null ? null : entitlement.getId(),
                         entitlement == null ? null : (entitlement.getDisplayCode() != null ? entitlement.getDisplayCode() : entitlement.getEntitlementCode()),
@@ -1359,16 +1359,17 @@ public class SessionBookingController {
                         usage.getUsedAt(),
                         usage.getScanSource()
                 ));
-            }
-            if (entitlementCoversSession && totalGross.compareTo(BigDecimal.ZERO) > 0 && paidGross.compareTo(totalGross) < 0) {
-                paidGross = totalGross;
+                paidGross = paidGross.add(coveredByUsage);
             }
             if (paidGross.compareTo(BigDecimal.ZERO) < 0) {
                 paidGross = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
             }
+            if (totalGross.compareTo(BigDecimal.ZERO) > 0 && paidGross.compareTo(totalGross) > 0) {
+                paidGross = totalGross;
+            }
 
             String status;
-            if (totalGross.compareTo(BigDecimal.ZERO) == 0 || entitlementCoversSession || paidGross.compareTo(totalGross) >= 0) {
+            if (totalGross.compareTo(BigDecimal.ZERO) == 0 || paidGross.compareTo(totalGross) >= 0) {
                 status = "PAID";
             } else if (hasBankTransferInvoice) {
                 status = "PAYMENT_PENDING";
@@ -1501,6 +1502,43 @@ public class SessionBookingController {
             proportional = BigDecimal.ZERO;
         }
         return proportional.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal entitlementCoverageGross(
+            SessionBooking row,
+            GuestEntitlementUsage usage,
+            SessionBillingSupport.PriceResolver priceResolver,
+            BigDecimal sessionTotalGross
+    ) {
+        if (row == null || usage == null) return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal total = sessionTotalGross == null
+                ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+                : sessionTotalGross.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        if (total.compareTo(BigDecimal.ZERO) <= 0) return total;
+
+        if (usage.getCoveredGross() != null && usage.getCoveredGross().compareTo(BigDecimal.ZERO) > 0) {
+            return usage.getCoveredGross().setScale(2, RoundingMode.HALF_UP).min(total);
+        }
+
+        var entitlement = usage.getEntitlement();
+        if (entitlement == null) return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        if (VoucherRules.isValueVoucher(entitlement)) {
+            if (usage.getUnitsUsed() <= 0) return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            return BigDecimal.valueOf(usage.getUnitsUsed(), 2).setScale(2, RoundingMode.HALF_UP).min(total);
+        }
+
+        int coveredPosition = usage.getSessionService() == null ? 0 : usage.getSessionService().getPosition();
+        BigDecimal covered = BigDecimal.ZERO;
+        for (SessionBillingSupport.PositionedCharge charge : SessionBillingSupport.positionedCharges(
+                row, Set.of(), Set.of(), priceResolver)) {
+            if (charge.servicePosition() != coveredPosition || charge.transactionService() == null) continue;
+            BigDecimal net = charge.netPrice() == null ? BigDecimal.ZERO : charge.netPrice();
+            BigDecimal multiplier = charge.transactionService().getTaxRate() == null
+                    ? BigDecimal.ZERO
+                    : charge.transactionService().getTaxRate().multiplier;
+            covered = covered.add(net.add(net.multiply(multiplier)).setScale(2, RoundingMode.HALF_UP));
+        }
+        return covered.setScale(2, RoundingMode.HALF_UP).min(total);
     }
 
     private BigDecimal sessionGross(SessionBooking row, List<SessionBooking> groupRows) {

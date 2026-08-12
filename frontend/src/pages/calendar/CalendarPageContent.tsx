@@ -9829,7 +9829,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     if (status.status === 'PAID') return true
     return (status.allocations ?? []).some((allocation) => {
       const source = String(allocation.source ?? '').toUpperCase()
-      if (source === 'ENTITLEMENT') return true
+      // An entitlement may cover only one service in a multi-service booking. Only a final
+      // invoice (or an overall PAID status above) should block creation of the remaining bill.
       return source === 'INVOICE'
         && Number(allocation.billId ?? 0) > 0
         && String(allocation.paymentStatus ?? '').toUpperCase() !== 'CANCELLED'

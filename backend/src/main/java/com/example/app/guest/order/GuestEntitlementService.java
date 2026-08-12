@@ -16,8 +16,10 @@ import com.example.app.session.BookingSource;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingStatus;
 import com.example.app.session.SessionService;
+import com.example.app.session.SessionServiceSupport;
 import com.example.app.session.SessionType;
 import com.example.app.session.SessionTypeRepository;
+import com.example.app.settings.EntitlementsModuleAccessService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -67,6 +69,9 @@ public class GuestEntitlementService {
 
     @Autowired(required = false)
     private SessionTypeRepository sessionTypes;
+
+    @Autowired(required = false)
+    private EntitlementsModuleAccessService entitlementsModuleAccessService;
 
     private final String publicBaseUrl;
 
@@ -297,8 +302,105 @@ public class GuestEntitlementService {
     public GuestEntitlementSelection consumeBestMatchingEntitlement(Client client, Long companyId, Long sessionTypeId, SessionBooking booking) {
         Long locationId = booking == null || booking.getLocation() == null ? null : booking.getLocation().getId();
         GuestEntitlement entitlement = findBestMatchingEntitlement(client, companyId, sessionTypeId, locationId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No active membership or visit pack is available for this booking."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No active membership, visit pack or single ticket is available for this booking."));
         return consumeEntitlement(entitlement, booking);
+    }
+
+    /**
+     * Automatically links prepaid attendance to a booking once it is effectively checked out.
+     *
+     * <p>The resolver is intentionally deterministic and finite-credit friendly:
+     * MEMBERSHIP -&gt; PACK -&gt; TICKET. An existing booking/service usage always wins so the
+     * operation is idempotent and never consumes a second entitlement when checkout is saved
+     * repeatedly. Multi-service bookings are reconciled per service segment.</p>
+     *
+     * @return number of newly-created entitlement usage rows
+     */
+    @Transactional
+    public int reconcileAutomaticEntitlementsForCheckedOutBooking(SessionBooking booking) {
+        if (booking == null || booking.getId() == null || booking.getBilledAt() != null
+                || booking.getClient() == null || booking.getClient().getId() == null
+                || booking.getCompany() == null || booking.getCompany().getId() == null || !isEffectivelyCheckedOut(booking)) {
+            return 0;
+        }
+        Long companyId = booking.getCompany().getId();
+        if (entitlementsModuleAccessService != null && !entitlementsModuleAccessService.isEnabled(companyId)) {
+            return 0;
+        }
+
+        List<GuestEntitlementUsage> existingUsages = usages.findAllBySessionBookingIdOrderByUsedAtAsc(booking.getId());
+        List<SessionService> serviceRows = SessionServiceSupport.orderedServices(booking);
+        int consumed = 0;
+
+        if (serviceRows.isEmpty()) {
+            boolean alreadyCovered = existingUsages.stream().anyMatch(this::usageCoversServiceCharge);
+            if (alreadyCovered || booking.getType() == null || booking.getType().getId() == null) {
+                return 0;
+            }
+            var candidate = findBestMatchingEntitlement(
+                    booking.getClient(), companyId, booking.getType().getId(),
+                    booking.getLocation() == null ? null : booking.getLocation().getId());
+            if (candidate.isPresent() && consumeEntitlement(candidate.get(), booking).consumed()) {
+                consumed++;
+            }
+            return consumed;
+        }
+
+        Set<Long> coveredServiceIds = existingUsages.stream()
+                .filter(this::usageCoversServiceCharge)
+                .map(GuestEntitlementUsage::getSessionService)
+                .filter(Objects::nonNull)
+                .map(SessionService::getId)
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        boolean hasLegacyWholeBookingCoverage = existingUsages.stream()
+                .filter(this::usageCoversServiceCharge)
+                .anyMatch(row -> row.getSessionService() == null);
+
+        for (SessionService serviceRow : serviceRows) {
+            if (serviceRow == null || serviceRow.getSessionType() == null || serviceRow.getSessionType().getId() == null) continue;
+            if (serviceRow.getId() != null && coveredServiceIds.contains(serviceRow.getId())) continue;
+            // A legacy booking-level usage represents the primary service. Modern multi-service
+            // usages are stored against exact session_service rows.
+            if (hasLegacyWholeBookingCoverage && serviceRow.getPosition() == 0) continue;
+
+            var candidate = findBestMatchingEntitlement(
+                    booking.getClient(), companyId, serviceRow.getSessionType().getId(),
+                    booking.getLocation() == null ? null : booking.getLocation().getId());
+            if (candidate.isPresent() && consumeEntitlement(candidate.get(), booking, serviceRow).consumed()) {
+                consumed++;
+            }
+        }
+        return consumed;
+    }
+
+    /**
+     * Service positions that are already paid/covered by a prepaid entitlement. Billing uses this
+     * projection to omit only the covered service line while keeping consumables and other extras
+     * on the open bill.
+     */
+    @Transactional(readOnly = true)
+    public Set<Integer> coveredServicePositions(SessionBooking booking) {
+        if (booking == null || booking.getId() == null) return Set.of();
+        List<GuestEntitlementUsage> bookingUsages = usages.findAllBySessionBookingIdOrderByUsedAtAsc(booking.getId()).stream()
+                .filter(this::usageCoversServiceCharge)
+                .toList();
+        if (bookingUsages.isEmpty()) return Set.of();
+
+        List<SessionService> serviceRows = SessionServiceSupport.orderedServices(booking);
+        LinkedHashSet<Integer> covered = new LinkedHashSet<>();
+        for (GuestEntitlementUsage usage : bookingUsages) {
+            SessionService service = usage.getSessionService();
+            if (service != null) {
+                covered.add(service.getPosition());
+            } else if (serviceRows.isEmpty()) {
+                covered.add(0);
+            } else {
+                // Backwards-compatible booking-level entitlement usage covers the primary service.
+                covered.add(serviceRows.getFirst().getPosition());
+            }
+        }
+        return Set.copyOf(covered);
     }
 
     @Transactional
@@ -363,6 +465,11 @@ public class GuestEntitlementService {
         usage.setSessionService(sessionService);
         usage.setReason(EntitlementUsageReason.BOOKING);
         usage.setUsedAt(Instant.now());
+        if (entitlement.getEntitlementType() != EntitlementType.MEMBERSHIP && entitlement.getRemainingUses() != null) {
+            int before = Math.max(0, entitlement.getRemainingUses());
+            usage.setUnitsBefore(before);
+            usage.setUnitsAfter(Math.max(0, before - 1));
+        }
         usages.save(usage);
         if (entitlement.getEntitlementType() != EntitlementType.MEMBERSHIP) {
             decrementIfLimited(entitlement);
@@ -1523,11 +1630,16 @@ public class GuestEntitlementService {
     }
 
     private java.util.Optional<GuestEntitlement> findBestMatchingEntitlement(Client client, Long companyId, Long sessionTypeId, Long locationId) {
+        if (client == null || client.getId() == null || companyId == null || sessionTypeId == null) {
+            return java.util.Optional.empty();
+        }
         Instant now = timeService.instant(companyId);
         return entitlements.findAllByClientIdAndCompanyIdAndStatusInOrderByCreatedAtDesc(client.getId(), companyId, ACTIVE_STATUSES).stream()
                 .filter(entitlement -> entitlement.getValidFrom() == null || !entitlement.getValidFrom().isAfter(now))
                 .filter(entitlement -> entitlement.getValidUntil() == null || entitlement.getValidUntil().isAfter(now))
-                .filter(entitlement -> entitlement.getEntitlementType() != EntitlementType.GIFT_CARD || VoucherRules.isServiceVoucher(entitlement))
+                .filter(entitlement -> entitlement.getEntitlementType() == EntitlementType.MEMBERSHIP
+                        || entitlement.getEntitlementType() == EntitlementType.PACK
+                        || entitlement.getEntitlementType() == EntitlementType.TICKET)
                 .filter(entitlement -> entitlement.getRemainingUses() == null || entitlement.getRemainingUses() > 0)
                 .filter(entitlement -> entitlement.getProduct() != null)
                 .filter(entitlement -> locationId == null || commerceLocations == null || commerceLocations.entitlementAvailableAt(entitlement, locationId))
@@ -1594,8 +1706,27 @@ public class GuestEntitlementService {
 
     private Comparator<GuestEntitlement> entitlementPriority() {
         return Comparator
-                .comparing((GuestEntitlement entitlement) -> entitlement.getValidUntil() == null ? Instant.MAX : entitlement.getValidUntil())
-                .thenComparing(GuestEntitlement::getCreatedAt);
+                .comparingInt((GuestEntitlement entitlement) -> automaticEntitlementPriority(entitlement.getEntitlementType()))
+                .thenComparing(entitlement -> entitlement.getValidUntil() == null ? Instant.MAX : entitlement.getValidUntil())
+                .thenComparing(entitlement -> entitlement.getCreatedAt() == null ? Instant.EPOCH : entitlement.getCreatedAt())
+                .thenComparing(entitlement -> entitlement.getId() == null ? Long.MAX_VALUE : entitlement.getId());
+    }
+
+    private static int automaticEntitlementPriority(EntitlementType type) {
+        if (type == EntitlementType.MEMBERSHIP) return 0;
+        if (type == EntitlementType.PACK) return 1;
+        if (type == EntitlementType.TICKET) return 2;
+        return 9;
+    }
+
+    private boolean usageCoversServiceCharge(GuestEntitlementUsage usage) {
+        if (usage == null || usage.getEntitlement() == null) return false;
+        GuestEntitlement entitlement = usage.getEntitlement();
+        if (VoucherRules.isValueVoucher(entitlement)) return false;
+        return entitlement.getEntitlementType() == EntitlementType.MEMBERSHIP
+                || entitlement.getEntitlementType() == EntitlementType.PACK
+                || entitlement.getEntitlementType() == EntitlementType.TICKET
+                || VoucherRules.isServiceVoucher(entitlement);
     }
 
     private Comparator<GuestEntitlement> giftCardConsumptionPriority() {

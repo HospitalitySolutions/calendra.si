@@ -8,6 +8,7 @@ import com.example.app.commerce.CommerceLocationScopeService;
 import com.example.app.consumables.ConsumableEnums.QuantityMode;
 import com.example.app.consumables.SessionConsumable;
 import com.example.app.consumables.SessionConsumableRepository;
+import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.location.Location;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBillingSupport;
@@ -76,6 +77,9 @@ public class OpenBillSyncService {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private GlobalConsumablesFeatureService consumablesFeatureService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private GuestEntitlementService guestEntitlementService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -292,6 +296,23 @@ public class OpenBillSyncService {
             return;
         }
 
+        // Checkout is also the automatic prepaid-entitlement settlement boundary. Resolve every
+        // participant before projecting open-bill rows so covered services never appear as unpaid.
+        if (guestEntitlementService != null) {
+            for (SessionBooking row : groupRows) {
+                guestEntitlementService.reconcileAutomaticEntitlementsForCheckedOutBooking(row);
+            }
+        }
+
+        // Existing open bills may already contain service rows that have just become entitlement-
+        // covered. Re-sync those rows first so stale service lines disappear even when the entire
+        // group is now prepaid and billableRowsForGroup() becomes empty.
+        for (SessionBooking row : groupRows) {
+            if (row != null && row.getId() != null && hasExistingOpenBillForSession(companyId, row.getId())) {
+                syncSessionRow(companyId, row);
+            }
+        }
+
         var billableRows = billableRowsForGroup(groupRows, companyId);
         Set<Long> activeSessionIds = billableRows.stream()
                 .map(SessionBooking::getId)
@@ -396,6 +417,9 @@ public class OpenBillSyncService {
         if (sb == null || sb.getId() == null) {
             return;
         }
+        if (guestEntitlementService != null) {
+            guestEntitlementService.reconcileAutomaticEntitlementsForCheckedOutBooking(sb);
+        }
         if (!isDueForGeneratedOpenBill(sb, companyId)) {
             return;
         }
@@ -404,7 +428,7 @@ public class OpenBillSyncService {
             return;
         }
         var type = sb.getType();
-        boolean hasServiceCharges = SessionBillingSupport.hasTransactionServices(sb, locationPrices == null ? null : locationPrices::effectiveNet);
+        boolean hasServiceCharges = hasBillableSessionServiceCharges(sb, companyId);
         boolean hasConsumableCharges = hasBillableSessionConsumables(sb, companyId);
         boolean hasExistingOpenBill = openBillRepo.findBySessionBookingIdAndCompanyId(sb.getId(), companyId).isPresent()
                 || openBillRepo.findContainingSession(companyId, sb.getId()).isPresent();
@@ -444,7 +468,10 @@ public class OpenBillSyncService {
             changed |= ensureSessionServiceLines(containingOpen, sb, companyId);
             changed |= ensureSessionConsumableLines(containingOpen, sb, companyId);
             changed |= ensureAdvanceOffsetLines(containingOpen, sb, companyId);
-            if (changed) {
+            if (containingOpen.getItems() == null || containingOpen.getItems().isEmpty()) {
+                deleteAdvanceAllocationsForOpenBill(companyId, containingOpen.getId());
+                openBillRepo.delete(containingOpen);
+            } else if (changed) {
                 openBillRepo.save(containingOpen);
             }
             return;
@@ -466,6 +493,13 @@ public class OpenBillSyncService {
         changed |= ensureSessionConsumableLines(open, sb, companyId);
         changed |= ensureAdvanceOffsetLines(open, sb, companyId);
 
+        if (open.getItems() == null || open.getItems().isEmpty()) {
+            if (open.getId() != null) {
+                deleteAdvanceAllocationsForOpenBill(companyId, open.getId());
+                openBillRepo.delete(open);
+            }
+            return;
+        }
         if (changed || open.getId() == null) {
             openBillRepo.save(open);
         }
@@ -481,7 +515,7 @@ public class OpenBillSyncService {
                 continue;
             }
             if (!isNoShowSession(row)
-                    && !SessionBillingSupport.hasTransactionServices(row, locationPrices == null ? null : locationPrices::effectiveNet)
+                    && !hasBillableSessionServiceCharges(row, companyId)
                     && !hasBillableSessionConsumables(row, companyId)
                     && !hasExistingOpenBillForSession(companyId, row.getId())) {
                 continue;
@@ -494,7 +528,7 @@ public class OpenBillSyncService {
                 continue;
             }
             if (!isNoShowSession(billable)
-                    && !SessionBillingSupport.hasTransactionServices(billable, locationPrices == null ? null : locationPrices::effectiveNet)
+                    && !hasBillableSessionServiceCharges(billable, companyId)
                     && !hasBillableSessionConsumables(billable, companyId)
                     && !hasExistingOpenBillForSession(companyId, billable.getId())) {
                 continue;
@@ -1367,7 +1401,19 @@ public class OpenBillSyncService {
     }
 
     private List<SessionBillingSupport.Charge> sessionChargesForBilling(SessionBooking session, Long companyId) {
-        return SessionBillingSupport.charges(session, resolveAdvanceDeductionServiceIds(companyId), locationPrices == null ? null : locationPrices::effectiveNet);
+        Set<Integer> coveredPositions = guestEntitlementService == null
+                ? Set.of()
+                : guestEntitlementService.coveredServicePositions(session);
+        return SessionBillingSupport.charges(
+                session,
+                resolveAdvanceDeductionServiceIds(companyId),
+                coveredPositions,
+                locationPrices == null ? null : locationPrices::effectiveNet
+        );
+    }
+
+    private boolean hasBillableSessionServiceCharges(SessionBooking session, Long companyId) {
+        return !sessionChargesForBilling(session, companyId).isEmpty();
     }
 
     private Set<Long> chargeServiceIds(List<SessionBillingSupport.Charge> charges) {
@@ -1510,6 +1556,9 @@ public class OpenBillSyncService {
         if (SessionBookingStatus.NO_SHOW.equals(status)) {
             return true;
         }
+        if (SessionBookingStatus.CHECKED_OUT.equals(status)) {
+            return true;
+        }
         if (session.getEndTime() == null) {
             return false;
         }
@@ -1520,8 +1569,10 @@ public class OpenBillSyncService {
         if (session == null || session.getEndTime() == null) {
             return Instant.now();
         }
-        if (SessionBookingStatus.CANCELLED.equals(SessionBookingStatus.normalizeStored(session.getBookingStatus()))
-                || SessionBookingStatus.NO_SHOW.equals(SessionBookingStatus.normalizeStored(session.getBookingStatus()))) {
+        String status = SessionBookingStatus.normalizeStored(session.getBookingStatus());
+        if (SessionBookingStatus.CANCELLED.equals(status)
+                || SessionBookingStatus.NO_SHOW.equals(status)
+                || SessionBookingStatus.CHECKED_OUT.equals(status)) {
             return Instant.now();
         }
         var now = timeService.localDateTime(java.time.ZoneId.systemDefault(), companyId);

@@ -1307,6 +1307,7 @@ public class BillingController {
         if ("CANCELLED".equalsIgnoreCase(String.valueOf(session.getBookingStatus()))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cancelled sessions cannot be billed.");
         }
+        reconcileAutomaticEntitlementForBilling(session);
         if (!selectedOnly && sharedGroup) {
             return createSharedOpenBillForSessionGroup(session, companyId);
         }
@@ -1319,8 +1320,23 @@ public class BillingController {
         if (session.getClient() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected session has no client.");
         }
-        if (!isNoShowSession(session) && !SessionBillingSupport.hasTransactionServices(session, locationPrices == null ? null : locationPrices::effectiveNet)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected session has no transaction services.");
+        reconcileAutomaticEntitlementForBilling(session);
+        var containingOpen = openBillRepo.findContainingSession(companyId, session.getId()).orElse(null);
+        if (!isNoShowSession(session) && !hasBillableSessionServiceCharges(session, companyId)) {
+            // A prepaid entitlement settles only the covered session service. If the existing
+            // open bill still contains consumables/manual extras, keep and open that remainder.
+            if (containingOpen != null) {
+                boolean changed = ensureSessionServiceLines(containingOpen, session, companyId);
+                if (containingOpen.getItems() == null || containingOpen.getItems().isEmpty()) {
+                    openBillRepo.delete(containingOpen);
+                } else {
+                    if (changed) {
+                        containingOpen = openBillRepo.saveAndFlush(containingOpen);
+                    }
+                    return openBillResponseById(companyId, containingOpen.getId());
+                }
+            }
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected session is fully covered and has no unpaid charges.");
         }
         assertSessionNotAlreadyFinalizedForAutomaticBilling(session, companyId);
 
@@ -1331,7 +1347,6 @@ public class BillingController {
 
         var client = session.getClient();
         PayeeResolution payee = resolveSessionPayee(session, client);
-        var containingOpen = openBillRepo.findContainingSession(companyId, session.getId()).orElse(null);
         OpenBill open = resolveSyncTargetOpenBill(
                 session,
                 client,
@@ -1359,22 +1374,23 @@ public class BillingController {
         boolean hasIssuedInvoice = billRepo.findAllLinkedToSessionIds(companyId, List.of(sessionId)).stream()
                 .anyMatch(bill -> !BillType.ADVANCE.equals(bill.getBillType())
                         && !BillPaymentStatus.CANCELLED.equals(bill.getPaymentStatus()));
-        if (hasIssuedInvoice) return true;
-        return guestEntitlementService != null && guestEntitlementService.findBookingUsage(sessionId).isPresent();
+        return hasIssuedInvoice;
     }
 
     private void assertSessionNotAlreadyFinalizedForAutomaticBilling(SessionBooking session, Long companyId) {
         if (isSessionAlreadyFinalizedForAutomaticBilling(session, companyId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Selected session is already invoiced or settled.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Selected session is already invoiced.");
         }
     }
 
     private boolean hasMultipleBillableRowsInBookingGroup(SessionBooking sourceSession, Long companyId) {
         if (sourceSession == null || sourceSession.getId() == null) return false;
-        return sessionBookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(bookingGroupKey(sourceSession), companyId).stream()
+        var rows = sessionBookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(bookingGroupKey(sourceSession), companyId);
+        rows.forEach(this::reconcileAutomaticEntitlementForBilling);
+        return rows.stream()
                 .filter(row -> row.getClient() != null)
                 .filter(row -> !"CANCELLED".equalsIgnoreCase(String.valueOf(row.getBookingStatus())))
-                .filter(row -> isNoShowSession(row) || SessionBillingSupport.hasTransactionServices(row, locationPrices == null ? null : locationPrices::effectiveNet))
+                .filter(row -> isNoShowSession(row) || hasBillableSessionServiceCharges(row, companyId))
                 .filter(row -> !isSessionAlreadyFinalizedForAutomaticBilling(row, companyId))
                 .filter(row -> !isTotalPriceCalculation(row))
                 .limit(2)
@@ -1382,10 +1398,12 @@ public class BillingController {
     }
 
     private OpenBillResponse createPerClientOpenBillsForSessionGroup(SessionBooking sourceSession, Long companyId) {
-        var groupRows = sessionBookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(bookingGroupKey(sourceSession), companyId).stream()
+        var rows = sessionBookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(bookingGroupKey(sourceSession), companyId);
+        rows.forEach(this::reconcileAutomaticEntitlementForBilling);
+        var groupRows = rows.stream()
                 .filter(row -> row.getClient() != null)
                 .filter(row -> !"CANCELLED".equalsIgnoreCase(String.valueOf(row.getBookingStatus())))
-                .filter(row -> isNoShowSession(row) || SessionBillingSupport.hasTransactionServices(row, locationPrices == null ? null : locationPrices::effectiveNet))
+                .filter(row -> isNoShowSession(row) || hasBillableSessionServiceCharges(row, companyId))
                 .filter(row -> !isSessionAlreadyFinalizedForAutomaticBilling(row, companyId))
                 .filter(row -> !isTotalPriceCalculation(row))
                 .toList();
@@ -1434,15 +1452,17 @@ public class BillingController {
     }
 
     private OpenBillResponse createSharedOpenBillForSessionGroup(SessionBooking sourceSession, Long companyId) {
-        var groupRows = sessionBookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(bookingGroupKey(sourceSession), companyId).stream()
+        var rows = sessionBookings.findByBookingGroupKeyAndCompanyIdOrderByIdAsc(bookingGroupKey(sourceSession), companyId);
+        rows.forEach(this::reconcileAutomaticEntitlementForBilling);
+        var groupRows = rows.stream()
                 .filter(row -> row.getClient() != null)
                 .filter(row -> !"CANCELLED".equalsIgnoreCase(String.valueOf(row.getBookingStatus())))
-                .filter(row -> isNoShowSession(row) || SessionBillingSupport.hasTransactionServices(row, locationPrices == null ? null : locationPrices::effectiveNet))
+                .filter(row -> isNoShowSession(row) || hasBillableSessionServiceCharges(row, companyId))
                 .filter(row -> !isSessionAlreadyFinalizedForAutomaticBilling(row, companyId))
                 .toList();
         if (groupRows.isEmpty()) {
             if (isSessionAlreadyFinalizedForAutomaticBilling(sourceSession, companyId)) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Selected session group is already invoiced or settled.");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Selected session group is already invoiced.");
             }
             groupRows = List.of(sourceSession);
         }
@@ -1452,7 +1472,7 @@ public class BillingController {
             var billable = billingSourceSessionForPriceMode(row, companyId);
             if (billable == null || billable.getId() == null || billable.getClient() == null) continue;
             if ("CANCELLED".equalsIgnoreCase(String.valueOf(billable.getBookingStatus()))) continue;
-            if (!isNoShowSession(billable) && !SessionBillingSupport.hasTransactionServices(billable, locationPrices == null ? null : locationPrices::effectiveNet)) continue;
+            if (!isNoShowSession(billable) && !hasBillableSessionServiceCharges(billable, companyId)) continue;
             if (isSessionAlreadyFinalizedForAutomaticBilling(billable, companyId)) continue;
             billableById.putIfAbsent(billable.getId(), billable);
         }
@@ -3137,7 +3157,8 @@ public class BillingController {
     private void syncOpenBillsFromPastSessions(Long companyId) {
         var past = sessionBookings.findPastSessionsWithTypeAndCompanyId(timeService.localDateTime(), companyId);
         for (SessionBooking sb : past) {
-            if (!SessionBillingSupport.hasTransactionServices(sb, locationPrices == null ? null : locationPrices::effectiveNet)) continue;
+            reconcileAutomaticEntitlementForBilling(sb);
+            if (!hasBillableSessionServiceCharges(sb, companyId)) continue;
             if (isTotalPriceCalculation(sb) && !Objects.equals(billingSourceSessionForPriceMode(sb, companyId).getId(), sb.getId())) continue;
 
             var client = sb.getClient();
@@ -3576,6 +3597,7 @@ public class BillingController {
             OpenBillItem item = staleIterator.next();
             if (!Objects.equals(item.getSourceSessionBookingId(), sourceSessionId)
                     || item.getSourceAdvanceBillId() != null
+                    || item.getSourceSessionConsumableId() != null
                     || item.getTransactionService() == null
                     || item.getTransactionService().getId() == null) {
                 continue;
@@ -3599,6 +3621,7 @@ public class BillingController {
                 OpenBillItem item = iterator.next();
                 if (!Objects.equals(item.getSourceSessionBookingId(), sourceSessionId)
                         || item.getSourceAdvanceBillId() != null
+                        || item.getSourceSessionConsumableId() != null
                         || item.getTransactionService() == null
                         || item.getTransactionService().getId() == null
                         || !key.equals(chargeKey(item.getTransactionService().getId(), item.getNetPrice()))) {
@@ -3640,7 +3663,25 @@ public class BillingController {
     }
 
     private List<SessionBillingSupport.Charge> sessionChargesForBilling(SessionBooking session, Long companyId) {
-        return SessionBillingSupport.charges(session, resolveAdvanceDeductionServiceIds(companyId), locationPrices == null ? null : locationPrices::effectiveNet);
+        Set<Integer> coveredPositions = guestEntitlementService == null
+                ? Set.of()
+                : guestEntitlementService.coveredServicePositions(session);
+        return SessionBillingSupport.charges(
+                session,
+                resolveAdvanceDeductionServiceIds(companyId),
+                coveredPositions,
+                locationPrices == null ? null : locationPrices::effectiveNet
+        );
+    }
+
+    private boolean hasBillableSessionServiceCharges(SessionBooking session, Long companyId) {
+        return !sessionChargesForBilling(session, companyId).isEmpty();
+    }
+
+    private void reconcileAutomaticEntitlementForBilling(SessionBooking session) {
+        if (guestEntitlementService != null && session != null) {
+            guestEntitlementService.reconcileAutomaticEntitlementsForCheckedOutBooking(session);
+        }
     }
 
     private Set<Long> chargeServiceIds(List<SessionBillingSupport.Charge> charges) {
@@ -3665,6 +3706,7 @@ public class BillingController {
         int before = open.getItems().size();
         open.getItems().removeIf(item -> Objects.equals(item.getSourceSessionBookingId(), sourceSessionId)
                 && item.getSourceAdvanceBillId() == null
+                && item.getSourceSessionConsumableId() == null
                 && item.getTransactionService() != null
                 && transactionServiceIds.contains(item.getTransactionService().getId()));
         return open.getItems().size() != before;

@@ -455,6 +455,7 @@ public class SessionBookingCreationService {
             applyRequestedConsumables(me, req, saved, companyId);
             consumableService.applySessionUsageIfCheckedOut(me, saved, java.util.Map.of());
         }
+        reconcileAutomaticEntitlements(saved);
         SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(saved, locationPrices == null ? null : locationPrices::effectiveNet);
         bookingChangePublisher.publish(
                 companyId,
@@ -679,6 +680,7 @@ public class SessionBookingCreationService {
             applyRequestedConsumables(me, req, saved, companyId);
             consumableService.applySessionUsageIfCheckedOut(me, saved, previouslyStoredStatusById);
         }
+        reconcileAutomaticEntitlements(saved);
         openBillSyncService.syncSessionGroup(companyId, groupKey);
         openBillSyncService.enqueueBookingsSync(companyId, saved);
         SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(saved, locationPrices == null ? null : locationPrices::effectiveNet);
@@ -1394,6 +1396,7 @@ public class SessionBookingCreationService {
             consumableService.ensureSessionDefaultsForBookings(actor, java.util.List.of(booking), companyId);
             consumableService.applySessionUsageIfCheckedOut(actor, java.util.List.of(booking), java.util.Map.of());
         }
+        reconcileAutomaticEntitlements(java.util.List.of(booking));
         bookingChangePublisher.publish(
                 companyId,
                 booking.getId(),
@@ -1527,6 +1530,7 @@ public class SessionBookingCreationService {
             consumableService.ensureSessionDefaultsForBookings(actor, refreshedForConsumables, companyId);
             consumableService.applySessionUsageIfCheckedOut(actor, refreshedForConsumables, java.util.Map.of());
         }
+        reconcileAutomaticEntitlements(java.util.List.of(joined));
         bookingChangePublisher.publish(
                 companyId,
                 joined.getId(),
@@ -2511,6 +2515,15 @@ public class SessionBookingCreationService {
         }
         for (SessionBooking booking : bookingsToRestore) {
             restoreGuestCreditForBooking(booking);
+        }
+    }
+
+    private void reconcileAutomaticEntitlements(Iterable<SessionBooking> bookings) {
+        if (guestEntitlementService == null || bookings == null) return;
+        for (SessionBooking booking : bookings) {
+            if (booking != null && booking.getId() != null) {
+                guestEntitlementService.reconcileAutomaticEntitlementsForCheckedOutBooking(booking);
+            }
         }
     }
 
