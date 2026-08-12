@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import '../styles/features/employees-popup.css'
 import { api } from '../api'
 import { locationsQueryOptions, usersQueryOptions } from '../queries/sharedQueryOptions'
 import { employeeRolesQueryOptions, staffQuotaQueryOptions } from '../queries/remainingQueryOptions'
