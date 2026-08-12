@@ -1155,3 +1155,470 @@ button.cards-product-modal-close.booking-side-panel-close:hover {
         box-shadow: none;
     }
 }
+
+/* Responsive Nova/Uredi ugodnost layout — mobile/tablet design */
+.cards-product-responsive-section {
+    display: contents;
+}
+
+@media (max-width: 1024px) {
+    .cards-product-modal-backdrop--entitlement.booking-side-panel-backdrop {
+        padding: 0;
+        align-items: stretch;
+        justify-content: stretch;
+        overflow: hidden;
+        background: #f6f8fb;
+        backdrop-filter: none;
+    }
+
+    .cards-product-modal--entitlement.modal.large-modal.booking-side-panel {
+        width: 100vw;
+        max-width: 100vw;
+        min-height: 100vh;
+        height: 100vh;
+        max-height: 100vh;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        background: #f6f8fb;
+        box-shadow: none;
+    }
+
+    @supports (height: 100dvh) {
+        .cards-product-modal--entitlement.modal.large-modal.booking-side-panel {
+            min-height: 100dvh;
+            height: 100dvh;
+            max-height: 100dvh;
+        }
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-header {
+        min-height: 84px;
+        padding: 0 28px;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 18px;
+        border: 0;
+        border-radius: 0;
+        background: linear-gradient(105deg, #0877ee 0%, #075fdc 100%);
+        box-shadow: none;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-heading {
+        order: 2;
+        display: block;
+        min-width: 0;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-icon {
+        display: none;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-title {
+        min-width: 0;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-heading h2 {
+        margin: 0;
+        color: #ffffff;
+        font-size: 1.62rem;
+        line-height: 1.1;
+        font-weight: 820;
+        letter-spacing: -0.035em;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-heading p {
+        display: none;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-close.booking-side-panel-close,
+    .cards-product-modal--entitlement button.cards-product-modal-close.booking-side-panel-close {
+        order: 1;
+        width: 42px;
+        height: 42px;
+        min-width: 42px;
+        padding: 0;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #ffffff;
+        font-size: 2rem;
+        line-height: 1;
+        font-weight: 300;
+        box-shadow: none !important;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-close.booking-side-panel-close:hover,
+    .cards-product-modal--entitlement button.cards-product-modal-close.booking-side-panel-close:hover {
+        background: rgba(255, 255, 255, 0.12);
+        color: #ffffff;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-body.booking-side-panel-body.form-grid {
+        grid-template-columns: 1fr;
+        align-content: start;
+        gap: 16px;
+        padding: 18px 16px 24px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        background: #f6f8fb;
+        scrollbar-gutter: stable;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-body.booking-side-panel-body.form-grid.has-mobile-action {
+        padding-bottom: 104px;
+    }
+
+    .cards-product-responsive-section {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 20px 38px;
+        min-width: 0;
+        padding: 24px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: 0 5px 18px rgba(15, 23, 42, 0.045);
+    }
+
+    .cards-product-responsive-section--scope,
+    .cards-product-responsive-section--copy {
+        grid-template-columns: 1fr;
+    }
+
+    .cards-product-responsive-section--switches {
+        grid-template-columns: 1fr;
+        gap: 14px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .cards-product-responsive-section--basics > .field:nth-child(3) > .field-hint {
+        display: none;
+    }
+
+    .cards-product-responsive-section--scope .cards-product-scope-field > .field-hint:not(.cards-product-scope-empty-hint) {
+        display: none;
+    }
+
+    .cards-product-responsive-section--meta > .field:first-child {
+        display: none;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-body .field,
+    .cards-product-modal--entitlement .cards-product-modal-body .field.full-span,
+    .cards-product-courses-field {
+        min-width: 0;
+        grid-column: auto;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-body .field-label {
+        color: #111827;
+        font-size: 0.96rem;
+        font-weight: 800;
+        letter-spacing: -0.012em;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-body .field-hint {
+        margin-top: -1px;
+        color: #718096;
+        font-size: 0.82rem;
+        line-height: 1.38;
+    }
+
+    .cards-product-modal--entitlement input:not([type='checkbox']):not([type='file']),
+    .cards-product-modal--entitlement select,
+    .cards-product-modal--entitlement textarea,
+    .cards-product-service-dropdown > summary {
+        min-height: 52px;
+        border: 1px solid #d6deea;
+        border-radius: 12px;
+        background: #ffffff;
+        color: #172033;
+        font-size: 1rem;
+        box-shadow: none;
+    }
+
+    .cards-product-modal--entitlement input:not([type='checkbox']):not([type='file']),
+    .cards-product-modal--entitlement select {
+        padding: 0 16px;
+    }
+
+    .cards-product-modal--entitlement textarea {
+        min-height: 74px;
+        padding: 14px 16px;
+        resize: vertical;
+    }
+
+    .cards-product-service-dropdown > summary {
+        padding: 0 16px;
+    }
+
+    .cards-product-scope-options {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 2px;
+    }
+
+    .cards-product-scope-option {
+        min-height: 82px;
+        padding: 14px 16px;
+        gap: 12px;
+        border-color: #dbe3ef;
+        border-radius: 14px;
+        box-shadow: none;
+    }
+
+    .cards-product-scope-option.is-selected {
+        border-color: #1672f3;
+        background: linear-gradient(135deg, #f2f7ff 0%, #ffffff 100%);
+        box-shadow: 0 0 0 1px rgba(22, 114, 243, 0.06);
+    }
+
+    .cards-product-scope-copy strong {
+        color: #172033;
+        font-size: 0.95rem;
+    }
+
+    .cards-product-scope-copy span {
+        color: #718096;
+        font-size: 0.8rem;
+        line-height: 1.3;
+    }
+
+    .cards-product-modal-note {
+        grid-column: 1 / -1;
+        margin: 0;
+        padding: 13px 16px;
+        border: 1px solid #d7e6fb;
+        border-radius: 13px;
+        background: #f7fbff;
+        color: #243247;
+        font-size: 0.84rem;
+        line-height: 1.42;
+    }
+
+    .cards-product-responsive-section--services .cards-product-modal-note {
+        position: relative;
+        min-height: 58px;
+        padding: 13px 16px 13px 54px;
+    }
+
+    .cards-product-responsive-section--services .cards-product-modal-note::before {
+        content: "i";
+        position: absolute;
+        left: 18px;
+        top: 50%;
+        width: 22px;
+        height: 22px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transform: translateY(-50%);
+        border: 2px solid #1672f3;
+        border-radius: 999px;
+        color: #1672f3;
+        font-size: 0.78rem;
+        font-weight: 850;
+        line-height: 1;
+        box-sizing: border-box;
+    }
+
+    .cards-product-toggle-card {
+        min-height: 78px;
+        padding: 16px 22px;
+        border-color: rgba(148, 163, 184, 0.24);
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: 0 5px 18px rgba(15, 23, 42, 0.045);
+    }
+
+    .cards-product-toggle-card:hover,
+    .cards-product-toggle-card.is-on {
+        border-color: rgba(148, 163, 184, 0.24);
+        background: #ffffff;
+    }
+
+    .cards-product-toggle-copy strong {
+        color: #111827;
+        font-size: 1rem;
+    }
+
+    .cards-product-toggle-copy span {
+        color: #718096;
+        font-size: 0.83rem;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-footer.booking-side-panel-footer {
+        display: none !important;
+        position: fixed;
+        left: 16px;
+        right: 16px;
+        bottom: max(12px, env(safe-area-inset-bottom, 0px));
+        z-index: 90;
+        width: auto;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-footer.booking-side-panel-footer.is-dirty:not(.is-keyboard-open) {
+        display: flex !important;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-footer-actions {
+        width: 100%;
+        display: block;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-footer .gapp-primary-button,
+    .cards-product-modal--entitlement .cards-product-modal-footer button {
+        width: 100%;
+        min-width: 0;
+        min-height: 64px;
+        height: 64px;
+        margin: 0;
+        padding: 0 24px;
+        border-radius: 10px;
+        font-size: 1.05rem;
+        font-weight: 800;
+        box-shadow: 0 12px 26px rgba(22, 114, 243, 0.22);
+    }
+
+    .cards-product-courses-field {
+        grid-column: 1 / -1;
+        padding: 20px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: 0 5px 18px rgba(15, 23, 42, 0.045);
+    }
+
+    [data-theme="dark"] .cards-product-modal-backdrop--entitlement.booking-side-panel-backdrop,
+    [data-theme="dark"] .cards-product-modal--entitlement.modal.large-modal.booking-side-panel,
+    [data-theme="dark"] .cards-product-modal--entitlement .cards-product-modal-body.booking-side-panel-body.form-grid {
+        background: #0b1220;
+    }
+
+    [data-theme="dark"] .cards-product-responsive-section,
+    [data-theme="dark"] .cards-product-toggle-card,
+    [data-theme="dark"] .cards-product-courses-field {
+        background: #111827;
+        border-color: rgba(148, 163, 184, 0.2);
+    }
+
+    [data-theme="dark"] .cards-product-responsive-section--switches {
+        background: transparent;
+        border-color: transparent;
+    }
+}
+
+@media (max-width: 600px) {
+    .cards-product-modal--entitlement .cards-product-modal-header {
+        min-height: 76px;
+        padding: 0 18px;
+        gap: 12px;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-heading h2 {
+        font-size: 1.45rem;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-close.booking-side-panel-close,
+    .cards-product-modal--entitlement button.cards-product-modal-close.booking-side-panel-close {
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        font-size: 1.8rem;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-body.booking-side-panel-body.form-grid {
+        gap: 12px;
+        padding: 12px 10px 22px;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-body.booking-side-panel-body.form-grid.has-mobile-action {
+        padding-bottom: 96px;
+    }
+
+    .cards-product-responsive-section {
+        gap: 16px 12px;
+        padding: 18px;
+        border-radius: 14px;
+    }
+
+    .cards-product-responsive-section--basics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cards-product-responsive-section--basics > .field:nth-child(1),
+    .cards-product-responsive-section--basics > .field:nth-child(2),
+    .cards-product-responsive-section--basics > .field:nth-child(3),
+    .cards-product-responsive-section--basics > .cards-product-modal-note {
+        grid-column: 1 / -1;
+    }
+
+    .cards-product-responsive-section--services,
+    .cards-product-responsive-section--copy,
+    .cards-product-responsive-section--switches {
+        grid-template-columns: 1fr;
+    }
+
+    .cards-product-responsive-section--meta {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cards-product-scope-options {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .cards-product-scope-option {
+        grid-template-columns: auto auto minmax(0, 1fr);
+        min-height: 62px;
+        padding: 11px 10px;
+        gap: 8px;
+    }
+
+    .cards-product-scope-radio {
+        width: 20px;
+        height: 20px;
+    }
+
+    .cards-product-scope-icon {
+        width: 24px;
+        height: 24px;
+    }
+
+    .cards-product-scope-icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .cards-product-scope-copy strong {
+        font-size: 0.86rem;
+    }
+
+    .cards-product-scope-copy span {
+        display: none;
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-footer.booking-side-panel-footer {
+        left: 10px;
+        right: 10px;
+        bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    }
+
+    .cards-product-modal--entitlement .cards-product-modal-footer .gapp-primary-button,
+    .cards-product-modal--entitlement .cards-product-modal-footer button {
+        min-height: 58px;
+        height: 58px;
+        border-radius: 9px;
+        font-size: 1rem;
+    }
+}

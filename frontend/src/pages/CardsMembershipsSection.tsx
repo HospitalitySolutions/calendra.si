@@ -4,6 +4,7 @@ import {
   useEffect,
   useImperativeHandle,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
@@ -734,6 +735,75 @@ export const CardsMembershipsSection = forwardRef<
   const [savingGuestProduct, setSavingGuestProduct] = useState(false);
   const [guestProductForm, setGuestProductForm] =
     useState<GuestProductFormState>(defaultGuestProductForm);
+  const guestProductInitialSignatureRef = useRef(
+    JSON.stringify(defaultGuestProductForm()),
+  );
+  const [guestProductKeyboardOpen, setGuestProductKeyboardOpen] =
+    useState(false);
+
+  const guestProductHasChanges = useMemo(
+    () =>
+      showGuestProductModal &&
+      JSON.stringify(guestProductForm) !== guestProductInitialSignatureRef.current,
+    [guestProductForm, showGuestProductModal],
+  );
+
+  useEffect(() => {
+    if (!showGuestProductModal) {
+      setGuestProductKeyboardOpen(false);
+      return;
+    }
+
+    const viewport = window.visualViewport;
+    if (!viewport) {
+      const editableSelector =
+        'input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([readonly]), textarea:not([readonly]), [contenteditable="true"]';
+      const onFocusIn = (event: FocusEvent) => {
+        if (event.target instanceof Element && event.target.matches(editableSelector)) {
+          setGuestProductKeyboardOpen(true);
+        }
+      };
+      const onFocusOut = () => {
+        window.setTimeout(() => {
+          const active = document.activeElement;
+          setGuestProductKeyboardOpen(
+            active instanceof Element && active.matches(editableSelector),
+          );
+        }, 0);
+      };
+      document.addEventListener("focusin", onFocusIn);
+      document.addEventListener("focusout", onFocusOut);
+      return () => {
+        document.removeEventListener("focusin", onFocusIn);
+        document.removeEventListener("focusout", onFocusOut);
+      };
+    }
+
+    let largestViewportHeight = viewport.height;
+    const updateKeyboardState = () => {
+      largestViewportHeight = Math.max(largestViewportHeight, viewport.height);
+      const obscuredHeight = Math.max(
+        0,
+        window.innerHeight - viewport.height - viewport.offsetTop,
+      );
+      const viewportReduction = largestViewportHeight - viewport.height;
+      setGuestProductKeyboardOpen(
+        obscuredHeight > 140 ||
+          viewportReduction > 140 ||
+          viewport.height < window.innerHeight * 0.76,
+      );
+    };
+
+    updateKeyboardState();
+    viewport.addEventListener("resize", updateKeyboardState);
+    viewport.addEventListener("scroll", updateKeyboardState);
+    window.addEventListener("orientationchange", updateKeyboardState);
+    return () => {
+      viewport.removeEventListener("resize", updateKeyboardState);
+      viewport.removeEventListener("scroll", updateKeyboardState);
+      window.removeEventListener("orientationchange", updateKeyboardState);
+    };
+  }, [showGuestProductModal]);
 
   const loadGuestProducts = useCallback(async () => {
     if (!isAdmin) return;
@@ -861,17 +931,23 @@ export const CardsMembershipsSection = forwardRef<
     const firstSessionTypeId = sessionTypes[0]
       ? String(sessionTypes[0].id)
       : "";
-    setGuestProductForm({
-      ...base,
-      sessionTypeId: firstSessionTypeId,
-      sessionTypeIds: firstSessionTypeId ? [firstSessionTypeId] : [],
-      serviceScope: "SERVICES",
-      serviceGroupId: "",
-      voucherSessionTypeIds: firstSessionTypeId ? [firstSessionTypeId] : [],
-      transactionServiceId: activeTransactionServices.length === 1
-        ? String(activeTransactionServices[0].id)
-        : "",
-    });
+    const initialForm = syncGuestProductPriceFromSessionTypes(
+      {
+        ...base,
+        sessionTypeId: firstSessionTypeId,
+        sessionTypeIds: firstSessionTypeId ? [firstSessionTypeId] : [],
+        serviceScope: "SERVICES",
+        serviceGroupId: "",
+        voucherSessionTypeIds: firstSessionTypeId ? [firstSessionTypeId] : [],
+        transactionServiceId: activeTransactionServices.length === 1
+          ? String(activeTransactionServices[0].id)
+          : "",
+      },
+      sessionTypes,
+    );
+    guestProductInitialSignatureRef.current = JSON.stringify(initialForm);
+    setGuestProductForm(initialForm);
+    setGuestProductKeyboardOpen(false);
     setShowGuestProductModal(true);
   }, [sessionTypes, activeTransactionServices]);
 
@@ -883,8 +959,7 @@ export const CardsMembershipsSection = forwardRef<
     if (product.productType === "GIFT_CARD" && !giftCardsEnabled) return;
     setOpenProductMenuId(null);
     setEditingGuestProductId(product.id);
-    setGuestProductForm(
-      normalizeGuestProductFormForType(
+    const normalizedForm = normalizeGuestProductFormForType(
         {
           name: product.name,
           description: product.description || "",
@@ -947,8 +1022,18 @@ export const CardsMembershipsSection = forwardRef<
           locationIds: Array.isArray(product.locationIds) ? product.locationIds.map(String) : [],
         },
         product.productType === "CLASS_TICKET" ? "PACK" : product.productType,
-      ),
-    );
+      );
+    const initialForm =
+      normalizedForm.serviceScope === "SERVICES" &&
+      guestProductTypeUsesAutoPrice(
+        normalizedForm.productType,
+        normalizedForm.sessionTypeIds.length,
+      )
+        ? syncGuestProductPriceFromSessionTypes(normalizedForm, sessionTypes)
+        : normalizedForm;
+    guestProductInitialSignatureRef.current = JSON.stringify(initialForm);
+    setGuestProductForm(initialForm);
+    setGuestProductKeyboardOpen(false);
     setShowGuestProductModal(true);
   };
 
@@ -1809,7 +1894,7 @@ export const CardsMembershipsSection = forwardRef<
 
       {showGuestProductModal && (
         <div
-          className="modal-backdrop booking-side-panel-backdrop cards-product-modal-backdrop"
+          className="modal-backdrop booking-side-panel-backdrop cards-product-modal-backdrop cards-product-modal-backdrop--entitlement"
           onClick={() => {
             if (!savingGuestProduct) {
               setShowGuestProductModal(false);
@@ -1819,7 +1904,7 @@ export const CardsMembershipsSection = forwardRef<
           role="presentation"
         >
           <div
-            className="modal large-modal booking-side-panel cards-product-modal"
+            className="modal large-modal booking-side-panel cards-product-modal cards-product-modal--entitlement"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="cards-product-modal-header">
@@ -1837,15 +1922,13 @@ export const CardsMembershipsSection = forwardRef<
                         ? "Nova ugodnost"
                         : "New entitlement"}
                   </h2>
-                  <p>
-                    {editingGuestProductId
-                      ? locale === "sl"
+                  {editingGuestProductId && (
+                    <p>
+                      {locale === "sl"
                         ? "Posodobite podrobnosti ugodnosti."
-                        : "Update the details of this entitlement."
-                      : locale === "sl"
-                        ? "Nastavite novo ugodnost za denarnico gostov."
-                        : "Configure a new guest wallet entitlement."}
-                  </p>
+                        : "Update the details of this entitlement."}
+                    </p>
+                  )}
                 </div>
               </div>
               <button
@@ -1864,9 +1947,14 @@ export const CardsMembershipsSection = forwardRef<
             </div>
 
             <form
-              className="form-grid booking-side-panel-body cards-product-modal-body"
+              className={`form-grid booking-side-panel-body cards-product-modal-body${
+                guestProductHasChanges && !guestProductKeyboardOpen
+                  ? " has-mobile-action"
+                  : ""
+              }`}
               onSubmit={submitGuestProduct}
             >
+              <div className="cards-product-responsive-section cards-product-responsive-section--basics">
               <Field label={locale === "sl" ? "Naziv *" : "Name *"}>
                 <input
                   required
@@ -2182,8 +2270,10 @@ export const CardsMembershipsSection = forwardRef<
                   />
                 </Field>
               )}
+              </div>
+
               {guestProductForm.productType !== "GIFT_CARD" && (
-                <>
+                <div className="cards-product-responsive-section cards-product-responsive-section--scope">
                   <div className="field full-span cards-product-scope-field">
                     <span className="field-label">{locale === "sl" ? "Velja za *" : "Valid for *"}</span>
                     <span className="field-hint">
@@ -2256,7 +2346,12 @@ export const CardsMembershipsSection = forwardRef<
                       </span>
                     )}
                   </div>
+                </div>
+              )}
 
+              <div className="cards-product-responsive-section cards-product-responsive-section--services">
+                {guestProductForm.productType !== "GIFT_CARD" && (
+                  <>
                   {guestProductForm.serviceScope === "SERVICES" ? (
                     <Field
                       label={guestProductForm.productType === "MEMBERSHIP"
@@ -2417,6 +2512,9 @@ export const CardsMembershipsSection = forwardRef<
                     .
                   </p>
                 )}
+              </div>
+
+              <div className="cards-product-responsive-section cards-product-responsive-section--meta">
               <Field label={locale === "sl" ? "Vrstni red" : "Sort order"}>
                 <input
                   type="number"
@@ -2480,6 +2578,9 @@ export const CardsMembershipsSection = forwardRef<
                   />
                 </Field>
               )}
+              </div>
+
+              <div className="cards-product-responsive-section cards-product-responsive-section--copy">
               <Field
                 label={locale === "sl" ? "Opis" : "Description"}
                 hint={locale === "sl" ? "Prikazano na zaslonu za nakup v mobilni denarnici gosta." : "Shown in the guest mobile wallet buy screen."}
@@ -2513,6 +2614,9 @@ export const CardsMembershipsSection = forwardRef<
                   }
                 />
               </Field>
+              </div>
+
+              <div className="cards-product-responsive-section cards-product-responsive-section--switches">
               <div className="field cards-product-switch-field">
                 <label
                   className={`cards-product-toggle-card${guestProductForm.guestVisible ? " is-on" : ""}`}
@@ -2576,6 +2680,8 @@ export const CardsMembershipsSection = forwardRef<
                   </label>
                 </div>
               )}
+
+              </div>
 
               {coursesEnabled &&
                 (guestProductForm.productType === "MEMBERSHIP" ||
@@ -2690,7 +2796,11 @@ export const CardsMembershipsSection = forwardRef<
                     </div>
                   </div>
                 )}
-              <div className="form-actions full-span booking-side-panel-footer cards-product-modal-footer">
+              <div
+                className={`form-actions full-span booking-side-panel-footer cards-product-modal-footer${
+                  guestProductHasChanges ? " is-dirty" : ""
+                }${guestProductKeyboardOpen ? " is-keyboard-open" : ""}`}
+              >
                 <div className="cards-product-modal-footer-actions">
                   <button
                     type="submit"
