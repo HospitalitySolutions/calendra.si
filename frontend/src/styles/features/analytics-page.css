@@ -808,7 +808,6 @@
         display: none;
     }
 
-    .analytics-page-tabs--desktop,
     .analytics-hero,
     .analytics-desktop-overview {
         display: none !important;
@@ -1793,42 +1792,6 @@
     }
 }
 
-@media (min-width: 641px) {
-    .analytics-page-tabs--desktop.analytics-section-switch {
-        width: 100%;
-        gap: 28px;
-        padding: 0;
-        border-radius: 0;
-        border-bottom: 1px solid var(--color-border);
-        background: transparent;
-    }
-
-    .analytics-page-tabs--desktop.analytics-section-switch button {
-        position: relative;
-        padding: 11px 3px 12px;
-        border-radius: 0;
-        background: transparent;
-        box-shadow: none;
-    }
-
-    .analytics-page-tabs--desktop.analytics-section-switch button.active {
-        background: transparent;
-        color: var(--color-primary);
-        box-shadow: none;
-    }
-
-    .analytics-page-tabs--desktop.analytics-section-switch button.active::after {
-        content: '';
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: -1px;
-        height: 2px;
-        border-radius: 2px 2px 0 0;
-        background: var(--color-primary);
-    }
-}
-
 /* --------------------------------------------------------------------------
    Analytics desktop redesign — matches the approved Pregled / Poročila comps
    -------------------------------------------------------------------------- */
@@ -1883,26 +1846,6 @@
     .analytics-page > .page-header h1 {
         font-size: 1.45rem;
         letter-spacing: -0.025em;
-    }
-
-    .analytics-page-tabs--desktop.analytics-section-switch {
-        width: fit-content;
-        gap: 30px;
-        margin-top: -6px;
-        margin-bottom: -2px;
-        border-bottom: 0;
-    }
-
-    .analytics-page-tabs--desktop.analytics-section-switch button {
-        padding: 8px 1px 10px;
-        color: #536176;
-        font-size: 0.91rem;
-        font-weight: 650;
-    }
-
-    .analytics-page-tabs--desktop.analytics-section-switch button.active::after {
-        bottom: 0;
-        height: 2px;
     }
 
     .analytics-filter-card--mobile-only {
