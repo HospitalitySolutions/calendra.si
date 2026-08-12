@@ -1,3 +1,7 @@
+import '../styles/main/inbox-modern.css'
+import '../styles/main/inbox-preview.css'
+import '../styles/main/inbox-tabs.css'
+import '../styles/main/inbox-workspace.css'
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'

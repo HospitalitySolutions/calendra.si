@@ -1,3 +1,4 @@
+import '../styles/security-center.css'
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import { api } from '../api'
