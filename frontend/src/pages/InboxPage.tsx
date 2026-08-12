@@ -1,3 +1,4 @@
+import '../styles/features/modern-inbox.css'
 import '../styles/main/inbox-modern.css'
 import '../styles/main/inbox-preview.css'
 import '../styles/main/inbox-tabs.css'

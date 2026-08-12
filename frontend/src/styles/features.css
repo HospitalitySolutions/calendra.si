@@ -1,8 +1,6 @@
 @import './features/clients-and-detail.css';
 @import './features/analytics-page.css';
 @import './features/auth-login.css';
-@import './features/configuration.css';
-@import './features/meeting-provider.css';
 @import './features/booking-side-panel.css';
 @import './features/responsive.css';
 @import './features/auth-password-responsive.css';
@@ -10,7 +8,6 @@
 @import './features/wallet-scanner.css';
 @import './features/guest-app.css';
 @import './features/modern-clients.css';
-@import './features/modern-inbox.css';
 @import './features/service-type-tabs.css';
 @import './features/employee-roles.css';
 

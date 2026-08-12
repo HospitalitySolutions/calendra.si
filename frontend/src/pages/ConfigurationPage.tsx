@@ -1,3 +1,4 @@
+import "../styles/features/configuration.css";
 import { DesktopSelect } from "../components/DesktopSelect";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
