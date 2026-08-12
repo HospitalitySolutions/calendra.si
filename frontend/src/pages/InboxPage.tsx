@@ -1,3 +1,4 @@
+import '../styles/features.booking.css'
 import '../styles/features/modern-inbox.css'
 import '../styles/main/inbox-modern.css'
 import '../styles/main/inbox-preview.css'

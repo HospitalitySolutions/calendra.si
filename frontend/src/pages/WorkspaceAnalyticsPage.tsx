@@ -1,3 +1,4 @@
+import '../styles/features.booking.css'
 import '../styles/features/analytics-page.css'
 import { DesktopSelect } from '../components/DesktopSelect'
 import { useMemo, useState } from 'react'

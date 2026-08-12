@@ -1,3 +1,5 @@
+import '../styles/features.booking.css'
+import '../styles/features/workspace-clients.css'
 import '../styles/features/modern-clients.css'
 import { DesktopSelect } from '../components/DesktopSelect'
 import './clients/group-session-sync-dialog.css'

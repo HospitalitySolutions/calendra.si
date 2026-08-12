@@ -1,3 +1,4 @@
+import '../styles/features.booking.css'
 import { DesktopSelect } from "../components/DesktopSelect";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";

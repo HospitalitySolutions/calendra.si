@@ -4,11 +4,9 @@
 @import './styles/components.css';
 @import './styles/calendar/calendar-toolbar.css';
 @import './styles/features.css';
-@import './styles/features.booking.css';
 @import './styles/android.css';
 
 @import './styles/main/onboarding-tour.css';
-@import './styles/features/cards-membership-popup.css';
 
 
 @import './styles/course-access.css';

@@ -1,3 +1,4 @@
+import '../styles/features.booking.css'
 import '../styles/features/analytics-page.css'
 import '../styles/features/modern-clients.css'
 import { DesktopSelect } from '../components/DesktopSelect'
