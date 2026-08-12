@@ -1,3 +1,4 @@
+import '../styles/features/modern-clients.css'
 import { DesktopSelect } from '../components/DesktopSelect'
 import './clients/group-session-sync-dialog.css'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react'

@@ -1,3 +1,4 @@
+import '../styles/features/analytics-page.css'
 import { DesktopSelect } from '../components/DesktopSelect'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'

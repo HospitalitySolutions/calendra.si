@@ -1,3 +1,5 @@
+import '../styles/features/booking-side-panel.css'
+import '../styles/features/modern-clients.css'
 import { DesktopSelect } from "../components/DesktopSelect";
 import {
   useCallback,

@@ -805,3 +805,9 @@
     margin-top: 4px;
 }
 
+
+/* Attachment metadata still rendered by AnalyticsInboxTab; keep it with the Inbox route. */
+.analytics-inbox-thread__sender {
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+}

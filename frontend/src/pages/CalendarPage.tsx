@@ -1,3 +1,5 @@
+import '../styles/features/booking-side-panel.css'
+import '../styles/features/modern-clients.css'
 import '../styles/features/meeting-provider.css'
 import '../styles/calendar/calendar-shell.css'
 import '../styles/calendar/calendar-events.css'
