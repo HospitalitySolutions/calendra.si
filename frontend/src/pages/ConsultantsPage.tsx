@@ -39,6 +39,7 @@ const EMPLOYEE_DAY_LABEL_KEY: Record<DayOfWeek, string> = {
   SUNDAY: 'employeesDaySunday',
 }
 import { useLocale, type AppLocale } from '../locale'
+import { useMobileKeyboardOpen } from '../hooks/useMobileKeyboardOpen'
 
 function EmployeeModernIcon({ name }: { name: 'search' | 'plus' }) {
   if (name === 'search') {
@@ -392,6 +393,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const [isConsultantsMobile, setIsConsultantsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 450px)').matches : false,
   )
+  const mobileKeyboardOpen = useMobileKeyboardOpen(1024)
   const [formSectionTab, setFormSectionTab] = useState<ConsultantFormSectionTab>('workingHours')
   const [passwordVisible, setPasswordVisible] = useState(false)
   const formBaselineRef = useRef<ConsultantForm | null>(null)
@@ -949,6 +951,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const activeStatusLabel = locale === 'sl' ? 'Aktivna' : 'Active'
   const inactiveStatusLabel = locale === 'sl' ? 'Neaktivna' : 'Inactive'
   const formTitle = selfService ? t('myProfileTitle') : editing ? (locale === 'sl' ? 'Uredi zaposlenega' : 'Edit employee') : (locale === 'sl' ? 'Novi zaposleni' : 'New employee')
+  const isNewEmployeeForm = !selfService && !editing
   const closeLabel = locale === 'sl' ? 'Zapri' : 'Close'
   const formPrimaryLabel = saving ? t('employeesFormSaving') : editing ? t('employeesFormSaveChanges') : (locale === 'sl' ? 'Ustvari' : 'Create')
   const formPrimaryDisabled = saving || deleting || (!!editing && !isFormDirty)
@@ -1320,8 +1323,17 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
         </div>
       )}
       {showFormPanel && (
-        <div className="modal-backdrop booking-side-panel-backdrop employees-form-popup-backdrop" onClick={dismissFormPanel}>
-          <div className="modal large-modal booking-side-panel employees-form-popup" onClick={(e) => e.stopPropagation()}>
+        <div
+          className={`modal-backdrop booking-side-panel-backdrop employees-form-popup-backdrop${isNewEmployeeForm ? ' employees-form-popup-backdrop--create' : ''}`}
+          onClick={dismissFormPanel}
+        >
+          <div
+            className={`modal large-modal booking-side-panel employees-form-popup${isNewEmployeeForm ? ' employees-form-popup--create' : ''}`}
+            role="dialog"
+            aria-modal="true"
+            aria-label={formTitle}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="booking-side-panel-header employees-form-popup-header">
               <div className="employees-form-title-wrap">
                 <span className="employees-form-title-icon" aria-hidden>
@@ -1743,22 +1755,24 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
 
                 {successMessage && <div className="success full-span employees-form-alert">{successMessage}</div>}
               </form>
-              <div className="form-actions booking-side-panel-footer consultant-form-footer employees-form-popup-footer">
-                <div className="employees-form-footer-left">
-                  {editing && !selfService && !isEditingTenantOwner && canDeleteEmployees ? (
-                    <button type="button" className="danger secondary employees-form-delete-btn" disabled={saving || deleting} onClick={() => void removeEditing()}>
-                      <EmployeeFormIcon name="trash" />
-                      {deleting ? t('employeesFormDeleting') : t('employeesFormDelete')}
+              {!mobileKeyboardOpen && (
+                <div className="form-actions booking-side-panel-footer consultant-form-footer employees-form-popup-footer">
+                  <div className="employees-form-footer-left">
+                    {editing && !selfService && !isEditingTenantOwner && canDeleteEmployees ? (
+                      <button type="button" className="danger secondary employees-form-delete-btn" disabled={saving || deleting} onClick={() => void removeEditing()}>
+                        <EmployeeFormIcon name="trash" />
+                        {deleting ? t('employeesFormDeleting') : t('employeesFormDelete')}
+                      </button>
+                    ) : null}
+                  </div>
+                  {(!isConsultantsMobile || !editing || isFormDirty || saving) && (
+                    <button form="consultant-edit-form" type="submit" className="gapp-primary-button" disabled={formPrimaryDisabled}>
+                      <GuestConfigSaveIcon />
+                      {formPrimaryLabel}
                     </button>
-                  ) : null}
+                  )}
                 </div>
-                {(!isConsultantsMobile || !editing || isFormDirty || saving) && (
-                  <button form="consultant-edit-form" type="submit" className="gapp-primary-button" disabled={formPrimaryDisabled}>
-                    <GuestConfigSaveIcon />
-                    {formPrimaryLabel}
-                  </button>
-                )}
-              </div>
+              )}
             </div>
           </div>
         </div>

@@ -6750,6 +6750,7 @@ export function ConfigurationPage() {
               tab === "billing" ||
               tab === "website" ||
               tab === "notifications" ||
+              tab === "reservationRules" ||
               tab === "customFields" ||
               tab === "modules" ||
               tab === "activityLog" ? null : (

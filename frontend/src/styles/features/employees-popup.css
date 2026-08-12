@@ -933,3 +933,96 @@
 [data-theme="dark"] .employee-location-hours-same-row {
     color: #cbd5e1;
 }
+
+/* Mobile/tablet — Novi zaposleni is a true full-page create flow, matching Nova stranka. */
+@media (max-width: 1024px) {
+    .employees-form-popup-backdrop--create.booking-side-panel-backdrop {
+        inset: 0;
+        padding: 0;
+        align-items: stretch;
+        justify-content: stretch;
+        overflow: hidden;
+        overscroll-behavior: contain;
+        background: #ffffff;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    .employees-form-popup--create.modal.large-modal.booking-side-panel {
+        align-self: stretch;
+        width: 100vw;
+        max-width: 100vw;
+        height: 100dvh;
+        max-height: 100dvh;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        background: #ffffff;
+        box-shadow: none;
+        overflow: hidden;
+        overscroll-behavior: contain;
+    }
+
+    .employees-form-popup--create .employees-form-popup-header.booking-side-panel-header {
+        flex: 0 0 54px;
+        min-height: 54px;
+        justify-content: flex-start;
+        gap: 10px;
+        padding: max(8px, env(safe-area-inset-top)) 12px 8px;
+        border: 0;
+        background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
+        color: #ffffff;
+    }
+
+    .employees-form-popup--create .employees-form-title-wrap {
+        order: 2;
+        gap: 0;
+    }
+
+    .employees-form-popup--create .employees-form-title-icon {
+        display: none;
+    }
+
+    .employees-form-popup--create .employees-form-title-wrap h2 {
+        color: #ffffff;
+        font-size: 1.22rem;
+        line-height: 1.1;
+        font-weight: 800;
+        letter-spacing: -0.035em;
+    }
+
+    .employees-form-popup--create .employees-form-close.booking-side-panel-close {
+        order: 1;
+        width: 38px;
+        min-width: 38px;
+        height: 38px;
+        min-height: 38px;
+        flex: 0 0 38px;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #ffffff;
+        font-size: 1.45rem;
+        font-weight: 400;
+        line-height: 1;
+    }
+
+    .employees-form-popup--create .employees-form-close.booking-side-panel-close:hover,
+    .employees-form-popup--create .employees-form-close.booking-side-panel-close:focus-visible {
+        border-color: rgba(255, 255, 255, 0.28);
+        background: rgba(255, 255, 255, 0.12);
+        color: #ffffff;
+        outline: none;
+    }
+
+    .employees-form-popup--create .employees-form-popup-stack.consultant-panel-stack {
+        flex: 1 1 auto;
+        min-height: 0;
+        background: #ffffff;
+    }
+
+    .employees-form-popup--create .employees-form-popup-body.booking-side-panel-body {
+        overscroll-behavior: contain;
+        background: #ffffff;
+    }
+}
