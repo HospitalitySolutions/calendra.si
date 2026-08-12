@@ -8,7 +8,7 @@ import { api, getApiErrorMessage } from '../api'
 import { useAuthenticatedUser } from '../authUserContext'
 import { useLocale } from '../locale'
 import { useMediaMaxWidth } from '../hooks/useCalendarResponsiveLayout'
-import type { Client, ClientGroup, Company, CompanyBillSummary, CustomFieldAppliesTo, CustomFieldDefinition, CustomFieldType, Location as BusinessLocation, StoredFile, User } from '../lib/types'
+import type { Client, ClientGroup, Company, CompanyBillSummary, CustomFieldAppliesTo, CustomFieldDefinition, CustomFieldType, Location as BusinessLocation, SessionType, StoredFile, User } from '../lib/types'
 import { Card, EmptyState } from '../components/ui'
 import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
 import { WorkspaceClientsPanel } from '../components/WorkspaceClientsPanel'
@@ -16,10 +16,12 @@ import { currency, formatDate, formatDateTime, fullName } from '../lib/format'
 import { isWorkspaceRolloutEnabled } from '../lib/workspaceRollout'
 import { useSelectedLocationId } from '../lib/locationContext'
 import { clientListQueryOptions } from '../queries/clientsQueryOptions'
+import { calendarTypesQueryOptions } from '../queries/calendarQueryOptions'
 import { customFieldsQueryOptions, locationsQueryOptions, settingsQueryOptions, usersQueryOptions } from '../queries/sharedQueryOptions'
 import { inboxCapabilitiesQueryOptions } from '../queries/remainingQueryOptions'
 import { queryKeys } from '../queries/queryKeys'
 import { clientMutationErrorMessage, skipConflictToastHeaders } from '../lib/clientErrors'
+import { useToast } from '../components/Toast'
 
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
 type ConsultantSummary = UserSummary & { consultant?: boolean }
@@ -33,6 +35,23 @@ type GroupSortKey = 'name' | 'description' | 'members' | 'status' | 'createdAt' 
 type AssignedOwnerFilter = 'all' | 'unassigned' | number
 type SortableValue = string | number | boolean | null | undefined
 type InboxGlobalCapabilities = { whatsappEnabled: boolean; viberEnabled: boolean }
+type PendingGroupSessionSync = {
+  groupId: number
+  groupName: string
+  sessionCount: number
+  addedClientIds: number[]
+  removedClientIds: number[]
+}
+
+type GroupSessionSyncResult = {
+  eligibleSessionCount: number
+  updatedSessionCount: number
+  unchangedSessionCount: number
+  skippedSessionCount: number
+  addedParticipants: number
+  removedParticipants: number
+  skippedSessions?: { bookingId: number; reason: string }[]
+}
 
 
 const CLIENTS_MOBILE_KEYBOARD_CLASS = 'clients-mobile-keyboard-open'
@@ -795,6 +814,26 @@ function slovenianTerminCountForm(count: number): string {
   return 'terminov'
 }
 
+function slovenianTerminAccusativeCountForm(count: number): string {
+  const n = Math.abs(count) % 100
+  if (n >= 11 && n <= 14) return 'terminov'
+  const last = n % 10
+  if (last === 1) return 'termin'
+  if (last === 2) return 'termina'
+  if (last === 3 || last === 4) return 'termine'
+  return 'terminov'
+}
+
+function slovenianUpcomingTerminPhrase(count: number): string {
+  const n = Math.abs(count) % 100
+  if (n >= 11 && n <= 14) return `${count} prihodnjih terminov`
+  const last = n % 10
+  if (last === 1) return `${count} prihodnji termin`
+  if (last === 2) return `${count} prihodnja termina`
+  if (last === 3 || last === 4) return `${count} prihodnje termine`
+  return `${count} prihodnjih terminov`
+}
+
 function normalizeSessionStatus(status: ClientSession['bookingStatus']): 'RESERVED' | 'CANCELLED' | 'NO_SHOW' {
   const value = String(status ?? '').trim().toUpperCase()
   if (value === 'CANCELLED') return 'CANCELLED'
@@ -1424,6 +1463,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const activeUnitId = me.activeUnitId ?? me.companyId
   const [selectedLocationId] = useSelectedLocationId(activeUnitId)
   const queryClient = useQueryClient()
+  const { showToast } = useToast()
   const invalidateGroupCaches = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.groups.all, refetchType: 'none' })
   }, [queryClient])
@@ -1576,6 +1616,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }, [])
 
   const [groups, setGroups] = useState<ClientGroup[]>([])
+  const [sessionTypes, setSessionTypes] = useState<SessionType[]>([])
   const [groupSearch, setGroupSearch] = useState('')
   const [loadingGroups, setLoadingGroups] = useState(false)
   const [groupErrorMessage, setGroupErrorMessage] = useState('')
@@ -1589,13 +1630,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [groupSessionTab, setGroupSessionTab] = useState<SessionTab>('future')
   const [groupSessionPageByTab, setGroupSessionPageByTab] = useState<Record<SessionTab, number>>(() => ({ ...INITIAL_SESSION_PAGES }))
   const [groupDetailMainTab, setGroupDetailMainTab] = useState<'sessions' | 'members' | 'settings'>('sessions')
-  const [groupDetailEditField, setGroupDetailEditField] = useState<'name' | 'email' | 'billingCompanyId' | null>(null)
+  const [groupDetailEditField, setGroupDetailEditField] = useState<'name' | 'email' | 'billingCompanyId' | 'defaultSessionTypeId' | null>(null)
   const [groupDetailEditDraft, setGroupDetailEditDraft] = useState<{
     name: string
     email: string
     batchPaymentEnabled: boolean
     individualPaymentEnabled: boolean
     billingCompanyId: number | null
+    defaultSessionTypeId: number | null
     assignedLocationIds: number[]
   }>({
     name: '',
@@ -1603,6 +1645,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     batchPaymentEnabled: false,
     individualPaymentEnabled: false,
     billingCompanyId: null,
+    defaultSessionTypeId: null,
     assignedLocationIds: [],
   })
   const [savingGroupDetailEdit, setSavingGroupDetailEdit] = useState(false)
@@ -1612,6 +1655,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [pendingGroupMemberIds, setPendingGroupMemberIds] = useState<number[]>([])
   const [addingMember, setAddingMember] = useState(false)
   const [removingMemberId, setRemovingMemberId] = useState<number | null>(null)
+  const [pendingGroupSessionSync, setPendingGroupSessionSync] = useState<PendingGroupSessionSync | null>(null)
+  const [syncingGroupSessions, setSyncingGroupSessions] = useState(false)
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [customFieldDefinitions, setCustomFieldDefinitions] = useState<CustomFieldDefinition[]>([])
   const [clientCustomValues, setClientCustomValues] = useState<CustomFieldValueState>({})
@@ -1690,6 +1735,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     } catch { /* ignore */ }
   }
 
+  async function loadSessionTypes() {
+    try {
+      setSessionTypes(await queryClient.fetchQuery(calendarTypesQueryOptions<SessionType>(activeUnitId)))
+    } catch {
+      setSessionTypes([])
+    }
+  }
+
   async function loadBusinessLocations(force = false) {
     try {
       const options = locationsQueryOptions(activeUnitId)
@@ -1723,6 +1776,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     void loadBusinessLocations()
     void loadCustomFieldDefinitions()
     void loadInboxGlobalCapabilities()
+    void loadSessionTypes()
   }, [activeUnitId, queryClient])
 
   useEffect(() => {
@@ -2457,6 +2511,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const companiesForClientBillingSelect = activeCompaniesForNewClient
   const companiesForGroupBillingSelect = activeCompaniesForNewClient
 
+  const groupBookingServiceOptions = useMemo(() =>
+    sessionTypes
+      .filter((type) => type.groupBookingEnabled === true
+        && (type.active !== false || type.id === groupDetailEditDraft.defaultSessionTypeId))
+      .sort((left, right) => left.name.localeCompare(right.name, locale, { sensitivity: 'base', numeric: true })),
+    [groupDetailEditDraft.defaultSessionTypeId, locale, sessionTypes],
+  )
+
   const groupDetailHasChanges = useMemo(() => {
     if (!detailGroup) return false
     return (groupDetailEditDraft.name ?? '') !== (detailGroup.name ?? '')
@@ -2464,6 +2526,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       || (groupDetailEditDraft.batchPaymentEnabled ?? false) !== (detailGroup.batchPaymentEnabled ?? false)
       || (groupDetailEditDraft.individualPaymentEnabled ?? false) !== (detailGroup.individualPaymentEnabled ?? false)
       || (groupDetailEditDraft.billingCompanyId ?? null) !== (detailGroup.billingCompany?.id ?? null)
+      || (groupDetailEditDraft.defaultSessionTypeId ?? null) !== (detailGroup.defaultSessionType?.id ?? null)
       || !sameNumberSet(groupDetailEditDraft.assignedLocationIds, (detailGroup.assignedLocations ?? []).map((item) => item.id))
       || !customFieldMapsEqual(detailGroupCustomValues, detailGroup.customFieldValues)
   }, [detailGroup, groupDetailEditDraft, detailGroupCustomValues])
@@ -2631,6 +2694,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       batchPaymentEnabled: group.batchPaymentEnabled ?? false,
       individualPaymentEnabled: group.individualPaymentEnabled ?? false,
       billingCompanyId: group.billingCompany?.id ?? null,
+      defaultSessionTypeId: group.defaultSessionType?.id ?? null,
       assignedLocationIds: (group.assignedLocations ?? []).map((item) => item.id),
     })
     setGroupSessionTab('future')
@@ -2648,6 +2712,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setGroupMemberSearch('')
     setGroupMemberDropdownOpen(false)
     setPendingGroupMemberIds([])
+    setPendingGroupSessionSync(null)
     if (embeddedGroupDetailMode) {
       onEmbeddedClose?.()
     } else if (new URLSearchParams(location.search).has('groupId')) {
@@ -2688,6 +2753,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         billingCompanyId: groupDetailEditDraft.billingCompanyId,
         batchPaymentEnabled: groupDetailEditDraft.batchPaymentEnabled,
         individualPaymentEnabled: groupDetailEditDraft.individualPaymentEnabled,
+        defaultSessionTypeId: groupDetailEditDraft.defaultSessionTypeId ?? 0,
         assignedLocationIds: groupDetailEditDraft.assignedLocationIds,
         customFieldValues: detailGroupCustomValues,
       }
@@ -2701,6 +2767,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         batchPaymentEnabled: updated.batchPaymentEnabled ?? false,
         individualPaymentEnabled: updated.individualPaymentEnabled ?? false,
         billingCompanyId: updated.billingCompany?.id ?? null,
+        defaultSessionTypeId: updated.defaultSessionType?.id ?? null,
         assignedLocationIds: (updated.assignedLocations ?? []).map((item) => item.id),
       })
       setGroups((prev) => prev.map((g) => g.id === updated.id ? updated : g))
@@ -2720,6 +2787,79 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     )
   }
 
+  const refreshGroupBookingsAndFutureCount = async (groupId: number) => {
+    try {
+      const response = await api.get<ClientSession[]>(`/groups/${groupId}/bookings`)
+      const rows = response.data ?? []
+      setDetailGroupSessions(rows)
+      const now = Date.now()
+      return rows.filter((session) =>
+        deriveSessionLifecycleStatus(session) === 'RESERVED'
+        && new Date(session.startTime).getTime() > now
+      ).length
+    } catch {
+      return 0
+    }
+  }
+
+  const offerGroupSessionRefresh = async (
+    group: ClientGroup,
+    addedClientIds: number[],
+    removedClientIds: number[],
+  ) => {
+    const sessionCount = await refreshGroupBookingsAndFutureCount(group.id)
+    if (sessionCount <= 0) return
+    setPendingGroupSessionSync({
+      groupId: group.id,
+      groupName: group.name,
+      sessionCount,
+      addedClientIds: [...addedClientIds],
+      removedClientIds: [...removedClientIds],
+    })
+  }
+
+  const syncPendingGroupSessions = async () => {
+    if (!pendingGroupSessionSync || syncingGroupSessions) return
+    setSyncingGroupSessions(true)
+    try {
+      const response = await api.post<GroupSessionSyncResult>(
+        `/groups/${pendingGroupSessionSync.groupId}/bookings/sync-members`,
+        {
+          addedClientIds: pendingGroupSessionSync.addedClientIds,
+          removedClientIds: pendingGroupSessionSync.removedClientIds,
+        },
+      )
+      const result = response.data
+      setPendingGroupSessionSync(null)
+      await refreshGroupBookingsAndFutureCount(pendingGroupSessionSync.groupId)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.calendar.all, refetchType: 'none' })
+      window.dispatchEvent(new CustomEvent('bookings-updated'))
+      if (result.skippedSessionCount > 0) {
+        showToast(
+          'error',
+          locale === 'sl'
+            ? `Posodobljenih je ${result.updatedSessionCount} terminov. ${result.skippedSessionCount} terminov ni bilo mogoče posodobiti.`
+            : `${result.updatedSessionCount} sessions updated. ${result.skippedSessionCount} sessions could not be updated.`,
+        )
+      } else {
+        showToast(
+          'success',
+          locale === 'sl'
+            ? `Posodobljenih je ${result.updatedSessionCount} ${slovenianTerminCountForm(result.updatedSessionCount)}.`
+            : `${result.updatedSessionCount} sessions updated.`,
+        )
+      }
+    } catch (error: any) {
+      showToast(
+        'error',
+        error?.response?.data?.message
+          || (locale === 'sl' ? 'Terminov skupine ni bilo mogoče posodobiti.' : 'Group sessions could not be updated.'),
+      )
+    } finally {
+      setSyncingGroupSessions(false)
+    }
+  }
+
   const handleAddGroupMembersBulk = async (clientIds: number[]) => {
     if (!detailGroup || addingMember) return
     const ids = Array.from(new Set(clientIds.filter((id) => Number.isFinite(id) && id > 0 && !detailGroupMemberIdSet.has(id))))
@@ -2736,6 +2876,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         setGroups((prev) => prev.map((g) => g.id === updated!.id ? updated! : g))
         await invalidateGroupCaches()
         if (embeddedGroupDetailMode) await onEmbeddedSaved?.()
+        await offerGroupSessionRefresh(updated, ids, [])
       }
       setPendingGroupMemberIds([])
       setGroupMemberSearch('')
@@ -2756,6 +2897,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       setGroups((prev) => prev.map((g) => g.id === updated.id ? updated : g))
       await invalidateGroupCaches()
       if (embeddedGroupDetailMode) await onEmbeddedSaved?.()
+      await offerGroupSessionRefresh(updated, [], [clientId])
     } catch { /* ignore */ } finally {
       setRemovingMemberId(null)
     }
@@ -3253,7 +3395,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }
 
   const renderGroupEditableField = (
-    key: 'name' | 'email' | 'billingCompanyId',
+    key: 'name' | 'email' | 'billingCompanyId' | 'defaultSessionTypeId',
     label: string,
     wide = false,
   ) => {
@@ -3277,7 +3419,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           <strong>
             {key === 'billingCompanyId'
               ? (detailGroup?.billingCompany?.name || '—')
-              : ((detailGroup?.[key as 'name' | 'email'] as string | undefined) || '—')}
+              : key === 'defaultSessionTypeId'
+                ? (detailGroup?.defaultSessionType?.name || '—')
+                : ((detailGroup?.[key as 'name' | 'email'] as string | undefined) || '—')}
           </strong>
         ) : (
           <div className="clients-detail-inline-edit" onClick={(e) => e.stopPropagation()}>
@@ -3290,6 +3434,20 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 <option value="">{clientsCopy.noLinkedCompany}</option>
                 {companiesForGroupBillingSelect.map((company) => (
                   <option key={company.id} value={company.id}>{company.name}</option>
+                ))}
+              </DesktopSelect>
+            ) : key === 'defaultSessionTypeId' ? (
+              <DesktopSelect
+                autoFocus
+                value={groupDetailEditDraft.defaultSessionTypeId ?? ''}
+                onChange={(e) => setGroupDetailEditDraft({
+                  ...groupDetailEditDraft,
+                  defaultSessionTypeId: e.target.value ? Number(e.target.value) : null,
+                })}
+              >
+                <option value="">{locale === 'sl' ? 'Brez privzete storitve' : 'No default service'}</option>
+                {groupBookingServiceOptions.map((type) => (
+                  <option key={type.id} value={type.id}>{type.name}{type.active === false ? (locale === 'sl' ? ' (neaktivna)' : ' (inactive)') : ''}</option>
                 ))}
               </DesktopSelect>
             ) : (
@@ -6202,6 +6360,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   <div className="clients-action-workspace-settings" onClick={(e) => e.stopPropagation()} role="tabpanel">
                     <div className="clients-detail-fields clients-action-workspace-settings-grid clients-action-workspace-settings-switches">
                     {renderGroupEditableField('billingCompanyId', clientsCopy.linkedCompany, true)}
+                    {renderGroupEditableField('defaultSessionTypeId', locale === 'sl' ? 'Privzeta storitev' : 'Default service', true)}
                     <AssignedLocationsPicker
                       locations={businessLocations}
                       selectedIds={groupDetailEditDraft.assignedLocationIds}
@@ -6532,6 +6691,53 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           </div>,
           document.body
         )}
+
+      {pendingGroupSessionSync != null && (
+        <div
+          className="modal-backdrop clients-anonymize-confirm-backdrop clients-group-sync-confirm-backdrop"
+          onClick={() => { if (!syncingGroupSessions) setPendingGroupSessionSync(null) }}
+          role="presentation"
+        >
+          <div
+            className="clients-anonymize-confirm-dialog clients-group-sync-confirm-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="clients-group-sync-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="clients-group-sync-title" className="clients-group-sync-confirm-title">
+              {locale === 'sl' ? 'Posodobi termine skupine?' : 'Update group sessions?'}
+            </h3>
+            <p className="clients-anonymize-confirm-message clients-group-sync-confirm-message">
+              {locale === 'sl'
+                ? <>Skupina <strong>{pendingGroupSessionSync.groupName}</strong> je vključena v {slovenianUpcomingTerminPhrase(pendingGroupSessionSync.sessionCount)}.</>
+                : <>Group <strong>{pendingGroupSessionSync.groupName}</strong> is included in {pendingGroupSessionSync.sessionCount} upcoming sessions.</>}
+            </p>
+            <div className="clients-anonymize-confirm-actions clients-group-sync-confirm-actions">
+              <button
+                type="button"
+                className="clients-anonymize-confirm-ok"
+                disabled={syncingGroupSessions}
+                onClick={() => void syncPendingGroupSessions()}
+              >
+                {syncingGroupSessions
+                  ? (locale === 'sl' ? 'Posodabljam…' : 'Updating…')
+                  : (locale === 'sl'
+                    ? `Posodobi ${pendingGroupSessionSync.sessionCount} ${slovenianTerminAccusativeCountForm(pendingGroupSessionSync.sessionCount)}`
+                    : `Update ${pendingGroupSessionSync.sessionCount} sessions`)}
+              </button>
+              <button
+                type="button"
+                className="clients-anonymize-confirm-cancel"
+                disabled={syncingGroupSessions}
+                onClick={() => setPendingGroupSessionSync(null)}
+              >
+                {locale === 'sl' ? 'Samo spremeni skupino' : 'Only change group'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {pendingDeactivation != null && (
         <div

@@ -5,6 +5,7 @@ import com.example.app.common.BaseEntity;
 import com.example.app.company.ClientCompany;
 import com.example.app.company.Company;
 import com.example.app.location.Location;
+import com.example.app.session.SessionType;
 import jakarta.persistence.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +41,11 @@ public class ClientGroup extends BaseEntity {
     @ManyToOne
     @JoinColumn(name = "billing_company_id")
     private ClientCompany billingCompany;
+
+    /** Optional default service preselected when this group is chosen for a new group booking. */
+    @ManyToOne
+    @JoinColumn(name = "default_session_type_id")
+    private SessionType defaultSessionType;
 
     @ManyToMany
     @JoinTable(

@@ -199,6 +199,7 @@ export type ClientGroup = {
   batchPaymentEnabled?: boolean
   individualPaymentEnabled?: boolean
   billingCompany?: CompanySummary | null
+  defaultSessionType?: Pick<SessionType, 'id' | 'name' | 'active' | 'groupBookingEnabled'> | null
   assignedLocations?: Pick<Location, 'id' | 'name' | 'city'>[] | null
   members?: Client[]
   createdAt?: string

@@ -5264,6 +5264,24 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                                     ? { clientIds: seedIds, clientId: seedIds[0] ?? null }
                                     : { clientIds: [], clientId: null }),
                                 }))
+
+                                // A group's mapped service is a default, not a lock. Apply it
+                                // once when the group is selected; any later manual service
+                                // change remains untouched for this booking.
+                                const defaultTypeId = Number(g?.defaultSessionType?.id ?? 0)
+                                const defaultType = defaultTypeId > 0
+                                  ? metaTypes.find((type: any) => Number(type?.id) === defaultTypeId)
+                                  : null
+                                if (defaultType?.active !== false && defaultType?.groupBookingEnabled === true) {
+                                  const existingPrimaryIndex = formServiceDrafts.findIndex((service: any) => Number(service?.typeId ?? 0) > 0)
+                                  const primaryIndex = existingPrimaryIndex >= 0 ? existingPrimaryIndex : 0
+                                  const nextServices = formServiceDrafts.length > 0
+                                    ? formServiceDrafts.map((service: any, index: number) =>
+                                        index === primaryIndex ? { ...service, typeId: defaultTypeId } : service)
+                                    : [{ typeId: defaultTypeId, spaceId: form?.spaceId ?? null }]
+                                  updateBookingFormServices(nextServices)
+                                }
+
                                 setGroupDropdownOpen(false)
                                 setEditingGroupSearch(false)
                                 setGroupSearch('')

@@ -10,20 +10,20 @@ import org.springframework.data.repository.query.Param;
 
 public interface ClientGroupRepository extends JpaRepository<ClientGroup, Long> {
 
-    @EntityGraph(attributePaths = {"members", "billingCompany"})
+    @EntityGraph(attributePaths = {"members", "billingCompany", "defaultSessionType"})
     List<ClientGroup> findAllByCompanyIdOrderByNameAsc(Long companyId);
 
-    @EntityGraph(attributePaths = {"members", "billingCompany", "assignedLocations"})
+    @EntityGraph(attributePaths = {"members", "billingCompany", "assignedLocations", "defaultSessionType"})
     @Query("select distinct g from ClientGroup g where g.company.id = :companyId and g.id in :ids")
     List<ClientGroup> findListRowsByCompanyIdAndIdIn(
             @Param("companyId") Long companyId,
             @Param("ids") Collection<Long> ids);
 
-    @EntityGraph(attributePaths = {"members", "billingCompany"})
+    @EntityGraph(attributePaths = {"members", "billingCompany", "assignedLocations", "defaultSessionType"})
     Optional<ClientGroup> findByIdAndCompanyId(Long id, Long companyId);
 
     @Query("""
-            SELECT g FROM ClientGroup g LEFT JOIN FETCH g.members LEFT JOIN FETCH g.billingCompany
+            SELECT DISTINCT g FROM ClientGroup g LEFT JOIN FETCH g.members LEFT JOIN FETCH g.billingCompany LEFT JOIN FETCH g.defaultSessionType
             WHERE g.company.id = :companyId
               AND LOWER(g.name) LIKE LOWER(CONCAT('%', :q, '%'))
             ORDER BY g.name ASC

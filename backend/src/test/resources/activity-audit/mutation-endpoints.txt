@@ -142,6 +142,7 @@ group/ClientGroupController.java|@DeleteMapping("/{id}")|delete
 group/ClientGroupController.java|@DeleteMapping("/{id}/members/{clientId}")|removeMember
 group/ClientGroupController.java|@PatchMapping("/{id}/activate")|activate
 group/ClientGroupController.java|@PatchMapping("/{id}/deactivate")|deactivate
+group/ClientGroupController.java|@PostMapping("/{id}/bookings/sync-members")|syncFutureBookingMembers
 group/ClientGroupController.java|@PostMapping("/{id}/members/{clientId}")|addMember
 group/ClientGroupController.java|@PostMapping|create
 group/ClientGroupController.java|@PutMapping("/{id}")|update

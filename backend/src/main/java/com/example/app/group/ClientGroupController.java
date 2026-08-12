@@ -8,6 +8,7 @@ import com.example.app.customfield.CustomFieldService;
 import com.example.app.session.SessionBooking;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.SessionBookingStatus;
+import com.example.app.session.SessionTypeRepository;
 import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
 import com.example.app.user.User;
@@ -35,6 +36,8 @@ public class ClientGroupController {
     private final ClientRepository clients;
     private final ClientCompanyRepository clientCompanies;
     private final SessionBookingRepository bookings;
+    private final SessionTypeRepository sessionTypes;
+    private final ClientGroupBookingSyncService groupBookingSyncService;
     private final CustomFieldService customFieldService;
 
     @Autowired(required = false)
@@ -48,12 +51,16 @@ public class ClientGroupController {
             ClientRepository clients,
             ClientCompanyRepository clientCompanies,
             SessionBookingRepository bookings,
+            SessionTypeRepository sessionTypes,
+            ClientGroupBookingSyncService groupBookingSyncService,
             CustomFieldService customFieldService
     ) {
         this.groups = groups;
         this.clients = clients;
         this.clientCompanies = clientCompanies;
         this.bookings = bookings;
+        this.sessionTypes = sessionTypes;
+        this.groupBookingSyncService = groupBookingSyncService;
         this.customFieldService = customFieldService;
     }
 
@@ -63,6 +70,7 @@ public class ClientGroupController {
             Long billingCompanyId,
             Boolean batchPaymentEnabled,
             Boolean individualPaymentEnabled,
+            Long defaultSessionTypeId,
             List<Long> assignedLocationIds,
             Map<Long, String> customFieldValues
     ) {}
@@ -70,6 +78,7 @@ public class ClientGroupController {
     public record ClientSummary(Long id, String firstName, String lastName, String email, String phone) {}
 
     public record CompanySummary(Long id, String name, boolean active) {}
+    public record SessionTypeSummary(Long id, String name, boolean active, boolean groupBookingEnabled) {}
     public record LocationSummary(Long id, String name, String city) {}
 
     public record GroupResponse(
@@ -80,6 +89,7 @@ public class ClientGroupController {
             boolean batchPaymentEnabled,
             boolean individualPaymentEnabled,
             CompanySummary billingCompany,
+            SessionTypeSummary defaultSessionType,
             List<LocationSummary> assignedLocations,
             List<ClientSummary> members,
             Instant createdAt,
@@ -103,6 +113,11 @@ public class ClientGroupController {
             String consultantLastName,
             boolean paid,
             String bookingStatus
+    ) {}
+
+    public record GroupFutureSessionSyncRequest(
+            List<Long> addedClientIds,
+            List<Long> removedClientIds
     ) {}
 
     @GetMapping
@@ -254,6 +269,17 @@ public class ClientGroupController {
         return toResponse(groups.save(group));
     }
 
+    @PostMapping("/{id}/bookings/sync-members")
+    public ClientGroupBookingSyncService.SyncResult syncFutureBookingMembers(
+            @PathVariable Long id,
+            @RequestBody(required = false) GroupFutureSessionSyncRequest req,
+            @AuthenticationPrincipal User me
+    ) {
+        List<Long> added = req == null ? List.of() : req.addedClientIds();
+        List<Long> removed = req == null ? List.of() : req.removedClientIds();
+        return groupBookingSyncService.syncFutureSessions(id, added, removed, me);
+    }
+
     @GetMapping("/{id}/bookings")
     @Transactional(readOnly = true)
     public List<GroupSessionResponse> groupBookings(@PathVariable Long id, @AuthenticationPrincipal User me) {
@@ -265,7 +291,7 @@ public class ClientGroupController {
         Map<String, SessionBooking> onePerSession = new LinkedHashMap<>();
         for (SessionBooking b : rows) {
             String key = sessionDedupeKey(b);
-            onePerSession.merge(key, b, (a, c) -> a.getId() < c.getId() ? a : c);
+            onePerSession.merge(key, b, ClientGroupController::preferredSessionRepresentative);
         }
         return onePerSession.values().stream()
                 .sorted(Comparator.comparing(SessionBooking::getStartTime))
@@ -280,6 +306,13 @@ public class ClientGroupController {
             return k;
         }
         return "legacy-" + b.getId();
+    }
+
+    private static SessionBooking preferredSessionRepresentative(SessionBooking a, SessionBooking b) {
+        boolean aActive = SessionBookingStatus.RESERVED.equals(SessionBookingStatus.normalizeStored(a.getBookingStatus()));
+        boolean bActive = SessionBookingStatus.RESERVED.equals(SessionBookingStatus.normalizeStored(b.getBookingStatus()));
+        if (aActive != bActive) return aActive ? a : b;
+        return a.getId() <= b.getId() ? a : b;
     }
 
     private void apply(ClientGroup row, GroupRequest req, User me) {
@@ -299,6 +332,18 @@ public class ClientGroupController {
         }
         if (req.individualPaymentEnabled() != null) {
             row.setIndividualPaymentEnabled(req.individualPaymentEnabled());
+        }
+        if (req.defaultSessionTypeId() != null) {
+            if (req.defaultSessionTypeId() <= 0) {
+                row.setDefaultSessionType(null);
+            } else {
+                var defaultType = sessionTypes.findByIdAndCompanyId(req.defaultSessionTypeId(), me.getCompany().getId())
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Default service not found."));
+                if (!defaultType.isActive() || !defaultType.isGroupBookingEnabled()) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Default service must be an active group-booking service.");
+                }
+                row.setDefaultSessionType(defaultType);
+            }
         }
         applyAssignedLocations(row.getAssignedLocations(), req.assignedLocationIds(), me);
     }
@@ -336,6 +381,15 @@ public class ClientGroupController {
         if (g.getBillingCompany() != null) {
             bc = new CompanySummary(g.getBillingCompany().getId(), g.getBillingCompany().getName(), g.getBillingCompany().isActive());
         }
+        SessionTypeSummary defaultType = null;
+        if (g.getDefaultSessionType() != null) {
+            defaultType = new SessionTypeSummary(
+                    g.getDefaultSessionType().getId(),
+                    g.getDefaultSessionType().getName(),
+                    g.getDefaultSessionType().isActive(),
+                    g.getDefaultSessionType().isGroupBookingEnabled()
+            );
+        }
         var members = g.getMembers().stream()
                 .map(c -> new ClientSummary(c.getId(), c.getFirstName(), c.getLastName(), c.getEmail(), c.getPhone()))
                 .toList();
@@ -347,6 +401,7 @@ public class ClientGroupController {
                 g.isBatchPaymentEnabled(),
                 g.isIndividualPaymentEnabled(),
                 bc,
+                defaultType,
                 g.getAssignedLocations().stream()
                         .sorted(Comparator.comparing(Location::getName, Comparator.nullsLast(String::compareToIgnoreCase)))
                         .map(location -> new LocationSummary(location.getId(), location.getName(), location.getCity()))
