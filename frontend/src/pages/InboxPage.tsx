@@ -20,6 +20,31 @@ type MessagingProviderCapabilities = {
   viberEnabled?: boolean
 }
 
+
+type InboxPageTabIconName = 'messages' | 'deliveryLogs'
+
+function InboxPageTabIcon({ name }: { name: InboxPageTabIconName }) {
+  if (name === 'deliveryLogs') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M8 6h13" />
+        <path d="M8 12h13" />
+        <path d="M8 18h13" />
+        <path d="M3 6h.01" />
+        <path d="M3 12h.01" />
+        <path d="M3 18h.01" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 6h16v12H4z" />
+      <path d="m4 10 4-4 4 4 4-4" />
+    </svg>
+  )
+}
+
 export function InboxPage({ inboxModuleEnabled = true }: InboxPageProps) {
   const me = useAuthenticatedUser()
   const activeUnitId = me.activeUnitId ?? me.companyId
@@ -81,24 +106,28 @@ export function InboxPage({ inboxModuleEnabled = true }: InboxPageProps) {
   return (
     <div className="inbox-page-shell">
       {canViewMessages && canViewDeliveryLogs ? (
-        <nav className="inbox-page-tabs" aria-label={locale === 'sl' ? 'Komunikacijski zavihki' : 'Communication tabs'}>
+        <nav className="inbox-page-tabs desktop-standard-tabs" role="tablist" aria-label={locale === 'sl' ? 'Komunikacijski zavihki' : 'Communication tabs'}>
           <button
             type="button"
-            className={`inbox-page-tab${requestedTab === 'messages' ? ' active' : ''}`}
+            role="tab"
+            aria-selected={requestedTab === 'messages'}
+            className={`inbox-page-tab desktop-standard-tab${requestedTab === 'messages' ? ' active is-active' : ''}`}
             aria-current={requestedTab === 'messages' ? 'page' : undefined}
             onClick={() => openTab('messages')}
           >
-            <span className="inbox-page-tab-icon" aria-hidden>✉</span>
-            {labels.messages}
+            <span className="inbox-page-tab-icon desktop-standard-tab__icon" aria-hidden><InboxPageTabIcon name="messages" /></span>
+            <span className="desktop-standard-tab__label">{labels.messages}</span>
           </button>
           <button
             type="button"
-            className={`inbox-page-tab${requestedTab === 'deliveryLogs' ? ' active' : ''}`}
+            role="tab"
+            aria-selected={requestedTab === 'deliveryLogs'}
+            className={`inbox-page-tab desktop-standard-tab${requestedTab === 'deliveryLogs' ? ' active is-active' : ''}`}
             aria-current={requestedTab === 'deliveryLogs' ? 'page' : undefined}
             onClick={() => openTab('deliveryLogs')}
           >
-            <span className="inbox-page-tab-icon" aria-hidden>▤</span>
-            {labels.deliveryLogs}
+            <span className="inbox-page-tab-icon desktop-standard-tab__icon" aria-hidden><InboxPageTabIcon name="deliveryLogs" /></span>
+            <span className="desktop-standard-tab__label">{labels.deliveryLogs}</span>
           </button>
         </nav>
       ) : null}

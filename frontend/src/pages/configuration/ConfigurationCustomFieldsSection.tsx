@@ -147,6 +147,15 @@ export function ConfigurationCustomFieldsSection() {
     [fields, activeTab],
   )
 
+  const tabCounts = useMemo<Record<CustomFieldAppliesTo, number>>(
+    () => ({
+      CLIENT: fields.filter((field) => field.appliesTo === 'CLIENT').length,
+      COMPANY: fields.filter((field) => field.appliesTo === 'COMPANY').length,
+      GROUP: fields.filter((field) => field.appliesTo === 'GROUP').length,
+    }),
+    [fields],
+  )
+
   const loadFields = async () => {
     setLoading(true)
     setError('')
@@ -266,24 +275,64 @@ export function ConfigurationCustomFieldsSection() {
         }
         .custom-fields-tabs {
           display: flex;
-          gap: 8px;
+          align-items: center;
+          gap: 10px;
           padding: 14px 16px 0;
+          border-bottom: 1px solid #edf2f7;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        .custom-fields-tabs::-webkit-scrollbar {
+          display: none;
         }
         .custom-fields-tab {
-          border: 1px solid var(--cf-border);
-          background: #f8fafc;
-          color: #475569;
-          border-radius: 12px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 9px;
+          min-height: 44px;
           padding: 10px 14px;
-          font-weight: 800;
+          border: 0;
+          border-radius: 10px;
+          background: transparent;
+          color: #334155;
+          font-weight: 700;
+          font-size: 15px;
+          line-height: 1.2;
           cursor: pointer;
           font: inherit;
+          box-shadow: none;
+          white-space: nowrap;
+          transition: color .18s ease, background .18s ease, box-shadow .18s ease;
+          flex: 0 0 auto;
+        }
+        .custom-fields-tab:hover {
+          background: #ffffff;
+          color: #0f172a;
+          box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.22), 0 6px 16px rgba(15, 23, 42, 0.08);
         }
         .custom-fields-tab.active {
           background: var(--cf-blue-soft);
-          border-color: #b8d2ff;
           color: var(--cf-blue);
-          box-shadow: 0 6px 16px rgba(33, 103, 255, .16);
+          box-shadow: inset 0 0 0 1px rgba(37, 99, 235, .16), 0 3px 10px rgba(37, 99, 235, .18);
+        }
+        .custom-fields-tab-count {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 24px;
+          height: 24px;
+          padding: 0 7px;
+          border-radius: 999px;
+          background: #eef2f6;
+          color: #475467;
+          font-size: 12px;
+          font-weight: 800;
+          line-height: 1;
+        }
+        .custom-fields-tab.active .custom-fields-tab-count {
+          background: #dbe9ff;
+          color: var(--cf-blue);
         }
         .custom-fields-layout {
           display: grid;
@@ -652,15 +701,18 @@ export function ConfigurationCustomFieldsSection() {
       </div>
 
       <div className="custom-fields-card">
-        <div className="custom-fields-tabs" role="tablist" aria-label={copy.title}>
+        <div className="custom-fields-tabs desktop-standard-tabs" role="tablist" aria-label={copy.title}>
           {appliesTabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
-              className={activeTab === tab.id ? 'custom-fields-tab active' : 'custom-fields-tab'}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              className={activeTab === tab.id ? 'custom-fields-tab desktop-standard-tab active' : 'custom-fields-tab desktop-standard-tab'}
               onClick={() => setActiveTab(tab.id)}
             >
-              {locale === 'sl' ? tab.sl : tab.en}
+              <span className="desktop-standard-tab__label">{locale === 'sl' ? tab.sl : tab.en}</span>
+              <strong className="custom-fields-tab-count desktop-standard-tab__count">{tabCounts[tab.id]}</strong>
             </button>
           ))}
         </div>

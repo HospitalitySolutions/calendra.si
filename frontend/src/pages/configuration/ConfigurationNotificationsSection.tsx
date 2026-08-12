@@ -2194,28 +2194,45 @@ export function ConfigurationNotificationsSection({
         .notif-tabs {
           display: flex;
           align-items: center;
+          width: 100%;
           gap: 10px;
-          margin: 20px 0 10px;
+          margin: 0 0 10px;
+          padding: 0;
           border-bottom: 1px solid #edf2f7;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        .notif-tabs::-webkit-scrollbar {
+          display: none;
         }
         .notif-tab {
           position: relative;
           appearance: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 9px;
+          min-width: 0;
+          min-height: 44px;
+          padding: 10px 14px;
           border: 0;
+          border-radius: 10px;
           background: transparent;
           color: #334155;
           font-weight: 700;
           font-size: 15px;
-          padding: 10px 14px;
+          line-height: 1.2;
           cursor: pointer;
-          border-radius: 10px;
           box-shadow: none;
           outline: none;
+          white-space: nowrap;
           transition: color .18s ease, background .18s ease, box-shadow .18s ease;
+          flex: 0 0 auto;
         }
         .notif-tab:hover {
           color: #0f172a;
-          background: #f8fafc;
+          background: #ffffff;
+          box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.22), 0 6px 16px rgba(15, 23, 42, 0.08);
         }
         .notif-tab-icon {
           display: inline-grid;
@@ -3531,7 +3548,7 @@ export function ConfigurationNotificationsSection({
       <div className="notif-card">
         <div className="notif-card-content">
           <div
-            className="notif-tabs"
+            className="notif-tabs desktop-standard-tabs"
             role="tablist"
             aria-label="Obvestila"
             style={{
@@ -3551,16 +3568,16 @@ export function ConfigurationNotificationsSection({
                   key={id}
                   type="button"
                   className={
-                    channel === id ? "notif-tab is-active" : "notif-tab"
+                    channel === id ? "notif-tab desktop-standard-tab is-active" : "notif-tab desktop-standard-tab"
                   }
                   onClick={() => setChannel(id)}
                   role="tab"
                   aria-selected={channel === id}
                 >
-                  <span className="notif-tab-icon" aria-hidden>
+                  <span className="notif-tab-icon desktop-standard-tab__icon" aria-hidden>
                     <NotificationChannelTabIcon channel={id} />
                   </span>
-                  <span className="notif-tab-label">{label}</span>
+                  <span className="notif-tab-label desktop-standard-tab__label">{label}</span>
                 </button>
               ))}
           </div>
