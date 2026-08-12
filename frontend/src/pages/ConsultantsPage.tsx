@@ -1,3 +1,6 @@
+import '../styles/features/service-type-tabs.css'
+import '../styles/features/clients-and-detail.css'
+import '../styles/features/guest-app.css'
 import '../styles/features.booking.css'
 import '../styles/features/employee-roles.css'
 import '../styles/features/booking-side-panel.css'

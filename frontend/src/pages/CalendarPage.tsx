@@ -1,3 +1,5 @@
+import '../styles/features/clients-and-detail.css'
+import '../styles/features/guest-app.css'
 import '../styles/features.booking.css'
 import '../styles/features/booking-side-panel.css'
 import '../styles/features/modern-clients.css'

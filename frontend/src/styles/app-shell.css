@@ -3636,3 +3636,26 @@ a.credentials-popover-action-btn {
         background: #F7FAFF;
     }
 }
+/* Shared account/header avatar base. Kept global because Shell renders it on every authenticated route. */
+.clients-name-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+.clients-name-avatar-image {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    border-radius: inherit;
+}
+

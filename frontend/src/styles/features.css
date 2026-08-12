@@ -1,9 +1,4 @@
-@import './features/clients-and-detail.css';
 @import './features/auth-login.css';
 @import './features/responsive.css';
 @import './features/auth-password-responsive.css';
-@import './features/group-detail.css';
-@import './features/wallet-scanner.css';
-@import './features/guest-app.css';
-@import './features/service-type-tabs.css';
 

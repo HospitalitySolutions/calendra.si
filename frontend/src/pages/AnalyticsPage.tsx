@@ -1,3 +1,5 @@
+import '../styles/features/service-type-tabs.css'
+import '../styles/features/clients-and-detail.css'
 import '../styles/features.booking.css'
 import '../styles/features/analytics-page.css'
 import '../styles/features/modern-clients.css'

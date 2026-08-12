@@ -274,22 +274,6 @@
   line-height: 1.65;
 }
 
-.consultant-permissions-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem;
-  border: 1px solid var(--border, #d9e2ef);
-  border-radius: 18px;
-  background: rgba(248, 250, 252, 0.78);
-}
-
-.wallet-entitlement-highlight {
-  border-color: rgba(37, 99, 235, 0.56) !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
-}
-
 @media (max-width: 1100px) {
   .scanner-layout {
     grid-template-columns: 1fr;
