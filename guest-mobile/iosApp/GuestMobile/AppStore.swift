@@ -565,7 +565,7 @@ final class AppStore: ObservableObject {
                 selectedLocationId = nil
             }
             try await self.api.joinTenant(code: normalizedCode, locationId: selectedLocationId)
-            try await self.refreshAllTenantsThrowing()
+            await self.refreshAfterSuccessfulJoin()
             self.selectedTenantId = nil
             self.walletSelectedTenantId = self.linkedTenants.first?.id
         }
@@ -605,7 +605,7 @@ final class AppStore: ObservableObject {
         guard !usePreviewData else { applyPreview(); return }
         await run {
             try await self.api.joinPublicTenant(companyId: normalizedCompanyId, locationId: locationId)
-            try await self.refreshAllTenantsThrowing()
+            await self.refreshAfterSuccessfulJoin()
             self.selectedTenantId = nil
             self.walletSelectedTenantId = self.linkedTenants.first?.id
         }
@@ -1300,6 +1300,27 @@ final class AppStore: ObservableObject {
         restartBookingRealtimeStreams()
         if let selectedTenantId, let tenant = linkedTenants.first(where: { $0.id == selectedTenantId }) {
             currentTenant = tenant
+        }
+    }
+
+    /// The subscription POST has already succeeded before this is called. Refreshing the
+    /// dashboard/catalog is therefore best-effort: a temporary products/home failure must
+    /// not make the UI report that adding the location itself failed.
+    private func refreshAfterSuccessfulJoin() async {
+        do {
+            try await refreshAllTenantsThrowing()
+        } catch {
+            // Keep the membership/location list as fresh as possible even if a secondary
+            // dashboard endpoint is temporarily unavailable. A later normal refresh will
+            // hydrate products, wallet, history and notifications again.
+            if let profile = try? await api.me() {
+                user = profile.guestUser
+                linkedTenants = profile.linkedTenants
+            }
+            if let providers = try? await api.providerLocations() {
+                providerLocations = providers
+            }
+            restartBookingRealtimeStreams()
         }
     }
 

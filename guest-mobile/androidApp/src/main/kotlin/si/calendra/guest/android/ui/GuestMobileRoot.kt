@@ -2891,54 +2891,31 @@ private suspend fun joinTenantWithCode(
             locationId = selectedLocationId
         )
     )
-    val updatedSession = repo.me()
-    val token = state.uiState.session?.token.orEmpty()
-    GuestSessionStore.authToken = token
-    if (token.isNotBlank()) onPersistToken(token)
-    val tenant = updatedSession.linkedTenants.firstOrNull { it.companyId == tenantLookup.companyId }
-        ?: TenantSummary(
-            companyId = tenantLookup.companyId,
-            companyName = tenantLookup.companyName,
-            publicDescription = tenantLookup.publicDescription,
-            publicCity = tenantLookup.publicCity,
-            publicPhone = tenantLookup.publicPhone,
-            companyAddress = tenantLookup.companyAddress,
-            status = "ACTIVE"
-        )
-    val home = repo.home(tenant.companyId)
-    val providerLocations = repo.providerLocations()
-    val dashboardProducts = loadScopedProviderProducts(repo, providerLocations, tenant.companyId)
-    val dashboard = TenantDashboard(
-        tenant = home.tenant,
-        home = home,
-        products = dashboardProducts,
-        wallet = repo.wallet(tenant.companyId),
-        history = repo.bookingHistory(tenant.companyId),
-        notifications = repo.notifications(tenant.companyId).items,
-        inboxThread = repo.inboxThreads(tenant.companyId).firstOrNull()
+
+    // The join POST has already succeeded at this point. Everything below is a refresh,
+    // so a temporary catalog/home failure must not be reported as "Tenant join failed".
+    val fallbackTenant = TenantSummary(
+        companyId = tenantLookup.companyId,
+        companyName = tenantLookup.companyName,
+        publicDescription = tenantLookup.publicDescription,
+        publicCity = tenantLookup.publicCity,
+        publicPhone = tenantLookup.publicPhone,
+        companyAddress = tenantLookup.companyAddress,
+        status = "ACTIVE"
     )
-    val providerProducts = providerLocations
-        .filter { it.publicBookingEnabled && !it.locationId.isNullOrBlank() }
-        .associate { provider ->
-            providerKey(provider) to repo.products(provider.companyId, provider.locationId)
-        }
-    state.uiState = state.uiState.copy(
-        session = GuestSession(
-            token = token,
-            guestUser = updatedSession.guestUser,
-            linkedTenants = updatedSession.linkedTenants
-        ),
-        linkedTenants = updatedSession.linkedTenants,
-        selectedTenantId = null,
-        providerLocations = providerLocations,
-        providerProducts = providerProducts,
-        tenantDashboards = state.uiState.tenantDashboards + (tenant.companyId to dashboard)
+    refreshAfterSuccessfulJoin(
+        fallbackTenant = fallbackTenant,
+        repo = repo,
+        state = state,
+        onPersistToken = onPersistToken
     )
+
     navController.navigate(RootRoute.Home.route) {
         popUpTo(navController.graph.id) { inclusive = true }
         launchSingleTop = true
     }
 }
+
 private suspend fun joinPublicTenant(
     companyId: String,
     locationId: String?,
@@ -2958,50 +2935,17 @@ private suspend fun joinPublicTenant(
         )
     )
 
-    val updatedSession = repo.me()
-    val token = state.uiState.session?.token.orEmpty()
-
-    GuestSessionStore.authToken = token
-
-    if (token.isNotBlank()) {
-        onPersistToken(token)
-    }
-
-    val tenant = updatedSession.linkedTenants.firstOrNull { it.companyId == normalizedCompanyId }
-        ?: TenantSummary(
+    // Same rule as code/QR joins: once the server accepted the subscription, subsequent
+    // data hydration is best-effort and cannot turn a successful add into a join error.
+    refreshAfterSuccessfulJoin(
+        fallbackTenant = TenantSummary(
             companyId = normalizedCompanyId,
             companyName = "Tenant",
             status = "ACTIVE"
-        )
-
-    val home = repo.home(tenant.companyId)
-    val providerLocations = repo.providerLocations()
-    val dashboard = TenantDashboard(
-        tenant = home.tenant,
-        home = home,
-        products = loadScopedProviderProducts(repo, providerLocations, tenant.companyId),
-        wallet = repo.wallet(tenant.companyId),
-        history = repo.bookingHistory(tenant.companyId),
-        notifications = repo.notifications(tenant.companyId).items,
-        inboxThread = repo.inboxThreads(tenant.companyId).firstOrNull()
-    )
-
-    val providerProducts = providerLocations
-        .filter { it.publicBookingEnabled }
-        .associate { provider ->
-            providerKey(provider) to repo.products(provider.companyId, provider.locationId)
-        }
-    state.uiState = state.uiState.copy(
-        session = GuestSession(
-            token = token,
-            guestUser = updatedSession.guestUser,
-            linkedTenants = updatedSession.linkedTenants
         ),
-        linkedTenants = updatedSession.linkedTenants,
-        selectedTenantId = null,
-        providerLocations = providerLocations,
-        providerProducts = providerProducts,
-        tenantDashboards = state.uiState.tenantDashboards + (tenant.companyId to dashboard)
+        repo = repo,
+        state = state,
+        onPersistToken = onPersistToken
     )
 
     navController.navigate(RootRoute.Home.route) {
@@ -3009,6 +2953,94 @@ private suspend fun joinPublicTenant(
         launchSingleTop = true
     }
 }
+
+private suspend fun refreshAfterSuccessfulJoin(
+    fallbackTenant: TenantSummary,
+    repo: si.calendra.guest.shared.repository.GuestRepository,
+    state: GuestMutableState,
+    onPersistToken: (String) -> Unit
+) {
+    val token = state.uiState.session?.token.orEmpty()
+    GuestSessionStore.authToken = token
+    if (token.isNotBlank()) onPersistToken(token)
+
+    val profile = runCatching { repo.me() }
+        .onFailure {
+            if (BuildConfig.DEBUG) Log.w(GUEST_API_DEBUG_TAG, "Post-join profile refresh failed", it)
+        }
+        .getOrNull()
+
+    val linkedTenants = profile?.linkedTenants ?: run {
+        val current = state.uiState.linkedTenants
+        if (current.any { it.companyId == fallbackTenant.companyId }) current
+        else current + fallbackTenant
+    }
+    val refreshedSession = when {
+        profile != null -> GuestSession(
+            token = token,
+            guestUser = profile.guestUser,
+            linkedTenants = linkedTenants
+        )
+        state.uiState.session != null -> state.uiState.session?.copy(linkedTenants = linkedTenants)
+        else -> null
+    }
+
+    // Commit the successful subscription immediately, before any product/dashboard calls.
+    state.uiState = state.uiState.copy(
+        session = refreshedSession,
+        linkedTenants = linkedTenants,
+        selectedTenantId = null
+    )
+
+    val tenant = linkedTenants.firstOrNull { it.companyId == fallbackTenant.companyId } ?: fallbackTenant
+    val providers = runCatching { repo.providerLocations() }
+        .onFailure {
+            if (BuildConfig.DEBUG) Log.w(GUEST_API_DEBUG_TAG, "Post-join provider refresh failed", it)
+        }
+        .getOrNull()
+
+    if (providers != null) {
+        state.uiState = state.uiState.copy(providerLocations = providers)
+    }
+    val effectiveProviders = providers ?: state.uiState.providerLocations
+
+    runCatching {
+        val home = repo.home(tenant.companyId)
+        val dashboard = TenantDashboard(
+            tenant = home.tenant,
+            home = home,
+            products = loadScopedProviderProducts(repo, effectiveProviders, tenant.companyId),
+            wallet = repo.wallet(tenant.companyId),
+            history = repo.bookingHistory(tenant.companyId),
+            notifications = repo.notifications(tenant.companyId).items,
+            inboxThread = repo.inboxThreads(tenant.companyId).firstOrNull()
+        )
+        state.uiState = state.uiState.copy(
+            tenantDashboards = state.uiState.tenantDashboards + (tenant.companyId to dashboard)
+        )
+    }.onFailure {
+        if (BuildConfig.DEBUG) Log.w(GUEST_API_DEBUG_TAG, "Post-join dashboard refresh failed", it)
+    }
+
+    if (effectiveProviders.isNotEmpty()) {
+        val providerProducts = state.uiState.providerProducts.toMutableMap()
+        for (provider in effectiveProviders) {
+            if (!provider.publicBookingEnabled || provider.locationId.isNullOrBlank()) continue
+            val key = providerKey(provider)
+            runCatching { repo.products(provider.companyId, provider.locationId) }
+                .onSuccess { providerProducts[key] = it }
+                .onFailure {
+                    if (BuildConfig.DEBUG) Log.w(
+                        GUEST_API_DEBUG_TAG,
+                        "Post-join product refresh failed for $key",
+                        it
+                    )
+                }
+        }
+        state.uiState = state.uiState.copy(providerProducts = providerProducts)
+    }
+}
+
 private fun extractTenantCode(raw: String?): String? {
     val value = raw?.trim().orEmpty()
     if (value.isBlank()) return null

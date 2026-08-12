@@ -210,6 +210,20 @@ public class GuestCatalogService {
                     && !commerceLocations.productAvailableAt(product, selectedLocation.getId())) continue;
             if (selectedLocation != null
                     && !productHasEligibleServiceAtLocation(product, selectedLocation.getId())) continue;
+
+            // A wallet product may inherit its display group from the linked session type.
+            // Keep the sort order boxed as Integer: mixing a primitive int branch with a
+            // nullable branch in a nested ternary causes Java to unbox null and throw an NPE.
+            com.example.app.session.ServiceGroup productGroup = product.getServiceGroup();
+            if (productGroup == null && product.getSessionType() != null) {
+                productGroup = publicGroup(product.getSessionType());
+            }
+            String productGroupId = productGroup == null ? null : String.valueOf(productGroup.getId());
+            String productGroupName = productGroup == null ? null : productGroup.getName();
+            Integer productGroupSortOrder = productGroup == null
+                    ? null
+                    : Integer.valueOf(productGroup.getSortOrder());
+
             out.add(new GuestDtos.ProductResponse(
                     String.valueOf(product.getId()),
                     product.getName(),
@@ -224,18 +238,9 @@ public class GuestCatalogService {
                     product.getPromoText(),
                     product.getValidityDays(),
                     product.getUsageLimit(),
-                    product.getServiceGroup() != null
-                            ? String.valueOf(product.getServiceGroup().getId())
-                            : product.getSessionType() == null || publicGroup(product.getSessionType()) == null
-                                ? null : String.valueOf(publicGroup(product.getSessionType()).getId()),
-                    product.getServiceGroup() != null
-                            ? product.getServiceGroup().getName()
-                            : product.getSessionType() == null || publicGroup(product.getSessionType()) == null
-                                ? null : publicGroup(product.getSessionType()).getName(),
-                    product.getServiceGroup() != null
-                            ? product.getServiceGroup().getSortOrder()
-                            : product.getSessionType() == null || publicGroup(product.getSessionType()) == null
-                                ? null : publicGroup(product.getSessionType()).getSortOrder(),
+                    productGroupId,
+                    productGroupName,
+                    productGroupSortOrder,
                     product.getSessionType() == null ? Integer.MAX_VALUE : product.getSessionType().getGuestSortOrder(),
                     product.getProductType() == ProductType.GIFT_CARD && VoucherRules.productMode(product) != null ? VoucherRules.productMode(product).name() : null,
                     product.getProductType() == ProductType.GIFT_CARD && VoucherRules.productScope(product) != null ? VoucherRules.productScope(product).name() : null,
