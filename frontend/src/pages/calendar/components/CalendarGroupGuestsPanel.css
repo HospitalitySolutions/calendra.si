@@ -302,7 +302,7 @@
 .calendar-group-guests-table-head,
 .calendar-group-guests-row {
   display: grid;
-  grid-template-columns: minmax(260px, 1.1fr) minmax(260px, 1fr) 96px;
+  grid-template-columns: minmax(230px, 1.15fr) minmax(220px, 0.95fr) 150px 72px;
   align-items: center;
 }
 
@@ -320,6 +320,87 @@
 
 .calendar-group-guests-table-head span:last-child {
   text-align: right;
+}
+
+.calendar-group-guests-status {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-right: 10px;
+}
+
+.calendar-group-guests-status-select {
+  width: 138px;
+  height: 38px;
+  padding: 0 34px 0 12px;
+  color: #334155;
+  background-color: #fff;
+  border: 1px solid #dbe4ef;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.calendar-group-guests-status-select:focus {
+  outline: 0;
+  border-color: #80aaff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.calendar-group-guests-status-select:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.calendar-group-guests-status-pill {
+  min-width: 112px;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.calendar-group-guests-status-pill--reserved,
+.calendar-group-guests-status-select--reserved {
+  color: #475569;
+  background-color: #f8fafc;
+  border-color: #dbe4ef;
+}
+
+.calendar-group-guests-status-pill--ongoing,
+.calendar-group-guests-status-select--ongoing {
+  color: #1d4ed8;
+  background-color: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.calendar-group-guests-status-pill--checked-out,
+.calendar-group-guests-status-select--checked-out {
+  color: #15803d;
+  background-color: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.calendar-group-guests-status-pill--cancelled,
+.calendar-group-guests-status-select--cancelled {
+  color: #b91c1c;
+  background-color: #fff1f2;
+  border-color: #fecdd3;
+}
+
+.calendar-group-guests-status-pill--no-show,
+.calendar-group-guests-status-select--no-show {
+  color: #b45309;
+  background-color: #fffbeb;
+  border-color: #fde68a;
 }
 
 .calendar-group-guests-row {
@@ -587,13 +668,24 @@
 
   .calendar-group-guests-row {
     min-height: 76px;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) 132px auto;
     gap: 12px;
     padding: 10px 16px;
   }
 
   .calendar-group-guests-contact {
     display: none;
+  }
+
+  .calendar-group-guests-status {
+    width: 132px;
+    padding-right: 0;
+  }
+
+  .calendar-group-guests-status-select,
+  .calendar-group-guests-status-pill {
+    width: 100%;
+    min-width: 0;
   }
 
   .calendar-group-guests-mobile-contact {
@@ -615,6 +707,26 @@
   .calendar-group-guests-footer {
     min-height: 56px;
     padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 640px) {
+  .calendar-group-guests-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 7px;
+  }
+
+  .calendar-group-guests-status {
+    grid-column: 1;
+    grid-row: 2;
+    width: 138px;
+    margin-left: 54px;
+  }
+
+  .calendar-group-guests-actions {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
   }
 }
 
@@ -640,5 +752,17 @@
   .calendar-group-guests-stat-icon svg {
     width: 18px;
     height: 18px;
+  }
+}
+
+/* Add-guest mode has no participant status column. */
+.calendar-group-guests-table[data-mode="add"] .calendar-group-guests-table-head,
+.calendar-group-guests-table[data-mode="add"] .calendar-group-guests-row {
+  grid-template-columns: minmax(260px, 1.1fr) minmax(260px, 1fr) 72px;
+}
+
+@media (max-width: 1024px) {
+  .calendar-group-guests-table[data-mode="add"] .calendar-group-guests-row {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 }

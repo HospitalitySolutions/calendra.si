@@ -1065,7 +1065,7 @@ public class SessionBookingCreationService {
         return new GroupParticipantCancellationResult(participant, placeholder, groupKey);
     }
 
-    private SessionBooking ensureGroupSessionRemainsWhenParticipantLeaves(
+    SessionBooking ensureGroupSessionRemainsWhenParticipantLeaves(
             SessionBooking participant,
             String origin
     ) {

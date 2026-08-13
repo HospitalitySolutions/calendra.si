@@ -13,7 +13,7 @@ export function bookingStatusDisplayLabel(
     if (key === 'CHECKED_OUT') return 'Zaključen'
     if (key === 'ONGOING') return 'V teku'
     if (key === 'CANCELLED') return 'Odpovedan'
-    if (key === 'NO_SHOW') return 'Ni prišel'
+    if (key === 'NO_SHOW') return 'Neprihod'
     return 'Rezerviran'
   }
   if (key === 'CHECKED_OUT') return 'Checked out'

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { api, getApiErrorMessage } from '../../../api'
+import { bookingStatusDisplayLabel, deriveBookingStatus } from '../calendarStatus'
 import './CalendarGroupGuestsPanel.css'
 
 type CalendarGroupGuestsPanelProps = {
@@ -8,11 +9,19 @@ type CalendarGroupGuestsPanelProps = {
   group: any
   clients: any[]
   locale: string
+  noShowModuleEnabled?: boolean
   onClose: () => void
   onSessionUpdated: (session: any) => void
 }
 
 type PanelMode = 'current' | 'add'
+
+type ParticipantStatusRow = {
+  bookingId: number
+  client: any
+  bookingStatus: string
+  lifecycleStatus: string
+}
 
 function clientName(client: any) {
   const name = `${client?.firstName || ''} ${client?.lastName || ''}`.trim()
@@ -135,11 +144,18 @@ function XIcon() {
   )
 }
 
+function normalizeParticipantStoredStatus(value: unknown) {
+  const status = String(value ?? '').trim().toUpperCase()
+  if (status === 'CANCELLED' || status === 'NO_SHOW' || status === 'CHECKED_OUT') return status
+  return 'RESERVED'
+}
+
 export function CalendarGroupGuestsPanel({
   session,
   group,
   clients,
   locale,
+  noShowModuleEnabled = true,
   onClose,
   onSessionUpdated,
 }: CalendarGroupGuestsPanelProps) {
@@ -147,6 +163,7 @@ export function CalendarGroupGuestsPanel({
   const [query, setQuery] = useState('')
   const [busyClientId, setBusyClientId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [participantRows, setParticipantRows] = useState<ParticipantStatusRow[] | null>(null)
 
   const sl = locale === 'sl'
   const sr = locale === 'sr'
@@ -155,35 +172,62 @@ export function CalendarGroupGuestsPanel({
         guests: 'Gostje', details: 'Podrobnosti skupine', close: 'Zapri', registered: 'Prijavljeni',
         free: 'Mesta prosta', unlimited: 'Brez omejitve', search: 'Išči po imenu, e-pošti ali telefonu…',
         addGuest: 'Dodaj gosta', backToGuests: 'Nazaj na prijavljene', guest: 'Gost', contact: 'Kontakt',
-        actions: 'Dejanja', empty: 'V ta termin še ni dodan noben gost.', noResults: 'Ni zadetkov za izbrano iskanje.',
+        status: 'Status', actions: 'Dejanja', empty: 'V ta termin še ni dodan noben gost.', noResults: 'Ni zadetkov za izbrano iskanje.',
         noCandidates: 'Vse aktivne stranke so že dodane v ta termin.', groupMember: 'Član skupine', client: 'Stranka',
         remove: 'Odstrani iz termina', add: 'Dodaj v termin', full: 'Termin je zapolnjen.',
-        infoCurrent: 'Odstranitev velja samo za ta termin in ne spremeni članstva v skupini.',
+        infoCurrent: 'Status gosta velja samo za ta termin in ne spremeni članstva v skupini.',
         infoAdd: 'Dodajanje velja samo za ta termin. Članstvo v skupini ostane nespremenjeno.',
+        participantLoadError: 'Statusov gostov ni bilo mogoče naložiti.',
+        participantStatusError: 'Statusa gosta ni bilo mogoče spremeniti.',
       }
     : sr
       ? {
           guests: 'Gosti', details: 'Detalji grupe', close: 'Zatvori', registered: 'Prijavljeni',
           free: 'Slobodna mesta', unlimited: 'Bez ograničenja', search: 'Pretraži po imenu, e-pošti ili telefonu…',
           addGuest: 'Dodaj gosta', backToGuests: 'Nazad na prijavljene', guest: 'Gost', contact: 'Kontakt',
-          actions: 'Radnje', empty: 'U ovaj termin još nije dodat nijedan gost.', noResults: 'Nema rezultata za ovu pretragu.',
+          status: 'Status', actions: 'Radnje', empty: 'U ovaj termin još nije dodat nijedan gost.', noResults: 'Nema rezultata za ovu pretragu.',
           noCandidates: 'Sve aktivne stranke su već dodate u termin.', groupMember: 'Član grupe', client: 'Stranka',
           remove: 'Ukloni iz termina', add: 'Dodaj u termin', full: 'Termin je popunjen.',
-          infoCurrent: 'Uklanjanje važi samo za ovaj termin i ne menja članstvo u grupi.',
+          infoCurrent: 'Status gosta važi samo za ovaj termin i ne menja članstvo u grupi.',
           infoAdd: 'Dodavanje važi samo za ovaj termin. Članstvo u grupi ostaje nepromenjeno.',
+          participantLoadError: 'Nije moguće učitati statuse gostiju.',
+          participantStatusError: 'Nije moguće promeniti status gosta.',
         }
       : {
           guests: 'Guests', details: 'Group details', close: 'Close', registered: 'Registered',
           free: 'Spots available', unlimited: 'Unlimited', search: 'Search by name, email or phone…',
           addGuest: 'Add guest', backToGuests: 'Back to registered', guest: 'Guest', contact: 'Contact',
-          actions: 'Actions', empty: 'No guests have been added to this session yet.', noResults: 'No matching guests found.',
+          status: 'Status', actions: 'Actions', empty: 'No guests have been added to this session yet.', noResults: 'No matching guests found.',
           noCandidates: 'All active clients are already added to this session.', groupMember: 'Group member', client: 'Client',
           remove: 'Remove from session', add: 'Add to session', full: 'This session is full.',
-          infoCurrent: 'Removal applies only to this session and does not change group membership.',
+          infoCurrent: 'Guest status applies only to this session and does not change group membership.',
           infoAdd: 'Adding applies only to this session. Group membership stays unchanged.',
+          participantLoadError: 'Guest statuses could not be loaded.',
+          participantStatusError: 'Guest status could not be changed.',
         }
 
-  const attendees = useMemo(() => {
+  const refreshParticipantRows = useCallback(async (surfaceError = false) => {
+    const bookingId = Number(session?.id)
+    if (!Number.isInteger(bookingId) || bookingId <= 0) {
+      setParticipantRows(null)
+      return
+    }
+    try {
+      const { data } = await api.get(`/bookings/${bookingId}/participants`)
+      setParticipantRows(Array.isArray(data) ? data : [])
+    } catch (requestError: any) {
+      if (surfaceError) {
+        setError(getApiErrorMessage(requestError, copy.participantLoadError))
+      }
+    }
+  }, [copy.participantLoadError, session?.id])
+
+  useEffect(() => {
+    setParticipantRows(null)
+    void refreshParticipantRows(false)
+  }, [refreshParticipantRows])
+
+  const fallbackAttendees = useMemo(() => {
     const seen = new Set<number>()
     return (Array.isArray(session?.clients) ? session.clients : [])
       .filter((client: any) => {
@@ -194,18 +238,61 @@ export function CalendarGroupGuestsPanel({
       })
   }, [session?.clients])
 
-  const attendeeIds = useMemo(
-    () => new Set(attendees.map((client: any) => Number(client?.id))),
-    [attendees],
-  )
+  const participantStatusByClientId = useMemo(() => {
+    const map = new Map<number, ParticipantStatusRow>()
+    for (const row of participantRows ?? []) {
+      const id = Number(row?.client?.id)
+      if (Number.isInteger(id) && id > 0) map.set(id, row)
+    }
+    return map
+  }, [participantRows])
+
+  const attendees = useMemo(() => {
+    if (participantRows == null) return fallbackAttendees
+    const seen = new Set<number>()
+    return participantRows
+      .map((row) => row?.client)
+      .filter((client: any) => {
+        const id = Number(client?.id)
+        if (!Number.isInteger(id) || id <= 0 || seen.has(id)) return false
+        seen.add(id)
+        return true
+      })
+  }, [fallbackAttendees, participantRows])
+
+  const attendeeIds = useMemo(() => {
+    if (participantRows == null) return new Set(attendees.map((client: any) => Number(client?.id)))
+    return new Set(
+      participantRows
+        .filter((row) => normalizeParticipantStoredStatus(row?.bookingStatus) !== 'CANCELLED')
+        .map((row) => Number(row?.client?.id))
+        .filter((id) => Number.isInteger(id) && id > 0),
+    )
+  }, [attendees, participantRows])
+
+  const registeredCount = useMemo(() => {
+    if (participantRows == null) return attendees.length
+    return participantRows.filter((row) => normalizeParticipantStoredStatus(row?.bookingStatus) !== 'CANCELLED').length
+  }, [attendees.length, participantRows])
+
+  const capacityParticipantCount = useMemo(() => {
+    if (participantRows == null) return attendees.length
+    return participantRows.filter((row) => {
+      const status = normalizeParticipantStoredStatus(row?.bookingStatus)
+      return status !== 'CANCELLED' && status !== 'NO_SHOW'
+    }).length
+  }, [attendees.length, participantRows])
+
   const groupMemberIds = useMemo(
     () => new Set((Array.isArray(group?.members) ? group.members : []).map((client: any) => Number(client?.id))),
     [group?.members],
   )
   const capacity = useMemo(() => sessionCapacity(session), [session])
-  const freeSpots = capacity == null ? null : Math.max(0, capacity - attendees.length)
-  const isFull = capacity != null && attendees.length >= capacity
+  const freeSpots = capacity == null ? null : Math.max(0, capacity - capacityParticipantCount)
+  const isFull = capacity != null && capacityParticipantCount >= capacity
   const normalizedQuery = query.trim().toLowerCase()
+  const groupLifecycleStatus = deriveBookingStatus(session?.startTime, session?.endTime, session?.bookingStatus)
+  const participantStatusEditable = groupLifecycleStatus === 'ONGOING' || groupLifecycleStatus === 'CHECKED_OUT'
 
   const visibleAttendees = useMemo(
     () => attendees.filter((client: any) => matchesClient(client, normalizedQuery)),
@@ -253,6 +340,7 @@ export function CalendarGroupGuestsPanel({
     try {
       const { data } = await api.post(`/bookings/${bookingId}/participants`, { clientId })
       onSessionUpdated(data)
+      await refreshParticipantRows(false)
       setQuery('')
     } catch (requestError: any) {
       setError(getApiErrorMessage(requestError, sl ? 'Gosta ni bilo mogoče dodati.' : 'Failed to add guest.'))
@@ -270,12 +358,47 @@ export function CalendarGroupGuestsPanel({
     try {
       const { data } = await api.delete(`/bookings/${bookingId}/participants/${clientId}`)
       onSessionUpdated(data)
+      await refreshParticipantRows(false)
       setQuery('')
     } catch (requestError: any) {
       setError(getApiErrorMessage(requestError, sl ? 'Gosta ni bilo mogoče odstraniti.' : 'Failed to remove guest.'))
     } finally {
       setBusyClientId(null)
     }
+  }
+
+  const setParticipantStatus = async (client: any, targetStatus: 'CANCELLED' | 'NO_SHOW') => {
+    const clientId = Number(client?.id)
+    const bookingId = Number(session?.id)
+    if (!Number.isInteger(clientId) || clientId <= 0 || !Number.isInteger(bookingId) || bookingId <= 0) return
+    setBusyClientId(clientId)
+    setError(null)
+    try {
+      const response = targetStatus === 'CANCELLED'
+        ? await api.delete(`/bookings/${bookingId}/participants/${clientId}`)
+        : await api.post(`/bookings/${bookingId}/no-show-clients`, { clientIds: [clientId] })
+      onSessionUpdated(response.data)
+      await refreshParticipantRows(false)
+    } catch (requestError: any) {
+      setError(getApiErrorMessage(requestError, copy.participantStatusError))
+    } finally {
+      setBusyClientId(null)
+    }
+  }
+
+  const participantLifecycleForClient = (client: any) => {
+    const row = participantStatusByClientId.get(Number(client?.id))
+    const stored = normalizeParticipantStoredStatus(row?.bookingStatus)
+    if (stored === 'CANCELLED' || stored === 'NO_SHOW') return stored
+    return String(row?.lifecycleStatus || groupLifecycleStatus || 'RESERVED').toUpperCase()
+  }
+
+  const participantTone = (status: string) => {
+    if (status === 'CANCELLED') return 'cancelled'
+    if (status === 'NO_SHOW') return 'no-show'
+    if (status === 'ONGOING') return 'ongoing'
+    if (status === 'CHECKED_OUT') return 'checked-out'
+    return 'reserved'
   }
 
   const titleName = String(group?.name || session?.groupName || '').trim() || (sl ? `Skupina #${session?.groupId || ''}` : `Group #${session?.groupId || ''}`)
@@ -307,7 +430,7 @@ export function CalendarGroupGuestsPanel({
           <div className="calendar-group-guests-summary">
             <div className="calendar-group-guests-stat">
               <span className="calendar-group-guests-stat-icon calendar-group-guests-stat-icon--blue"><PeopleIcon /></span>
-              <div><strong>{capacity == null ? attendees.length : `${attendees.length} / ${capacity}`}</strong><span>{copy.registered}</span></div>
+              <div><strong>{capacity == null ? registeredCount : `${registeredCount} / ${capacity}`}</strong><span>{copy.registered}</span></div>
             </div>
             <div className="calendar-group-guests-stat">
               <span className="calendar-group-guests-stat-icon calendar-group-guests-stat-icon--green"><CheckIcon /></span>
@@ -351,6 +474,7 @@ export function CalendarGroupGuestsPanel({
             <div className="calendar-group-guests-table-head">
               <span>{copy.guest}</span>
               <span>{copy.contact}</span>
+              {mode === 'current' && <span>{copy.status}</span>}
               <span>{copy.actions}</span>
             </div>
             <div className="calendar-group-guests-rows">
@@ -362,6 +486,9 @@ export function CalendarGroupGuestsPanel({
                 const id = Number(client?.id)
                 const loading = busyClientId === id
                 const member = groupMemberIds.has(id)
+                const lifecycleStatus = mode === 'current' ? participantLifecycleForClient(client) : 'RESERVED'
+                const terminalStatus = lifecycleStatus === 'CANCELLED' || lifecycleStatus === 'NO_SHOW'
+                const canSetStatus = mode === 'current' && participantStatusEditable && !terminalStatus
                 return (
                   <div className="calendar-group-guests-row" key={id}>
                     <div className="calendar-group-guests-person">
@@ -376,13 +503,39 @@ export function CalendarGroupGuestsPanel({
                       <span>{client?.email || '—'}</span>
                       <span>{client?.phone || ''}</span>
                     </div>
+                    {mode === 'current' && (
+                      <div className="calendar-group-guests-status">
+                        {canSetStatus ? (
+                          <select
+                            className={`calendar-group-guests-status-select calendar-group-guests-status-select--${participantTone(lifecycleStatus)}`}
+                            value={lifecycleStatus}
+                            onChange={(event) => {
+                              const target = String(event.target.value).toUpperCase()
+                              if (target === 'CANCELLED' || target === 'NO_SHOW') {
+                                void setParticipantStatus(client, target)
+                              }
+                            }}
+                            disabled={busyClientId != null}
+                            aria-label={`${copy.status}: ${clientName(client)}`}
+                          >
+                            <option value={lifecycleStatus}>{bookingStatusDisplayLabel(lifecycleStatus, locale)}</option>
+                            <option value="CANCELLED">{bookingStatusDisplayLabel('CANCELLED', locale)}</option>
+                            {noShowModuleEnabled && <option value="NO_SHOW">{bookingStatusDisplayLabel('NO_SHOW', locale)}</option>}
+                          </select>
+                        ) : (
+                          <span className={`calendar-group-guests-status-pill calendar-group-guests-status-pill--${participantTone(lifecycleStatus)}`}>
+                            {bookingStatusDisplayLabel(lifecycleStatus, locale)}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div className="calendar-group-guests-actions">
                       {mode === 'current' ? (
                         <button
                           type="button"
                           className="calendar-group-guests-row-action calendar-group-guests-row-action--remove"
                           onClick={() => void removeClient(client)}
-                          disabled={busyClientId != null}
+                          disabled={busyClientId != null || terminalStatus}
                           aria-label={`${copy.remove}: ${clientName(client)}`}
                           title={copy.remove}
                         >

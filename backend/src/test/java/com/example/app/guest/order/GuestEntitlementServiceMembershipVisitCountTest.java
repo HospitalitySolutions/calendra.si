@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Test;
 class GuestEntitlementServiceMembershipVisitCountTest {
 
     @Test
-    void membershipVisitsAreDistinctEffectiveCheckedOutBookingsOnly() {
+    void membershipVisitsCountCompletedAndNoShowBookingsButNotCancellations() {
         GuestEntitlementRepository entitlements = mock(GuestEntitlementRepository.class);
         GuestEntitlementUsageRepository usages = mock(GuestEntitlementUsageRepository.class);
         TimeService timeService = mock(TimeService.class);
@@ -68,11 +68,11 @@ class GuestEntitlementServiceMembershipVisitCountTest {
                 usage(membership, null) // standalone scan never counts as a visit
         ));
 
-        assertThat(service.membershipVisitCount(membership)).isEqualTo(2);
+        assertThat(service.membershipVisitCount(membership)).isEqualTo(3);
 
-        // If a previously counted booking is later cancelled/no-show/removed, it stops counting.
+        // If a previously counted booking is later cancelled/removed, it stops counting. NO_SHOW stays charged.
         explicitlyCheckedOut.setBookingStatus(SessionBookingStatus.CANCELLED);
-        assertThat(service.membershipVisitCount(membership)).isEqualTo(1);
+        assertThat(service.membershipVisitCount(membership)).isEqualTo(2);
     }
 
     private static SessionBooking booking(

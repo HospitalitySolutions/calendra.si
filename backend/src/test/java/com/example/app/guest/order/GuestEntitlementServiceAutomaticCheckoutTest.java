@@ -158,6 +158,44 @@ class GuestEntitlementServiceAutomaticCheckoutTest {
     }
 
     @Test
+    void noShowConsumesPackVisitAndIsIdempotent() {
+        GuestEntitlementRepository entitlements = mock(GuestEntitlementRepository.class);
+        GuestEntitlementUsageRepository usages = mock(GuestEntitlementUsageRepository.class);
+        TimeService timeService = mock(TimeService.class);
+        GuestEntitlementService service = new GuestEntitlementService(entitlements, usages, timeService);
+
+        Fixture fixture = fixture();
+        fixture.booking.setBookingStatus(SessionBookingStatus.NO_SHOW);
+        Instant now = Instant.parse("2026-08-12T12:00:00Z");
+        when(timeService.instant(1L)).thenReturn(now);
+
+        GuestEntitlement pack = entitlement(502L, EntitlementType.PACK, ProductType.PACK,
+                fixture, 4, now.plusSeconds(30 * 86400L));
+        when(entitlements.findAllByClientIdAndCompanyIdAndStatusInOrderByCreatedAtDesc(
+                eq(2L), eq(1L), anyCollection()))
+                .thenReturn(List.of(pack));
+        when(entitlements.save(any(GuestEntitlement.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        List<GuestEntitlementUsage> persistedUsages = new ArrayList<>();
+        when(usages.findAllBySessionBookingIdOrderByUsedAtAsc(10L)).thenAnswer(invocation -> List.copyOf(persistedUsages));
+        when(usages.save(any(GuestEntitlementUsage.class))).thenAnswer(invocation -> {
+            GuestEntitlementUsage usage = invocation.getArgument(0);
+            persistedUsages.add(usage);
+            return usage;
+        });
+
+        assertThat(service.reconcileAutomaticEntitlementsForCheckedOutBooking(fixture.booking)).isEqualTo(1);
+        assertThat(pack.getRemainingUses()).isEqualTo(3);
+        assertThat(persistedUsages).hasSize(1);
+        assertThat(persistedUsages.getFirst().getEntitlement()).isSameAs(pack);
+
+        // Re-syncing the same no-show must not consume another visit.
+        assertThat(service.reconcileAutomaticEntitlementsForCheckedOutBooking(fixture.booking)).isZero();
+        assertThat(pack.getRemainingUses()).isEqualTo(3);
+        assertThat(persistedUsages).hasSize(1);
+    }
+
+    @Test
     void checkoutUsesSingleTicketWhenNoMembershipOrPackIsAvailable() {
         GuestEntitlementRepository entitlements = mock(GuestEntitlementRepository.class);
         GuestEntitlementUsageRepository usages = mock(GuestEntitlementUsageRepository.class);

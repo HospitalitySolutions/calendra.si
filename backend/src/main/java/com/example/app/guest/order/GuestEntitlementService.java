@@ -307,7 +307,8 @@ public class GuestEntitlementService {
     }
 
     /**
-     * Automatically links prepaid attendance to a booking once it is effectively checked out.
+     * Automatically links prepaid attendance to a booking once it is chargeable for an entitlement.
+     * Completed attendance and NO_SHOW both consume a visit; CANCELLED never does.
      *
      * <p>The resolver is intentionally deterministic and finite-credit friendly:
      * MEMBERSHIP -&gt; PACK -&gt; TICKET. An existing booking/service usage always wins so the
@@ -320,7 +321,7 @@ public class GuestEntitlementService {
     public int reconcileAutomaticEntitlementsForCheckedOutBooking(SessionBooking booking) {
         if (booking == null || booking.getId() == null || booking.getBilledAt() != null
                 || booking.getClient() == null || booking.getClient().getId() == null
-                || booking.getCompany() == null || booking.getCompany().getId() == null || !isEffectivelyCheckedOut(booking)) {
+                || booking.getCompany() == null || booking.getCompany().getId() == null || !isEntitlementChargeable(booking)) {
             return 0;
         }
         Long companyId = booking.getCompany().getId();
@@ -1019,7 +1020,7 @@ public class GuestEntitlementService {
         } else if (VoucherRules.isServiceVoucher(entitlement)) {
             incrementIfLimited(entitlement);
         } else if (entitlement.getEntitlementType() == EntitlementType.MEMBERSHIP) {
-            // Membership visits are derived from linked bookings that are effectively CHECKED_OUT.
+            // Membership visits are derived from linked bookings that are chargeable (CHECKED_OUT or NO_SHOW).
             // Restoring/removing a booking usage therefore changes the derived count automatically;
             // never mutate the legacy stored visit_count counter here.
         } else {
@@ -1034,8 +1035,8 @@ public class GuestEntitlementService {
 
     /**
      * Membership visits are not a payment/scan counter. A visit is one distinct booking covered by
-     * the membership whose effective lifecycle status is CHECKED_OUT. CANCELLED and NO_SHOW rows do
-     * not count, and multiple covered service lines in the same booking still count as one visit.
+     * the membership whose attendance is chargeable: CHECKED_OUT or NO_SHOW. CANCELLED rows do not
+     * count, and multiple covered service lines in the same booking still count as one visit.
      *
      * <p>The persisted {@code guest_entitlements.visit_count} column is kept only for schema/backward
      * compatibility; callers should use this derived value for memberships.</p>
@@ -1061,35 +1062,38 @@ public class GuestEntitlementService {
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
         if (membershipIds.isEmpty()) return Map.of();
 
-        Map<Long, Set<Long>> checkedOutBookingIdsByEntitlement = new LinkedHashMap<>();
+        Map<Long, Set<Long>> chargeableBookingIdsByEntitlement = new LinkedHashMap<>();
         for (Long entitlementId : membershipIds) {
-            checkedOutBookingIdsByEntitlement.put(entitlementId, new LinkedHashSet<>());
+            chargeableBookingIdsByEntitlement.put(entitlementId, new LinkedHashSet<>());
         }
 
         for (GuestEntitlementUsage usage : usages.findAllByEntitlementIdIn(membershipIds)) {
             if (usage == null || usage.getEntitlement() == null || usage.getEntitlement().getId() == null) continue;
             Long entitlementId = usage.getEntitlement().getId();
-            Set<Long> countedBookings = checkedOutBookingIdsByEntitlement.get(entitlementId);
+            Set<Long> countedBookings = chargeableBookingIdsByEntitlement.get(entitlementId);
             if (countedBookings == null) continue;
 
             SessionBooking booking = usage.getSessionBooking();
-            if (booking == null || booking.getId() == null || !isEffectivelyCheckedOut(booking)) continue;
+            if (booking == null || booking.getId() == null || !isEntitlementChargeable(booking)) continue;
             countedBookings.add(booking.getId());
         }
 
         Map<Long, Integer> result = new LinkedHashMap<>();
         for (Long entitlementId : membershipIds) {
-            result.put(entitlementId, checkedOutBookingIdsByEntitlement.get(entitlementId).size());
+            result.put(entitlementId, chargeableBookingIdsByEntitlement.get(entitlementId).size());
         }
         return Map.copyOf(result);
     }
 
-    private boolean isEffectivelyCheckedOut(SessionBooking booking) {
+    private boolean isEntitlementChargeable(SessionBooking booking) {
         String storedStatus = SessionBookingStatus.normalizeStored(booking.getBookingStatus());
-        if (SessionBookingStatus.CANCELLED.equals(storedStatus) || SessionBookingStatus.NO_SHOW.equals(storedStatus)) {
+        if (SessionBookingStatus.CANCELLED.equals(storedStatus)) {
             return false;
         }
-        if (SessionBookingStatus.CHECKED_OUT.equals(storedStatus)) {
+        // A no-show consumes the guest's visit exactly like a completed attendance. This is
+        // intentionally participant-row specific for group sessions: one guest may be NO_SHOW
+        // while the group occurrence itself remains ongoing/checked out.
+        if (SessionBookingStatus.CHECKED_OUT.equals(storedStatus) || SessionBookingStatus.NO_SHOW.equals(storedStatus)) {
             return true;
         }
         if (booking.getStartTime() == null || booking.getEndTime() == null) {

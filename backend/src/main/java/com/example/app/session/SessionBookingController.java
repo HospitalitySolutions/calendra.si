@@ -291,6 +291,13 @@ public class SessionBookingController {
 
     public record GroupParticipantRequest(Long clientId) {}
 
+    public record GroupParticipantStatusResponse(
+            Long bookingId,
+            ClientSummary client,
+            String bookingStatus,
+            String lifecycleStatus
+    ) {}
+
     public record BookingPayeeRequest(
             Long clientId,
             String payeeType,
@@ -455,6 +462,49 @@ public class SessionBookingController {
     @PutMapping("/{id}")
     public BookingResponse update(@PathVariable Long id, @RequestBody BookingRequest req, @AuthenticationPrincipal User me) {
         return bookingCreationService.update(id, req, me);
+    }
+
+    /**
+     * Returns every persisted participant row for a group-session occurrence, including
+     * cancelled and no-show rows. The regular grouped booking response intentionally
+     * hides cancelled participants, while the group-details panel needs that history in
+     * order to display and manage each guest's individual attendance status.
+     */
+    @GetMapping("/{id}/participants")
+    @Transactional(readOnly = true)
+    public List<GroupParticipantStatusResponse> listParticipants(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User me
+    ) {
+        if (me == null || me.getCompany() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
+        Long companyId = me.getCompany().getId();
+        SessionBooking booking = repo.findByIdAndCompanyId(id, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        List<SessionBooking> grouped = loadGroupedRows(booking, companyId);
+        SessionBooking representative = grouped.get(0);
+        if (grouped.stream().noneMatch(row -> row.getClientGroup() != null)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected booking is not a group session.");
+        }
+        if (!SecurityUtils.isAdmin(me)
+                && (representative.getConsultant() == null || !representative.getConsultant().getId().equals(me.getId()))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+        LocalDateTime now = timeService.localDateTime();
+        return grouped.stream()
+                .filter(row -> row.getClient() != null)
+                .map(row -> {
+                    var client = row.getClient();
+                    String storedStatus = SessionBookingStatus.normalizeStored(row.getBookingStatus());
+                    return new GroupParticipantStatusResponse(
+                            row.getId(),
+                            new ClientSummary(client.getId(), client.getFirstName(), client.getLastName(), client.getEmail(), client.getPhone()),
+                            storedStatus,
+                            SessionBookingStatus.deriveLifecycleStatus(row.getStartTime(), row.getEndTime(), storedStatus, now)
+                    );
+                })
+                .toList();
     }
 
     /**
@@ -724,11 +774,34 @@ public class SessionBookingController {
 
         repo.saveAll(updatedRows);
         repo.flush();
+
+        // Participant attendance is independent from the group-session lifecycle. If
+        // every participant is now cancelled/no-show, keep an empty active placeholder
+        // so the class itself remains V teku/Zaključen instead of inheriting NO_SHOW
+        // from the final participant row.
+        SessionBooking groupPlaceholder = null;
+        if (representative.getClientGroup() != null && !updatedRows.isEmpty()) {
+            boolean hasActiveParticipant = grouped.stream()
+                    .anyMatch(row -> row.getClient() != null
+                            && SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()));
+            boolean hasActivePlaceholder = grouped.stream()
+                    .anyMatch(row -> row.getClient() == null
+                            && SessionBookingStatus.isAvailabilityBlocking(row.getBookingStatus()));
+            if (!hasActiveParticipant && !hasActivePlaceholder) {
+                groupPlaceholder = bookingCreationService.ensureGroupSessionRemainsWhenParticipantLeaves(
+                        updatedRows.get(0),
+                        "STAFF"
+                );
+            }
+        }
+
         for (SessionBooking row : updatedRows) {
             reminderService.recordStaffBookingModified(row);
         }
         openBillSyncService.syncSessionGroup(companyId, SessionBookingController.groupKey(representative));
-        openBillSyncService.enqueueBookingsSync(companyId, updatedRows);
+        List<SessionBooking> rowsToSync = new ArrayList<>(updatedRows);
+        if (groupPlaceholder != null) rowsToSync.add(groupPlaceholder);
+        openBillSyncService.enqueueBookingsSync(companyId, rowsToSync);
         bookingChangePublisher.publish(
                 companyId,
                 representative.getId(),

@@ -15459,6 +15459,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           group={bookedSessionResolvedGroup}
           clients={metaClients}
           locale={locale}
+          noShowModuleEnabled={noShowModuleEnabled}
           onClose={() => setGroupGuestsOpen(false)}
           onSessionUpdated={handleGroupGuestsSessionUpdated}
         />
