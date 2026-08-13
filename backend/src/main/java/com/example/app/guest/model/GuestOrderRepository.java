@@ -15,6 +15,7 @@ public interface GuestOrderRepository extends JpaRepository<GuestOrder, Long> {
     List<String> findAllReferenceCodesByCompanyId(@Param("companyId") Long companyId);
 
     List<GuestOrder> findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(Long guestUserId, Long companyId);
+    List<GuestOrder> findAllByGuestUserIdOrderByCreatedAtDesc(Long guestUserId, Pageable pageable);
     List<GuestOrder> findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(Long guestUserId, Long companyId, Pageable pageable);
     List<GuestOrder> findAllByGuestUserIdAndCompanyIdAndStatusOrderByCreatedAtDesc(Long guestUserId, Long companyId, OrderStatus status);
     List<GuestOrder> findAllByGuestUserIdAndCompanyIdAndStatusOrderByCreatedAtDesc(Long guestUserId, Long companyId, OrderStatus status, Pageable pageable);

@@ -11,6 +11,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface GuestNotificationRepository extends JpaRepository<GuestNotification, Long> {
     List<GuestNotification> findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(Long guestUserId, Long companyId);
+    List<GuestNotification> findAllByGuestUserIdOrderByCreatedAtDesc(Long guestUserId, Pageable pageable);
+    long countByGuestUserIdAndReadAtIsNull(Long guestUserId);
     List<GuestNotification> findAllByGuestUserIdAndCompanyIdOrderByCreatedAtDesc(Long guestUserId, Long companyId, Pageable pageable);
     Optional<GuestNotification> findByIdAndGuestUserId(Long id, Long guestUserId);
 
@@ -27,4 +29,17 @@ public interface GuestNotificationRepository extends JpaRepository<GuestNotifica
             @Param("companyId") Long companyId,
             @Param("readAt") Instant readAt
     );
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            UPDATE GuestNotification n
+            SET n.readAt = :readAt
+            WHERE n.guestUser.id = :guestUserId
+              AND n.readAt IS NULL
+            """)
+    int markAllUnreadAsReadForGuest(
+            @Param("guestUserId") Long guestUserId,
+            @Param("readAt") Instant readAt
+    );
+
 }

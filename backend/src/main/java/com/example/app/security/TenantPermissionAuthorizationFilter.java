@@ -39,6 +39,7 @@ public class TenantPermissionAuthorizationFilter extends OncePerRequestFilter {
         return !path.startsWith("/api/")
                 || path.startsWith("/api/auth/")
                 || (path.startsWith("/api/guest/") && !path.startsWith("/api/guest/admin/"))
+                || path.startsWith("/api/customer/v1/")
                 || path.startsWith("/api/public/widget/")
                 || path.startsWith("/api/public-bookings/manage/")
                 || path.startsWith("/api/public-waitlists/")

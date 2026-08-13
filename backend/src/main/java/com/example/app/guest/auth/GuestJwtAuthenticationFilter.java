@@ -33,7 +33,10 @@ public class GuestJwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path == null || !path.startsWith("/api/guest/") || path.startsWith("/api/guest/admin/");
+        if (path == null) return true;
+        boolean guestApi = path.startsWith("/api/guest/") && !path.startsWith("/api/guest/admin/");
+        boolean customerApi = path.startsWith("/api/customer/v1/");
+        return !guestApi && !customerApi;
     }
 
     @Override

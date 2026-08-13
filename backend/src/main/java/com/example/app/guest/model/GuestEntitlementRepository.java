@@ -102,4 +102,25 @@ public interface GuestEntitlementRepository extends JpaRepository<GuestEntitleme
             @Param("expiredStatus") EntitlementStatus expiredStatus,
             @Param("fromStatuses") Collection<EntitlementStatus> fromStatuses,
             @Param("now") Instant now);
+
+    @EntityGraph(attributePaths = {"product", "product.sessionType"})
+    @Query("""
+            SELECT DISTINCT e FROM GuestEntitlement e
+            WHERE EXISTS (
+                    SELECT link.id FROM GuestTenantLink link
+                    WHERE link.guestUser.id = :guestUserId
+                      AND link.status = :linkStatus
+                      AND link.client.id = e.client.id
+                      AND link.company.id = e.company.id
+              )
+              AND e.status <> :excludedStatus
+            ORDER BY e.createdAt DESC, e.id DESC
+            """)
+    List<GuestEntitlement> findCustomerEntitlements(
+            @Param("guestUserId") Long guestUserId,
+            @Param("linkStatus") GuestTenantLinkStatus linkStatus,
+            @Param("excludedStatus") EntitlementStatus excludedStatus,
+            Pageable pageable
+    );
+
 }

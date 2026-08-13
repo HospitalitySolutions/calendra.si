@@ -55,6 +55,7 @@ public class UnitContextValidationFilter extends OncePerRequestFilter {
                 || path.startsWith("/api/actuator/")
                 || path.startsWith("/actuator/")
                 || path.startsWith("/api/register/")
+                || path.startsWith("/api/customer/v1/")
                 || path.startsWith("/api/public/widget/")
                 || path.equals("/api/public/location-directory")
                 || path.startsWith("/api/public/location-directory/")

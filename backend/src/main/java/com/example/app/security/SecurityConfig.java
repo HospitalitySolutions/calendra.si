@@ -148,6 +148,7 @@ public class SecurityConfig {
             // Guest mobile API is token-based and called by native apps, not browser forms.
             // Keep CSRF for the existing browser/session app, but ignore it for the guest API.
             return path.startsWith("/api/guest/")
+                    || path.startsWith("/api/customer/v1/")
                     || path.startsWith("/api/public/widget/")
                     || path.startsWith("/api/public-bookings/manage/")
                     || path.startsWith("/api/public-waitlists/")
@@ -235,6 +236,7 @@ public class SecurityConfig {
                     }
 
                     auth.requestMatchers("/api/guest/**").authenticated();
+                    auth.requestMatchers("/api/customer/v1/**").authenticated();
                     auth.anyRequest().authenticated();
                 });
 

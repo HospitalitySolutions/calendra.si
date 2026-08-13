@@ -833,4 +833,100 @@ public interface SessionBookingRepository extends JpaRepository<SessionBooking, 
             @Param("requestedBusyEnd") LocalDateTime requestedBusyEnd,
             @Param("excludeIds") List<Long> excludeIds);
 
+
+    @Query("""
+            SELECT DISTINCT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.company
+            LEFT JOIN FETCH sb.client
+            LEFT JOIN FETCH sb.consultant
+            LEFT JOIN FETCH sb.type
+            LEFT JOIN FETCH sb.location
+            WHERE EXISTS (
+                    SELECT link.id FROM GuestTenantLink link
+                    WHERE link.guestUser.id = :guestUserId
+                      AND link.status = :linkStatus
+                      AND link.client.id = sb.client.id
+                      AND link.company.id = sb.company.id
+              )
+              AND sb.startTime >= :now
+              AND UPPER(COALESCE(sb.bookingStatus, 'RESERVED')) NOT IN ('CANCELLED', 'NO_SHOW')
+            ORDER BY sb.startTime ASC, sb.id ASC
+            """)
+    List<SessionBooking> findCustomerUpcomingBookings(
+            @Param("guestUserId") Long guestUserId,
+            @Param("linkStatus") com.example.app.guest.model.GuestTenantLinkStatus linkStatus,
+            @Param("now") LocalDateTime now,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT DISTINCT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.company
+            LEFT JOIN FETCH sb.client
+            LEFT JOIN FETCH sb.consultant
+            LEFT JOIN FETCH sb.type
+            LEFT JOIN FETCH sb.location
+            WHERE EXISTS (
+                    SELECT link.id FROM GuestTenantLink link
+                    WHERE link.guestUser.id = :guestUserId
+                      AND link.status = :linkStatus
+                      AND link.client.id = sb.client.id
+                      AND link.company.id = sb.company.id
+              )
+              AND sb.startTime < :now
+              AND UPPER(COALESCE(sb.bookingStatus, 'RESERVED')) <> 'CANCELLED'
+            ORDER BY sb.startTime DESC, sb.id DESC
+            """)
+    List<SessionBooking> findCustomerPastBookings(
+            @Param("guestUserId") Long guestUserId,
+            @Param("linkStatus") com.example.app.guest.model.GuestTenantLinkStatus linkStatus,
+            @Param("now") LocalDateTime now,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT DISTINCT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.company
+            LEFT JOIN FETCH sb.client
+            LEFT JOIN FETCH sb.consultant
+            LEFT JOIN FETCH sb.type
+            LEFT JOIN FETCH sb.location
+            WHERE EXISTS (
+                    SELECT link.id FROM GuestTenantLink link
+                    WHERE link.guestUser.id = :guestUserId
+                      AND link.status = :linkStatus
+                      AND link.client.id = sb.client.id
+                      AND link.company.id = sb.company.id
+              )
+              AND UPPER(COALESCE(sb.bookingStatus, 'RESERVED')) = 'CANCELLED'
+            ORDER BY sb.startTime DESC, sb.id DESC
+            """)
+    List<SessionBooking> findCustomerCancelledBookings(
+            @Param("guestUserId") Long guestUserId,
+            @Param("linkStatus") com.example.app.guest.model.GuestTenantLinkStatus linkStatus,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT DISTINCT sb FROM SessionBooking sb
+            LEFT JOIN FETCH sb.company
+            LEFT JOIN FETCH sb.client
+            LEFT JOIN FETCH sb.consultant
+            LEFT JOIN FETCH sb.type
+            LEFT JOIN FETCH sb.location
+            WHERE sb.id = :bookingId
+              AND EXISTS (
+                    SELECT link.id FROM GuestTenantLink link
+                    WHERE link.guestUser.id = :guestUserId
+                      AND link.status = :linkStatus
+                      AND link.client.id = sb.client.id
+                      AND link.company.id = sb.company.id
+              )
+            """)
+    Optional<SessionBooking> findCustomerBookingById(
+            @Param("bookingId") Long bookingId,
+            @Param("guestUserId") Long guestUserId,
+            @Param("linkStatus") com.example.app.guest.model.GuestTenantLinkStatus linkStatus
+    );
+
 }

@@ -294,7 +294,7 @@ app:
     webhook-tolerance-seconds: ${STRIPE_WEBHOOK_TOLERANCE_SECONDS:300}
     eu-bank-transfer-country: ${STRIPE_EU_BANK_TRANSFER_COUNTRY:NL}
   cors:
-    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:4000,https://calendra.si,https://www.calendra.si,https://app.calendra.si}
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:4000,http://localhost:5174,https://calendra.si,https://www.calendra.si,https://app.calendra.si,https://connect.calendra.si}
 
 logging:
   level:
