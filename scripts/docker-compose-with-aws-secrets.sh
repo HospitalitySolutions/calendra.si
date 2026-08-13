@@ -255,7 +255,31 @@ if [[ "${1:-}" == "deploy" ]]; then
   compose pull "${PULL_SERVICES[@]}"
 
   echo "Starting ${ENVIRONMENT} without a local image build..."
-  exec docker compose "${COMPOSE_ENV_ARGS[@]}" -f "$COMPOSE_FILE" up -d --no-build --wait
+  compose up -d --no-build --wait
+
+  # Caddyfiles are bind-mounted into the proxy container. Docker Compose does not
+  # recreate a running container merely because the contents of a bind-mounted
+  # file changed, so the proxy can otherwise keep serving its old in-memory
+  # configuration after a deploy. Validate and hot-reload Caddy on every deploy
+  # to ensure new hosts/routes (for example connect.calendra.si) become active
+  # without restarting the proxy or causing avoidable downtime.
+  if compose config --services | grep -qx 'proxy'; then
+    echo "Validating Caddy proxy configuration..."
+    compose exec -T proxy caddy validate \
+      --config /etc/caddy/Caddyfile \
+      --adapter caddyfile
+
+    echo "Reloading Caddy proxy configuration..."
+    if ! compose exec -T proxy caddy reload \
+      --config /etc/caddy/Caddyfile \
+      --adapter caddyfile; then
+      echo "Caddy hot-reload failed; recreating the proxy container as a fallback..." >&2
+      compose up -d --no-build --force-recreate --wait proxy
+    fi
+  fi
+
+  echo "${ENVIRONMENT} deployment completed successfully."
+  exit 0
 fi
 
 exec docker compose "${COMPOSE_ENV_ARGS[@]}" -f "$COMPOSE_FILE" "$@"
