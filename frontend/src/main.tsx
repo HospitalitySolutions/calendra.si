@@ -10,6 +10,7 @@ import './styles.css'
 import { queryClient } from './queries/queryClient'
 import { QueryInvalidationBridge } from './queries/QueryInvalidationBridge'
 import { installPerformanceDebugApi, installQueryPerformanceTracking } from './lib/performanceMonitor'
+import { recoverFromChunkLoadError } from './lib/chunkRecovery'
 
 try {
   initTheme()
@@ -17,8 +18,9 @@ try {
   console.error('initTheme failed', e)
 }
 
-window.addEventListener('vite:preloadError', () => {
-  window.location.reload()
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault()
+  recoverFromChunkLoadError()
 })
 
 installPerformanceDebugApi()

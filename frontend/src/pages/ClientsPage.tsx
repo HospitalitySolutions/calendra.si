@@ -4430,7 +4430,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         <tr key={c.id} className="clients-row" onClick={() => openDetailModal(c)}>
                           <td>
                             <div className="clients-name-cell">
-                              <span className="clients-name-avatar" aria-hidden>{initials(c.firstName, c.lastName)}</span>
                               <div className="clients-name-stack">
                                 <span className="clients-name">
                                   {fullName(c)}
@@ -4550,7 +4549,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         <tr key={c.id} className="clients-row" onClick={() => openCompanyDetailModal(c)}>
                           <td>
                             <div className="clients-name-cell">
-                              <span className="clients-name-avatar clients-name-avatar--company" aria-hidden>{(c.name?.[0] || 'C').toUpperCase()}</span>
                               <div className="clients-name-stack">
                                 <span className="clients-name">{c.name}</span>
                                 <span className="clients-id">ID #{c.id}</span>
@@ -4667,7 +4665,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         <tr key={g.id} className="clients-row" onClick={() => openGroupDetailModal(g)}>
                           <td>
                             <div className="clients-name-cell">
-                              <span className="clients-name-avatar clients-name-avatar--group" aria-hidden>{(g.name?.[0] || 'G').toUpperCase()}</span>
                               <div className="clients-name-stack">
                                 <span className="clients-name">{g.name}</span>
                                 <span className="clients-id">ID #{g.id}</span>

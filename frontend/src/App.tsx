@@ -32,9 +32,9 @@ import { isWorkspaceRolloutEnabled } from './lib/workspaceRollout'
 import { moduleCapabilitiesQueryOptions, settingsQueryOptions } from './queries/sharedQueryOptions'
 import { markNavigationRendered, markNavigationStart } from './lib/performanceMonitor'
 import { sameNavigationFamily } from './queries/navigationRouteFamily'
+import { isChunkLoadError, recoverFromChunkLoadError, resetChunkLoadRecovery } from './lib/chunkRecovery'
 
 const OAUTH_HANDLED_KEY = 'oauth_toast_handled'
-const CHUNK_RELOAD_KEY = 'chunk_reload_attempted'
 const REGISTER_BILLING_DETAILS_REQUIRED_KEY = 'calendra.register.requiresBillingDetails'
 const REGISTER_BILLING_DETAILS_SEARCH_KEY = 'calendra.register.billingDetailsSearch'
 
@@ -50,20 +50,14 @@ function getPendingRegisterBillingDetailsPath() {
 
 function lazyWithReload<T extends ComponentType<any>>(
   importer: () => Promise<{ default: T }>,
-  reloadKey: string,
 ) {
   return lazy(async () => {
     try {
       const mod = await importer()
-      sessionStorage.removeItem(reloadKey)
+      resetChunkLoadRecovery()
       return mod
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      const isChunkLoadError = /Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError/i.test(message)
-
-      if (isChunkLoadError && sessionStorage.getItem(reloadKey) !== 'true') {
-        sessionStorage.setItem(reloadKey, 'true')
-        window.location.reload()
+      if (isChunkLoadError(error) && recoverFromChunkLoadError()) {
         return new Promise<never>(() => {
           // The browser is reloading; keep the lazy import pending until navigation completes.
         })
@@ -121,22 +115,22 @@ function prefetchRouteModule(pathname: string) {
   })
 }
 
-const CalendarPage = lazyWithReload(() => importCalendarPage(), CHUNK_RELOAD_KEY)
-const AnalyticsPage = lazyWithReload(() => importAnalyticsPage().then((mod) => ({ default: mod.AnalyticsPage })), CHUNK_RELOAD_KEY)
-const WorkspaceAnalyticsPage = lazyWithReload(() => importWorkspaceAnalyticsPage().then((mod) => ({ default: mod.WorkspaceAnalyticsPage })), CHUNK_RELOAD_KEY)
-const InboxPage = lazyWithReload(() => importInboxPage().then((mod) => ({ default: mod.InboxPage })), CHUNK_RELOAD_KEY)
-const BillingPage = lazyWithReload(() => importBillingPage().then((mod) => ({ default: mod.BillingPage })), CHUNK_RELOAD_KEY)
-const ClientsPage = lazyWithReload(() => importClientsPage().then((mod) => ({ default: mod.ClientsPage })), CHUNK_RELOAD_KEY)
-const AppointmentsPage = lazyWithReload(() => importAppointmentsPage().then((mod) => ({ default: mod.AppointmentsPage })), CHUNK_RELOAD_KEY)
-const ConfigurationPage = lazyWithReload(() => importConfigurationPage().then((mod) => ({ default: mod.ConfigurationPage })), CHUNK_RELOAD_KEY)
-const ConsultantsPage = lazyWithReload(() => importConsultantsPage().then((mod) => ({ default: mod.ConsultantsPage })), CHUNK_RELOAD_KEY)
-const SecurityPage = lazyWithReload(() => importSecurityPage().then((mod) => ({ default: mod.SecurityPage })), CHUNK_RELOAD_KEY)
-const PlatformAdminPage = lazyWithReload(() => importPlatformAdminPage().then((mod) => ({ default: mod.PlatformAdminPage })), CHUNK_RELOAD_KEY)
-const HelpPage = lazyWithReload(() => importHelpPage().then((mod) => ({ default: mod.HelpPage })), CHUNK_RELOAD_KEY)
-const SessionTypesPage = lazyWithReload(() => importSessionTypesPage().then((mod) => ({ default: mod.SessionTypesPage })), CHUNK_RELOAD_KEY)
-const WalletScannerPage = lazyWithReload(() => importWalletScannerPage().then((mod) => ({ default: mod.WalletScannerPage })), CHUNK_RELOAD_KEY)
-const ConsumablesPage = lazyWithReload(() => importConsumablesPage().then((mod) => ({ default: mod.ConsumablesPage })), CHUNK_RELOAD_KEY)
-const NotificationsPage = lazyWithReload(() => importNotificationsPage().then((mod) => ({ default: mod.NotificationsPage })), CHUNK_RELOAD_KEY)
+const CalendarPage = lazyWithReload(() => importCalendarPage())
+const AnalyticsPage = lazyWithReload(() => importAnalyticsPage().then((mod) => ({ default: mod.AnalyticsPage })))
+const WorkspaceAnalyticsPage = lazyWithReload(() => importWorkspaceAnalyticsPage().then((mod) => ({ default: mod.WorkspaceAnalyticsPage })))
+const InboxPage = lazyWithReload(() => importInboxPage().then((mod) => ({ default: mod.InboxPage })))
+const BillingPage = lazyWithReload(() => importBillingPage().then((mod) => ({ default: mod.BillingPage })))
+const ClientsPage = lazyWithReload(() => importClientsPage().then((mod) => ({ default: mod.ClientsPage })))
+const AppointmentsPage = lazyWithReload(() => importAppointmentsPage().then((mod) => ({ default: mod.AppointmentsPage })))
+const ConfigurationPage = lazyWithReload(() => importConfigurationPage().then((mod) => ({ default: mod.ConfigurationPage })))
+const ConsultantsPage = lazyWithReload(() => importConsultantsPage().then((mod) => ({ default: mod.ConsultantsPage })))
+const SecurityPage = lazyWithReload(() => importSecurityPage().then((mod) => ({ default: mod.SecurityPage })))
+const PlatformAdminPage = lazyWithReload(() => importPlatformAdminPage().then((mod) => ({ default: mod.PlatformAdminPage })))
+const HelpPage = lazyWithReload(() => importHelpPage().then((mod) => ({ default: mod.HelpPage })))
+const SessionTypesPage = lazyWithReload(() => importSessionTypesPage().then((mod) => ({ default: mod.SessionTypesPage })))
+const WalletScannerPage = lazyWithReload(() => importWalletScannerPage().then((mod) => ({ default: mod.WalletScannerPage })))
+const ConsumablesPage = lazyWithReload(() => importConsumablesPage().then((mod) => ({ default: mod.ConsumablesPage })))
+const NotificationsPage = lazyWithReload(() => importNotificationsPage().then((mod) => ({ default: mod.NotificationsPage })))
 
 export default function App() {
   const [user, setUser] = useState(() => getStoredUser())

@@ -1131,8 +1131,15 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
           aria-expanded={accountOpen}
           aria-haspopup="dialog"
         >
-          <span className="clients-name-avatar header-credentials-avatar" aria-hidden>
-            {userAvatarSrc ? <img className="clients-name-avatar-image" src={userAvatarSrc} alt="" /> : initials}
+          <span className="header-credentials-avatar" aria-hidden>
+            {userAvatarSrc ? (
+              <img className="header-credentials-avatar-image" src={userAvatarSrc} alt="" />
+            ) : (
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21a8 8 0 0 0-16 0" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            )}
           </span>
         </button>
         {accountOpen && (
