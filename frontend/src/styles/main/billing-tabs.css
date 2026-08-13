@@ -614,7 +614,7 @@
 }
 
 .billing-open-bills-table {
-    min-width: 1320px;
+    min-width: 1120px;
 }
 
 .billing-modern-table th {
@@ -691,60 +691,6 @@
     width: 24px;
     text-align: center;
     opacity: 0.78;
-}
-
-.billing-open-paytype-icons {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    min-width: 0;
-}
-
-.billing-open-paytype-chip {
-    border: 1px solid rgba(148, 163, 184, 0.34);
-    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
-    color: #475569;
-    border-radius: 10px;
-    min-height: 30px;
-    padding: 5px 11px 5px 8px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    cursor: pointer;
-    line-height: 1;
-    font-size: 0.78rem;
-    font-weight: 700;
-    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
-    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, color .15s ease, background .15s ease;
-}
-
-.billing-open-paytype-chip:hover {
-    transform: translateY(-1px);
-    border-color: rgba(59, 130, 246, 0.52);
-    color: #1d4ed8;
-    box-shadow: 0 10px 18px rgba(37, 99, 235, 0.12);
-}
-
-.billing-open-paytype-chip.active {
-    border-color: rgba(22, 114, 243, 0.72);
-    background: linear-gradient(180deg, rgba(239, 246, 255, 0.98) 0%, rgba(219, 234, 254, 0.74) 100%);
-    color: var(--color-primary, #1672f3);
-    box-shadow: 0 7px 18px rgba(22, 114, 243, 0.13);
-}
-
-.billing-open-paytype-chip-icon {
-    width: 17px;
-    height: 17px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-}
-
-.billing-open-paytype-chip-label {
-    white-space: nowrap;
 }
 
 .billing-payicon {
@@ -1368,39 +1314,15 @@
     color: #60a5fa;
 }
 
-[data-theme="dark"] .billing-open-paytype-chip {
-    border-color: rgba(148, 163, 184, 0.24);
-    background: rgba(15, 23, 42, 0.82);
-    color: #cbd5e1;
-    box-shadow: none;
-}
-
-[data-theme="dark"] .billing-open-paytype-chip:hover,
-[data-theme="dark"] .billing-open-paytype-chip.active {
-    border-color: rgba(96, 165, 250, 0.62);
-    background: rgba(30, 64, 175, 0.22);
-    color: #93c5fd;
-}
-
 @media (max-width: 1180px) {
     .billing-open-bills-table {
-        min-width: 1160px;
+        min-width: 1040px;
     }
 }
 
 @media (max-width: 1024px) {
     .billing-open-bills-table {
         min-width: 760px;
-    }
-
-    .billing-open-paytype-chip {
-        width: 34px;
-        min-height: 32px;
-        padding: 0;
-    }
-
-    .billing-open-paytype-chip-label {
-        display: none;
     }
 }
 
@@ -4298,7 +4220,7 @@
 
     /* Preserve every billing column without compressing the Clients-style rows. */
     .billing-clients-table-layout.clients-modern-card .billing-open-bills-table {
-        min-width: 1320px;
+        min-width: 1120px;
     }
 
     .billing-clients-table-layout.clients-modern-card .billing-modern-payments-table {

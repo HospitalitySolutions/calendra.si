@@ -2800,14 +2800,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       .filter((item) => !isLegacyAdvanceOffsetDraftItem(item) && !isHiddenAdvanceServiceForOpenBill(ob, item))
   }
 
-  const markOpenBillDirty = (ob: OpenBill) => {
-    setOpenBillEdits((prev) => (
-      Object.prototype.hasOwnProperty.call(prev, ob.id)
-        ? prev
-        : { ...prev, [ob.id]: openBillServerItemsToDraft(ob) }
-    ))
-  }
-
   const validateOpenBillDetailsDraft = (draft: OpenBillDetailsDraft | undefined) => {
     if (!draft) return true
     if (draft.billingTarget === 'COMPANY' && !draft.recipientCompanyId) {
@@ -2988,6 +2980,30 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         advanceSelections: [],
       }]
     }
+
+    // Keep the edit popup self-contained. Open bills can legitimately be created
+    // without a payment method, but the invoice editor still needs a usable first
+    // payment row so the user can close the invoice without first selecting a
+    // payment method from the list view. Prefer a normal (non-advance) method;
+    // advance payments require an explicit advance-selection flow.
+    const openBillLocationId = Number(ob.location?.id ?? 0)
+    const defaultMethod = visiblePaymentMethods.find((method) => (
+      !isDepositPaymentMethod(method)
+      && (
+        openBillLocationId <= 0
+        || method.availableAllLocations !== false
+        || (Array.isArray(method.locationIds) && method.locationIds.some((id) => Number(id) === openBillLocationId))
+      )
+    ))
+    if (defaultMethod) {
+      return [{
+        key: `default-${ob.id}`,
+        paymentMethodId: defaultMethod.id,
+        amountGross: formatPaymentAmountInput(totalGross),
+        advanceSelections: [],
+      }]
+    }
+
     return legacyAdvanceSplit ? [legacyAdvanceSplit] : []
   }
 
@@ -4299,10 +4315,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const createAvailablePaymentMethods = useMemo(
     () => billForm.billType === 'INVOICE' ? visiblePaymentMethods : visiblePaymentMethods.filter((method) => !isDepositPaymentMethod(method)),
     [visiblePaymentMethods, billForm.billType],
-  )
-  const nonDepositPaymentMethods = useMemo(
-    () => visiblePaymentMethods.filter((method) => !isDepositPaymentMethod(method)),
-    [visiblePaymentMethods],
   )
   const createPaymentSplits = getCreateBillPaymentSplits(createBillPayableGross)
   const createPaymentsMatchTotal = paymentSplitsMatchInvoiceTotal(createPaymentSplits, createBillPayableGross)
@@ -5672,28 +5684,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setCreatingAdditionalOpenBill(false)
     }
   }
-
-  const buildSingleMethodOpenBillPaymentSplit = (ob: OpenBill, methodId: number): OpenBillPaymentSplitDraft[] => [{
-    key: `row-primary-${ob.id}`,
-    paymentMethodId: methodId,
-    amountGross: formatPaymentAmountInput(openBillPayableGross(ob)),
-    advanceSelections: [],
-  }]
-
-  const updateOpenBillPaymentMethod = (openBillId: number, methodId: number) => {
-    const selected = paymentMethods.find((p) => p.id === methodId) || null
-    const source = detailOpenBill?.id === openBillId ? detailOpenBill : openBills.find((entry) => entry.id === openBillId)
-    if (source) {
-      markOpenBillDirty(source)
-      setOpenBillPaymentEdits((prev) => ({
-        ...prev,
-        [openBillId]: buildSingleMethodOpenBillPaymentSplit(source, methodId),
-      }))
-    }
-    setOpenBills((prev) => prev.map((entry) => entry.id === openBillId ? { ...entry, paymentMethod: selected } : entry))
-    setDetailOpenBill((prev) => prev?.id === openBillId ? { ...prev, paymentMethod: selected } : prev)
-  }
-
 
   const taxRateByServiceId = (serviceId: number): VatBreakdownKey => {
     // Generated consumable VAT carriers are intentionally excluded from /billing/services.
@@ -8488,32 +8478,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     await openFiscalLog(bill)
   }
 
-  const renderOpenBillPayTypeControl = (ob: OpenBill) => (
-    <div className="billing-open-paytype-icons" onClick={(e) => e.stopPropagation()}>
-      {nonDepositPaymentMethods.map((method) => {
-        const active = ob.paymentMethod?.id === method.id
-        const label = paymentMethodChipLabel(method, locale)
-        const fullLabel = localizedPaymentMethodName(method, locale)
-        return (
-          <button
-            key={method.id}
-            type="button"
-            className={active ? 'billing-open-paytype-chip active' : 'billing-open-paytype-chip'}
-            onClick={(e) => {
-              e.stopPropagation()
-              updateOpenBillPaymentMethod(ob.id, method.id)
-            }}
-            aria-label={fullLabel}
-            title={fullLabel}
-          >
-            <span className="billing-open-paytype-chip-icon" aria-hidden>{paymentTypeIcon(method.paymentType, method.name)}</span>
-            <span className="billing-open-paytype-chip-label">{label}</span>
-          </button>
-        )
-      })}
-    </div>
-  )
-
   /** Plain document icon (matches open-bill “create bill” icon, no payment-status badge). */
   const renderPlainFolioPdfIcon = () => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -8947,7 +8911,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                           <BillingSortableTableHeader label={billingCopy.client} sortKey="client" sortState={openBillsSortState} onSort={handleOpenBillsSort} sortAriaPrefix={billingSortAriaPrefix} />
                           <BillingSortableTableHeader label={`${billingCopy.openBillsColSession} / ${locale === 'sl' ? 'Opis' : 'Description'}`} sortKey="session" sortState={openBillsSortState} onSort={handleOpenBillsSort} sortAriaPrefix={billingSortAriaPrefix} />
                           <BillingSortableTableHeader label={locale === 'sl' ? 'Zaposleni' : 'Employee'} sortKey="employee" sortState={openBillsSortState} onSort={handleOpenBillsSort} sortAriaPrefix={billingSortAriaPrefix} />
-                          <BillingSortableTableHeader label={billingCopy.paymentMethod} sortKey="paymentMethod" sortState={openBillsSortState} onSort={handleOpenBillsSort} sortAriaPrefix={billingSortAriaPrefix} />
                           <BillingSortableTableHeader label={locale === 'sl' ? 'Znesek' : 'Amount'} sortKey="gross" sortState={openBillsSortState} onSort={handleOpenBillsSort} sortAriaPrefix={billingSortAriaPrefix} />
                           <th>{locale === 'sl' ? 'Dejanja' : 'Action'}</th>
                         </tr>
@@ -8960,12 +8923,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                           const employeeLabel = openBillListGroupEmployeeLabel(ob)
                           const clientLabel = openBillListGroupClientLabel(ob)
                           const rowDescription = Array.from(new Set(rowMembers.map((entry) => openBillDescription(entry)).filter((value) => value && value !== '—'))).join(' · ') || '—'
-                          const rowPaymentMethod = rowMembers[0] ?? ob
                           const groupBillCount = rowMembers.length
-                          const canCloseRowBill = groupBillCount > 1 || canIssueOpenBillType(ob)
-                          const rowClosePermissionTooltip = groupBillCount > 1 ? undefined : issueOpenBillPermissionTooltip(ob)
-                          const rowPaymentSelected = !!ob.paymentMethod?.id && (resolveOpenBillEffectiveType(ob) === 'ADVANCE' || !isDepositPaymentMethod(ob.paymentMethod))
-                          const rowCloseTooltip = rowClosePermissionTooltip ?? (groupBillCount <= 1 && !rowPaymentSelected ? (locale === 'sl' ? 'Izberite način plačila' : 'Select a payment method') : undefined)
                           return (
                             <tr key={`${openBillListGroupKey(ob)}:${ob.id}`} className="clients-row" onClick={() => openEditInvoicePopup(ob)}>
                               <td className="billing-modern-link-cell">
@@ -8987,21 +8945,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                                   </div>
                                 </div>
                               </td>
-                              <td>
-                                {renderOpenBillPayTypeControl(rowPaymentMethod)}
-                              </td>
                               <td className="billing-modern-amount">{currency(gross)}</td>
                               <td className="billing-modern-actions" onClick={(e) => e.stopPropagation()}>
                                 <button
                                   type="button"
                                   className="billing-open-row-action billing-open-row-action--primary"
-                                  onClick={() => groupBillCount > 1 ? openEditInvoicePopup(ob) : createBillFromOpen(ob)}
-                                  disabled={groupBillCount <= 1 && (creatingFromOpenId === ob.id || items.length === 0 || !rowPaymentSelected || !canCloseRowBill)}
-                                  title={rowCloseTooltip}
+                                  onClick={() => openEditInvoicePopup(ob)}
+                                  disabled={creatingFromOpenId === ob.id || items.length === 0}
                                 >
                                   {creatingFromOpenId === ob.id
                                     ? billingCopy.creating
-                                    : (groupBillCount > 1 ? (locale === 'sl' ? 'Uredi račune' : 'Edit bills') : (locale === 'sl' ? 'Zapri račun' : 'Close Invoice'))}
+                                    : (groupBillCount > 1 ? (locale === 'sl' ? 'Uredi račune' : 'Edit bills') : (locale === 'sl' ? 'Uredi račun' : 'Edit invoice'))}
                                 </button>
                                 <button type="button" className="billing-open-row-action billing-open-row-action--danger" onClick={() => deleteOpenBill(ob)} disabled={deletingOpenId === ob.id || groupBillCount > 1}>
                                   {deletingOpenId === ob.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
