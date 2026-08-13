@@ -16,7 +16,7 @@ services:
       frontend:
         condition: service_started
       customer-web:
-        condition: service_started
+        condition: service_healthy
       backend:
         condition: service_healthy
 
@@ -85,6 +85,15 @@ services:
     restart: unless-stopped
     mem_limit: ${CUSTOMER_WEB_MEMORY_LIMIT:-256m}
     cpus: ${CUSTOMER_WEB_CPU_LIMIT:-0.35}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          wget -qO- http://127.0.0.1/ | grep -q '/racun/assets/'
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     depends_on:
       backend:
         condition: service_healthy

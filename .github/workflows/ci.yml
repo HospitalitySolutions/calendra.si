@@ -153,6 +153,15 @@ jobs:
       - name: Build customer web
         run: npm run build
 
+      - name: Verify customer account asset base
+        run: |
+          grep -Eq '(src|href)="/racun/assets/' dist/index.html
+          if grep -Eq '(src|href)="/assets/' dist/index.html; then
+            echo "Customer web build points at root /assets instead of /racun/assets." >&2
+            cat dist/index.html >&2
+            exit 1
+          fi
+
       - name: Upload customer web production bundle
         if: success()
         uses: actions/upload-artifact@v6

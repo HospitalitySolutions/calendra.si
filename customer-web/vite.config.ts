@@ -1,8 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const CUSTOMER_ACCOUNT_BASE = '/racun/'
+
 export default defineConfig({
-  base: '/racun/',
+  // Keep all production assets below /racun so the public marketing site's
+  // /assets namespace remains untouched.
+  base: CUSTOMER_ACCOUNT_BASE,
   plugins: [react()],
   server: {
     host: '0.0.0.0',

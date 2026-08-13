@@ -14,6 +14,8 @@ services:
     depends_on:
       frontend:
         condition: service_started
+      customer-web:
+        condition: service_healthy
       backend:
         condition: service_healthy
 
@@ -73,6 +75,7 @@ services:
       APP_WORKSPACE_ROLLOUT_PUBLIC_BOOKING: ${APP_WORKSPACE_ROLLOUT_PUBLIC_BOOKING:-true}
       APP_WORKSPACE_ROLLOUT_UNIT_MANAGEMENT: ${APP_WORKSPACE_ROLLOUT_UNIT_MANAGEMENT:-true}
       APP_WORKSPACE_INTEGRITY_HEALTH_ENABLED: ${APP_WORKSPACE_INTEGRITY_HEALTH_ENABLED:-true}
+      APP_CUSTOMER_WEB_BASE_URL: ${APP_CUSTOMER_WEB_BASE_URL:-https://calendra.si/racun}
       JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=70 -XX:InitialRAMPercentage=30 -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError}
     mem_limit: ${BACKEND_MEMORY_LIMIT:-2g}
     cpus: ${BACKEND_CPU_LIMIT:-2.0}
@@ -98,6 +101,24 @@ services:
     restart: unless-stopped
     mem_limit: ${FRONTEND_MEMORY_LIMIT:-512m}
     cpus: ${FRONTEND_CPU_LIMIT:-0.5}
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  customer-web:
+    image: ${CALENDRA_IMAGE_REGISTRY:-ghcr.io/hospitalitysolutions}/calendra-customer-web:${CALENDRA_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    mem_limit: ${CUSTOMER_WEB_MEMORY_LIMIT:-256m}
+    cpus: ${CUSTOMER_WEB_CPU_LIMIT:-0.35}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          wget -qO- http://127.0.0.1/ | grep -q '/racun/assets/'
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     depends_on:
       backend:
         condition: service_healthy

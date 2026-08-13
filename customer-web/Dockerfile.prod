@@ -3,7 +3,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-RUN npm run build
+RUN npm run build \
+    && grep -Eq '(src|href)="/racun/assets/' dist/index.html \
+    && ! grep -Eq '(src|href)="/assets/' dist/index.html
 
 FROM caddy:2-alpine
 COPY Caddyfile /etc/caddy/Caddyfile

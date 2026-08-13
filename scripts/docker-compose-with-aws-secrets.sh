@@ -249,13 +249,13 @@ if [[ "${1:-}" == "deploy" ]]; then
 
   COMPOSE_SERVICES="$(compose config --services)"
 
-  # production-alb is the current AWS application-node topology. Fail early if a
-  # required service is missing so an outdated Compose file cannot silently
-  # produce a "successful" deployment without Calendra Connect/customer-web.
-  if [[ "$ENVIRONMENT" == "production-alb" || "$ENVIRONMENT" == "prod-alb" ]]; then
+  # Any production topology serving calendra.si/racun requires customer-web.
+  # Fail early if an outdated Compose file would otherwise deploy successfully
+  # without the customer account container.
+  if [[ "$ENVIRONMENT" == "production" || "$ENVIRONMENT" == "prod" || "$ENVIRONMENT" == "production-alb" || "$ENVIRONMENT" == "prod-alb" ]]; then
     for required_service in backend frontend customer-web proxy; do
       if ! grep -qx "$required_service" <<<"$COMPOSE_SERVICES"; then
-        echo "production-alb requires Compose service '$required_service', but it is missing from $COMPOSE_FILE." >&2
+        echo "Production deploy requires Compose service '$required_service', but it is missing from $COMPOSE_FILE." >&2
         exit 2
       fi
     done
