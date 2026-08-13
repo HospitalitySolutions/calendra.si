@@ -92,3 +92,19 @@ in Phase 7. `GUEST_APP_SETTINGS_JSON` is not a public-presentation fallback. All
 public presentation is resolved from the selected `Location`; `COMPANY_LOGO_URL`
 remains only the deliberate company-level logo fallback when a Location has no
 public logo of its own.
+
+## Nearby address search
+
+Customer/provider discovery can search by a free-form Slovenian address, place name or postal code:
+
+```http
+GET /api/public/location-directory/nearby?address=Gosposka%20ulica%201%2C%20Maribor&radiusKm=50&limit=50
+```
+
+The entered address is resolved server-side through Google Places. Calendra then compares that point with the physical
+location fields stored under **Upravljanje računa -> Poslovni prostori** (`address`, `postalCode`, `city`, `country`).
+Only active locations already enabled for the public directory are included. Results are ordered nearest-first and each
+location contains `latitude`, `longitude` and `distanceKm`.
+
+`radiusKm` is optional; when omitted, all matching public locations are ordered nearest-first. When supplied it is capped at 200 km. `limit` defaults to 50 and is capped at 100. If Google Places is
+not configured the endpoint returns HTTP 503; if the entered place cannot be resolved it returns HTTP 400.

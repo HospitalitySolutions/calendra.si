@@ -88,7 +88,7 @@ public class PublicLocationDirectoryService {
         if (draft == null || !draft.slug().equals(normalizedSlug)) return Optional.empty();
 
         if (!googlePlaces.isConfigured()) {
-            return Optional.of(draft.toResponse(null, null, fallbackMapsUrl(draft.displayAddress())));
+            return Optional.of(draft.toResponse(null, null, fallbackMapsUrl(draft.displayAddress()), null, null));
         }
 
         try {
@@ -98,7 +98,7 @@ public class PublicLocationDirectoryService {
                     "Could not enrich public directory location {} (tenant {}) with Google Places data.",
                     draft.locationId(), draft.tenantSlug(), error
             );
-            return Optional.of(draft.toResponse(null, null, fallbackMapsUrl(draft.displayAddress())));
+            return Optional.of(draft.toResponse(null, null, fallbackMapsUrl(draft.displayAddress()), null, null));
         }
     }
 
@@ -148,7 +148,7 @@ public class PublicLocationDirectoryService {
                                         "Could not enrich public directory location {} (tenant {}) with Google Places data.",
                                         draft.locationId(), draft.tenantSlug(), error
                                 );
-                                return draft.toResponse(null, null, fallbackMapsUrl(draft.displayAddress()));
+                                return draft.toResponse(null, null, fallbackMapsUrl(draft.displayAddress()), null, null);
                             }))
                     .toList();
             result = lookups.stream()
@@ -156,7 +156,7 @@ public class PublicLocationDirectoryService {
                     .collect(Collectors.toCollection(ArrayList::new));
         } else {
             result = drafts.stream()
-                    .map(draft -> draft.toResponse(null, null, fallbackMapsUrl(draft.displayAddress())))
+                    .map(draft -> draft.toResponse(null, null, fallbackMapsUrl(draft.displayAddress()), null, null))
                     .collect(Collectors.toCollection(ArrayList::new));
         }
 
@@ -166,17 +166,102 @@ public class PublicLocationDirectoryService {
         return result;
     }
 
+    /**
+     * Resolve a visitor-entered address/place in Slovenia and return public tenant locations
+     * ordered by straight-line distance. Only locations that are already opted into the public
+     * directory are considered.
+     */
+    @Transactional(readOnly = true)
+    public NearbySearchResponse searchNearby(String rawAddress, Double radiusKm, int limit) {
+        String address = rawAddress == null ? "" : rawAddress.trim();
+        if (address.isBlank()) {
+            throw new IllegalArgumentException("Address is required.");
+        }
+        if (!googlePlaces.isConfigured()) {
+            throw new IllegalStateException("Nearby location search is not configured.");
+        }
+
+        Double effectiveRadiusKm = radiusKm == null || radiusKm <= 0d ? null : Math.max(1d, Math.min(radiusKm, 200d));
+        int effectiveLimit = Math.max(1, Math.min(limit, 100));
+        String query = ensureSlovenia(address);
+
+        GooglePlacesClient.GeocodedPlace center = googlePlaces.geocode(query)
+                .orElseThrow(() -> new IllegalArgumentException("Address could not be resolved."));
+
+        List<DirectoryLocationResponse> matches = list().stream()
+                .filter(location -> location.latitude() != null && location.longitude() != null)
+                .map(location -> location.withDistance(haversineKm(
+                        center.latitude(),
+                        center.longitude(),
+                        location.latitude(),
+                        location.longitude()
+                )))
+                .filter(location -> effectiveRadiusKm == null || location.distanceKm() <= effectiveRadiusKm)
+                .sorted(Comparator
+                        .comparing(DirectoryLocationResponse::distanceKm)
+                        .thenComparing(DirectoryLocationResponse::publicName, String.CASE_INSENSITIVE_ORDER)
+                        .thenComparing(DirectoryLocationResponse::locationId))
+                .limit(effectiveLimit)
+                .toList();
+
+        return new NearbySearchResponse(
+                address,
+                firstNonBlank(center.formattedAddress(), address),
+                center.latitude(),
+                center.longitude(),
+                effectiveRadiusKm,
+                matches
+        );
+    }
+
+    private static double haversineKm(double lat1, double lon1, double lat2, double lon2) {
+        double earthRadiusKm = 6371.0088d;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2d) * Math.sin(dLat / 2d)
+                + Math.cos(Math.toRadians(lat1))
+                * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2d)
+                * Math.sin(dLon / 2d);
+        return earthRadiusKm * 2d * Math.atan2(Math.sqrt(a), Math.sqrt(1d - a));
+    }
+
+    private static String ensureSlovenia(String address) {
+        String normalized = address.toLowerCase(Locale.ROOT);
+        if (normalized.contains("slovenia") || normalized.contains("slovenija")) {
+            return address;
+        }
+        return address + ", Slovenia";
+    }
+
     private DirectoryLocationResponse enrichWithGoogle(DirectoryDraft draft) {
         GooglePlacesClient.PlaceReviewSummary google = googlePlaces
                 .lookup(draft.googlePlaceId(), draft.publicName(), draft.googleQueryAddress())
                 .orElse(null);
+
+        Double latitude = google == null ? null : google.latitude();
+        Double longitude = google == null ? null : google.longitude();
+
+        // A tenant does not need a Google Business Profile to be searchable by proximity.
+        // If the business lookup has no coordinates, geocode the physical address stored under
+        // Upravljanje računa -> Poslovni prostori.
+        if ((latitude == null || longitude == null) && !draft.physicalQueryAddress().isBlank()) {
+            GooglePlacesClient.GeocodedPlace geocoded = googlePlaces
+                    .geocode(draft.physicalQueryAddress())
+                    .orElse(null);
+            if (geocoded != null) {
+                latitude = geocoded.latitude();
+                longitude = geocoded.longitude();
+            }
+        }
+
         Double rating = google == null ? null : google.rating();
         Long reviewCount = google == null ? null : google.reviewCount();
         String mapsUri = firstNonBlank(
                 google == null ? null : google.googleMapsUri(),
                 fallbackMapsUrl(draft.displayAddress())
         );
-        return draft.toResponse(rating, reviewCount, mapsUri);
+        return draft.toResponse(rating, reviewCount, mapsUri, latitude, longitude);
     }
 
     private DirectoryDraft toDraft(Location location, Map<String, String> values) {
@@ -200,7 +285,17 @@ public class PublicLocationDirectoryService {
         String tenantSlug = firstNonBlank(company.getTenantCode(), String.valueOf(company.getId()));
         String slug = slugify(tenantSlug) + "-" + location.getId();
         String displayAddress = emptyIfNull(presentation.publicAddress());
-        String googleQueryAddress = joinNonBlank(displayAddress, location.getCountry());
+        String physicalStreet = firstNonBlank(location.getAddress());
+        String physicalPostalCode = firstNonBlank(location.getPostalCode());
+        String physicalCity = firstNonBlank(location.getCity());
+        String physicalQueryAddress = physicalStreet == null && physicalPostalCode == null && physicalCity == null
+                ? ""
+                : joinNonBlank(physicalStreet, physicalPostalCode, physicalCity, location.getCountry());
+        String googleQueryAddress = firstNonBlank(
+                physicalQueryAddress,
+                joinNonBlank(displayAddress, location.getCountry())
+        );
+        if (googleQueryAddress == null) googleQueryAddress = "";
         String bookingUrl = presentation.publicBookingEnabled()
                 ? "/narocanje/" + urlPathSegment(tenantSlug) + "?locationId=" + location.getId()
                 : "";
@@ -220,6 +315,7 @@ public class PublicLocationDirectoryService {
                 ),
                 displayAddress,
                 googleQueryAddress,
+                physicalQueryAddress,
                 emptyIfNull(presentation.publicPhone()),
                 category,
                 presentation.publicBookingEnabled(),
@@ -323,13 +419,20 @@ public class PublicLocationDirectoryService {
             PhysicalAddressResponse physicalAddress,
             String displayAddress,
             String googleQueryAddress,
+            String physicalQueryAddress,
             String publicPhone,
             String category,
             boolean publicBookingEnabled,
             String bookingUrl,
             String googlePlaceId
     ) {
-        DirectoryLocationResponse toResponse(Double rating, Long reviewCount, String mapsUri) {
+        DirectoryLocationResponse toResponse(
+                Double rating,
+                Long reviewCount,
+                String mapsUri,
+                Double latitude,
+                Double longitude
+        ) {
             return new DirectoryLocationResponse(
                     locationId,
                     slug,
@@ -346,7 +449,10 @@ public class PublicLocationDirectoryService {
                     bookingUrl,
                     rating,
                     reviewCount,
-                    emptyIfNull(mapsUri)
+                    emptyIfNull(mapsUri),
+                    latitude,
+                    longitude,
+                    null
             );
         }
     }
@@ -356,6 +462,15 @@ public class PublicLocationDirectoryService {
             String postalCode,
             String city,
             String country
+    ) {}
+
+    public record NearbySearchResponse(
+            String query,
+            String resolvedAddress,
+            double latitude,
+            double longitude,
+            Double radiusKm,
+            List<DirectoryLocationResponse> locations
     ) {}
 
     public record DirectoryLocationResponse(
@@ -374,6 +489,33 @@ public class PublicLocationDirectoryService {
             String bookingUrl,
             Double googleRating,
             Long googleReviewCount,
-            String googleMapsUri
-    ) {}
+            String googleMapsUri,
+            Double latitude,
+            Double longitude,
+            Double distanceKm
+    ) {
+        DirectoryLocationResponse withDistance(double value) {
+            return new DirectoryLocationResponse(
+                    locationId,
+                    slug,
+                    tenantSlug,
+                    publiclyDiscoverable,
+                    publicName,
+                    publicDescription,
+                    logoUrl,
+                    physicalAddress,
+                    publicAddress,
+                    publicPhone,
+                    category,
+                    publicBookingEnabled,
+                    bookingUrl,
+                    googleRating,
+                    googleReviewCount,
+                    googleMapsUri,
+                    latitude,
+                    longitude,
+                    value
+            );
+        }
+    }
 }

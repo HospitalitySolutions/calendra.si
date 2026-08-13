@@ -44,7 +44,10 @@ class PublicStorefrontServiceTest {
                 "/narocanje/STUDIO-LUX?locationId=31",
                 4.9,
                 128L,
-                "https://maps.google.com/example"
+                "https://maps.google.com/example",
+                46.0569,
+                14.5058,
+                null
         );
         Company company = new Company();
         company.setId(7L);

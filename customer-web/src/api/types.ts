@@ -197,6 +197,18 @@ export type PublicLocation = {
   googleRating?: number | null
   googleReviewCount?: number | null
   googleMapsUri?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  distanceKm?: number | null
+}
+
+export type NearbyLocationSearchResponse = {
+  query: string
+  resolvedAddress: string
+  latitude: number
+  longitude: number
+  radiusKm?: number | null
+  locations: PublicLocation[]
 }
 
 export type ProfileSettings = {

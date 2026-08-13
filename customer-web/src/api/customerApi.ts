@@ -13,6 +13,7 @@ import type {
   InboxThread,
   MessageView,
   NotificationsResponse,
+  NearbyLocationSearchResponse,
   ProfileSettings,
   PublicLocation,
   PublicStorefront,
@@ -151,6 +152,15 @@ export const customerApi = {
 
   providers() {
     return apiFetch<PublicLocation[]>('/api/public/location-directory', {}, { auth: false })
+  },
+
+  nearbyProviders(address: string, radiusKm?: number | null, limit = 50) {
+    const params = new URLSearchParams({
+      address: address.trim(),
+      limit: String(limit),
+    })
+    if (radiusKm != null && radiusKm > 0) params.set('radiusKm', String(radiusKm))
+    return apiFetch<NearbyLocationSearchResponse>(`/api/public/location-directory/nearby?${params.toString()}`, {}, { auth: false })
   },
 
   storefront(slug: string) {

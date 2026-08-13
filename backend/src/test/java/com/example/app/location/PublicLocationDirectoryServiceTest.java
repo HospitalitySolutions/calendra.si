@@ -71,14 +71,17 @@ class PublicLocationDirectoryServiceTest {
                 setting(company, SettingKey.COMPANY_LOGO_URL, "https://app.calendra.si/logo.png")
         ));
         when(googlePlaces.isConfigured()).thenReturn(true);
-        when(googlePlaces.lookup("place-lj", "Studio LUX Ljubljana", "Slovenska cesta 10, 1000 Ljubljana, SI"))
+        when(googlePlaces.lookup("place-lj", "Studio LUX Ljubljana", "Slovenska cesta 10, 1000, Ljubljana, SI"))
                 .thenReturn(Optional.of(new GooglePlacesClient.PlaceReviewSummary(
                         4.9,
                         128L,
                         "https://maps.google.com/?cid=123",
-                        "place-lj"
+                        "place-lj",
+                        46.0569,
+                        14.5058,
+                        "Slovenska cesta 10, Ljubljana"
                 )));
-        when(googlePlaces.lookup(null, "Studio LUX Maribor", "Gosposka ulica 5, 2000 Maribor, SI"))
+        when(googlePlaces.lookup(null, "Studio LUX Maribor", "Gosposka ulica 5, 2000, Maribor, SI"))
                 .thenReturn(Optional.empty());
 
         List<PublicLocationDirectoryService.DirectoryLocationResponse> result = service.list();
@@ -95,6 +98,46 @@ class PublicLocationDirectoryServiceTest {
         assertThat(result.get(1).logoUrl()).contains("key=");
         assertThat(result.get(1).publicBookingEnabled()).isFalse();
         assertThat(result.get(1).bookingUrl()).isEmpty();
+    }
+
+    @Test
+    void findsPublicLocationsNearEnteredAddressAndOrdersByDistance() {
+        Company company = company(7L, "Studio Legal Name", "STUDIO-LUX");
+        Location maribor = location(32L, company, "Maribor", "Gosposka ulica 5", "2000", "Maribor");
+        maribor.setPublicName("Studio LUX Maribor");
+        maribor.setPublicDirectoryEnabled(true);
+
+        Location ljubljana = location(31L, company, "Ljubljana", "Slovenska cesta 10", "1000", "Ljubljana");
+        ljubljana.setPublicName("Studio LUX Ljubljana");
+        ljubljana.setPublicDirectoryEnabled(true);
+
+        when(locations.findAllByActiveTrueAndPublicDirectoryEnabledTrueOrderByCompanyIdAscNameAscIdAsc())
+                .thenReturn(List.of(ljubljana, maribor));
+        when(settings.findAllByCompanyIdsAndKeys(anyCollection(), anyCollection())).thenReturn(List.of(
+                setting(company, SettingKey.MODULE_CONFIG_TYPE, "salon")
+        ));
+        when(googlePlaces.isConfigured()).thenReturn(true);
+        when(googlePlaces.geocode("Gosposka ulica 1, Maribor, Slovenia"))
+                .thenReturn(Optional.of(new GooglePlacesClient.GeocodedPlace(
+                        46.5576, 15.6459, "Gosposka ulica 1, 2000 Maribor, Slovenia", "query-place"
+                )));
+        when(googlePlaces.lookup(null, "Studio LUX Maribor", "Gosposka ulica 5, 2000, Maribor, SI"))
+                .thenReturn(Optional.of(new GooglePlacesClient.PlaceReviewSummary(
+                        4.9, 20L, null, "maribor-place", 46.5580, 15.6462, "Gosposka ulica 5, Maribor"
+                )));
+        when(googlePlaces.lookup(null, "Studio LUX Ljubljana", "Slovenska cesta 10, 1000, Ljubljana, SI"))
+                .thenReturn(Optional.of(new GooglePlacesClient.PlaceReviewSummary(
+                        4.8, 30L, null, "ljubljana-place", 46.0569, 14.5058, "Slovenska cesta 10, Ljubljana"
+                )));
+
+        PublicLocationDirectoryService.NearbySearchResponse result = service.searchNearby(
+                "Gosposka ulica 1, Maribor", 25d, 10
+        );
+
+        assertThat(result.resolvedAddress()).contains("Maribor");
+        assertThat(result.locations()).hasSize(1);
+        assertThat(result.locations().getFirst().publicName()).isEqualTo("Studio LUX Maribor");
+        assertThat(result.locations().getFirst().distanceKm()).isLessThan(1d);
     }
 
     @Test
