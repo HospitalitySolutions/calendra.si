@@ -122,6 +122,8 @@ course/CourseAdminController.java|@PostMapping("/{id}/media/direct-complete")|co
 course/CourseAdminController.java|@PostMapping("/{id}/media/direct-upload")|createDirectUploadSession
 course/CourseAdminController.java|@PostMapping|create
 course/CourseAdminController.java|@PutMapping("/{id}")|update
+customer/CustomerController.java|@PostMapping("/notifications/read-all")|markAllNotificationsRead
+customer/CustomerController.java|@PostMapping("/notifications/{notificationId}/read")|markNotificationRead
 customfield/CustomFieldController.java|@DeleteMapping("/{id}")|delete
 customfield/CustomFieldController.java|@PostMapping|create
 customfield/CustomFieldController.java|@PutMapping("/{id}")|update
