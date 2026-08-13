@@ -98,6 +98,39 @@ class PublicLocationDirectoryServiceTest {
     }
 
     @Test
+    void returnsOneLocationByCanonicalLocationSlug() {
+        Company company = company(7L, "Studio Legal Name", "STUDIO-LUX");
+        Location location = location(31L, company, "Ljubljana", "Slovenska cesta 10", "1000", "Ljubljana");
+        location.setPublicName("Studio LUX Ljubljana");
+        location.setPublicDirectoryEnabled(true);
+        location.setPublicBookingEnabled(true);
+
+        when(locations.findById(31L)).thenReturn(Optional.of(location));
+        when(settings.findAllByCompanyIdsAndKeys(anyCollection(), anyCollection())).thenReturn(List.of(
+                setting(company, SettingKey.MODULE_CONFIG_TYPE, "salon")
+        ));
+
+        Optional<PublicLocationDirectoryService.DirectoryLocationResponse> result = service.findBySlug("studio-lux-31");
+
+        assertThat(result).isPresent();
+        assertThat(result.orElseThrow().locationId()).isEqualTo(31L);
+        assertThat(result.orElseThrow().slug()).isEqualTo("studio-lux-31");
+        assertThat(result.orElseThrow().bookingUrl()).isEqualTo("/narocanje/STUDIO-LUX?locationId=31");
+    }
+
+    @Test
+    void rejectsLocationDetailWhenSlugPrefixDoesNotMatchCanonicalTenantSlug() {
+        Company company = company(7L, "Studio Legal Name", "STUDIO-LUX");
+        Location location = location(31L, company, "Ljubljana", "Slovenska cesta 10", "1000", "Ljubljana");
+        location.setPublicDirectoryEnabled(true);
+
+        when(locations.findById(31L)).thenReturn(Optional.of(location));
+        when(settings.findAllByCompanyIdsAndKeys(anyCollection(), anyCollection())).thenReturn(List.of());
+
+        assertThat(service.findBySlug("wrong-provider-31")).isEmpty();
+    }
+
+    @Test
     void excludesLocationsBelongingToSuspendedTenant() {
         Company company = company(8L, "Suspended", "SUSPENDED");
         Location location = location(40L, company, "Main", "Main 1", "1000", "Ljubljana");

@@ -4,12 +4,15 @@ The public Calendra Stranke website loads live location data from:
 
 ```http
 GET /api/public/location-directory
+GET /api/public/location-directory/{slug}
 ```
 
-The endpoint is unauthenticated and returns one result per active location that has
+Both endpoints are unauthenticated. The collection endpoint and returns one result per active location that has
 `public_directory_enabled = true`. A company with two public branches therefore
 returns two independent directory entries. Locations belonging to suspended or
-cancelled tenants are excluded.
+cancelled tenants are excluded. The detail endpoint returns one location by its
+canonical location slug (for example `studio-lux-31`) and returns 404 for inactive,
+non-public or non-canonical slugs.
 
 Public name, description, address, phone and logo are resolved through
 `LocationPublicPresentationService`. A location-specific logo wins; otherwise the

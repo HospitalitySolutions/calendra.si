@@ -19,6 +19,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -61,6 +62,44 @@ public class PublicLocationDirectoryService {
                 googlePlacesProperties.effectiveMaxConcurrentLookups(),
                 Thread.ofPlatform().daemon(true).name("google-places-location-directory-", 0).factory()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<DirectoryLocationResponse> findBySlug(String slug) {
+        String normalizedSlug = slug == null ? "" : slug.trim().toLowerCase(Locale.ROOT);
+        Long locationId = locationIdFromSlug(normalizedSlug);
+        if (locationId == null) return Optional.empty();
+
+        Location location = locations.findById(locationId).orElse(null);
+        if (location == null || !location.isActive() || !location.isPublicDirectoryEnabled()) {
+            return Optional.empty();
+        }
+
+        Company company = location.getCompany();
+        if (company == null || company.getId() == null) return Optional.empty();
+
+        Map<String, String> values = settings.findAllByCompanyIdsAndKeys(
+                        List.of(company.getId()),
+                        DIRECTORY_SETTING_KEYS
+                ).stream()
+                .collect(Collectors.toMap(AppSetting::getKey, AppSetting::getValue, (a, b) -> b, LinkedHashMap::new));
+
+        DirectoryDraft draft = toDraft(location, values);
+        if (draft == null || !draft.slug().equals(normalizedSlug)) return Optional.empty();
+
+        if (!googlePlaces.isConfigured()) {
+            return Optional.of(draft.toResponse(null, null, fallbackMapsUrl(draft.displayAddress())));
+        }
+
+        try {
+            return Optional.of(enrichWithGoogle(draft));
+        } catch (Exception error) {
+            log.warn(
+                    "Could not enrich public directory location {} (tenant {}) with Google Places data.",
+                    draft.locationId(), draft.tenantSlug(), error
+            );
+            return Optional.of(draft.toResponse(null, null, fallbackMapsUrl(draft.displayAddress())));
+        }
     }
 
     @Transactional(readOnly = true)
@@ -187,6 +226,18 @@ public class PublicLocationDirectoryService {
                 bookingUrl,
                 presentation.googlePlaceId()
         );
+    }
+
+    private static Long locationIdFromSlug(String slug) {
+        if (slug == null || slug.isBlank()) return null;
+        int separator = slug.lastIndexOf('-');
+        if (separator < 0 || separator == slug.length() - 1) return null;
+        try {
+            long value = Long.parseLong(slug.substring(separator + 1));
+            return value > 0 ? value : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private static String fallbackMapsUrl(String address) {
