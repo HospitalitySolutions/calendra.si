@@ -379,6 +379,7 @@ public class PublicBookingWidgetService {
         return consultants(tenantCode, typeId, serviceIds, null, request);
     }
 
+    @Transactional(readOnly = true)
     public List<PublicBookingWidgetController.WidgetConsultantResponse> consultants(
             String tenantCode,
             Long typeId,
@@ -422,6 +423,7 @@ public class PublicBookingWidgetService {
         return availability(tenantCode, typeId, serviceIds, dateText, consultantId, null, request);
     }
 
+    @Transactional(readOnly = true)
     public PublicBookingWidgetController.AvailabilityResponse availability(
             String tenantCode,
             Long typeId,
@@ -540,6 +542,7 @@ public class PublicBookingWidgetService {
         return availabilityMonth(tenantCode, typeId, serviceIds, monthText, consultantId, null, request);
     }
 
+    @Transactional(readOnly = true)
     public PublicBookingWidgetController.AvailabilityMonthResponse availabilityMonth(
             String tenantCode,
             Long typeId,
