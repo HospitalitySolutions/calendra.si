@@ -10,9 +10,11 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class LocationService {
     private final LocationRepository locations;
+    private final LocationGeocodingService locationGeocoding;
 
-    public LocationService(LocationRepository locations) {
+    public LocationService(LocationRepository locations, LocationGeocodingService locationGeocoding) {
         this.locations = locations;
+        this.locationGeocoding = locationGeocoding;
     }
 
     public Location requireDefault(Company company) {
@@ -60,6 +62,7 @@ public class LocationService {
 
         location.setDefaultLocation(true);
         location.setActive(true);
+        locationGeocoding.refreshAfterAddressWrite(location);
         return locations.save(location);
     }
 

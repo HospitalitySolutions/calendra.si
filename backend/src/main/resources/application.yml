@@ -218,6 +218,19 @@ app:
     client-secret: ${GOOGLE_MEET_CLIENT_SECRET:}
     redirect-uri: ${GOOGLE_MEET_REDIRECT_URI:}
     frontend-url: ${GOOGLE_MEET_FRONTEND_URL:${APP_PUBLIC_BASE_URL:}}
+  google-geocoding:
+    enabled: ${GOOGLE_GEOCODING_ENABLED:true}
+    api-key: ${GOOGLE_GEOCODING_API_KEY:}
+    base-url: ${GOOGLE_GEOCODING_BASE_URL:https://maps.googleapis.com}
+    language: ${GOOGLE_GEOCODING_LANGUAGE:sl}
+    region: ${GOOGLE_GEOCODING_REGION:si}
+    connect-timeout: ${GOOGLE_GEOCODING_CONNECT_TIMEOUT:2s}
+    read-timeout: ${GOOGLE_GEOCODING_READ_TIMEOUT:4s}
+    search-cache-ttl: ${GOOGLE_GEOCODING_SEARCH_CACHE_TTL:24h}
+    search-cache-max-entries: ${GOOGLE_GEOCODING_SEARCH_CACHE_MAX_ENTRIES:1000}
+    maintenance-batch-size: ${GOOGLE_GEOCODING_MAINTENANCE_BATCH_SIZE:100}
+    maintenance-initial-delay-ms: ${GOOGLE_GEOCODING_MAINTENANCE_INITIAL_DELAY_MS:15000}
+    maintenance-fixed-delay-ms: ${GOOGLE_GEOCODING_MAINTENANCE_FIXED_DELAY_MS:86400000}
   google-places:
     enabled: ${GOOGLE_PLACES_ENABLED:true}
     automatic-text-search-enabled: ${GOOGLE_PLACES_AUTOMATIC_TEXT_SEARCH_ENABLED:true}

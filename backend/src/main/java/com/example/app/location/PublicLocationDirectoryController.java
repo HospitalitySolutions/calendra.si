@@ -8,16 +8,19 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 
 @RestController
 @RequestMapping("/api/public/location-directory")
 public class PublicLocationDirectoryController {
     private final PublicLocationDirectoryService directory;
+    private final PublicLocationNearbyService nearby;
 
-    public PublicLocationDirectoryController(PublicLocationDirectoryService directory) {
+    public PublicLocationDirectoryController(
+            PublicLocationDirectoryService directory,
+            PublicLocationNearbyService nearby
+    ) {
         this.directory = directory;
+        this.nearby = nearby;
     }
 
     @GetMapping
@@ -28,20 +31,14 @@ public class PublicLocationDirectoryController {
     }
 
     @GetMapping("/nearby")
-    public ResponseEntity<PublicLocationDirectoryService.NearbySearchResponse> nearby(
+    public ResponseEntity<PublicLocationNearbyService.NearbySearchResponse> nearby(
             @RequestParam String address,
             @RequestParam(required = false) Double radiusKm,
-            @RequestParam(defaultValue = "50") int limit
+            @RequestParam(required = false) Integer limit
     ) {
-        try {
-            return ResponseEntity.ok()
-                    .cacheControl(CacheControl.noStore())
-                    .body(directory.searchNearby(address, radiusKm, limit));
-        } catch (IllegalArgumentException error) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, error.getMessage(), error);
-        } catch (IllegalStateException error) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, error.getMessage(), error);
-        }
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(nearby.search(address, radiusKm, limit));
     }
 
     @GetMapping("/{slug}")

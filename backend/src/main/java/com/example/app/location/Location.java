@@ -61,6 +61,19 @@ public class Location extends BaseEntity {
     @Column(name = "google_place_id", length = 255)
     private String googlePlaceId;
 
+    @Column(name = "latitude")
+    private Double latitude;
+    @Column(name = "longitude")
+    private Double longitude;
+    @Column(name = "geocode_source_address", length = 1024)
+    private String geocodeSourceAddress;
+    @Column(name = "geocoded_at")
+    private java.time.Instant geocodedAt;
+    @Column(name = "geocode_last_attempt_at")
+    private java.time.Instant geocodeLastAttemptAt;
+    @Column(name = "geocode_status", length = 32)
+    private String geocodeStatus;
+
     @Column(name = "default_location", nullable = false)
     private boolean defaultLocation;
     @Column(nullable = false)

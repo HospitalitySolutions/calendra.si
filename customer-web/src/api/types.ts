@@ -175,6 +175,17 @@ export type CustomerHome = {
   unreadInboxCount: number
 }
 
+export type NearbyPublicLocation = {
+  location: PublicLocation
+  distanceKm: number
+}
+
+export type NearbyPublicLocationSearch = {
+  query: string
+  attribution: string
+  items: NearbyPublicLocation[]
+}
+
 export type PublicLocation = {
   locationId: number
   slug: string
@@ -197,18 +208,6 @@ export type PublicLocation = {
   googleRating?: number | null
   googleReviewCount?: number | null
   googleMapsUri?: string | null
-  latitude?: number | null
-  longitude?: number | null
-  distanceKm?: number | null
-}
-
-export type NearbyLocationSearchResponse = {
-  query: string
-  resolvedAddress: string
-  latitude: number
-  longitude: number
-  radiusKm?: number | null
-  locations: PublicLocation[]
 }
 
 export type ProfileSettings = {

@@ -61,6 +61,9 @@ public class LocationController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private TenantFileS3Service fileStorage;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private LocationGeocodingService locationGeocoding;
+
     public LocationController(
             LocationRepository locations,
             SpaceRepository spaces,
@@ -165,6 +168,7 @@ public class LocationController {
         Location location = new Location();
         location.setCompany(me.getCompany());
         apply(location, input, me.getCompany().getId());
+        refreshLocationCoordinates(location);
         if (location.getDefaultLegalEntity() == null) {
             location.setDefaultLegalEntity(defaultIssuer(me.getCompany().getId()));
         }
@@ -198,6 +202,7 @@ public class LocationController {
         }
         if (Boolean.TRUE.equals(input.defaultLocation()) && !wasDefault) clearDefault(me.getCompany().getId(), id);
         apply(location, input, me.getCompany().getId());
+        refreshLocationCoordinates(location);
         if (wasDefault || Boolean.TRUE.equals(input.defaultLocation())) location.setDefaultLocation(true);
         if (location.isDefaultLocation()) location.setActive(true);
         if (!location.isDefaultLocation() && locations.countByCompanyId(me.getCompany().getId()) == 1) location.setDefaultLocation(true);
@@ -393,6 +398,12 @@ public class LocationController {
         value.setActive(true);
         value = invoiceSeries.save(value);
         location.setDefaultInvoiceSeries(value);
+    }
+
+
+    private void refreshLocationCoordinates(Location location) {
+        if (locationGeocoding == null) return;
+        locationGeocoding.refreshAfterAddressWrite(location);
     }
 
     private void synchronizeDefaultPhysicalAddress(Location location) {
