@@ -53,6 +53,9 @@ public class GuestTenantService {
     private GuestLocationSubscriptionRepository locationSubscriptions;
 
     @Autowired(required = false)
+    private GuestProviderLinkService guestProviderLinks;
+
+    @Autowired(required = false)
     private PaymentMethodRepository paymentMethods;
 
     @Autowired(required = false)
@@ -177,6 +180,22 @@ public class GuestTenantService {
         Location selectedLocation = resolveJoinLocation(company, joinMethod, request);
         Long selectedLocationId = selectedLocation == null ? null : selectedLocation.getId();
 
+        if (guestProviderLinks != null) {
+            GuestProviderLinkService.LinkResult linked = guestProviderLinks.activate(
+                    guestUser, company, selectedLocation, joinMethod, guestUser.getLanguage(), null);
+            incrementInviteUsage(joinMethod, request);
+            return new GuestDtos.JoinTenantResponse(
+                    new GuestDtos.TenantLinkResponse(
+                            String.valueOf(company.getId()),
+                            String.valueOf(linked.client().getId()),
+                            linked.tenantLink().getStatus().name(),
+                            linked.tenantLink().getJoinedVia().name()),
+                    linked.matchType() != GuestProviderLinkService.MatchType.CREATED,
+                    linked.matchType().name(),
+                    selectedLocationId == null ? null : String.valueOf(selectedLocationId)
+            );
+        }
+
         GuestTenantLink existing = links.findByGuestUserIdAndCompanyId(guestUser.getId(), company.getId()).orElse(null);
         MatchResult match = existing == null
                 ? matchOrCreateClient(company, guestUser)
@@ -195,15 +214,7 @@ public class GuestTenantService {
         link = links.save(link);
         activateLocationSubscription(link, selectedLocation, joinMethod);
 
-        if (joinMethod == GuestJoinMethod.INVITE_LINK || joinMethod == GuestJoinMethod.QR_CODE) {
-            String inviteCode = request.inviteCode();
-            if (inviteCode != null && !inviteCode.isBlank()) {
-                invites.findByCodeIgnoreCase(inviteCode).ifPresent(invite -> {
-                    invite.setUsedCount(invite.getUsedCount() + 1);
-                    invites.save(invite);
-                });
-            }
-        }
+        incrementInviteUsage(joinMethod, request);
 
         return new GuestDtos.JoinTenantResponse(
                 new GuestDtos.TenantLinkResponse(String.valueOf(company.getId()), String.valueOf(match.client().getId()), link.getStatus().name(), link.getJoinedVia().name()),
@@ -211,6 +222,16 @@ public class GuestTenantService {
                 match.matchType().name(),
                 selectedLocationId == null ? null : String.valueOf(selectedLocationId)
         );
+    }
+
+    private void incrementInviteUsage(GuestJoinMethod joinMethod, GuestDtos.JoinTenantRequest request) {
+        if (joinMethod != GuestJoinMethod.INVITE_LINK && joinMethod != GuestJoinMethod.QR_CODE) return;
+        String inviteCode = request == null ? null : request.inviteCode();
+        if (inviteCode == null || inviteCode.isBlank()) return;
+        invites.findByCodeIgnoreCase(inviteCode).ifPresent(invite -> {
+            invite.setUsedCount(invite.getUsedCount() + 1);
+            invites.save(invite);
+        });
     }
 
     public List<GuestDtos.TenantSummaryResponse> linkedTenants(GuestUser guestUser) {

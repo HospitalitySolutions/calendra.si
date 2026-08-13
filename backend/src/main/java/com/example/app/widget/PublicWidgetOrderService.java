@@ -17,6 +17,7 @@ import com.example.app.guest.model.GuestUser;
 import com.example.app.guest.model.GuestUserRepository;
 import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.guest.order.GuestOrderService;
+import com.example.app.guest.tenant.GuestProviderLinkService;
 import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
 import com.example.app.session.SessionType;
@@ -74,6 +75,9 @@ public class PublicWidgetOrderService {
 
     @Autowired(required = false)
     private EntitlementsModuleAccessService entitlementsModuleAccessService;
+
+    @Autowired(required = false)
+    private GuestProviderLinkService guestProviderLinks;
 
     public PublicWidgetOrderService(
             CompanyRepository companies,
@@ -257,6 +261,15 @@ public class PublicWidgetOrderService {
                 effectiveLocationId
         );
         validatePublicLocationAndServices(company, normalized);
+        if (guestProviderLinks != null) {
+            Location selectedLocation = publicLocations.findByIdAndCompanyId(
+                            Long.valueOf(effectiveLocationId), company.getId())
+                    .filter(Location::isActive)
+                    .filter(Location::isPublicBookingEnabled)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid location."));
+            guestProviderLinks.activateMarketplaceLocation(
+                    guestUser, company, selectedLocation, firstNonBlank(request.locale(), request.language()));
+        }
         String idempotencyKey = idempotencyKey(httpRequest);
         BookingSource bookingSource = WidgetBookingSourceResolver.resolve(httpRequest);
         return widgetBookingIdempotencyService.execute(

@@ -11,7 +11,12 @@ import com.example.app.common.TimeService;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.commerce.CommerceLocationScopeService;
+import com.example.app.guest.auth.GuestTokenService;
 import com.example.app.guest.common.GuestSettingsService;
+import com.example.app.guest.model.GuestJoinMethod;
+import com.example.app.guest.model.GuestUser;
+import com.example.app.guest.model.GuestUserRepository;
+import com.example.app.guest.tenant.GuestProviderLinkService;
 import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
 import com.example.app.location.LocationPublicPresentationService;
@@ -79,6 +84,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -139,6 +145,15 @@ public class PublicBookingWidgetService {
 
     @Autowired(required = false)
     private WorkspaceClientRepository workspaceClients;
+
+    @Autowired(required = false)
+    private GuestTokenService guestTokenService;
+
+    @Autowired(required = false)
+    private GuestUserRepository guestUsers;
+
+    @Autowired(required = false)
+    private GuestProviderLinkService guestProviderLinks;
 
     public PublicBookingWidgetService(
             CompanyRepository companies,
@@ -828,6 +843,7 @@ public class PublicBookingWidgetService {
                 widgetPublicAuditLogger.clientIp(httpRequest)
         );
         Location selectedLocation = requirePublicLocation(company, request.locationId(), true);
+        GuestUser authenticatedGuest = resolveAuthenticatedGuest(httpRequest, request.email());
         WidgetConfig cfg = loadConfig(company.getId(), selectedLocation);
         var rules = websiteWidgetSettingsService.bookingRules(company.getId(), selectedLocation.getId());
         List<SessionType> chain = resolveServiceChain(company.getId(), request.typeId(), extractServiceIds(request));
@@ -850,7 +866,7 @@ public class PublicBookingWidgetService {
                         idempotencyKey,
                         request,
                         PublicBookingWidgetController.BookingResponse.class,
-                        () -> joinGroupSession(company, type, request, bookingSource)
+                        () -> joinGroupSession(company, type, request, bookingSource, authenticatedGuest)
                 );
                 widgetPublicAuditLogger.logAttempt(
                         company,
@@ -921,7 +937,11 @@ public class PublicBookingWidgetService {
                     PublicBookingWidgetController.BookingResponse.class,
                     () -> {
                         lockTenantForClientMatch(company);
-                        Client client = findOrCreateClient(company, actor, request);
+                        Client client = authenticatedGuest != null && guestProviderLinks != null
+                                ? guestProviderLinks.activate(
+                                        authenticatedGuest, company, selectedLocation, GuestJoinMethod.PUBLIC_SEARCH,
+                                        request.locale(), actor).client()
+                                : findOrCreateClient(company, actor, request);
                         SessionBooking booking = bookingCreationService.createChannelBooking(
                                 new SessionBookingCreationService.ChannelBookingRequest(
                                         company.getId(),
@@ -994,6 +1014,7 @@ public class PublicBookingWidgetService {
         BookingSource bookingSource = WidgetBookingSourceResolver.resolve(httpRequest);
         featureAccess.assertWaitlistEnabled(company.getId());
         Location selectedLocation = requirePublicLocation(company, request.locationId(), true);
+        GuestUser authenticatedGuest = resolveAuthenticatedGuest(httpRequest, request.email());
 
         WaitlistSettingsService.WaitlistSettings waitlistCfg = waitlistSettingsService.get(company.getId(), selectedLocation.getId());
         if (!waitlistCfg.enabled() || !waitlistCfg.widgetEnabled()) {
@@ -1056,15 +1077,19 @@ public class PublicBookingWidgetService {
                     PublicBookingWidgetController.WaitlistResponse.class,
                     () -> {
                         lockTenantForClientMatch(company);
-                        Client client = findOrCreateClient(
-                                company,
-                                clientOwner,
-                                request.firstName(),
-                                request.lastName(),
-                                request.email(),
-                                request.phone(),
-                                request.locale()
-                        );
+                        Client client = authenticatedGuest != null && guestProviderLinks != null
+                                ? guestProviderLinks.activate(
+                                        authenticatedGuest, company, selectedLocation, GuestJoinMethod.PUBLIC_SEARCH,
+                                        request.locale(), clientOwner).client()
+                                : findOrCreateClient(
+                                        company,
+                                        clientOwner,
+                                        request.firstName(),
+                                        request.lastName(),
+                                        request.email(),
+                                        request.phone(),
+                                        request.locale()
+                                );
 
                         List<WaitlistService.WindowInput> requestWindows = buildPublicWaitlistWindows(
                                 request.flexible(),
@@ -1168,6 +1193,17 @@ public class PublicBookingWidgetService {
             PublicBookingWidgetController.BookingRequest request,
             BookingSource bookingSource
     ) {
+        return joinGroupSession(company, type, request, bookingSource, null);
+    }
+
+    @Transactional
+    protected PublicBookingWidgetController.BookingResponse joinGroupSession(
+            Company company,
+            SessionType type,
+            PublicBookingWidgetController.BookingRequest request,
+            BookingSource bookingSource,
+            GuestUser authenticatedGuest
+    ) {
         if (!isWebsiteBookingEnabled(type)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not enabled for website booking.");
         }
@@ -1193,7 +1229,11 @@ public class PublicBookingWidgetService {
 
         User actor = representative.getConsultant() != null ? representative.getConsultant() : resolveAdminActor(company.getId());
         lockTenantForClientMatch(company);
-        Client client = findOrCreateClient(company, actor, request);
+        Client client = authenticatedGuest != null && guestProviderLinks != null
+                ? guestProviderLinks.activate(
+                        authenticatedGuest, company, selectedLocation, GuestJoinMethod.PUBLIC_SEARCH,
+                        request.locale(), actor).client()
+                : findOrCreateClient(company, actor, request);
         SessionBooking joined = bookingCreationService.joinClientToGroupSession(new SessionBookingCreationService.GroupJoinRequest(
                 company.getId(),
                 representative.getId(),
@@ -2065,6 +2105,33 @@ public class PublicBookingWidgetService {
         }
         merged.add(current);
         return List.copyOf(merged);
+    }
+
+    private GuestUser resolveAuthenticatedGuest(HttpServletRequest request, String submittedEmail) {
+        if (request == null || guestTokenService == null || guestUsers == null) return null;
+        String auth = request.getHeader(HttpHeaders.AUTHORIZATION);
+        if (auth == null || auth.isBlank()) return null;
+        if (!auth.startsWith("Bearer ")) return null;
+        String token = auth.substring("Bearer ".length()).trim();
+        try {
+            Long guestUserId = guestTokenService.parseGuestUserId(token);
+            GuestUser guest = guestUsers.findById(guestUserId)
+                    .filter(GuestUser::isActive)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Customer session not found."));
+            String accountEmail = Client.normalizeEmailStorage(guest.getEmail());
+            String requestEmail = Client.normalizeEmailStorage(submittedEmail);
+            if (accountEmail == null || requestEmail == null || !accountEmail.equals(requestEmail)) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Booking email must match the signed-in Calendra customer account."
+                );
+            }
+            return guest;
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid customer session.");
+        }
     }
 
     private void lockTenantForClientMatch(Company company) {
