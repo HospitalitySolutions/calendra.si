@@ -107,7 +107,7 @@ public class StripeGuestCheckoutService {
 
     private String customerWebReturnUrl(GuestOrder order, String status, boolean includeSessionId) {
         String url = customerWebBaseUrl()
-                + "/checkout/return?provider=stripe&status=" + status
+                + "/placilo/vrnitev?provider=stripe&status=" + status
                 + "&orderId=" + order.getId();
         return includeSessionId ? url + "&session_id={CHECKOUT_SESSION_ID}" : url;
     }
@@ -118,7 +118,7 @@ public class StripeGuestCheckoutService {
                 environment.getProperty("app.customer-web.base-url")
         );
         if (value == null || value.isBlank()) {
-            value = "https://connect.calendra.si";
+            value = "https://calendra.si/racun";
         }
         value = value.trim();
         while (value.endsWith("/")) {

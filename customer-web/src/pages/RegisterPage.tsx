@@ -1,16 +1,17 @@
-import { useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { customerApi } from '../api/customerApi'
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import { Spinner } from '../components/Loading'
 import { AuthLayout } from './LoginPage'
+import { returnToCustomerPage } from '../auth/returnTo'
 
 type Step = 'details' | 'verify'
 
 export function RegisterPage() {
   const { isAuthenticated, setSession } = useAuth()
-  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [step, setStep] = useState<Step>('details')
   const [challengeId, setChallengeId] = useState('')
   const [email, setEmail] = useState('')
@@ -22,8 +23,14 @@ export function RegisterPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
+  const next = searchParams.get('next')
+  const nextSuffix = next ? `?next=${encodeURIComponent(next)}` : ''
 
-  if (isAuthenticated) return <Navigate to="/" replace />
+  useEffect(() => {
+    if (isAuthenticated) returnToCustomerPage(next)
+  }, [isAuthenticated, next])
+
+  if (isAuthenticated) return null
 
   async function start(event: FormEvent) {
     event.preventDefault()
@@ -48,7 +55,7 @@ export function RegisterPage() {
     try {
       const session = await customerApi.signupVerify(challengeId, code.trim())
       setSession(session)
-      navigate('/', { replace: true })
+      returnToCustomerPage(next)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Koda ni veljavna ali je potekla.')
     } finally {
@@ -88,7 +95,7 @@ export function RegisterPage() {
       <label>Geslo<input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} autoComplete="new-password" placeholder="Vsaj 8 znakov"/><small>Naj vsebuje veliko in malo črko ter številko.</small></label>
       <button className="button button--primary button--full" disabled={loading}>{loading ? <><Spinner small/> Ustvarjam …</> : 'Ustvari račun'}</button>
       <p className="auth-legal">Z ustvarjanjem računa se strinjate s <a href="https://calendra.si/pogoji-uporabe">pogoji uporabe</a> in <a href="https://calendra.si/zasebnost">politiko zasebnosti</a>.</p>
-      <p className="auth-switch">Že imate račun? <Link to="/login">Prijavite se</Link></p>
+      <p className="auth-switch">Že imate račun? <Link to={`/prijava${nextSuffix}`}>Prijavite se</Link></p>
     </form>
   </AuthLayout>
 }

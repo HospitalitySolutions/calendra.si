@@ -3,7 +3,7 @@ export function Spinner({ small = false }: { small?: boolean }) {
 }
 
 export function FullPageLoader() {
-  return <div className="full-page-loader"><img src="/calendra-connect-logo.png" alt="Calendra Connect"/><Spinner/></div>
+  return <div className="full-page-loader"><img src="/racun/calendra-wordmark.webp" alt="Calendra"/><Spinner/></div>
 }
 
 export function PageLoader() {

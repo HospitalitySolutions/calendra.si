@@ -44,8 +44,8 @@ public class PayPalClient {
         return createOrder(
                 order,
                 merchantId,
-                base + "/checkout/return?provider=paypal&status=success&orderId=" + order.getId(),
-                base + "/checkout/return?provider=paypal&status=cancelled&orderId=" + order.getId()
+                base + "/placilo/vrnitev?provider=paypal&status=success&orderId=" + order.getId(),
+                base + "/placilo/vrnitev?provider=paypal&status=cancelled&orderId=" + order.getId()
         );
     }
 

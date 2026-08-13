@@ -7,7 +7,7 @@ import { ProviderAvatar } from './ProviderAvatar'
 export function BookingCard({ booking, compact = false }: { booking: CustomerBooking; compact?: boolean }) {
   const serviceName = booking.sessionTypeName || booking.services?.[0]?.name || 'Termin'
   return (
-    <Link to={`/bookings/${booking.bookingId}`} className={`booking-card ${compact ? 'booking-card--compact' : ''}`}>
+    <Link to={`/termini/${booking.bookingId}`} className={`booking-card ${compact ? 'booking-card--compact' : ''}`}>
       <div className="booking-card__date">
         <CalendarIcon size={18}/>
         <span>{formatDateTime(booking.startsAt, { weekday: 'short', day: 'numeric', month: 'short' })}</span>

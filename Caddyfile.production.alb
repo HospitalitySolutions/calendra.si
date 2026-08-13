@@ -18,33 +18,19 @@
 		}
 	}
 
-	# connect.calendra.si serves the customer-facing Calendra Connect SPA.
-	@connect_host host connect.calendra.si
-	header @connect_host {
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		X-Content-Type-Options "nosniff"
-		Referrer-Policy "strict-origin-when-cross-origin"
-		X-Robots-Tag "noindex, nofollow"
-		Content-Security-Policy "default-src 'self'; img-src 'self' blob: data: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'self' https: wss:; frame-ancestors 'none';"
-	}
-
-	@connect_backend {
+	# Backwards compatibility: the customer account now lives under calendra.si/racun.
+	# Keep the old hostname working, but do not create a second browser/session origin.
+	@connect_api {
 		host connect.calendra.si
 		path /api/*
 	}
-	handle @connect_backend {
-		reverse_proxy backend:4000 {
-			header_up X-Forwarded-Proto https
-			header_up X-Forwarded-Port 443
-		}
+	handle @connect_api {
+		redir https://calendra.si{uri} 308
 	}
 
-	@connect_frontend host connect.calendra.si
-	handle @connect_frontend {
-		reverse_proxy customer-web:80 {
-			header_up X-Forwarded-Proto https
-			header_up X-Forwarded-Port 443
-		}
+	@connect_host host connect.calendra.si
+	handle @connect_host {
+		redir https://calendra.si/racun{uri} 308
 	}
 
 	# app.calendra.si security headers. They are returned to clients over the
@@ -86,6 +72,43 @@
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	# The signed-in customer experience is served by customer-web, but remains
+	# on the public calendra.si origin so authentication/localStorage is shared
+	# with the Za stranke marketing/marketplace pages.
+	@site_customer_account_root {
+		host calendra.si
+		path /racun
+	}
+	handle @site_customer_account_root {
+		redir https://calendra.si/racun/ 308
+	}
+
+	@site_customer_account {
+		host calendra.si
+		path /racun/*
+	}
+	handle @site_customer_account {
+		uri strip_prefix /racun
+		reverse_proxy customer-web:80 {
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Port 443
+			header_up X-Forwarded-Prefix /racun
+		}
+	}
+
+	# Customer account and public marketplace requests use the same backend
+	# origin. This also lets the marketing header resolve /api/guest/me.
+	@site_api {
+		host calendra.si
+		path /api/*
+	}
+	handle @site_api {
+		reverse_proxy backend:4000 {
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Port 443
+		}
 	}
 
 	@demo_management {

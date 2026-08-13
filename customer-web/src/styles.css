@@ -484,3 +484,29 @@ img { max-width: 100%; }
   .discover-search-button { width: 100%; }
   .google-maps-attribution { width: 100%; margin-left: 0; }
 }
+
+/* Same-domain customer account shell (/racun) */
+.brand-button--main { display: block; padding-bottom: 18px; }
+.brand-button--main img { width: 150px; }
+.sidebar-user { display: grid; gap: 2px; padding: 0 13px 18px; margin-bottom: 9px; border-bottom: 1px solid #edf2f5; }
+.sidebar-user strong { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-user small { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar-search-button { min-height: 40px; padding: 0 14px; font-size: 13px; }
+.account-menu { position: relative; }
+.avatar-button--menu { width: auto; min-width: 44px; height: 40px; border-radius: 999px; padding: 0 10px 0 12px; display: inline-flex; gap: 8px; }
+.avatar-caret { font-size: 14px; line-height: 1; transform: translateY(-1px); }
+.account-menu__panel { position: absolute; right: 0; top: calc(100% + 10px); z-index: 70; width: 270px; padding: 8px; background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 22px 60px rgba(25,54,78,.16); }
+.account-menu__identity { display: grid; gap: 3px; padding: 8px 10px 11px; }
+.account-menu__identity strong { font-size: 14px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.account-menu__identity small { color: var(--muted); font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.account-menu__divider { height: 1px; margin: 3px 0; background: #edf2f5; }
+.account-menu__item { width: 100%; min-height: 40px; padding: 0 10px; border: 0; background: transparent; border-radius: 10px; display: flex; align-items: center; gap: 10px; color: var(--ink); font-size: 13px; font-weight: 650; text-align: left; }
+.account-menu__item:hover { background: #f5f8fb; }
+.account-menu__item svg { color: #65788b; }
+.account-menu__item--business { justify-content: space-between; font-weight: 750; }
+
+@media (max-width: 900px) {
+  .topbar-search-button { display: none; }
+  .account-menu__panel { position: fixed; left: 12px; right: 12px; top: 62px; width: auto; }
+  .mobile-nav { grid-template-columns: repeat(4,1fr); }
+}

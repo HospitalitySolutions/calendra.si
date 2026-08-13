@@ -26,7 +26,7 @@ public class PayPalConfig {
     @Value("${app.paypal.brand-name:${APP_PAYPAL_BRAND_NAME:Calendra}}")
     private String brandName;
 
-    @Value("${app.customer-web.base-url:${APP_CUSTOMER_WEB_BASE_URL:https://connect.calendra.si}}")
+    @Value("${app.customer-web.base-url:${APP_CUSTOMER_WEB_BASE_URL:https://calendra.si/racun}}")
     private String customerWebBaseUrl;
 
     @Value("${app.paypal.partner-attribution-id:${PAYPAL_PARTNER_ATTRIBUTION_ID:}}")
@@ -61,7 +61,7 @@ public class PayPalConfig {
 
     public String customerWebBaseUrl() {
         String value = trim(customerWebBaseUrl);
-        return value == null || value.isBlank() ? "https://connect.calendra.si" : stripTrailingSlash(value);
+        return value == null || value.isBlank() ? "https://calendra.si/racun" : stripTrailingSlash(value);
     }
 
     public String brandName() {
