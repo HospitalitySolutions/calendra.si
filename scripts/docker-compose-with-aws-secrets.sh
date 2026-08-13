@@ -247,35 +247,55 @@ if [[ "${1:-}" == "deploy" ]]; then
     exit 2
   fi
 
+  COMPOSE_SERVICES="$(compose config --services)"
+
+  # production-alb is the current AWS application-node topology. Fail early if a
+  # required service is missing so an outdated Compose file cannot silently
+  # produce a "successful" deployment without Calendra Connect/customer-web.
+  if [[ "$ENVIRONMENT" == "production-alb" || "$ENVIRONMENT" == "prod-alb" ]]; then
+    for required_service in backend frontend customer-web proxy; do
+      if ! grep -qx "$required_service" <<<"$COMPOSE_SERVICES"; then
+        echo "production-alb requires Compose service '$required_service', but it is missing from $COMPOSE_FILE." >&2
+        exit 2
+      fi
+    done
+  fi
+
   echo "Pulling Calendra images tagged '${CALENDRA_IMAGE_TAG:-latest}' from '${CALENDRA_IMAGE_REGISTRY:-ghcr.io/hospitalitysolutions}'..."
   PULL_SERVICES=(backend frontend)
-  if compose config --services | grep -qx 'customer-web'; then
+  if grep -qx 'customer-web' <<<"$COMPOSE_SERVICES"; then
     PULL_SERVICES+=(customer-web)
   fi
   compose pull "${PULL_SERVICES[@]}"
 
+  # Validate the Caddyfile through a one-shot Compose container BEFORE touching
+  # the live proxy. This mounts the current file from the host, unlike `exec`
+  # against an older proxy container whose bind mount may still reference the
+  # previous file inode after a git checkout/pull replaced the Caddyfile.
+  if grep -qx 'proxy' <<<"$COMPOSE_SERVICES"; then
+    echo "Validating current Caddy proxy configuration..."
+    compose run --rm --no-deps proxy caddy validate \
+      --config /etc/caddy/Caddyfile \
+      --adapter caddyfile
+  fi
+
   echo "Starting ${ENVIRONMENT} without a local image build..."
   compose up -d --no-build --wait
 
-  # Caddyfiles are bind-mounted into the proxy container. Docker Compose does not
-  # recreate a running container merely because the contents of a bind-mounted
-  # file changed, so the proxy can otherwise keep serving its old in-memory
-  # configuration after a deploy. Validate and hot-reload Caddy on every deploy
-  # to ensure new hosts/routes (for example connect.calendra.si) become active
-  # without restarting the proxy or causing avoidable downtime.
-  if compose config --services | grep -qx 'proxy'; then
-    echo "Validating Caddy proxy configuration..."
+  # The proxy Caddyfile is bind-mounted as a single file. If git replaces that
+  # file, a long-running container can remain attached to the old inode. A Caddy
+  # hot reload from inside that container would then reload the stale file again.
+  # Recreate the proxy on every deploy so Docker re-attaches the bind mount to the
+  # current host Caddyfile. The new Caddy process loads that validated config on
+  # startup, so a separate `caddy reload` is intentionally unnecessary.
+  if grep -qx 'proxy' <<<"$COMPOSE_SERVICES"; then
+    echo "Recreating Caddy proxy to refresh bind-mounted configuration..."
+    compose up -d --no-build --no-deps --force-recreate proxy
+
+    echo "Verifying Caddy proxy configuration after recreation..."
     compose exec -T proxy caddy validate \
       --config /etc/caddy/Caddyfile \
       --adapter caddyfile
-
-    echo "Reloading Caddy proxy configuration..."
-    if ! compose exec -T proxy caddy reload \
-      --config /etc/caddy/Caddyfile \
-      --adapter caddyfile; then
-      echo "Caddy hot-reload failed; recreating the proxy container as a fallback..." >&2
-      compose up -d --no-build --force-recreate --wait proxy
-    fi
   fi
 
   echo "${ENVIRONMENT} deployment completed successfully."
