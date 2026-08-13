@@ -404,6 +404,41 @@ public class PublicBookingWidgetService {
                 .toList();
     }
 
+    /**
+     * Public storefront team for one location. It exposes only names of active,
+     * bookable consultants that can serve at least one website-bookable non-group
+     * service at the selected location. The normal booking consultant endpoint
+     * remains service-specific.
+     */
+    @Transactional(readOnly = true)
+    public List<PublicBookingWidgetController.WidgetConsultantResponse> storefrontConsultants(
+            String tenantCode,
+            Long locationId,
+            HttpServletRequest request
+    ) {
+        Company company = resolveCompany(tenantCode);
+        guardPublicWidgetRequest(company, request, false, "storefront-consultants");
+        Location location = requirePublicLocation(company, locationId, false);
+        var rules = websiteWidgetSettingsService.bookingRules(company.getId(), location.getId());
+        if (!rules.employeeSelectionAllowed()) return List.of();
+
+        List<SessionType> publicServices = types.findAllWithLinkedServicesByCompanyId(company.getId()).stream()
+                .filter(this::isWebsiteBookingEnabled)
+                .filter(type -> isAvailableAtLocation(type, location.getId()))
+                .filter(type -> !Boolean.TRUE.equals(type.isWidgetGroupBookingEnabled()))
+                .toList();
+        if (publicServices.isEmpty()) return List.of();
+
+        return users.findActiveBookableByCompanyIdAndLocationId(company.getId(), location.getId()).stream()
+                .filter(user -> consultantAvailableAt(user, location.getId()))
+                .filter(user -> publicServices.stream().anyMatch(type -> consultantSupportsType(user, type)))
+                .sorted(Comparator.comparing(this::consultantFullName, String.CASE_INSENSITIVE_ORDER))
+                .map(consultant -> new PublicBookingWidgetController.WidgetConsultantResponse(
+                        consultant.getId(), consultantFullName(consultant)
+                ))
+                .toList();
+    }
+
     @Transactional(readOnly = true)
     public PublicBookingWidgetController.AvailabilityResponse availability(
             String tenantCode,

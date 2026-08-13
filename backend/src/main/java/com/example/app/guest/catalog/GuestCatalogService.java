@@ -15,6 +15,7 @@ import com.example.app.guest.model.VoucherRules;
 import com.example.app.guest.tenant.GuestLocationAccessService;
 import com.example.app.guest.tenant.GuestTenantService;
 import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.session.AvailabilityWindowGrid;
 import com.example.app.session.BookableSlot;
 import com.example.app.session.BookableSlotRepository;
@@ -79,6 +80,9 @@ public class GuestCatalogService {
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private GuestLocationAccessService guestLocations;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private LocationRepository locationRepository;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private GuestTenantService guestTenantService;
@@ -152,10 +156,32 @@ public class GuestCatalogService {
         return productsForScope(companyId, locationId, guestUser);
     }
 
+    /**
+     * Read-only storefront catalog for a public location. Unlike the authenticated Guest App
+     * path this does not require a location subscription; public discoverability is enforced by
+     * the storefront controller before this method is called. Purchase/order endpoints remain
+     * authenticated and unchanged.
+     */
+    @Transactional(readOnly = true)
+    public List<GuestDtos.ProductResponse> publicProducts(Long companyId, Long locationId) {
+        if (companyId == null || locationId == null) return List.of();
+        Location selectedLocation = locationRepository == null
+                ? (guestLocations == null ? null : guestLocations.requireDiscoverable(companyId, locationId))
+                : locationRepository.findByIdAndCompanyId(locationId, companyId)
+                        .filter(Location::isActive)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found."));
+        if (selectedLocation == null) return List.of();
+        return productsForScope(companyId, selectedLocation, null);
+    }
+
     private List<GuestDtos.ProductResponse> productsForScope(Long companyId, Long locationId, GuestUser guestUser) {
-        SimulatedTimeContext.set(companyId);
         Location selectedLocation = locationId == null || guestLocations == null
                 ? null : guestLocations.requireDiscoverable(companyId, locationId);
+        return productsForScope(companyId, selectedLocation, guestUser);
+    }
+
+    private List<GuestDtos.ProductResponse> productsForScope(Long companyId, Location selectedLocation, GuestUser guestUser) {
+        SimulatedTimeContext.set(companyId);
         List<GuestDtos.ProductResponse> out = new ArrayList<>();
         boolean billingEnabled = !Boolean.FALSE.equals(guestSettings.billingEnabled(companyId));
         boolean coursesEnabled = courseModuleAccessService == null || courseModuleAccessService.isEnabled(companyId);
@@ -163,7 +189,7 @@ public class GuestCatalogService {
         String defaultCurrency = tenantCurrency(companyId);
         for (SessionType type : sessionTypes.findAllWithLinkedServicesByCompanyId(companyId)) {
             if (!isVisibleInGuestServiceStep(companyId, type, guestUser)) continue;
-            if (selectedLocation != null && !guestLocations.isServiceAvailableAt(type, selectedLocation.getId())) continue;
+            if (selectedLocation != null && !serviceAvailableAtLocation(type, selectedLocation.getId())) continue;
             BigDecimal price = sessionTypePriceGross(type, selectedLocation == null ? null : selectedLocation.getId());
             String productType = Boolean.TRUE.equals(type.isWidgetGroupBookingEnabled()) ? "CLASS_TICKET" : "SESSION_SINGLE";
             out.add(new GuestDtos.ProductResponse(
@@ -277,8 +303,16 @@ public class GuestCatalogService {
     private boolean productHasEligibleServiceAtLocation(GuestProduct product, Long locationId) {
         List<SessionType> eligible = productEligibleSessionTypes(product);
         if (product != null && product.getServiceGroup() != null && eligible.isEmpty()) return false;
-        if (eligible.isEmpty() || locationId == null || guestLocations == null) return true;
-        return eligible.stream().anyMatch(type -> guestLocations.isServiceAvailableAt(type, locationId));
+        if (eligible.isEmpty() || locationId == null) return true;
+        return eligible.stream().anyMatch(type -> serviceAvailableAtLocation(type, locationId));
+    }
+
+    private boolean serviceAvailableAtLocation(SessionType type, Long locationId) {
+        if (type == null || locationId == null) return false;
+        if (type.isAvailableAllLocations()) return true;
+        return type.getLocations() != null && type.getLocations().stream()
+                .filter(Objects::nonNull)
+                .anyMatch(location -> Objects.equals(location.getId(), locationId));
     }
 
     private com.example.app.session.ServiceGroup publicGroup(SessionType type) {
