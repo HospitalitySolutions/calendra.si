@@ -24,7 +24,7 @@ class GoogleGeocodingClientTest {
 
         server.expect(requestTo(startsWith("https://geocode.test/maps/api/geocode/json")))
                 .andExpect(method(HttpMethod.GET))
-                .andExpect(queryParam("address", "Gosposka ulica 1, Maribor"))
+                .andExpect(queryParam("address", "Gosposka%20ulica%201,%20Maribor"))
                 .andExpect(queryParam("key", "test-key"))
                 .andExpect(queryParam("language", "sl"))
                 .andExpect(queryParam("region", "si"))
