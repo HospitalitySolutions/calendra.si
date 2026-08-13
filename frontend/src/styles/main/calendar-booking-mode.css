@@ -9248,3 +9248,27 @@
         justify-self: end;
     }
 }
+
+/* Calendar desktop client picker: the search field is one visual control.
+   features.booking.css gives the inner input its own border/ring, while the
+   booking panel already styles the surrounding client-search wrapper. Keep
+   the input transparent/borderless so we do not render a nested search box. */
+@media (min-width: 1025px) {
+    .calendar-edit-session-panel--design-match .calendar-client-picker__search-wrap input {
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .calendar-edit-session-panel--design-match .calendar-client-picker__search-wrap input:focus {
+        border: 0 !important;
+        outline: none !important;
+        box-shadow: none !important;
+    }
+
+    .calendar-edit-session-panel--design-match .calendar-client-picker__search-wrap:focus-within {
+        border-color: #0d8df4;
+        box-shadow: 0 0 0 3px rgba(13, 141, 244, 0.12);
+    }
+}
