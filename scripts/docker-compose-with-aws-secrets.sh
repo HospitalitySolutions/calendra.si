@@ -20,7 +20,7 @@ Staging example:
   CALENDRA_IMAGE_TAG=<full-git-sha> scripts/docker-compose-with-aws-secrets.sh staging deploy
 
 Calling the script with only an environment defaults to the safe immutable-image deploy action.
-It pulls backend/frontend from GHCR and starts Compose with --no-build.
+It pulls backend/frontend and customer-web where defined from GHCR and starts Compose with --no-build.
 
 Secrets Manager requirements:
 
@@ -248,7 +248,11 @@ if [[ "${1:-}" == "deploy" ]]; then
   fi
 
   echo "Pulling Calendra images tagged '${CALENDRA_IMAGE_TAG:-latest}' from '${CALENDRA_IMAGE_REGISTRY:-ghcr.io/hospitalitysolutions}'..."
-  compose pull backend frontend
+  PULL_SERVICES=(backend frontend)
+  if compose config --services | grep -qx 'customer-web'; then
+    PULL_SERVICES+=(customer-web)
+  fi
+  compose pull "${PULL_SERVICES[@]}"
 
   echo "Starting ${ENVIRONMENT} without a local image build..."
   exec docker compose "${COMPOSE_ENV_ARGS[@]}" -f "$COMPOSE_FILE" up -d --no-build --wait
