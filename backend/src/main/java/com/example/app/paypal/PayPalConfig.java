@@ -26,6 +26,9 @@ public class PayPalConfig {
     @Value("${app.paypal.brand-name:${APP_PAYPAL_BRAND_NAME:Calendra}}")
     private String brandName;
 
+    @Value("${app.customer-web.base-url:${APP_CUSTOMER_WEB_BASE_URL:https://connect.calendra.si}}")
+    private String customerWebBaseUrl;
+
     @Value("${app.paypal.partner-attribution-id:${PAYPAL_PARTNER_ATTRIBUTION_ID:}}")
     private String partnerAttributionId;
 
@@ -54,6 +57,11 @@ public class PayPalConfig {
     public String mobileCancelUrl() {
         String value = trim(mobileCancelUrl);
         return value == null || value.isBlank() ? "calendra-guest://paypal/return?status=cancelled" : value;
+    }
+
+    public String customerWebBaseUrl() {
+        String value = trim(customerWebBaseUrl);
+        return value == null || value.isBlank() ? "https://connect.calendra.si" : stripTrailingSlash(value);
     }
 
     public String brandName() {

@@ -903,7 +903,9 @@ public class GuestOrderService {
             }
             StripeCheckoutSessionResult session = channel == PaymentChannel.WEBSITE
                     ? stripeGuestCheckoutService.createWebsiteWidgetCheckoutSession(order)
-                    : stripeGuestCheckoutService.createCheckoutSession(order);
+                    : channel == PaymentChannel.CUSTOMER_WEB
+                        ? stripeGuestCheckoutService.createCustomerWebCheckoutSession(order)
+                        : stripeGuestCheckoutService.createCheckoutSession(order);
             order.setStripeCheckoutSessionId(session.id());
             order = orders.save(order);
             return new GuestDtos.CheckoutResponse(
@@ -925,7 +927,9 @@ public class GuestOrderService {
             if (merchantId == null || merchantId.isBlank()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal is not configured for this tenancy.");
             }
-            PayPalClient.PayPalOrderSession session = payPalClient.createOrder(order, merchantId);
+            PayPalClient.PayPalOrderSession session = channel == PaymentChannel.CUSTOMER_WEB
+                    ? payPalClient.createCustomerWebOrder(order, merchantId)
+                    : payPalClient.createOrder(order, merchantId);
             order.setPaypalOrderId(session.paypalOrderId());
             order = orders.save(order);
             return new GuestDtos.CheckoutResponse(
@@ -2193,6 +2197,7 @@ public class GuestOrderService {
 
     public enum PaymentChannel {
         GUEST,
-        WEBSITE
+        WEBSITE,
+        CUSTOMER_WEB
     }
 }

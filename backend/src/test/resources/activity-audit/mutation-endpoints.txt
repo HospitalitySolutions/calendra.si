@@ -123,6 +123,10 @@ course/CourseAdminController.java|@PostMapping("/{id}/media/direct-upload")|crea
 course/CourseAdminController.java|@PostMapping|create
 course/CourseAdminController.java|@PutMapping("/{id}")|update
 customer/CustomerController.java|@PostMapping("/booking-handoffs")|createBookingHandoff
+customer/CustomerController.java|@PostMapping("/commerce/orders")|createCommerceOrder
+customer/CustomerController.java|@PostMapping("/commerce/orders/{orderId}/cancel")|cancelCommerceCheckout
+customer/CustomerController.java|@PostMapping("/commerce/orders/{orderId}/checkout")|checkoutCommerceOrder
+customer/CustomerController.java|@PostMapping("/commerce/orders/{orderId}/paypal/complete")|completeCommercePayPal
 customer/CustomerController.java|@PostMapping("/notifications/read-all")|markAllNotificationsRead
 customer/CustomerController.java|@PostMapping("/notifications/{notificationId}/read")|markNotificationRead
 customfield/CustomFieldController.java|@DeleteMapping("/{id}")|delete

@@ -225,3 +225,96 @@ export type MessageView = {
   attachments?: unknown[]
   [key: string]: unknown
 }
+
+export type CustomerProduct = {
+  productId: string
+  name: string
+  productType: string
+  priceGross: number
+  currency: string
+  sessionTypeId?: string | null
+  sessionTypeName?: string | null
+  bookable: boolean
+  description?: string | null
+  durationMinutes?: number | null
+  promoText?: string | null
+  validityDays?: number | null
+  usageLimit?: number | null
+  voucherRedemptionMode?: string | null
+  voucherServiceScope?: string | null
+  voucherFaceValueGross?: number | null
+  voucherSessionTypeIds?: string[] | null
+  voucherSessionTypeNames?: string[] | null
+}
+
+export type CommerceCatalog = {
+  provider: Provider
+  products: CustomerProduct[]
+  acceptedPaymentMethods: string[]
+}
+
+export type PublicStorefrontService = {
+  id: number
+  name: string
+  description?: string | null
+  durationMinutes?: number | null
+  priceLabel?: string | null
+  priceGross?: number | null
+  maxParticipantsPerSession?: number | null
+  groupBooking: boolean
+  serviceGroupId?: number | null
+  serviceGroupName?: string | null
+  serviceGroupSortOrder?: number | null
+  serviceSortOrder: number
+}
+
+export type PublicStorefrontProduct = {
+  productId: string
+  name: string
+  productType: string
+  priceGross: number
+  currency: string
+  description?: string | null
+  promoText?: string | null
+  validityDays?: number | null
+  usageLimit?: number | null
+  bookable: boolean
+  voucherFaceValueGross?: number | null
+  voucherSessionTypeNames?: string[] | null
+}
+
+export type PublicStorefront = {
+  location: PublicLocation
+  services: PublicStorefrontService[]
+  products: PublicStorefrontProduct[]
+  team: { id: number; name: string }[]
+}
+
+export type CreateOrderResponse = {
+  order: {
+    orderId: string
+    status: string
+    paymentMethodType: string
+    subtotalGross: number
+    taxAmount: number
+    totalGross: number
+    currency: string
+  }
+  booking?: unknown | null
+  nextAction: string
+}
+
+export type CheckoutResponse = {
+  orderId: string
+  paymentMethodType: string
+  status: string
+  checkoutUrl?: string | null
+  bankTransfer?: {
+    amount: number
+    currency: string
+    referenceCode: string
+    instructions: string
+  } | null
+  nextAction: string
+  merchantDisplayName?: string | null
+}

@@ -45,6 +45,10 @@ public class StripeGuestCheckoutService {
         return createCheckoutSession(order, websiteWidgetReturnUrl(order, "success"), websiteWidgetCancelUrl(order), "website_widget_order");
     }
 
+    public StripeCheckoutSessionResult createCustomerWebCheckoutSession(GuestOrder order) {
+        return createCheckoutSession(order, customerWebReturnUrl(order, "success", true), customerWebReturnUrl(order, "cancelled", false), "customer_web_order");
+    }
+
     private StripeCheckoutSessionResult createCheckoutSession(GuestOrder order, String successUrl, String cancelUrl, String source) {
         StripeConnectService.ConnectedAccountRouting routing = connectService.routingForCompany(order.getCompany());
         StripePlatformSettingsService.StripeModeSettings cfg = routing.modeSettings();
@@ -99,6 +103,28 @@ public class StripeGuestCheckoutService {
         return publicBaseUrl()
                 + "/api/public/widget/stripe/cancel?orderId=" + order.getId()
                 + "&session_id={CHECKOUT_SESSION_ID}";
+    }
+
+    private String customerWebReturnUrl(GuestOrder order, String status, boolean includeSessionId) {
+        String url = customerWebBaseUrl()
+                + "/checkout/return?provider=stripe&status=" + status
+                + "&orderId=" + order.getId();
+        return includeSessionId ? url + "&session_id={CHECKOUT_SESSION_ID}" : url;
+    }
+
+    private String customerWebBaseUrl() {
+        String value = firstNonBlank(
+                environment.getProperty("APP_CUSTOMER_WEB_BASE_URL"),
+                environment.getProperty("app.customer-web.base-url")
+        );
+        if (value == null || value.isBlank()) {
+            value = "https://connect.calendra.si";
+        }
+        value = value.trim();
+        while (value.endsWith("/")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return value;
     }
 
     private String publicBaseUrl() {

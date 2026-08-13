@@ -2,6 +2,9 @@ import { apiFetch } from './client'
 import type {
   AvailabilityResponse,
   BookingHandoff,
+  CommerceCatalog,
+  CreateOrderResponse,
+  CheckoutResponse,
   CustomerBooking,
   CustomerHome,
   CustomerWallet,
@@ -12,7 +15,9 @@ import type {
   NotificationsResponse,
   ProfileSettings,
   PublicLocation,
+  PublicStorefront,
   SignupChallenge,
+  WalletOrder,
 } from './types'
 
 export const customerApi = {
@@ -146,6 +151,56 @@ export const customerApi = {
 
   providers() {
     return apiFetch<PublicLocation[]>('/api/public/location-directory', {}, { auth: false })
+  },
+
+  storefront(slug: string) {
+    return apiFetch<PublicStorefront>(`/api/public/storefront/${encodeURIComponent(slug)}`, {}, { auth: false })
+  },
+
+  commerceCatalog(locationId: string | number) {
+    return apiFetch<CommerceCatalog>(`/api/customer/v1/commerce/locations/${encodeURIComponent(String(locationId))}`)
+  },
+
+  createCommerceOrder(payload: { locationId: string | number; productId: string; paymentMethodType: string; locale?: string }) {
+    return apiFetch<CreateOrderResponse>('/api/customer/v1/commerce/orders', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      body: JSON.stringify({
+        locationId: String(payload.locationId),
+        productId: payload.productId,
+        paymentMethodType: payload.paymentMethodType,
+        locale: payload.locale || 'sl',
+      }),
+    })
+  },
+
+  checkoutCommerceOrder(orderId: string, paymentMethodType: string, locale = 'sl') {
+    return apiFetch<CheckoutResponse>(`/api/customer/v1/commerce/orders/${encodeURIComponent(orderId)}/checkout`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      body: JSON.stringify({ paymentMethodType, locale }),
+    })
+  },
+
+  commerceOrder(orderId: string) {
+    return apiFetch<WalletOrder>(`/api/customer/v1/commerce/orders/${encodeURIComponent(orderId)}`)
+  },
+
+  completeCommercePayPal(orderId: string, token?: string | null) {
+    const params = new URLSearchParams()
+    if (token) params.set('token', token)
+    const query = params.toString()
+    const suffix = query ? `?${query}` : ''
+    return apiFetch<WalletOrder>(`/api/customer/v1/commerce/orders/${encodeURIComponent(orderId)}/paypal/complete${suffix}`, { method: 'POST' })
+  },
+
+  cancelCommerceCheckout(orderId: string, options: { sessionId?: string | null; token?: string | null } = {}) {
+    const params = new URLSearchParams()
+    if (options.sessionId) params.set('session_id', options.sessionId)
+    if (options.token) params.set('token', options.token)
+    const query = params.toString()
+    const suffix = query ? `?${query}` : ''
+    return apiFetch<WalletOrder>(`/api/customer/v1/commerce/orders/${encodeURIComponent(orderId)}/cancel${suffix}`, { method: 'POST' })
   },
 
   profileSettings() {

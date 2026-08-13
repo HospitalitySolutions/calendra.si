@@ -70,6 +70,24 @@ public final class CustomerDtos {
             List<WalletOrderResponse> orders
     ) {}
 
+    public record CommerceCatalogResponse(
+            ProviderResponse provider,
+            List<GuestDtos.ProductResponse> products,
+            List<String> acceptedPaymentMethods
+    ) {}
+
+    public record CreateCommerceOrderRequest(
+            String locationId,
+            String productId,
+            String paymentMethodType,
+            String locale
+    ) {}
+
+    public record CustomerCheckoutRequest(
+            String paymentMethodType,
+            String locale
+    ) {}
+
     public record NotificationResponse(
             String notificationId,
             ProviderResponse provider,

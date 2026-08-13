@@ -18,15 +18,18 @@ public class CustomerController {
     private final GuestAuthContextService authContextService;
     private final CustomerService customerService;
     private final CustomerBookingHandoffService bookingHandoffs;
+    private final CustomerCommerceService commerce;
 
     public CustomerController(
             GuestAuthContextService authContextService,
             CustomerService customerService,
-            CustomerBookingHandoffService bookingHandoffs
+            CustomerBookingHandoffService bookingHandoffs,
+            CustomerCommerceService commerce
     ) {
         this.authContextService = authContextService;
         this.customerService = customerService;
         this.bookingHandoffs = bookingHandoffs;
+        this.commerce = commerce;
     }
 
     @GetMapping("/home")
@@ -58,6 +61,61 @@ public class CustomerController {
             HttpServletRequest request
     ) {
         return customerService.booking(requireGuest(request), bookingId);
+    }
+
+
+    @GetMapping("/commerce/locations/{locationId}")
+    public CustomerDtos.CommerceCatalogResponse commerceCatalog(
+            @PathVariable Long locationId,
+            HttpServletRequest request
+    ) {
+        return commerce.catalog(requireGuest(request), locationId);
+    }
+
+    @PostMapping("/commerce/orders")
+    public GuestDtos.CreateOrderResponse createCommerceOrder(
+            @org.springframework.web.bind.annotation.RequestBody CustomerDtos.CreateCommerceOrderRequest payload,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            HttpServletRequest request
+    ) {
+        return commerce.createOrder(requireGuest(request), payload, idempotencyKey);
+    }
+
+    @PostMapping("/commerce/orders/{orderId}/checkout")
+    public GuestDtos.CheckoutResponse checkoutCommerceOrder(
+            @PathVariable Long orderId,
+            @org.springframework.web.bind.annotation.RequestBody CustomerDtos.CustomerCheckoutRequest payload,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            HttpServletRequest request
+    ) {
+        return commerce.checkout(requireGuest(request), orderId, payload, idempotencyKey);
+    }
+
+    @GetMapping("/commerce/orders/{orderId}")
+    public CustomerDtos.WalletOrderResponse commerceOrder(
+            @PathVariable Long orderId,
+            HttpServletRequest request
+    ) {
+        return commerce.order(requireGuest(request), orderId);
+    }
+
+    @PostMapping("/commerce/orders/{orderId}/paypal/complete")
+    public CustomerDtos.WalletOrderResponse completeCommercePayPal(
+            @PathVariable Long orderId,
+            @RequestParam(required = false) String token,
+            HttpServletRequest request
+    ) {
+        return commerce.completePayPal(requireGuest(request), orderId, token);
+    }
+
+    @PostMapping("/commerce/orders/{orderId}/cancel")
+    public CustomerDtos.WalletOrderResponse cancelCommerceCheckout(
+            @PathVariable Long orderId,
+            @RequestParam(name = "session_id", required = false) String checkoutSessionId,
+            @RequestParam(name = "token", required = false) String paypalToken,
+            HttpServletRequest request
+    ) {
+        return commerce.cancelExternalCheckout(requireGuest(request), orderId, checkoutSessionId, paypalToken);
     }
 
     @GetMapping("/wallet")

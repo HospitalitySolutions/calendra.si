@@ -31,11 +31,28 @@ public class PayPalClient {
     }
 
     public PayPalOrderSession createOrder(GuestOrder order, String merchantId) {
+        return createOrder(
+                order,
+                merchantId,
+                config.publicBaseUrl() + "/api/guest/paypal/return?orderId=" + order.getId(),
+                config.publicBaseUrl() + "/api/guest/paypal/cancel?orderId=" + order.getId()
+        );
+    }
+
+    public PayPalOrderSession createCustomerWebOrder(GuestOrder order, String merchantId) {
+        String base = config.customerWebBaseUrl();
+        return createOrder(
+                order,
+                merchantId,
+                base + "/checkout/return?provider=paypal&status=success&orderId=" + order.getId(),
+                base + "/checkout/return?provider=paypal&status=cancelled&orderId=" + order.getId()
+        );
+    }
+
+    private PayPalOrderSession createOrder(GuestOrder order, String merchantId, String returnUrl, String cancelUrl) {
         ensureConfigured();
         try {
             String accessToken = accessToken();
-            String returnUrl = config.publicBaseUrl() + "/api/guest/paypal/return?orderId=" + order.getId();
-            String cancelUrl = config.publicBaseUrl() + "/api/guest/paypal/cancel?orderId=" + order.getId();
 
             Map<String, Object> request = new LinkedHashMap<>();
             request.put("intent", "CAPTURE");

@@ -10,6 +10,9 @@ import { InboxPage } from './pages/InboxPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { ProfilePage } from './pages/ProfilePage'
+import { ProviderPage } from './pages/ProviderPage'
+import { PurchasePage } from './pages/PurchasePage'
+import { CheckoutReturnPage } from './pages/CheckoutReturnPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { WalletPage } from './pages/WalletPage'
 
@@ -22,6 +25,9 @@ export default function App() {
       <Route element={<CustomerShell/>}>
         <Route index element={<HomePage/>}/>
         <Route path="discover" element={<DiscoverPage/>}/>
+        <Route path="providers/:slug" element={<ProviderPage/>}/>
+        <Route path="providers/:slug/buy/:productId" element={<PurchasePage/>}/>
+        <Route path="checkout/return" element={<CheckoutReturnPage/>}/>
         <Route path="bookings" element={<BookingsPage/>}/>
         <Route path="bookings/:id" element={<BookingDetailPage/>}/>
         <Route path="wallet" element={<WalletPage/>}/>
