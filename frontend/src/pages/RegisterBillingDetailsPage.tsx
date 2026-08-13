@@ -941,6 +941,18 @@ type RegisterTenantType =
   | "spa"
   | "personal_training";
 
+
+function registerTenantTypeFromBusinessType(raw?: string): RegisterTenantType {
+  switch ((raw || "").trim().toLowerCase()) {
+    case "personal_training": return "personal_training";
+    case "studio":
+    case "gym": return "gym";
+    case "massage":
+    case "spa": return "spa";
+    case "therapy": return "therapy";
+    default: return "salon";
+  }
+}
 const tenantTypeOptions: Record<
   RegisterLocale,
   Array<{ value: RegisterTenantType; label: string }>
@@ -1009,12 +1021,12 @@ export function RegisterBillingDetailsPage() {
 
   const [firstName, setFirstName] = useState(storedUser?.firstName || "");
   const [lastName, setLastName] = useState(storedUser?.lastName || "");
-  const [companyName, setCompanyName] = useState("");
+  const [companyName, setCompanyName] = useState(selection.companyName || "");
   const [vatId, setVatId] = useState("");
   const [address, setAddress] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [city, setCity] = useState("");
-  const [tenantType, setTenantType] = useState<RegisterTenantType>("salon");
+  const [tenantType, setTenantType] = useState<RegisterTenantType>(() => registerTenantTypeFromBusinessType(selection.businessType));
   const [paymentMethod, setPaymentMethod] =
     useState<RegisterPaymentMethod>("BANK_TRANSFER");
   const [paymentCapabilities, setPaymentCapabilities] =

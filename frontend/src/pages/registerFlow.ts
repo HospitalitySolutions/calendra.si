@@ -10,6 +10,11 @@ export type RegisterSelection = {
   additionalSms: number
   /** Selected feature add-ons by catalog key. Dynamic keys are allowed because platform admin can edit the public add-on catalog. */
   addons: Record<string, boolean>
+  /** Business information collected in step 1 of the onboarding flow. */
+  companyName?: string
+  businessType?: string
+  /** Optional platform feature choices. Basic-plan features are implicit and therefore omitted. */
+  features?: Record<string, boolean>
 }
 
 export const registerPlanToPackage = {
@@ -23,16 +28,20 @@ export function isBasicMonthlyTrial(selection: Pick<RegisterSelection, 'plan' | 
 }
 
 /**
- * The 14-day Basic monthly trial always starts with one user and no paid usage/add-ons.
- * Extra users, SMS and feature add-ons can be scheduled later from the tenant subscription page.
+ * Basic monthly still starts without SMS usage. The redesigned onboarding keeps the
+ * requested company user count and optional selections so the next steps can derive
+ * the appropriate package and billing requirements.
  */
 export function normalizeRegisterSelection(selection: RegisterSelection): RegisterSelection {
+  // The new onboarding flow collects the requested user count before a package is
+  // derived from optional features. Keep that count intact even for a fresh Basic
+  // trial so it can be used if the user selects a paid feature in step 2.
   if (!isBasicMonthlyTrial(selection)) return selection
   return {
     ...selection,
-    additionalUsers: 1,
     additionalSms: 0,
-    addons: {},
+    addons: selection.addons || {},
+    features: selection.features || {},
   }
 }
 
@@ -71,7 +80,7 @@ export function parseRegisterSelection(search: string): RegisterSelection {
 
   const plan: RegisterPlanKey = rawPlan === 'basic' || rawPlan === 'pro' || rawPlan === 'business'
     ? rawPlan
-    : getRegisterPlanFromPackage(params.get('package'))
+    : (params.get('package') ? getRegisterPlanFromPackage(params.get('package')) : 'basic')
 
   const billing: RegisterBillingCycle = rawBilling === 'annual' || rawBilling === 'yearly' ? 'annual' : 'monthly'
 
@@ -87,12 +96,21 @@ export function parseRegisterSelection(search: string): RegisterSelection {
   if (parseBool(params.get('billingAddon'))) addons.billing = true
   if (parseBool(params.get('whitelabel'))) addons.whitelabel = true
 
+  const features: Record<string, boolean> = {}
+  params.getAll('feature').forEach((key) => {
+    const normalized = normalizeAddonKey(key)
+    if (normalized) features[normalized] = true
+  })
+
   return normalizeRegisterSelection({
     plan,
     billing,
-    additionalUsers: clampInt(params.get('users'), 1, 10, 1),
+    additionalUsers: clampInt(params.get('users'), 1, 100, 1),
     additionalSms,
     addons,
+    companyName: params.get('company')?.trim() || '',
+    businessType: params.get('businessType')?.trim() || '',
+    features,
   })
 }
 
@@ -105,6 +123,14 @@ export function selectionToSearch(selection: RegisterSelection) {
   params.set('interval', normalized.billing === 'annual' ? 'YEARLY' : 'MONTHLY')
   params.set('users', String(normalized.additionalUsers))
   params.set('sms', String(normalized.additionalSms))
+  if (normalized.companyName?.trim()) params.set('company', normalized.companyName.trim())
+  if (normalized.businessType?.trim()) params.set('businessType', normalized.businessType.trim())
+  Object.entries(normalized.features || {})
+    .filter(([, selected]) => selected)
+    .map(([key]) => normalizeAddonKey(key))
+    .filter(Boolean)
+    .sort()
+    .forEach((key) => params.append('feature', key))
   Object.entries(normalized.addons || {})
     .filter(([, selected]) => selected)
     .map(([key]) => normalizeAddonKey(key))
@@ -119,12 +145,10 @@ export function selectionToSearch(selection: RegisterSelection) {
 
 /** Total user seats selected on signup (min 1). The first user is included; every extra seat is billed. */
 export function getBillableAdditionalUserSlots(selection: RegisterSelection): number {
-  if (isBasicMonthlyTrial(selection)) return 0
   return Math.max(0, selection.additionalUsers - 1)
 }
 
 export function getEstimatedUserCount(selection: RegisterSelection) {
-  if (isBasicMonthlyTrial(selection)) return 1
   return Math.max(1, selection.additionalUsers)
 }
 

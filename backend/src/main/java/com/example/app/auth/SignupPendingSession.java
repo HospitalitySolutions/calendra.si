@@ -10,6 +10,7 @@ public record SignupPendingSession(
         /** When blank, Google signup uses the email returned by the provider. Otherwise it must match that address. */
         String email,
         String companyName,
+        String tenantType,
         String firstName,
         String lastName,
         String phone,

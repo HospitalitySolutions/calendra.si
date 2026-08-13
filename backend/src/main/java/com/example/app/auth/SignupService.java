@@ -442,6 +442,7 @@ public class SignupService {
                 request.addonKeys(),
                 request.billingInterval(),
                 request.fiscalizationNeeded(),
+                request.tenantType(),
                 request.returnSearch()
         );
         ResponseEntity<?> provisioned = provisionNewTenant(finalized, normalizedEmail, httpRequest, httpResponse, false);
@@ -544,6 +545,7 @@ public class SignupService {
                 request.addonKeys(),
                 request.billingInterval(),
                 request.fiscalizationNeeded(),
+                request.tenantType(),
                 request.returnSearch()
         );
         ResponseEntity<?> provisioned = provisionNewTenant(finalized, normalizedEmail, httpRequest, httpResponse, false);
@@ -575,9 +577,7 @@ public class SignupService {
         String normalizedPackageType = normalizePackageType(request.packageName(), "PROFESSIONAL");
         String interval = normalizeBillingInterval(request.billingInterval());
         boolean basicMonthlyTrial = isBasicMonthlyTrial(normalizedPackageType, interval);
-        int selectedUserCount = basicMonthlyTrial
-                ? 1
-                : Math.max(1, request.userCount() == null ? 1 : request.userCount());
+        int selectedUserCount = Math.max(1, request.userCount() == null ? 1 : request.userCount());
         int selectedSmsCount = basicMonthlyTrial
                 ? 0
                 : Math.max(0, request.smsCount() == null ? 0 : request.smsCount());
@@ -618,8 +618,10 @@ public class SignupService {
                 company, companyName, null, null, null, null, phone, normalizedEmail
         );
         seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, normalizedPackageType);
-        applyModuleConfigPreset(company, "salon", normalizedPackageType);
-        seedGuestAppTenantType(company, "salon", normalizedPackageType);
+        String normalizedTenantType = normalizeTenantConfigType(request.tenantType());
+        seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, normalizedTenantType);
+        applyModuleConfigPreset(company, normalizedTenantType, normalizedPackageType);
+        seedGuestAppTenantType(company, normalizedTenantType, normalizedPackageType);
         seedSetting(company, SettingKey.SIGNUP_USER_COUNT, String.valueOf(selectedUserCount));
         seedSetting(company, SettingKey.SIGNUP_SMS_COUNT, String.valueOf(selectedSmsCount));
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, "0");
@@ -776,9 +778,10 @@ public class SignupService {
         String interval = normalizeBillingInterval(request.billingInterval());
         boolean basicMonthlyTrial = isBasicMonthlyTrial(normalizedPackageType, interval);
         seedSetting(company, SettingKey.SIGNUP_PACKAGE_NAME, normalizedPackageType);
-        int selectedUserCount = basicMonthlyTrial
-                ? 1
-                : Math.max(1, request.userCount() == null ? parsePositiveIntSetting(company.getId(), SettingKey.SIGNUP_USER_COUNT, 1) : request.userCount());
+        int selectedUserCount = Math.max(1,
+                request.userCount() == null
+                        ? parsePositiveIntSetting(company.getId(), SettingKey.SIGNUP_USER_COUNT, 1)
+                        : request.userCount());
         int selectedSmsCount = basicMonthlyTrial
                 ? 0
                 : Math.max(0, request.smsCount() == null ? parsePositiveIntSetting(company.getId(), SettingKey.SIGNUP_SMS_COUNT, 0) : request.smsCount());
@@ -1143,6 +1146,9 @@ public class SignupService {
         Boolean fiscal = settings.findByCompanyIdAndKey(cid, SettingKey.SIGNUP_FISCALIZATION_REQUIRED)
                 .map(s -> "true".equalsIgnoreCase(s.getValue()))
                 .orElse(false);
+        String tenantType = settings.findByCompanyIdAndKey(cid, SettingKey.MODULE_CONFIG_TYPE)
+                .map(AppSetting::getValue)
+                .orElse("salon");
         return new AuthController.SignupRequest(
                 companyName,
                 owner.getFirstName(),
@@ -1157,6 +1163,7 @@ public class SignupService {
                 addonKeys,
                 interval,
                 fiscal,
+                tenantType,
                 null
         );
     }
@@ -1209,6 +1216,7 @@ public class SignupService {
         m.put("addonKeys", sanitizeAddonKeys(request.addonKeys()));
         m.put("billingInterval", request.billingInterval());
         m.put("fiscalizationNeeded", request.fiscalizationNeeded());
+        m.put("tenantType", request.tenantType());
         m.put("returnSearch", request.returnSearch());
         return m;
     }
@@ -1230,6 +1238,7 @@ public class SignupService {
                 stringListVal(map.get("addonKeys")),
                 stringVal(map.get("billingInterval")),
                 boolVal(map.get("fiscalizationNeeded")),
+                stringVal(map.get("tenantType")),
                 stringVal(map.get("returnSearch"))
         );
     }
@@ -1681,7 +1690,7 @@ public class SignupService {
             ln = googleLastName == null || googleLastName.isBlank() ? "Account" : googleLastName.trim();
         }
         String returnSearch = pending.returnSearch() == null ? "" : pending.returnSearch();
-        String generatedPassword = "Google#" + UUID.randomUUID().toString().replace("-", "") + "Aa1";
+        String generatedPassword = "OAuth#" + UUID.randomUUID().toString().replace("-", "") + "Aa1";
         var request = new AuthController.SignupRequest(
                 pending.companyName(),
                 fn,
@@ -1696,6 +1705,7 @@ public class SignupService {
                 pending.addonKeys(),
                 pending.billingInterval(),
                 pending.fiscalizationNeeded(),
+                pending.tenantType(),
                 returnSearch
         );
         ResponseEntity<?> provisioned = provisionNewTenant(request, normalizedEmail, httpRequest, httpResponse, false);
@@ -1735,7 +1745,7 @@ public class SignupService {
         clearSignupOwnerPasswordPending(owner);
         deactivateSignupIntentsForEmail(normalizedEmail.trim().toLowerCase(Locale.ROOT));
         sendRegisteredTenantWelcomeEmailSafely(owner, owner.getCompany() == null ? null : owner.getCompany().getName(), packageTypeForCompany(owner.getCompany()), localeFromReturnSearch(returnSearch));
-        String sessionToken = securityCenterService.issueSession(owner, httpRequest, "Google signup completion").token();
+        String sessionToken = securityCenterService.issueSession(owner, httpRequest, "OAuth signup completion").token();
         authCookieService.writeAuthCookie(httpRequest, httpResponse, sessionToken);
         Map<String, Object> out = new LinkedHashMap<>(authSuccessResponse(owner, sessionToken, httpRequest));
         putIfPresent(out, "returnSearch", returnSearch);

@@ -156,8 +156,8 @@ public class AuthController {
                 }
 
                 if ("1".equals(request.getParameter("register"))) {
-                        if (!"google".equals(registrationId)) {
-                                redirectOauthError(response, providerName + " signup is not enabled yet. Use email/password or Google signup.");
+                        if (!("google".equals(registrationId) || "apple".equals(registrationId))) {
+                                redirectOauthError(response, providerName + " signup is not enabled.");
                                 return;
                         }
                         HttpSession session = request.getSession(false);
@@ -165,6 +165,8 @@ public class AuthController {
                                 redirectOauthError(response, "Your signup session expired. Return to account setup and try again.");
                                 return;
                         }
+                        // Shared self-serve OAuth signup marker. The historic attribute name is
+                        // retained for rolling-deploy/session compatibility.
                         session.setAttribute("OAUTH_GOOGLE_SIGNUP_ACTIVE", Boolean.TRUE);
                 }
 
@@ -482,7 +484,7 @@ public class AuthController {
 
     @PostMapping("/signup/pending-session")
     public ResponseEntity<?> saveSignupPendingSession(@RequestBody SignupPendingSession body, HttpSession session) {
-        // Email may be blank when the user will complete Google OAuth; the provider supplies the address.
+        // Email may be blank when the user will complete OAuth signup; the provider supplies the address.
         session.setAttribute("SIGNUP_PENDING", body);
         return ResponseEntity.ok(Map.of("ok", true));
     }
@@ -659,9 +661,33 @@ public class AuthController {
             /** MONTHLY or YEARLY */
             String billingInterval,
             Boolean fiscalizationNeeded,
+            /** Optional company/activity type collected in the first onboarding step. */
+            String tenantType,
             /** Optional: {@code location.search} from the register flow for redirects after email confirmation. */
             String returnSearch
     ) {
+        /** Backwards-compatible constructor matching the previous canonical shape. */
+        public SignupRequest(
+                String companyName,
+                String firstName,
+                String lastName,
+                String email,
+                String phone,
+                String password,
+                String packageName,
+                Integer userCount,
+                Integer smsCount,
+                Integer spaceCount,
+                List<String> addonKeys,
+                String billingInterval,
+                Boolean fiscalizationNeeded,
+                String returnSearch
+        ) {
+            this(companyName, firstName, lastName, email, phone, password, packageName,
+                    userCount, smsCount, spaceCount, addonKeys, billingInterval,
+                    fiscalizationNeeded, null, returnSearch);
+        }
+
         /** Backwards-compatible constructor for tests/callers from before package add-ons were added. */
         public SignupRequest(
                 String companyName,
@@ -692,6 +718,7 @@ public class AuthController {
                     List.of(),
                     billingInterval,
                     fiscalizationNeeded,
+                    null,
                     returnSearch
             );
         }

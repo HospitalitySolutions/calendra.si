@@ -28,7 +28,7 @@ import java.util.Map;
 
 /**
  * After successful OAuth2 login, locate the existing staff user, issue a session cookie,
- * and redirect to the frontend callback. Google signup keeps its existing dedicated flow.
+ * and redirect to the frontend callback. Self-serve Google/Apple signup uses the dedicated pending-session flow.
  */
 @Component
 public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
@@ -88,8 +88,8 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         log.info("{} OAuth login-account lookup. email={} matches={}", providerName, LogSanitizer.emailHash(normalizedEmail), loginCandidates.size());
 
         HttpSession session = request.getSession(false);
-        boolean googleSignupFlow = session != null && Boolean.TRUE.equals(session.getAttribute("OAUTH_GOOGLE_SIGNUP_ACTIVE"));
-        if (googleSignupFlow) {
+        boolean oauthSignupFlow = session != null && Boolean.TRUE.equals(session.getAttribute("OAUTH_GOOGLE_SIGNUP_ACTIVE"));
+        if (oauthSignupFlow) {
             if (session != null) {
                 session.removeAttribute("OAUTH_GOOGLE_SIGNUP_ACTIVE");
             }
@@ -98,7 +98,7 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
                 session.removeAttribute("SIGNUP_PENDING");
             }
             if (pending == null) {
-                log.warn("Google signup flow missing SIGNUP_PENDING session.");
+                log.warn("{} signup flow missing SIGNUP_PENDING session.", providerName);
                 redirectWithError(response, "Your signup session expired. Return to account setup and try again.");
                 return;
             }
@@ -112,26 +112,26 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
                         pending.billingInterval()
                 );
                 if (!completion.getStatusCode().is2xxSuccessful()) {
-                    log.warn("Google signup pending completion failed for email={} status={}", LogSanitizer.emailHash(normalizedEmail), completion.getStatusCode());
+                    log.warn("{} signup pending completion failed for email={} status={}", providerName, LogSanitizer.emailHash(normalizedEmail), completion.getStatusCode());
                     redirectWithError(response, "Could not complete signup. Please try again.");
                     return;
                 }
-                String target = buildRegisterBillingDetailsUrl(pending.returnSearch());
-                log.info("Google signup: completed pending self-serve signup for email={}; redirecting to {}", LogSanitizer.emailHash(normalizedEmail), target);
+                String target = buildPostSignupTarget(pending);
+                log.info("{} signup: completed pending self-serve signup for email={}; redirecting to {}", providerName, LogSanitizer.emailHash(normalizedEmail), target);
                 getRedirectStrategy().sendRedirect(request, response, target);
                 return;
             }
             if (user != null) {
                 String returnSearch = pending != null && pending.returnSearch() != null ? pending.returnSearch() : "";
                 String target = buildRegisterAccountExistingAccountUrl(returnSearch, normalizedEmail);
-                log.info("Google signup: verified account exists for email={}; redirecting to {}", LogSanitizer.emailHash(normalizedEmail), target);
+                log.info("{} signup: verified account exists for email={}; redirecting to {}", providerName, LogSanitizer.emailHash(normalizedEmail), target);
                 getRedirectStrategy().sendRedirect(request, response, target);
                 return;
             }
             String pendingEmail = pending.email() == null ? "" : pending.email().trim();
             if (!pendingEmail.isBlank() && !normalizedEmail.equalsIgnoreCase(pendingEmail)) {
-                log.warn("Google signup email mismatch. google={} pending={}", LogSanitizer.emailHash(normalizedEmail), LogSanitizer.emailHash(pendingEmail));
-                redirectWithError(response, "Google account email does not match the work email you entered. Use the same email or start again.");
+                log.warn("{} signup email mismatch. provider={} pending={}", providerName, LogSanitizer.emailHash(normalizedEmail), LogSanitizer.emailHash(pendingEmail));
+                redirectWithError(response, providerName + " account email does not match the work email you entered. Use the same email or start again.");
                 return;
             }
             ResponseEntity<?> signupResult = signupService.signupFromGooglePending(
@@ -148,15 +148,15 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
                 return;
             }
             if (!signupResult.getStatusCode().is2xxSuccessful() || !(signupResult.getBody() instanceof Map<?, ?> body)) {
-                log.warn("Google signup unexpected response status={}", signupResult.getStatusCode());
+                log.warn("{} signup unexpected response status={}", providerName, signupResult.getStatusCode());
                 redirectWithError(response, "Could not complete signup. Please try again.");
                 return;
             }
             String returnSearch = body.get("returnSearch") == null
                     ? (pending.returnSearch() == null ? "" : pending.returnSearch())
                     : String.valueOf(body.get("returnSearch"));
-            String target = buildRegisterBillingDetailsUrl(returnSearch);
-            log.info("Google signup provisioned; redirecting to {}", target);
+            String target = buildPostSignupTarget(pending);
+            log.info("{} signup provisioned; redirecting to {}", providerName, target);
             getRedirectStrategy().sendRedirect(request, response, target);
             return;
         }
@@ -262,6 +262,25 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
         return base + rs + sep + "existingAccount=1&email=" + URLEncoder.encode(email, StandardCharsets.UTF_8);
     }
 
+
+    private String buildPostSignupTarget(SignupPendingSession pending) {
+        if (!signupRequiresBillingDetails(pending)) {
+            return frontendBaseUrl() + "/calendar";
+        }
+        return buildRegisterBillingDetailsUrl(pending == null ? null : pending.returnSearch());
+    }
+
+    private boolean signupRequiresBillingDetails(SignupPendingSession pending) {
+        if (pending == null) return false;
+        String packageName = pending.packageName() == null ? "" : pending.packageName().trim().toUpperCase();
+        String interval = pending.billingInterval() == null ? "MONTHLY" : pending.billingInterval().trim().toUpperCase();
+        boolean basicMonthly = ("BASIC".equals(packageName) || "TRIAL".equals(packageName))
+                && !"YEARLY".equals(interval) && !"ANNUAL".equals(interval);
+        if (!basicMonthly) return true;
+        if (pending.userCount() != null && pending.userCount() > 1) return true;
+        if (pending.smsCount() != null && pending.smsCount() > 0) return true;
+        return pending.addonKeys() != null && !pending.addonKeys().isEmpty();
+    }
     private String buildRegisterBillingDetailsUrl(String returnSearch) {
         String base = frontendBaseUrl() + "/register/billing-details";
         String rs = returnSearch == null ? "" : returnSearch.trim();
