@@ -66,10 +66,18 @@ class PublicStorefrontServiceTest {
 
         when(directory.findBySlug("studio-lux-31")).thenReturn(Optional.of(location));
         when(companies.findByTenantCodeIgnoreCase("STUDIO-LUX")).thenReturn(Optional.of(company));
-        when(bookingWidget.services("STUDIO-LUX", 31L, org.mockito.ArgumentMatchers.any()))
+        when(bookingWidget.services(
+                org.mockito.ArgumentMatchers.eq("STUDIO-LUX"),
+                org.mockito.ArgumentMatchers.eq(31L),
+                org.mockito.ArgumentMatchers.any()
+        ))
                 .thenReturn(List.of(haircut, coloring));
         when(guestCatalog.publicProducts(7L, 31L)).thenReturn(List.of(pack, membership, giftCard, single));
-        when(bookingWidget.storefrontConsultants("STUDIO-LUX", 31L, org.mockito.ArgumentMatchers.any()))
+        when(bookingWidget.storefrontConsultants(
+                org.mockito.ArgumentMatchers.eq("STUDIO-LUX"),
+                org.mockito.ArgumentMatchers.eq(31L),
+                org.mockito.ArgumentMatchers.any()
+        ))
                 .thenReturn(List.of(
                         new PublicBookingWidgetController.WidgetConsultantResponse(1L, "Ana Novak"),
                         new PublicBookingWidgetController.WidgetConsultantResponse(2L, "Maja Horvat")
