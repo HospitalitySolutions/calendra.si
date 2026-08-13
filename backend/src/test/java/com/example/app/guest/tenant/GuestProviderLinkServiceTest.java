@@ -44,6 +44,8 @@ class GuestProviderLinkServiceTest {
         client.setId(88L);
         client.setCompany(company);
         client.setActive(true);
+        client.setFirstName("David");
+        client.setLastName("Mirc");
         client.setEmail("david@example.com");
 
         CompanyRepository companies = mock(CompanyRepository.class);
@@ -92,6 +94,8 @@ class GuestProviderLinkServiceTest {
         client.setId(88L);
         client.setCompany(company);
         client.setActive(true);
+        client.setFirstName("David");
+        client.setLastName("Mirc");
         client.setEmail("david@example.com");
 
         GuestTenantLink existing = new GuestTenantLink();
@@ -131,4 +135,59 @@ class GuestProviderLinkServiceTest {
         assertThat(subscription.getStatus()).isEqualTo(GuestTenantLinkStatus.ACTIVE);
         assertThat(subscription.getJoinedVia()).isEqualTo(GuestJoinMethod.PUBLIC_SEARCH);
     }
+
+    @Test
+    void fillsOnlyMissingProviderIdentityWhenReusingClient() {
+        Company company = new Company();
+        company.setId(7L);
+        Location location = new Location();
+        location.setId(31L);
+        location.setCompany(company);
+        location.setActive(true);
+
+        GuestUser guest = new GuestUser();
+        guest.setId(11L);
+        guest.setActive(true);
+        guest.setEmail("david@example.com");
+        guest.setFirstName("Different");
+        guest.setLastName("AccountName");
+        guest.setPhone("040 123 456");
+
+        Client client = new Client();
+        client.setId(88L);
+        client.setCompany(company);
+        client.setActive(true);
+        client.setFirstName("Provider");
+        client.setLastName("Name");
+        client.setEmail("david@example.com");
+
+        CompanyRepository companies = mock(CompanyRepository.class);
+        when(companies.findByIdForUpdate(7L)).thenReturn(Optional.of(company));
+        ClientRepository clients = mock(ClientRepository.class);
+        when(clients.findFirstCandidatesByCompanyIdAndNormalizedEmail(7L, "david@example.com"))
+                .thenReturn(List.of(client));
+        when(clients.save(client)).thenReturn(client);
+        GuestTenantLinkRepository links = mock(GuestTenantLinkRepository.class);
+        when(links.findByGuestUserIdAndCompanyId(11L, 7L)).thenReturn(Optional.empty());
+        when(links.save(any(GuestTenantLink.class))).thenAnswer(invocation -> {
+            GuestTenantLink link = invocation.getArgument(0);
+            link.setId(44L);
+            return link;
+        });
+        GuestLocationSubscriptionRepository subscriptions = mock(GuestLocationSubscriptionRepository.class);
+        when(subscriptions.findByTenantLinkIdAndLocationId(44L, 31L)).thenReturn(Optional.empty());
+        when(subscriptions.save(any(GuestLocationSubscription.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        GuestProviderLinkService service = new GuestProviderLinkService(
+                companies, clients, mock(UserRepository.class), links, subscriptions);
+
+        service.activateMarketplaceLocation(guest, company, location, "sl");
+
+        assertThat(client.getFirstName()).isEqualTo("Provider");
+        assertThat(client.getLastName()).isEqualTo("Name");
+        assertThat(client.getPhone()).isEqualTo("040123456");
+        assertThat(client.getWhatsappPhone()).isEqualTo("040123456");
+        verify(clients).save(client);
+    }
+
 }

@@ -17,15 +17,29 @@ import org.springframework.web.bind.annotation.RestController;
 public class CustomerController {
     private final GuestAuthContextService authContextService;
     private final CustomerService customerService;
+    private final CustomerBookingHandoffService bookingHandoffs;
 
-    public CustomerController(GuestAuthContextService authContextService, CustomerService customerService) {
+    public CustomerController(
+            GuestAuthContextService authContextService,
+            CustomerService customerService,
+            CustomerBookingHandoffService bookingHandoffs
+    ) {
         this.authContextService = authContextService;
         this.customerService = customerService;
+        this.bookingHandoffs = bookingHandoffs;
     }
 
     @GetMapping("/home")
     public CustomerDtos.HomeResponse home(HttpServletRequest request) {
         return customerService.home(requireGuest(request));
+    }
+
+    @PostMapping("/booking-handoffs")
+    public CustomerDtos.BookingHandoffResponse createBookingHandoff(
+            @org.springframework.web.bind.annotation.RequestBody CustomerDtos.BookingHandoffRequest payload,
+            HttpServletRequest request
+    ) {
+        return bookingHandoffs.issue(requireGuest(request), payload);
     }
 
     @GetMapping("/bookings")

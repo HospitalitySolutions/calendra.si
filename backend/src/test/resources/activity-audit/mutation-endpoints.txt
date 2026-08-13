@@ -122,6 +122,7 @@ course/CourseAdminController.java|@PostMapping("/{id}/media/direct-complete")|co
 course/CourseAdminController.java|@PostMapping("/{id}/media/direct-upload")|createDirectUploadSession
 course/CourseAdminController.java|@PostMapping|create
 course/CourseAdminController.java|@PutMapping("/{id}")|update
+customer/CustomerController.java|@PostMapping("/booking-handoffs")|createBookingHandoff
 customer/CustomerController.java|@PostMapping("/notifications/read-all")|markAllNotificationsRead
 customer/CustomerController.java|@PostMapping("/notifications/{notificationId}/read")|markNotificationRead
 customfield/CustomFieldController.java|@DeleteMapping("/{id}")|delete
@@ -298,6 +299,7 @@ widget/PublicBookingWidgetController.java|@PostMapping("/{tenantCode}/bookings")
 widget/PublicBookingWidgetController.java|@PostMapping("/{tenantCode}/waitlist")|createWaitlistRequest
 widget/PublicWidgetBookingSlotHoldController.java|@DeleteMapping("/{token}")|release
 widget/PublicWidgetBookingSlotHoldController.java|@PostMapping|create
+widget/PublicWidgetOrderController.java|@PostMapping("/{tenantCode}/customer-handoff")|exchangeCustomerHandoff
 widget/PublicWidgetOrderController.java|@PostMapping("/{tenantCode}/guest-session")|startSession
 widget/PublicWidgetOrderController.java|@PostMapping("/{tenantCode}/orders")|createOrder
 widget/PublicWidgetOrderController.java|@PostMapping("/{tenantCode}/orders/{orderId}/checkout")|checkout

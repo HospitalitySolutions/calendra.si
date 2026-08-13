@@ -1,5 +1,7 @@
 import { apiFetch } from './client'
 import type {
+  AvailabilityResponse,
+  BookingHandoff,
   CustomerBooking,
   CustomerHome,
   CustomerWallet,
@@ -69,6 +71,30 @@ export const customerApi = {
 
   home() {
     return apiFetch<CustomerHome>('/api/customer/v1/home')
+  },
+
+  bookingHandoff(locationId: string | number, sessionTypeId?: string | number | null) {
+    return apiFetch<BookingHandoff>('/api/customer/v1/booking-handoffs', {
+      method: 'POST',
+      body: JSON.stringify({
+        locationId: String(locationId),
+        sessionTypeId: sessionTypeId == null || String(sessionTypeId).trim() === '' ? null : String(sessionTypeId),
+      }),
+    })
+  },
+
+  availability(companyId: string, sessionTypeId: string, date: string, locationId?: string | null) {
+    const params = new URLSearchParams({ companyId, sessionTypeId, date })
+    if (locationId) params.set('locationId', locationId)
+    return apiFetch<AvailabilityResponse>(`/api/guest/availability?${params.toString()}`)
+  },
+
+  rescheduleBooking(id: string, newSlotId: string) {
+    return apiFetch<unknown>(`/api/guest/bookings/${encodeURIComponent(id)}/reschedule`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      body: JSON.stringify({ newSlotId }),
+    })
   },
 
   bookings(status: 'upcoming' | 'past' | 'cancelled') {

@@ -46,7 +46,21 @@ public class PublicWidgetOrderController {
             String companyId,
             String email,
             String firstName,
-            String lastName
+            String lastName,
+            String phone,
+            String language
+    ) {
+        public GuestSessionResponse(
+                String token, String guestUserId, String companyId,
+                String email, String firstName, String lastName
+        ) {
+            this(token, guestUserId, companyId, email, firstName, lastName, null, null);
+        }
+    }
+
+    public record CustomerHandoffRequest(
+            @NotBlank String handoffToken,
+            String locationId
     ) {}
 
     public record VoucherResolutionRequest(
@@ -81,6 +95,15 @@ public class PublicWidgetOrderController {
             List<VoucherServiceAssignmentResponse> serviceAssignments,
             List<String> valueVoucherCodes
     ) {}
+
+    @PostMapping("/{tenantCode}/customer-handoff")
+    public GuestSessionResponse exchangeCustomerHandoff(
+            @PathVariable String tenantCode,
+            @Valid @RequestBody CustomerHandoffRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        return service.exchangeCustomerHandoff(tenantCode, request, httpRequest);
+    }
 
     @PostMapping("/{tenantCode}/guest-session")
     public GuestSessionResponse startSession(

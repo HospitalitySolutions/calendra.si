@@ -1,3 +1,31 @@
+
+export type BookingHandoff = {
+  handoffToken: string
+  expiresAt: string
+  bookingUrl: string
+  companyId: string
+  companyName: string
+  locationId: string
+  locationName: string
+}
+
+export type AvailabilitySlot = {
+  slotId: string
+  startsAt: string
+  endsAt: string
+  available: boolean
+}
+
+export type AvailabilityResponse = {
+  sessionTypeId: string
+  date: string
+  slots: AvailabilitySlot[]
+  sessionTypeIds?: string[]
+  totalDurationMinutes?: number
+  estimatedPriceGross?: number
+  currency?: string
+}
+
 export type GuestUser = {
   id: string
   email: string

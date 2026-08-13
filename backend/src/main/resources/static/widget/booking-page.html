@@ -260,17 +260,26 @@
           pageTitle: 'Nova rezervacija | Calendra',
           loading: 'Nalaganje naročanja…',
           failed: 'Naročanja trenutno ni bilo mogoče naložiti.',
+          sessionExpired: 'Povezava s Calendra Connect je potekla. Vrnite se v Calendra Connect in ponovno izberite rezervacijo.',
         },
         en: {
           pageTitle: 'New booking | Calendra',
           loading: 'Loading booking…',
           failed: 'Booking could not be loaded right now.',
+          sessionExpired: 'The Calendra Connect booking link has expired. Return to Calendra Connect and start the booking again.',
         },
       };
 
       const pathnameSegments = window.location.pathname.split('/').filter(Boolean);
       const tenantCode = decodeURIComponent(pathnameSegments[pathnameSegments.length - 1] || '').trim();
       const query = new URLSearchParams(window.location.search);
+      const handoffHash = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
+      const customerHandoff = String(handoffHash.get('customerHandoff') || '').trim();
+      if (customerHandoff) {
+        const clean = new URL(window.location.href);
+        clean.hash = '';
+        window.history.replaceState({}, '', clean);
+      }
       const requestedLocale = String(query.get('lang') || document.documentElement.lang || 'sl').toLowerCase();
       let locale = requestedLocale.startsWith('en') ? 'en' : 'sl';
 
@@ -385,13 +394,31 @@
           .then(setBranding);
       }
 
-      function mountWidget() {
+      function exchangeCustomerHandoff(locationId) {
+        if (!customerHandoff) return Promise.resolve(null);
+        return fetch(`/api/public/widget/${encodeURIComponent(tenantCode)}/customer-handoff`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ handoffToken: customerHandoff, locationId: locationId || null }),
+        })
+          .then(function (response) {
+            if (!response.ok) throw new Error(copy[locale].sessionExpired);
+            return response.json();
+          })
+          .then(function (session) {
+            if (!session || !session.token || !session.email) throw new Error(copy[locale].sessionExpired);
+            return session;
+          });
+      }
+
+      function mountWidget(customerSession) {
         if (!tenantCode) {
           showError(copy[locale].failed);
           return;
         }
         if (!window.customElements || !customElements.get('calendra-booking-widget')) {
-          window.setTimeout(mountWidget, 40);
+          window.setTimeout(function () { mountWidget(customerSession); }, 40);
           return;
         }
         const widget = document.createElement('calendra-booking-widget');
@@ -407,6 +434,9 @@
         if (typeId) widget.setAttribute('initial-service-id', typeId);
         if (workspaceEmployeeSelection === '0') widget.setAttribute('employee-selection-allowed', 'false');
         if (workspaceShowPrices === '0') widget.setAttribute('show-prices', 'false');
+        if (customerSession && typeof widget.setCustomerSession === 'function') {
+          widget.setCustomerSession(customerSession);
+        }
         const workspaceSlug = query.get('workspace');
         if (workspaceSlug) {
           fetch(`/api/public/widget/workspaces/${encodeURIComponent(workspaceSlug)}/config`, { headers: { Accept: 'application/json' } })
@@ -471,12 +501,17 @@
               return null;
             });
 
-      initialBranding
-        .catch(function () {
+      const customerSessionPromise = exchangeCustomerHandoff(query.get('locationId'));
+
+      Promise.all([
+        initialBranding.catch(function () {
           // The widget performs its own load and error handling. Branding failure
           // should not prevent the booking flow from attempting to mount.
-        })
-        .finally(mountWidget);
+        }),
+        customerSessionPromise,
+      ])
+        .then(function (results) { mountWidget(results[1]); })
+        .catch(function (error) { showError(error && error.message ? error.message : copy[locale].sessionExpired); });
     })();
   </script>
 </body>

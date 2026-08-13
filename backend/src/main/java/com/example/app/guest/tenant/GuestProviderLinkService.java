@@ -92,7 +92,7 @@ public class GuestProviderLinkService {
         MatchResult match = resolveClient(existing, company, guestUser, preferredOwner);
         ClientOnlineAccessGuard.requireAllowed(match.client(), locale == null ? guestUser.getLanguage() : locale);
 
-        Client client = match.client();
+        Client client = fillMissingIdentity(match.client(), guestUser);
         if (!client.isAnonymized() && !client.isActive()) {
             client.setActive(true);
             client = clients.save(client);
@@ -188,6 +188,39 @@ public class GuestProviderLinkService {
         client.setActive(true);
         client.setBatchPaymentEnabled(false);
         return new MatchResult(clients.save(client), MatchType.CREATED);
+    }
+
+    private Client fillMissingIdentity(Client client, GuestUser guestUser) {
+        if (client == null || guestUser == null || client.isAnonymized()) return client;
+        boolean changed = false;
+        if ((client.getFirstName() == null || client.getFirstName().isBlank())
+                && guestUser.getFirstName() != null && !guestUser.getFirstName().isBlank()) {
+            client.setFirstName(guestUser.getFirstName().trim());
+            changed = true;
+        }
+        if ((client.getLastName() == null || client.getLastName().isBlank())
+                && guestUser.getLastName() != null && !guestUser.getLastName().isBlank()) {
+            client.setLastName(guestUser.getLastName().trim());
+            changed = true;
+        }
+        if ((client.getEmail() == null || client.getEmail().isBlank())) {
+            String email = normalizeEmail(guestUser.getEmail());
+            if (email != null) {
+                client.setEmail(email);
+                changed = true;
+            }
+        }
+        if ((client.getPhone() == null || client.getPhone().isBlank())) {
+            String phone = normalizePhone(guestUser.getPhone());
+            if (phone != null) {
+                client.setPhone(phone);
+                if (client.getWhatsappPhone() == null || client.getWhatsappPhone().isBlank()) {
+                    client.setWhatsappPhone(phone);
+                }
+                changed = true;
+            }
+        }
+        return changed ? clients.save(client) : client;
     }
 
     private void activateLocation(GuestTenantLink link, Location location, GuestJoinMethod joinMethod) {

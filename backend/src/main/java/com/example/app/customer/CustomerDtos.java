@@ -6,6 +6,21 @@ import java.util.List;
 public final class CustomerDtos {
     private CustomerDtos() {}
 
+    public record BookingHandoffRequest(
+            String locationId,
+            String sessionTypeId
+    ) {}
+
+    public record BookingHandoffResponse(
+            String handoffToken,
+            String expiresAt,
+            String bookingUrl,
+            String companyId,
+            String companyName,
+            String locationId,
+            String locationName
+    ) {}
+
     public record ProviderResponse(
             String companyId,
             String companyName,

@@ -53,6 +53,8 @@
       availableDate: 'Available date',
       unavailableDate: 'Unavailable',
       secureData: 'Your data is safe and protected.',
+      connectedAccount: 'Signed in with Calendra Connect',
+      connectedAccountHelp: 'Your account details are filled in automatically.',
       poweredBy: 'Powered by Calendra',
       agreePrefix: 'I agree to',
       terms: 'Terms',
@@ -249,6 +251,8 @@
       availableDate: 'Razpoložljiv datum',
       unavailableDate: 'Ni na voljo',
       secureData: 'Vaši podatki so varni in zaščiteni.',
+      connectedAccount: 'Prijavljeni ste s Calendra Connect',
+      connectedAccountHelp: 'Podatki iz vašega računa so izpolnjeni samodejno.',
       poweredBy: 'Powered by Calendra',
       agreePrefix: 'Strinjam se s',
       terms: 'Splošnimi pogoji',
@@ -527,6 +531,7 @@
         },
       };
       this.options = { ...DEFAULTS };
+      this.customerSession = null;
       this.resizeObserver = null;
       this.handleWindowResize = null;
       this.turnstileRenderScheduled = false;
@@ -541,6 +546,35 @@
       this.monthAvailabilityCache = new Map();
       this.slotHoldExpiryTimer = null;
       this.ensureTurnstileScript = this.ensureTurnstileScript.bind(this);
+    }
+
+    setCustomerSession(session) {
+      if (!session || !session.token || !session.email) {
+        this.customerSession = null;
+        return;
+      }
+      this.customerSession = { ...session };
+      const nextForm = {
+        ...this.state.form,
+        firstName: String(session.firstName || this.state.form.firstName || ''),
+        lastName: String(session.lastName || this.state.form.lastName || ''),
+        email: String(session.email || this.state.form.email || ''),
+        phone: String(session.phone || this.state.form.phone || ''),
+      };
+      this.state.form = nextForm;
+      this.state.waitlistForm = {
+        ...this.state.waitlistForm,
+        firstName: nextForm.firstName,
+        lastName: nextForm.lastName,
+        email: nextForm.email,
+        phone: nextForm.phone,
+      };
+      if (this.isConnected) this.render();
+    }
+
+    customerAuthHeaders() {
+      const token = String(this.customerSession?.token || '').trim();
+      return token ? { Authorization: `Bearer ${token}` } : {};
     }
 
     static get observedAttributes() {
@@ -634,6 +668,7 @@
     shouldRenderTurnstile() {
       return Boolean(
         this.state?.activeStep === 'details' &&
+        !this.customerSession?.token &&
         this.state?.config?.turnstileEnabled &&
         this.state?.config?.turnstileSiteKey
       );
@@ -1925,7 +1960,7 @@
           missing.push(t.terms);
         }
 
-        if (this.state.config?.turnstileEnabled && !this.state.turnstileToken) {
+        if (this.shouldRenderTurnstile() && !this.state.turnstileToken) {
           missing.push(t.verificationRequired);
         }
       }
@@ -2134,6 +2169,7 @@
         // Step A: exchange first/last/email/phone + Turnstile token for a short-lived guest JWT.
         const session = await this.fetchJson(`/api/public/widget/${tenant}/guest-session`, {
           method: 'POST',
+          headers: this.customerAuthHeaders(),
           body: {
             firstName: form.firstName.trim(),
             lastName: form.lastName.trim(),
@@ -2147,6 +2183,9 @@
 
         if (!session?.token) {
           throw new Error(t.bookingFailed || 'Booking failed.');
+        }
+        if (this.customerSession) {
+          this.customerSession = { ...this.customerSession, ...session, token: session.token };
         }
 
         const authHeaders = { Authorization: `Bearer ${session.token}` };
@@ -2456,6 +2495,7 @@
           {
             method: 'POST',
             headers: {
+              ...this.customerAuthHeaders(),
               'Idempotency-Key': this.newIdempotencyKey('waitlist'),
               'X-Calendra-Booking-Source': this.bookingSourceValue(),
             },
@@ -2584,10 +2624,10 @@
                 <label class="waitlist-field waitlist-field--wide"><span>${escapeHtml(t.waitlistNotes)}</span><textarea id="waitlist-notes" maxlength="200" rows="3" placeholder="${escapeHtml(t.waitlistNotesPlaceholder)}">${escapeHtml(form.notes)}</textarea><small class="waitlist-counter">${String(form.notes || '').length} / 200</small></label>
 
                 <div class="waitlist-section-title waitlist-field--wide">${escapeHtml(t.waitlistGuestDetails)}</div>
-                <label class="waitlist-field"><span>${escapeHtml(t.labelFirstName)}</span><input id="waitlist-first-name" type="text" autocomplete="given-name" value="${escapeHtml(form.firstName)}" /></label>
-                <label class="waitlist-field"><span>${escapeHtml(t.labelLastName)}</span><input id="waitlist-last-name" type="text" autocomplete="family-name" value="${escapeHtml(form.lastName)}" /></label>
-                <label class="waitlist-field"><span>${escapeHtml(t.labelEmail)}</span><input id="waitlist-email" type="email" autocomplete="email" value="${escapeHtml(form.email)}" /></label>
-                <label class="waitlist-field"><span>${escapeHtml(t.labelPhone)}</span><input id="waitlist-phone" type="tel" autocomplete="tel" value="${escapeHtml(form.phone)}" /></label>
+                <label class="waitlist-field"><span>${escapeHtml(t.labelFirstName)}</span><input id="waitlist-first-name" type="text" autocomplete="given-name" value="${escapeHtml(form.firstName)}" ${this.customerSession?.firstName ? 'readonly' : ''} /></label>
+                <label class="waitlist-field"><span>${escapeHtml(t.labelLastName)}</span><input id="waitlist-last-name" type="text" autocomplete="family-name" value="${escapeHtml(form.lastName)}" ${this.customerSession?.lastName ? 'readonly' : ''} /></label>
+                <label class="waitlist-field"><span>${escapeHtml(t.labelEmail)}</span><input id="waitlist-email" type="email" autocomplete="email" value="${escapeHtml(form.email)}" ${this.customerSession?.token ? 'readonly' : ''} /></label>
+                <label class="waitlist-field"><span>${escapeHtml(t.labelPhone)}</span><input id="waitlist-phone" type="tel" autocomplete="tel" value="${escapeHtml(form.phone)}" ${this.customerSession?.token && this.customerSession?.phone ? 'readonly' : ''} /></label>
               </div>
               ${this.state.waitlistError ? `<div class="waitlist-error">${escapeHtml(this.state.waitlistError)}</div>` : ''}
             </div>
@@ -3361,11 +3401,12 @@
               <div class="section-copy section-copy--compact">
                 <h3>${escapeHtml(t.sectionEnterDetails)}</h3>
               </div>
+              ${this.customerSession ? `<div class="customer-session-note"><span>${this.uiIcon('user')}</span><div><strong>${escapeHtml(t.connectedAccount)}</strong><small>${escapeHtml(t.connectedAccountHelp)}</small></div></div>` : ''}
               <div class="details-grid details-grid--preview">
-                <label><span>${escapeHtml(t.labelFirstName)}</span><input id="first-name" type="text" value="${escapeHtml(this.state.form.firstName)}" placeholder="${escapeHtml(t.firstNamePlaceholder)}" /></label>
-                <label><span>${escapeHtml(t.labelLastName)}</span><input id="last-name" type="text" value="${escapeHtml(this.state.form.lastName)}" placeholder="${escapeHtml(t.lastNamePlaceholder)}" /></label>
-                <label><span>${escapeHtml(t.labelEmail)}</span><input id="email" type="email" value="${escapeHtml(this.state.form.email)}" placeholder="${escapeHtml(t.emailPlaceholder)}" /></label>
-                <label><span>${escapeHtml(t.labelPhone)}</span><input id="phone" type="tel" value="${escapeHtml(this.state.form.phone)}" placeholder="${escapeHtml(t.phonePlaceholder)}" /></label>
+                <label><span>${escapeHtml(t.labelFirstName)}</span><input id="first-name" type="text" value="${escapeHtml(this.state.form.firstName)}" placeholder="${escapeHtml(t.firstNamePlaceholder)}" ${this.customerSession?.firstName ? 'readonly' : ''} /></label>
+                <label><span>${escapeHtml(t.labelLastName)}</span><input id="last-name" type="text" value="${escapeHtml(this.state.form.lastName)}" placeholder="${escapeHtml(t.lastNamePlaceholder)}" ${this.customerSession?.lastName ? 'readonly' : ''} /></label>
+                <label><span>${escapeHtml(t.labelEmail)}</span><input id="email" type="email" value="${escapeHtml(this.state.form.email)}" placeholder="${escapeHtml(t.emailPlaceholder)}" ${this.customerSession?.token ? 'readonly' : ''} /></label>
+                <label><span>${escapeHtml(t.labelPhone)}</span><input id="phone" type="tel" value="${escapeHtml(this.state.form.phone)}" placeholder="${escapeHtml(t.phonePlaceholder)}" ${this.customerSession?.phone ? 'readonly' : ''} /></label>
               </div>
 
               <div class="payment-block">
@@ -4055,6 +4096,12 @@
           padding: 15px 18px; color: var(--calendra-text); font-weight: 650; outline: none;
         }
         .details-grid input:focus { border-color: var(--calendra-primary); box-shadow: 0 0 0 3px rgba(15,107,255,.10); }
+        .customer-session-note { display:flex; align-items:center; gap:10px; margin:0 0 14px; padding:11px 13px; border:1px solid #cfe0fb; border-radius:13px; background:#f4f8ff; color:#29466f; }
+        .customer-session-note > span { width:30px; height:30px; display:grid; place-items:center; border-radius:9px; background:#e4efff; color:var(--calendra-primary); }
+        .customer-session-note > div { display:grid; gap:2px; min-width:0; }
+        .customer-session-note strong { font-size:12px; font-weight:850; }
+        .customer-session-note small { color:#657795; font-size:11px; line-height:1.35; }
+        .details-grid input[readonly] { background:#f7f9fc; color:#526178; cursor:default; }
         .payment-block { display: grid; gap: 16px; }
         .payment-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
         .payment-tile {

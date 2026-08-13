@@ -113,6 +113,52 @@ public class PublicWidgetOrderService {
         this.widgetBookingIdempotencyService = widgetBookingIdempotencyService;
     }
 
+    public PublicWidgetOrderController.GuestSessionResponse exchangeCustomerHandoff(
+            String tenantCode,
+            PublicWidgetOrderController.CustomerHandoffRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        Company company = resolveCompany(tenantCode);
+        guardWidgetRequest(company, httpRequest, false, "customer-handoff");
+        if (request == null || request.handoffToken() == null || request.handoffToken().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Booking handoff token is required.");
+        }
+
+        GuestTokenService.BookingHandoffClaims claims;
+        try {
+            claims = guestTokenService.parseBookingHandoff(request.handoffToken().trim());
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Booking handoff is invalid or expired.");
+        }
+        if (!Objects.equals(claims.companyId(), company.getId())
+                || !claims.tenantCode().equalsIgnoreCase(company.getTenantCode())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Booking handoff does not belong to this provider.");
+        }
+        if (publicLocations == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location-aware booking is unavailable.");
+        }
+        Long requestedLocationId = claims.locationId();
+        if (request.locationId() != null && !request.locationId().isBlank()) {
+            try {
+                Long submittedLocationId = Long.valueOf(request.locationId().trim());
+                if (!Objects.equals(submittedLocationId, requestedLocationId)) {
+                    throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Booking handoff location does not match.");
+                }
+            } catch (NumberFormatException ex) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid location.");
+            }
+        }
+        publicLocations.findByIdAndCompanyId(requestedLocationId, company.getId())
+                .filter(Location::isActive)
+                .filter(Location::isPublicBookingEnabled)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location is not available for online booking."));
+
+        GuestUser guestUser = guestUsers.findById(claims.guestUserId())
+                .filter(GuestUser::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Customer account is not available."));
+        return sessionResponse(company, guestUser);
+    }
+
     @Transactional
     public PublicWidgetOrderController.GuestSessionResponse startSession(
             String tenantCode,
@@ -121,7 +167,10 @@ public class PublicWidgetOrderService {
     ) {
         Company company = resolveCompany(tenantCode);
         guardWidgetRequest(company, httpRequest, false, "guest-session");
-        widgetTurnstileService.verifyForPublicAction(company, request.turnstileToken(), widgetPublicAuditLogger.clientIp(httpRequest));
+        GuestUser authenticatedGuest = optionalAuthenticatedGuest(httpRequest);
+        if (authenticatedGuest == null) {
+            widgetTurnstileService.verifyForPublicAction(company, request.turnstileToken(), widgetPublicAuditLogger.clientIp(httpRequest));
+        }
 
         String email = normalizeEmail(request.email());
         if (email == null) {
@@ -132,39 +181,60 @@ public class PublicWidgetOrderService {
         String phone = normalizePhone(request.phone());
         String companyName = normalizeCompanyName(request.companyName());
 
-        GuestUser guestUser = guestUsers.findByEmailIgnoreCase(email).orElseGet(() -> {
-            GuestUser fresh = new GuestUser();
-            fresh.setEmail(email);
-            fresh.setFirstName(firstName);
-            fresh.setLastName(lastName);
-            fresh.setPhone(phone);
-            fresh.setActive(true);
-            fresh.setEmailVerified(false);
-            fresh.setLanguage("sl");
-            return fresh;
-        });
-        if (guestUser.getFirstName() == null || guestUser.getFirstName().isBlank()) {
-            guestUser.setFirstName(firstName);
-        }
-        if (guestUser.getLastName() == null || guestUser.getLastName().isBlank()) {
-            guestUser.setLastName(lastName);
-        }
-        if ((guestUser.getPhone() == null || guestUser.getPhone().isBlank()) && phone != null) {
-            guestUser.setPhone(phone);
-        }
-        guestUser.setLastLoginAt(Instant.now());
-        guestUser = guestUsers.save(guestUser);
+        GuestUser guestUser;
+        if (authenticatedGuest != null) {
+            String accountEmail = normalizeEmail(authenticatedGuest.getEmail());
+            if (accountEmail == null || !accountEmail.equals(email)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Booking email must match the signed-in Calendra account.");
+            }
+            guestUser = authenticatedGuest;
+            if (guestUser.getFirstName() == null || guestUser.getFirstName().isBlank()) guestUser.setFirstName(firstName);
+            if (guestUser.getLastName() == null || guestUser.getLastName().isBlank()) guestUser.setLastName(lastName);
+            if ((guestUser.getPhone() == null || guestUser.getPhone().isBlank()) && phone != null) guestUser.setPhone(phone);
+            guestUser.setLastLoginAt(Instant.now());
+            guestUser = guestUsers.save(guestUser);
 
-        ensureTenantLink(guestUser, company, firstName, lastName, email, phone, companyName, request.locale());
+            if (guestProviderLinks != null) {
+                guestProviderLinks.activate(
+                        guestUser, company, null, GuestJoinMethod.PUBLIC_SEARCH,
+                        preferredLocale(request.locale(), guestUserLocale(guestUser)), null
+                );
+            } else {
+                ensureTenantLink(guestUser, company, firstName, lastName, email, phone, companyName, request.locale());
+            }
+        } else {
+            guestUser = guestUsers.findByEmailIgnoreCase(email).orElseGet(() -> {
+                GuestUser fresh = new GuestUser();
+                fresh.setEmail(email);
+                fresh.setFirstName(firstName);
+                fresh.setLastName(lastName);
+                fresh.setPhone(phone);
+                fresh.setActive(true);
+                fresh.setEmailVerified(false);
+                fresh.setLanguage("sl");
+                return fresh;
+            });
+            if (guestUser.getFirstName() == null || guestUser.getFirstName().isBlank()) guestUser.setFirstName(firstName);
+            if (guestUser.getLastName() == null || guestUser.getLastName().isBlank()) guestUser.setLastName(lastName);
+            if ((guestUser.getPhone() == null || guestUser.getPhone().isBlank()) && phone != null) guestUser.setPhone(phone);
+            guestUser.setLastLoginAt(Instant.now());
+            guestUser = guestUsers.save(guestUser);
+            ensureTenantLink(guestUser, company, firstName, lastName, email, phone, companyName, request.locale());
+        }
 
-        String token = guestTokenService.issueToken(guestUser.getId());
+        return sessionResponse(company, guestUser);
+    }
+
+    private PublicWidgetOrderController.GuestSessionResponse sessionResponse(Company company, GuestUser guestUser) {
         return new PublicWidgetOrderController.GuestSessionResponse(
-                token,
+                guestTokenService.issueToken(guestUser.getId()),
                 String.valueOf(guestUser.getId()),
                 String.valueOf(company.getId()),
                 guestUser.getEmail(),
                 guestUser.getFirstName(),
-                guestUser.getLastName()
+                guestUser.getLastName(),
+                guestUser.getPhone(),
+                guestUser.getLanguage()
         );
     }
 
@@ -604,22 +674,25 @@ public class PublicWidgetOrderService {
         return fallbackLocale;
     }
 
-    private GuestUser requireGuest(HttpServletRequest request) {
+    private GuestUser optionalAuthenticatedGuest(HttpServletRequest request) {
         String auth = request.getHeader(HttpHeaders.AUTHORIZATION);
-        if (auth == null || !auth.startsWith("Bearer ")) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Guest session required.");
-        }
+        if (auth == null || !auth.startsWith("Bearer ")) return null;
         String token = auth.substring("Bearer ".length()).trim();
+        if (token.isBlank()) return null;
         try {
             Long guestUserId = guestTokenService.parseGuestUserId(token);
-            return guestUsers.findById(guestUserId)
-                    .filter(GuestUser::isActive)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Guest session not found."));
-        } catch (ResponseStatusException ex) {
-            throw ex;
+            return guestUsers.findById(guestUserId).filter(GuestUser::isActive).orElse(null);
         } catch (Exception ex) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid guest session.");
+            return null;
         }
+    }
+
+    private GuestUser requireGuest(HttpServletRequest request) {
+        GuestUser guestUser = optionalAuthenticatedGuest(request);
+        if (guestUser == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Guest session required.");
+        }
+        return guestUser;
     }
 
     private Company resolveCompany(String tenantCode) {
