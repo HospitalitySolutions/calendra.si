@@ -10,7 +10,7 @@ import java.util.Map;
  *
  * <p>This intentionally excludes internal transaction-service ids and add-on billing mappings.
  * The public website receives only display-safe package prices, package names, included features,
- * and graduated additional-user pricing.</p>
+ * graduated additional-user pricing, and active add-on display data.</p>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record PublicPricingCatalog(
@@ -23,6 +23,7 @@ public record PublicPricingCatalog(
         List<Plan> plans,
         List<Feature> features,
         List<AdditionalUserRule> additionalUserRules,
+        List<AddOn> addOns,
         double smsPerMessageGross
 ) {
     private static final List<String> PLAN_ORDER = List.of("basic", "pro", "business");
@@ -100,6 +101,25 @@ public record PublicPricingCatalog(
                 0.05
         );
 
+        List<AddOn> publicAddOns = new ArrayList<>();
+        if (source.getAddonItems() != null) {
+            for (RegisterPriceCatalog.AddonItem item : source.getAddonItems()) {
+                if (item == null || Boolean.FALSE.equals(item.getActive())) continue;
+                String key = safe(item.getKey());
+                if (key.isBlank()) continue;
+                publicAddOns.add(new AddOn(
+                        key,
+                        addonCode(key),
+                        fallback(item.getName(), key),
+                        fallback(item.getNameSl(), fallback(item.getName(), key)),
+                        safe(item.getDescription()),
+                        safe(item.getDescriptionSl()),
+                        roundMoney(validAmount(item.getMonthly()) ? item.getMonthly() : 0.0),
+                        PLAN_ORDER
+                ));
+            }
+        }
+
         return new PublicPricingCatalog(
                 source.getCatalogVersion() == null
                         ? RegisterPriceCatalog.CURRENT_CATALOG_VERSION
@@ -115,6 +135,7 @@ public record PublicPricingCatalog(
                         new AdditionalUserRule(2, 5, roundMoney(userTwoToFive)),
                         new AdditionalUserRule(6, null, roundMoney(userSixOnward))
                 ),
+                List.copyOf(publicAddOns),
                 roundFour(sms)
         );
     }
@@ -155,6 +176,13 @@ public record PublicPricingCatalog(
 
     private static String safe(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static String addonCode(String key) {
+        return key.trim()
+                .toUpperCase()
+                .replaceAll("[^A-Z0-9]+", "_")
+                .replaceAll("^_+|_+$", "");
     }
 
     private static double firstAmount(Double first, Double second, double fallback) {
@@ -201,5 +229,16 @@ public record PublicPricingCatalog(
             int fromUser,
             Integer toUser,
             double monthlyGrossPerUser
+    ) {}
+
+    public record AddOn(
+            String key,
+            String code,
+            String name,
+            String nameSl,
+            String description,
+            String descriptionSl,
+            double monthlyGross,
+            List<String> availablePlans
     ) {}
 }

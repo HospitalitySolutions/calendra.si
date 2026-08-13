@@ -45,5 +45,20 @@ class PublicPricingCatalogTest {
                         org.assertj.core.groups.Tuple.tuple(2, 5, 9.9),
                         org.assertj.core.groups.Tuple.tuple(6, null, 6.9)
                 );
+
+        assertThat(catalog.addOns())
+                .extracting(
+                        PublicPricingCatalog.AddOn::key,
+                        PublicPricingCatalog.AddOn::code,
+                        PublicPricingCatalog.AddOn::monthlyGross
+                )
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("voice", "VOICE", 12.0),
+                        org.assertj.core.groups.Tuple.tuple("billing", "BILLING", 8.0),
+                        org.assertj.core.groups.Tuple.tuple("whitelabel", "WHITELABEL", 10.0)
+                );
+        assertThat(catalog.addOns())
+                .allSatisfy(addOn -> assertThat(addOn.availablePlans())
+                        .containsExactly("basic", "pro", "business"));
     }
 }

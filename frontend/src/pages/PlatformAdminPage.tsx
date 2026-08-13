@@ -658,6 +658,48 @@ function coerceMoneyInput(raw: string, fallback: number): number {
   return Math.round(n * 100) / 100;
 }
 
+function CatalogMoneyInput({
+  id,
+  value,
+  onCommit,
+}: {
+  id: string;
+  value: number;
+  onCommit: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState(() => String(value));
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const commit = () => {
+    const next = coerceMoneyInput(draft, value);
+    onCommit(next);
+    setDraft(String(next));
+  };
+
+  return (
+    <input
+      id={id}
+      type="text"
+      inputMode="decimal"
+      value={draft}
+      onChange={(event) => {
+        const next = event.target.value;
+        if (/^\d*(?:[.,]\d{0,2})?$/.test(next)) {
+          setDraft(next);
+        }
+      }}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
 
 function normalizeAddonKey(raw: string): string {
   return raw
@@ -2489,19 +2531,10 @@ function PlanPricesAdminPanel() {
                     <label htmlFor={`pa-addon-monthly-${index}`}>
                       Price (€ / month)
                     </label>
-                    <input
+                    <CatalogMoneyInput
                       id={`pa-addon-monthly-${index}`}
-                      type="text"
-                      inputMode="decimal"
-                      value={String(item.monthly)}
-                      onChange={(e) =>
-                        updateAddon(index, {
-                          monthly: coerceMoneyInput(
-                            e.target.value,
-                            item.monthly,
-                          ),
-                        })
-                      }
+                      value={item.monthly}
+                      onCommit={(monthly) => updateAddon(index, { monthly })}
                     />
                   </div>
                   <div className="platform-admin-plan-price-field">
