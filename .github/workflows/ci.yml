@@ -122,6 +122,46 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  customer-web:
+    name: Customer web production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: customer-web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: customer-web/package-lock.json
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        env:
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+        run: npm ci --no-audit --no-fund
+
+      - name: Type-check customer web
+        run: npm run typecheck
+
+      - name: Build customer web
+        run: npm run build
+
+      - name: Upload customer web production bundle
+        if: success()
+        uses: actions/upload-artifact@v6
+        with:
+          name: customer-web-production-bundle
+          path: customer-web/dist
+          if-no-files-found: error
+          retention-days: 7
+
   android:
     name: Android debug and release bundle
     runs-on: ubuntu-latest
@@ -221,7 +261,7 @@ jobs:
     name: Build and publish production images
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    needs: [backend, frontend]
+    needs: [backend, frontend, customer-web]
 
     permissions:
       contents: read
@@ -238,6 +278,7 @@ jobs:
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           echo "backend=ghcr.io/${owner}/calendra-backend" >> "$GITHUB_OUTPUT"
           echo "frontend=ghcr.io/${owner}/calendra-frontend" >> "$GITHUB_OUTPUT"
+          echo "customer_web=ghcr.io/${owner}/calendra-customer-web" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -274,6 +315,18 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 
+      - name: Generate customer web image metadata
+        id: customer-web-meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.images.outputs.customer_web }}
+          tags: |
+            type=sha,format=long,prefix=
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
       - name: Build and publish backend image
         uses: docker/build-push-action@v7
         with:
@@ -297,6 +350,17 @@ jobs:
           labels: ${{ steps.frontend-meta.outputs.labels }}
           cache-from: type=gha,scope=calendra-frontend
           cache-to: type=gha,mode=max,scope=calendra-frontend
+
+      - name: Build and publish customer web image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./customer-web
+          file: ./customer-web/Dockerfile.prod
+          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+          tags: ${{ steps.customer-web-meta.outputs.tags }}
+          labels: ${{ steps.customer-web-meta.outputs.labels }}
+          cache-from: type=gha,scope=calendra-customer-web
+          cache-to: type=gha,mode=max,scope=calendra-customer-web
 
       - name: Validate staging Compose file
         env:
@@ -339,6 +403,7 @@ jobs:
             echo
             echo "- \`${{ steps.images.outputs.backend }}:${GITHUB_SHA}\`"
             echo "- \`${{ steps.images.outputs.frontend }}:${GITHUB_SHA}\`"
+            echo "- \`${{ steps.images.outputs.customer_web }}:${GITHUB_SHA}\`"
             echo
             if [[ "$GITHUB_REF" == "refs/heads/main" || "$GITHUB_REF" == "refs/heads/master" ]]; then
               echo "The \`latest\` tag was also updated."

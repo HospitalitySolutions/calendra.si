@@ -18,6 +18,35 @@
 		}
 	}
 
+	# connect.calendra.si serves the customer-facing Calendra Connect SPA.
+	@connect_host host connect.calendra.si
+	header @connect_host {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Robots-Tag "noindex, nofollow"
+		Content-Security-Policy "default-src 'self'; img-src 'self' blob: data: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'self' https: wss:; frame-ancestors 'none';"
+	}
+
+	@connect_backend {
+		host connect.calendra.si
+		path /api/*
+	}
+	handle @connect_backend {
+		reverse_proxy backend:4000 {
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Port 443
+		}
+	}
+
+	@connect_frontend host connect.calendra.si
+	handle @connect_frontend {
+		reverse_proxy customer-web:80 {
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Port 443
+		}
+	}
+
 	# app.calendra.si security headers. They are returned to clients over the
 	# ALB's HTTPS listener even though ALB -> Caddy is HTTP inside the VPC.
 	@app_host host app.calendra.si

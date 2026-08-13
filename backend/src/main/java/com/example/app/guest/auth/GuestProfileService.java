@@ -96,7 +96,13 @@ public class GuestProfileService {
             syncClientProfile(link.getClient(), guestUser);
         }
 
-        GuestTenantLink activeLink = resolveLinkFromList(allLinks, request.companyId());
+        // Provider-specific billing/preferences must only be changed when the caller
+        // explicitly selected a company. Customer-web profile edits are global and
+        // intentionally send no companyId, so they update GuestUser + synced client
+        // identity without touching any provider-specific invoice settings.
+        GuestTenantLink activeLink = request.companyId() == null || request.companyId().isBlank()
+                ? null
+                : resolveLinkFromList(allLinks, request.companyId());
         if (activeLink != null) {
             Client client = activeLink.getClient();
             if (request.batchPaymentEnabled() != null) {
