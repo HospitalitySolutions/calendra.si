@@ -3349,6 +3349,13 @@
       const durationText = service ? `${this.selectedServicesDurationMinutes()} ${t.durationSuffix}` : '';
       const activePaymentMethod = this.state.paymentMethod || (payAtVenueOnly ? 'PAY_AT_VENUE' : null);
       const paymentLabel = activePaymentMethod ? this.paymentMethodSummaryLabel(activePaymentMethod) : '';
+      const customerIdentityComplete = Boolean(
+        this.customerSession?.token
+        && this.state.form.firstName?.trim()
+        && this.state.form.lastName?.trim()
+        && this.state.form.email?.trim()
+        && this.state.form.phone?.trim()
+      );
       const detailsSummaryRows = [
         location?.publicName ? `
           <div class="summary-detail-row">
@@ -3399,15 +3406,17 @@
           <div class="checkout-layout">
             <div class="checkout-main">
               <div class="section-copy section-copy--compact">
-                <h3>${escapeHtml(t.sectionEnterDetails)}</h3>
+                <h3>${escapeHtml(customerIdentityComplete ? t.connectedAccount : t.sectionEnterDetails)}</h3>
               </div>
               ${this.customerSession ? `<div class="customer-session-note"><span>${this.uiIcon('user')}</span><div><strong>${escapeHtml(t.connectedAccount)}</strong><small>${escapeHtml(t.connectedAccountHelp)}</small></div></div>` : ''}
-              <div class="details-grid details-grid--preview">
-                <label><span>${escapeHtml(t.labelFirstName)}</span><input id="first-name" type="text" value="${escapeHtml(this.state.form.firstName)}" placeholder="${escapeHtml(t.firstNamePlaceholder)}" ${this.customerSession?.firstName ? 'readonly' : ''} /></label>
-                <label><span>${escapeHtml(t.labelLastName)}</span><input id="last-name" type="text" value="${escapeHtml(this.state.form.lastName)}" placeholder="${escapeHtml(t.lastNamePlaceholder)}" ${this.customerSession?.lastName ? 'readonly' : ''} /></label>
-                <label><span>${escapeHtml(t.labelEmail)}</span><input id="email" type="email" value="${escapeHtml(this.state.form.email)}" placeholder="${escapeHtml(t.emailPlaceholder)}" ${this.customerSession?.token ? 'readonly' : ''} /></label>
-                <label><span>${escapeHtml(t.labelPhone)}</span><input id="phone" type="tel" value="${escapeHtml(this.state.form.phone)}" placeholder="${escapeHtml(t.phonePlaceholder)}" ${this.customerSession?.phone ? 'readonly' : ''} /></label>
-              </div>
+              ${customerIdentityComplete ? '' : `
+                <div class="details-grid details-grid--preview">
+                  <label><span>${escapeHtml(t.labelFirstName)}</span><input id="first-name" type="text" value="${escapeHtml(this.state.form.firstName)}" placeholder="${escapeHtml(t.firstNamePlaceholder)}" ${this.customerSession?.firstName ? 'readonly' : ''} /></label>
+                  <label><span>${escapeHtml(t.labelLastName)}</span><input id="last-name" type="text" value="${escapeHtml(this.state.form.lastName)}" placeholder="${escapeHtml(t.lastNamePlaceholder)}" ${this.customerSession?.lastName ? 'readonly' : ''} /></label>
+                  <label><span>${escapeHtml(t.labelEmail)}</span><input id="email" type="email" value="${escapeHtml(this.state.form.email)}" placeholder="${escapeHtml(t.emailPlaceholder)}" ${this.customerSession?.token ? 'readonly' : ''} /></label>
+                  <label><span>${escapeHtml(t.labelPhone)}</span><input id="phone" type="tel" value="${escapeHtml(this.state.form.phone)}" placeholder="${escapeHtml(t.phonePlaceholder)}" ${this.customerSession?.phone ? 'readonly' : ''} /></label>
+                </div>
+              `}
 
               <div class="payment-block">
                 <div class="block-title">${escapeHtml(t.paymentMethodTitle)}</div>
