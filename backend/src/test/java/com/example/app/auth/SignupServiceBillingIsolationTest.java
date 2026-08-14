@@ -75,7 +75,6 @@ class SignupServiceBillingIsolationTest {
         ReflectionTestUtils.setField(service, "tenantCreatedAdminEmailService", tenantCreatedAdminEmailService);
 
         when(passwordEncoder.encode(any())).thenAnswer(inv -> "enc:" + inv.getArgument(0));
-        when(users.findAllByEmailIgnoreCase(any())).thenReturn(List.of());
         when(signupEmailIntents.findAllByEmailIgnoreCaseAndActiveTrue(any())).thenReturn(List.of());
         when(users.save(any(User.class))).thenAnswer(inv -> {
             User row = inv.getArgument(0);
@@ -106,6 +105,7 @@ class SignupServiceBillingIsolationTest {
         company.setName("Acme");
         when(companyProvisioningService.createWithTenantCode(any())).thenReturn(company);
         when(companies.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
+        when(users.findAllByEmailIgnoreCase("ana@example.com")).thenReturn(List.of());
 
         AuthController.SignupRequest signup = new AuthController.SignupRequest(
                 "Acme Ltd",
