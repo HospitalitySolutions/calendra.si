@@ -762,7 +762,7 @@ export function CalendarDashboard(props: CalendarDashboardProps) {
         ) : null}
 
         <div className="calendar-day-dashboard__grid">
-          {blockVisible('tasks') ? <DashboardCard title="Opravila" icon="checkSquare" action={<button type="button" className="calendar-dashboard-link-button" onClick={() => navigate('/calendar/drawer/new-task')}><Icon name="plus" size={15} /> Novo opravilo</button>}>
+          {blockVisible('tasks') ? <DashboardCard title="Opravila" icon="checkSquare" action={<button type="button" className="calendar-dashboard-link-button" onClick={() => navigate('/calendar/new/todo')}><Icon name="plus" size={15} /> Novo opravilo</button>}>
             {todos.length === 0 ? <EmptyState>Ni zamujenih ali današnjih opravil.</EmptyState> : <div className="calendar-dashboard-list">{todos.slice(0, 6).map((todo) => { const overdue = dateTimeMs(todo?.startTime) > 0 && dateTimeMs(todo?.startTime) < Date.now(); return <div className={`calendar-dashboard-task-row${overdue ? ' is-overdue' : ''}`} key={todo.id}><button type="button" className="calendar-dashboard-task-check" onClick={() => void completeTodo(Number(todo.id))} aria-label="Označi kot opravljeno"><span /></button><button type="button" className="calendar-dashboard-row-main" onClick={() => onOpenTodo(Number(todo.id))}><strong>{todo?.task || 'Opravilo'}</strong><span>{overdue ? 'Zamujeno · ' : ''}{timeLabel(todo?.startTime, locale)}</span></button>{overdue ? <span className="calendar-dashboard-status-dot tone-red">Zamujeno</span> : <span className="calendar-dashboard-status-dot tone-green">Danes</span>}</div>})}</div>}
           </DashboardCard> : null}
 

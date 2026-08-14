@@ -1,37 +1,23 @@
 import { matchPath } from 'react-router-dom'
 
-export const ROUTE_NEW_BOOKING = '/calendar/drawer/new-appointment'
-export const ROUTE_NEW_PERSONAL = '/calendar/drawer/new-personal'
-export const ROUTE_NEW_TODO = '/calendar/drawer/new-task'
-export const ROUTE_NEW_AVAILABILITY = '/calendar/drawer/new-availability'
+export const ROUTE_NEW_BOOKING = '/calendar/new/booking'
+/** @deprecated Old URLs; redirected to {@link ROUTE_NEW_BOOKING} with query `panel` when applicable. */
+export const ROUTE_NEW_PERSONAL = '/calendar/new/personal'
+export const ROUTE_NEW_TODO = '/calendar/new/todo'
+export const ROUTE_NEW_AVAILABILITY = '/calendar/new/availability'
 
-export const ROUTE_EDIT_BOOKING = '/calendar/drawer/appointment/:id'
-export const ROUTE_EDIT_PERSONAL = '/calendar/drawer/personal/:id'
-export const ROUTE_EDIT_TODO = '/calendar/drawer/task/:id'
+export const ROUTE_EDIT_BOOKING = '/calendar/booking/:id'
+export const ROUTE_EDIT_PERSONAL = '/calendar/personal/:id'
+export const ROUTE_EDIT_TODO = '/calendar/todo/:id'
 
-/** Previous Calendra routes kept for backwards-compatible redirects / hydration. */
-const LEGACY_NEW_BOOKING = '/calendar/new/booking'
-const LEGACY_NEW_PERSONAL = '/calendar/new/personal'
-const LEGACY_NEW_TODO = '/calendar/new/todo'
-const LEGACY_NEW_AVAILABILITY = '/calendar/new/availability'
-const LEGACY_EDIT_BOOKING = '/calendar/booking/:id'
-const LEGACY_EDIT_PERSONAL = '/calendar/personal/:id'
-const LEGACY_EDIT_TODO = '/calendar/todo/:id'
-
-const LEGACY_NEW_SLOT_PATHS = [LEGACY_NEW_BOOKING, LEGACY_NEW_PERSONAL, LEGACY_NEW_TODO, LEGACY_NEW_AVAILABILITY] as const
+const LEGACY_NEW_SLOT_PATHS = [ROUTE_NEW_PERSONAL, ROUTE_NEW_TODO, ROUTE_NEW_AVAILABILITY] as const
 
 const FORM_ROUTE_PATTERNS = [
   ROUTE_NEW_BOOKING,
-  ROUTE_NEW_PERSONAL,
-  ROUTE_NEW_TODO,
-  ROUTE_NEW_AVAILABILITY,
+  ...LEGACY_NEW_SLOT_PATHS,
   ROUTE_EDIT_BOOKING,
   ROUTE_EDIT_PERSONAL,
   ROUTE_EDIT_TODO,
-  ...LEGACY_NEW_SLOT_PATHS,
-  LEGACY_EDIT_BOOKING,
-  LEGACY_EDIT_PERSONAL,
-  LEGACY_EDIT_TODO,
 ] as const
 
 export function isLegacyNewSlotPath(pathname: string): boolean {
@@ -43,36 +29,26 @@ export function isCalendarFormPath(pathname: string): boolean {
 }
 
 export type CalendarFormRouteMatch =
-  | { kind: 'new'; form: 'booking' | 'personal' | 'todo' | 'availability' }
+  | { kind: 'new' }
   | { kind: 'edit'; form: 'booking' | 'personal' | 'todo'; id: number }
 
-function routeId(pathname: string, pattern: string): number | null {
-  const match = matchPath({ path: pattern, end: true }, pathname)
-  if (!match?.params.id) return null
-  const id = Number(match.params.id)
-  return Number.isFinite(id) ? id : null
-}
-
 export function matchCalendarFormRoute(pathname: string): CalendarFormRouteMatch | null {
-  if (matchPath({ path: ROUTE_NEW_BOOKING, end: true }, pathname) || matchPath({ path: LEGACY_NEW_BOOKING, end: true }, pathname)) {
-    return { kind: 'new', form: 'booking' }
+  if (matchPath({ path: ROUTE_NEW_BOOKING, end: true }, pathname)) return { kind: 'new' }
+  const eb = matchPath({ path: ROUTE_EDIT_BOOKING, end: true }, pathname)
+  if (eb?.params.id) {
+    const id = Number(eb.params.id)
+    if (Number.isFinite(id)) return { kind: 'edit', form: 'booking', id }
   }
-  if (matchPath({ path: ROUTE_NEW_PERSONAL, end: true }, pathname) || matchPath({ path: LEGACY_NEW_PERSONAL, end: true }, pathname)) {
-    return { kind: 'new', form: 'personal' }
+  const ep = matchPath({ path: ROUTE_EDIT_PERSONAL, end: true }, pathname)
+  if (ep?.params.id) {
+    const id = Number(ep.params.id)
+    if (Number.isFinite(id)) return { kind: 'edit', form: 'personal', id }
   }
-  if (matchPath({ path: ROUTE_NEW_TODO, end: true }, pathname) || matchPath({ path: LEGACY_NEW_TODO, end: true }, pathname)) {
-    return { kind: 'new', form: 'todo' }
+  const et = matchPath({ path: ROUTE_EDIT_TODO, end: true }, pathname)
+  if (et?.params.id) {
+    const id = Number(et.params.id)
+    if (Number.isFinite(id)) return { kind: 'edit', form: 'todo', id }
   }
-  if (matchPath({ path: ROUTE_NEW_AVAILABILITY, end: true }, pathname) || matchPath({ path: LEGACY_NEW_AVAILABILITY, end: true }, pathname)) {
-    return { kind: 'new', form: 'availability' }
-  }
-
-  const bookingId = routeId(pathname, ROUTE_EDIT_BOOKING) ?? routeId(pathname, LEGACY_EDIT_BOOKING)
-  if (bookingId != null) return { kind: 'edit', form: 'booking', id: bookingId }
-  const personalId = routeId(pathname, ROUTE_EDIT_PERSONAL) ?? routeId(pathname, LEGACY_EDIT_PERSONAL)
-  if (personalId != null) return { kind: 'edit', form: 'personal', id: personalId }
-  const todoId = routeId(pathname, ROUTE_EDIT_TODO) ?? routeId(pathname, LEGACY_EDIT_TODO)
-  if (todoId != null) return { kind: 'edit', form: 'todo', id: todoId }
   return null
 }
 
@@ -216,10 +192,7 @@ export function parseAvailabilityQuery(search: string): AvailabilityFormQuery | 
   }
 }
 
-/** Each creation flow has its own Fresha-style drawer URL. */
-export function pathForNewForm(form: 'booking' | 'personal' | 'todo' | 'availability' = 'booking'): string {
-  if (form === 'personal') return ROUTE_NEW_PERSONAL
-  if (form === 'todo') return ROUTE_NEW_TODO
-  if (form === 'availability') return ROUTE_NEW_AVAILABILITY
+/** All compact “new slot” flows share one path; tabs are in-app only. */
+export function pathForNewForm(_form?: 'booking' | 'personal' | 'todo' | 'availability'): string {
   return ROUTE_NEW_BOOKING
 }

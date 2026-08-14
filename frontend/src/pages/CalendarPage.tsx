@@ -6,6 +6,5 @@ import '../styles/calendar/calendar-responsive.css'
 import '../styles/main/calendar-popup.css'
 import '../styles/main/calendar-popup-final.css'
 import '../styles/main/calendar-booking-mode.css'
-import '../styles/main/calendar-side-panel-system.css'
 
 export { default } from './calendar/CalendarPageContent'

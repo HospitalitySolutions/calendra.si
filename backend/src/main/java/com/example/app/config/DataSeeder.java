@@ -31,24 +31,18 @@ public class DataSeeder implements CommandLineRunner {
     private final AppSettingRepository settings;
     private final CompanyRepository companies;
     private final CompanyProvisioningService companyProvisioningService;
-    private final SeederProperties seederProperties;
 
     public DataSeeder(UserRepository users, PasswordEncoder encoder, AppSettingRepository settings,
-                      CompanyRepository companies, CompanyProvisioningService companyProvisioningService,
-                      SeederProperties seederProperties) {
+                      CompanyRepository companies, CompanyProvisioningService companyProvisioningService) {
         this.users = users;
         this.encoder = encoder;
         this.settings = settings;
         this.companies = companies;
         this.companyProvisioningService = companyProvisioningService;
-        this.seederProperties = seederProperties;
     }
 
     @Override
     public void run(String... args) {
-        if (!seederProperties.isEnabled() || !seederProperties.isDemoTenantsEnabled()) {
-            return;
-        }
         seedTenant("Tenant 1", "tenancy1@terminko.eu");
         seedTenant("Tenant 2", "tenancy2@terminko.eu");
         seedTenant("Tenant 3", "tenancy3@terminko.eu");

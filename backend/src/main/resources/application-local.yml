@@ -7,20 +7,3 @@ spring:
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
-
-app:
-  # Keep the old multi-tenant demo seeder off by default locally. It can still be
-  # re-enabled with APP_SEED_DEMO_TENANTS_ENABLED=true when those fixtures are useful.
-  seed:
-    enabled: ${APP_SEED_ENABLED:true}
-    demo-tenants-enabled: ${APP_SEED_DEMO_TENANTS_ENABLED:false}
-
-  # Predictable local-only staff login. LocalTestUserBootstrap is additionally
-  # protected with @Profile("local"), so none of these defaults run in staging/prod.
-  local-test-user:
-    enabled: ${APP_LOCAL_TEST_USER_ENABLED:true}
-    email: ${APP_LOCAL_TEST_USER_EMAIL:local@calendra.si}
-    password: "${APP_LOCAL_TEST_USER_PASSWORD:Admin123!}"
-    first-name: ${APP_LOCAL_TEST_USER_FIRST_NAME:Local}
-    last-name: ${APP_LOCAL_TEST_USER_LAST_NAME:Admin}
-    company-name: ${APP_LOCAL_TEST_USER_COMPANY_NAME:Calendra Local}

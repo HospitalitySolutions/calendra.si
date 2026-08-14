@@ -92,8 +92,8 @@ const routeModulePrefetchers: Array<{ matches: (pathname: string) => boolean; lo
   { matches: (pathname) => pathname === '/session-types' || pathname.startsWith('/session-types/'), load: importSessionTypesPage },
   { matches: (pathname) => pathname === '/consultants' || pathname.startsWith('/consultants/'), load: importConsultantsPage },
   { matches: (pathname) => pathname === '/billing' || pathname.startsWith('/billing/') || pathname.startsWith('/open-bills/'), load: importBillingPage },
-  { matches: (pathname) => pathname === '/analytics/workspace' || pathname.startsWith('/analytics/workspace/'), load: importWorkspaceAnalyticsPage },
-  { matches: (pathname) => pathname === '/analytics' || pathname.startsWith('/analytics/'), load: importAnalyticsPage },
+  { matches: (pathname) => pathname === '/analytics', load: importAnalyticsPage },
+  { matches: (pathname) => pathname === '/analytics/workspace', load: importWorkspaceAnalyticsPage },
   { matches: (pathname) => pathname === '/inbox' || pathname.startsWith('/inbox/'), load: importInboxPage },
   { matches: (pathname) => pathname === '/configuration' || pathname.startsWith('/configuration/'), load: importConfigurationPage },
   { matches: (pathname) => pathname === '/consumables' || pathname.startsWith('/consumables/'), load: importConsumablesPage },
@@ -551,7 +551,7 @@ export default function App() {
         <Route path="/confirm-email" element={<Navigate to="/register/account" replace />} />
         <Route path="/register/confirm-email" element={<Navigate to="/register/account" replace />} />
         <Route path="/signup" element={<Navigate to="/register" replace />} />
-        <Route path="/zoom/install/*" element={<ZoomInstallPage />} />
+        <Route path="/zoom/install" element={<ZoomInstallPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
@@ -621,38 +621,38 @@ export default function App() {
           <Route path="/sessions" element={<Navigate to={canViewCalendar ? '/calendar' : fallbackRoute} replace />} />
           <Route path="/sessions/booked" element={<Navigate to={canViewCalendar ? '/calendar' : fallbackRoute} replace />} />
           <Route path="/sessions/bookable" element={<Navigate to={canViewCalendar ? '/calendar' : fallbackRoute} replace />} />
-          <Route path="/clients/*" element={canViewClients ? <ClientsPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/appointments/*" element={appointmentsAllowed ? <AppointmentsPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/clients" element={canViewClients ? <ClientsPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/appointments" element={appointmentsAllowed ? <AppointmentsPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route
-            path="/scanner/*"
+            path="/scanner"
             element={canScanWalletEntitlements ? <WalletScannerPage /> : <Navigate to={fallbackRoute} replace />}
           />
           <Route
-            path="/consultants/*"
+            path="/consultants"
             element={canViewEmployees ? <ConsultantsPage /> : <Navigate to={fallbackRoute} replace />}
           />
           <Route
-            path="/my-profile/*"
+            path="/my-profile"
             element={user.role === 'CONSULTANT' ? <ConsultantsPage selfService /> : <Navigate to={fallbackRoute} replace />}
           />
-          <Route path="/billing/*" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/open-bills/:openBillId/edit/*" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/billing/open-bills/:openBillId/edit/*" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/consumables/*" element={consumablesAllowed ? <ConsumablesPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/analytics/*" element={canViewReports ? <AnalyticsPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/analytics/workspace/*" element={canViewReports && hasWorkspaceAnalyticsFeature ? <WorkspaceAnalyticsPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/inbox/*" element={inboxAllowed ? <InboxPage inboxModuleEnabled={inboxModuleEnabled} /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/configuration/*" element={canViewConfiguration ? <ConfigurationPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/billing" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/open-bills/:openBillId/edit" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/billing/open-bills/:openBillId/edit" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/consumables" element={consumablesAllowed ? <ConsumablesPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/analytics" element={canViewReports ? <AnalyticsPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/analytics/workspace" element={canViewReports && hasWorkspaceAnalyticsFeature ? <WorkspaceAnalyticsPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/inbox" element={inboxAllowed ? <InboxPage inboxModuleEnabled={inboxModuleEnabled} /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/configuration" element={canViewConfiguration ? <ConfigurationPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route
-            path="/session-types/*"
+            path="/session-types"
             element={canViewServices ? <SessionTypesPage /> : <Navigate to={fallbackRoute} replace />}
           />
-          <Route path="/notifications/*" element={<NotificationsPage />} />
-          <Route path="/help/*" element={<HelpPage />} />
-          <Route path="/platform-admin/*" element={isPlatformAdmin ? <PlatformAdminPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/zoom/install/*" element={<ZoomInstallPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/help" element={<HelpPage />} />
+          <Route path="/platform-admin" element={isPlatformAdmin ? <PlatformAdminPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/zoom/install" element={<ZoomInstallPage />} />
           <Route
-            path="/security/*"
+            path="/security"
             element={
               canViewConfiguration ? (
                 <Navigate to="/configuration?tab=company&subtab=security" replace />

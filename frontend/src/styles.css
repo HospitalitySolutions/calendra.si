@@ -16,5 +16,3 @@
 
 /* Shared desktop dropdown/select visual standard. Keep last so it can normalize page-local select rules. */
 @import './styles/components/desktop-select.css';
-
-@import './styles/features/app-side-panel-system.css';
