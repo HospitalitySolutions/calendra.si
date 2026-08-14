@@ -164,7 +164,7 @@ export function WalletScannerPage() {
   const paymentClientId = Number(query.get('paymentClientId') || query.get('clientId'))
   const scannerPaymentClientId = Number.isFinite(paymentClientId) && paymentClientId > 0 ? paymentClientId : null
   const autoStartCamera = query.get('autoStart') === '1' || query.get('camera') === '1'
-  const returnTo = query.get('returnTo') || (scannerPaymentBookingId ? `/calendar/booking/${scannerPaymentBookingId}` : scannerGroupBookingId ? `/calendar/booking/${scannerGroupBookingId}` : null)
+  const returnTo = query.get('returnTo') || (scannerPaymentBookingId ? `/calendar/drawer/appointment/${scannerPaymentBookingId}` : scannerGroupBookingId ? `/calendar/drawer/appointment/${scannerGroupBookingId}` : null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const controlsRef = useRef<IScannerControls | null>(null)
   const qrReaderRef = useRef<BrowserQRCodeReader | null>(null)

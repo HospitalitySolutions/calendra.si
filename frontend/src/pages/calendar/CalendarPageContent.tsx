@@ -44,7 +44,6 @@ import {
   parseAvailabilityQuery,
   parseNewSlotQuery,
   pathForNewForm,
-  ROUTE_NEW_BOOKING,
   type AvailabilityFormQuery,
   type NewSlotQuery,
 } from '../calendarFormRoutes'
@@ -532,6 +531,14 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const [savingNewGroupModal, setSavingNewGroupModal] = useState(false)
   const [groupModalError, setGroupModalError] = useState('')
   const [selection, setSelection] = useState<any>(null)
+  const [newEntryChooser, setNewEntryChooser] = useState<null | {
+    start: string
+    end: string
+    preserveDraggedRange: boolean
+    resourceId?: string | null
+    x: number
+    y: number
+  }>(null)
   const [dragSelection, setDragSelection] = useState<{
     start: string
     end: string
@@ -857,10 +864,10 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     return d.toLocaleDateString(calendarLocaleTag, { month: 'long' })
   }, [visibleRange, view, calendarLocaleTag])
   const useBookingSidePanel = isNativeAndroid || calendarFormPageLayout
-  /** Phones and tablets keep the compact page header; desktop keeps the existing desktop header. */
-  const compactSelectionHeader = isNativeAndroid || compactCalendarFormLayout
-  /** Booked / personal / todo editors use the compact header only on phone/tablet layouts. */
-  const compactSessionEditHeader = isNativeAndroid || compactCalendarFormLayout
+  /** Routed drawers use one compact X / title / Save header on every viewport. */
+  const compactSelectionHeader = useBookingSidePanel || compactCalendarFormLayout
+  /** Edit drawers share the same header system as create drawers. */
+  const compactSessionEditHeader = useBookingSidePanel || compactCalendarFormLayout
   const compactSelectionCheckAria =
     availabilitySelection != null
       ? availabilityIntent === 'block'
@@ -941,10 +948,14 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   useEffect(() => {
     if (!useBookingSidePanel) return
     if (!isLegacyNewSlotPath(location.pathname)) return
-    const sp = new URLSearchParams(location.search)
-    if (location.pathname.endsWith('/personal')) sp.set('panel', 'personal')
-    else if (location.pathname.endsWith('/todo')) sp.set('panel', 'todo')
-    navigate(`${ROUTE_NEW_BOOKING}?${sp.toString()}`, { replace: true })
+    const form = location.pathname.endsWith('/personal')
+      ? 'personal'
+      : location.pathname.endsWith('/todo')
+        ? 'todo'
+        : location.pathname.endsWith('/availability')
+          ? 'availability'
+          : 'booking'
+    navigate(`${pathForNewForm(form)}${location.search || ''}`, { replace: true })
   }, [useBookingSidePanel, location.pathname, location.search, navigate])
 
   const [androidScheduleOpen, setAndroidScheduleOpen] = useState(false)
@@ -2230,7 +2241,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       params.delete('sessionId')
     }
     const pathname = useBookingSidePanel && Number.isInteger(sessionId) && sessionId > 0
-      ? `/calendar/booking/${sessionId}`
+      ? `/calendar/drawer/appointment/${sessionId}`
       : location.pathname
     const nextSearch = params.toString()
     navigate({ pathname, search: nextSearch ? `?${nextSearch}` : '' }, { replace: false })
@@ -2251,7 +2262,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       params.delete('sessionId')
     }
     const pathname = useBookingSidePanel && Number.isInteger(sessionId) && sessionId > 0
-      ? `/calendar/booking/${sessionId}`
+      ? `/calendar/drawer/appointment/${sessionId}`
       : location.pathname
     const nextSearch = params.toString()
     navigate({ pathname, search: nextSearch ? `?${nextSearch}` : '' }, { replace: false })
@@ -2551,7 +2562,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     if (!todoIdRaw) return
     const todoId = Number(todoIdRaw)
     if (!Number.isFinite(todoId)) return
-    navigate(`/calendar/todo/${todoId}`, { replace: true })
+    navigate(`/calendar/drawer/task/${todoId}`, { replace: true })
   }, [todosModuleEnabled, location.search, navigate])
 
   useEffect(() => {
@@ -3520,7 +3531,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
         rangeEndDate: endDateOnly,
         fromWorkingHours: false,
       }
-      pushCompactFormRoute(`${ROUTE_NEW_BOOKING}?${mergeNewBookingAndAvailabilitySearch(slotQ, availabilityQ)}`)
+      pushCompactFormRoute(`${pathForNewForm('availability')}?${mergeNewBookingAndAvailabilitySearch(slotQ, availabilityQ)}`)
     }
   }
 
@@ -3561,86 +3572,8 @@ export default function CalendarPage({ user }: CalendarPageProps) {
         rangeEndDate: slot.endDate || date,
         fromWorkingHours: !!slot.fromWorkingHours,
       }
-      pushCompactFormRoute(`${ROUTE_NEW_BOOKING}?${mergeNewBookingAndAvailabilitySearch(slotQ, availabilityQ)}`)
+      pushCompactFormRoute(`${pathForNewForm('availability')}?${mergeNewBookingAndAvailabilitySearch(slotQ, availabilityQ)}`)
     }
-  }
-
-  const buildNewFormPanelOrder = (): Array<'booking' | 'personal' | 'todo' | 'availability'> => {
-    const o: Array<'booking' | 'personal' | 'todo' | 'availability'> = ['booking']
-    if (personalModuleEnabled) o.push('personal')
-    if (todosModuleEnabled) o.push('todo')
-    o.push('availability')
-    return o
-  }
-
-  const getActiveNewFormPanel = (): 'booking' | 'personal' | 'todo' | 'availability' => {
-    if (availabilitySelection) return 'availability'
-    if (form.todo) return 'todo'
-    if (form.personal) return 'personal'
-    return 'booking'
-  }
-
-  const activateNewFormPanel = (panel: 'booking' | 'personal' | 'todo' | 'availability') => {
-    if (panel === 'booking') {
-      setAvailabilitySelection(null)
-      setAvailabilityError(null)
-      setAvailabilitySaving(false)
-      setForm((f: any) => ({ ...f, personal: false, todo: false }))
-      return
-    }
-    if (panel === 'personal') {
-      setAvailabilitySelection(null)
-      setAvailabilityError(null)
-      setAvailabilitySaving(false)
-      setForm((f: any) => ({ ...f, personal: true, todo: false, online: false, consultantId: user.id, visibleToAdmins: Boolean(f.visibleToAdmins) }))
-      return
-    }
-    if (panel === 'todo') {
-      setAvailabilitySelection(null)
-      setAvailabilityError(null)
-      setAvailabilitySaving(false)
-      setForm((f: any) => ({ ...f, todo: true, personal: false, online: false, consultantId: user.id }))
-      return
-    }
-    const start = form.startTime || selection?.start
-    const end = form.endTime || selection?.end
-    if (!start || !end) return
-    openAvailabilityModalFromSelection(start, end, form.consultantId ?? null, { skipCompactNavigate: true })
-  }
-
-  const stepNewFormPanel = (dir: -1 | 1) => {
-    if (!useBookingSidePanel || isNativeAndroid) return
-    const order = buildNewFormPanelOrder()
-    const cur = getActiveNewFormPanel()
-    const idx = order.indexOf(cur)
-    if (idx < 0) return
-    const nextIdx = idx + dir
-    if (nextIdx < 0 || nextIdx >= order.length) return
-    activateNewFormPanel(order[nextIdx])
-  }
-
-  const newFormPanelSwipeRef = useRef<{ x: number; y: number } | null>(null)
-
-  const onNewFormPanelTouchStart = (e: ReactTouchEvent) => {
-    if (!useBookingSidePanel || isNativeAndroid) return
-    const p = e.touches[0]
-    if (!p) return
-    newFormPanelSwipeRef.current = { x: p.clientX, y: p.clientY }
-  }
-
-  const onNewFormPanelTouchEnd = (e: ReactTouchEvent) => {
-    if (!useBookingSidePanel || isNativeAndroid) return
-    const start = newFormPanelSwipeRef.current
-    newFormPanelSwipeRef.current = null
-    const t = e.changedTouches[0]
-    if (!start || !t) return
-    const dx = t.clientX - start.x
-    const dy = t.clientY - start.y
-    if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.15) return
-    stepNewFormPanel(dx < 0 ? 1 : -1)
-    document.querySelectorAll<HTMLElement>('.booking-type-switcher .booking-type-btn').forEach((el) => {
-      el.blur()
-    })
   }
 
   const closeAvailabilityModal = () => {
@@ -6911,9 +6844,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       && Number.isInteger(nextId)
       && nextId > 0
       && previousId !== nextId
-      && location.pathname === `/calendar/booking/${previousId}`
+      && location.pathname === `/calendar/drawer/appointment/${previousId}`
     ) {
-      navigate({ pathname: `/calendar/booking/${nextId}`, search: location.search }, { replace: true })
+      navigate({ pathname: `/calendar/drawer/appointment/${nextId}`, search: location.search }, { replace: true })
     }
     notifyBookingAndClientRecordsChanged()
 
@@ -7185,7 +7118,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const params = new URLSearchParams({
       groupBookingId: String(id),
       autoStart: '1',
-      returnTo: `/calendar/booking/${id}`,
+      returnTo: `/calendar/drawer/appointment/${id}`,
     })
     navigate(`/scanner?${params.toString()}`)
   }
@@ -7199,7 +7132,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const params = new URLSearchParams({
       paymentBookingId: String(paymentBookingId),
       autoStart: '1',
-      returnTo: `/calendar/booking/${returnBookingId}`,
+      returnTo: `/calendar/drawer/appointment/${returnBookingId}`,
     })
     const clientId = Number(client?.id ?? status?.clientId)
     if (Number.isInteger(clientId) && clientId > 0) {
@@ -7790,7 +7723,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
 
     if (routeMatch.kind === 'new') {
       const sp = new URLSearchParams(location.search.startsWith('?') ? location.search.slice(1) : location.search)
-      if (sp.has('fromWh')) {
+      if (routeMatch.form === 'availability' || sp.has('fromWh')) {
         const a = parseAvailabilityQuery(location.search)
         if (a) {
           setSelection({ start: a.start, end: a.end })
@@ -7810,7 +7743,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           return
         }
       }
-      if (sp.get('panel') === 'personal' && personalModuleEnabled) {
+      if ((routeMatch.form === 'personal' || sp.get('panel') === 'personal') && personalModuleEnabled) {
         const q = parseNewSlotQuery(location.search)
         if (!q.start || !q.end) return
         const startLocal = normalizeToLocalDateTime(q.start)
@@ -7851,7 +7784,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         lastHydratedFormRouteKeyRef.current = fullKey
         return
       }
-      if (sp.get('panel') === 'todo' && todosModuleEnabled) {
+      if ((routeMatch.form === 'todo' || sp.get('panel') === 'todo') && todosModuleEnabled) {
         const q = parseNewSlotQuery(location.search)
         if (!q.start || !q.end) return
         const startLocal = normalizeToLocalDateTime(q.start)
@@ -8822,15 +8755,78 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     openBookingModal(start, end, user.id, preserveDraggedRange, undefined, undefined, true, anchorEl)
   }
 
+  const openNewEntryChooser = (
+    start: string,
+    end: string,
+    preserveDraggedRange = false,
+    resourceId?: string | null,
+    anchorPoint?: { x: number; y: number } | null,
+  ) => {
+    const chooserWidth = 220
+    const chooserHeight = 184
+    const edge = 16
+    const fallbackX = window.innerWidth * 0.5
+    const fallbackY = window.innerHeight * 0.35
+    const rawX = anchorPoint?.x ?? fallbackX
+    const rawY = anchorPoint?.y ?? fallbackY
+    setNewEntryChooser({
+      start,
+      end,
+      preserveDraggedRange,
+      resourceId,
+      x: Math.max(edge, Math.min(window.innerWidth - chooserWidth - edge, rawX)),
+      y: Math.max(72, Math.min(window.innerHeight - chooserHeight - edge, rawY)),
+    })
+  }
+
+  const chooseNewEntryType = (type: 'booking' | 'personal' | 'todo' | 'availability') => {
+    const pending = newEntryChooser
+    if (!pending) return
+    setNewEntryChooser(null)
+    calendarRef.current?.getApi()?.unselect()
+
+    const selectionInfo = getBookableSelectionInfo(pending.start, pending.end)
+    let consultantId = selectionInfo.consultantId ?? consultantFilterId ?? user.id
+    if (bookingsUseResourceColumns && pending.resourceId && pending.resourceId !== CONSULTANT_RESOURCE_UNASSIGNED_ID) {
+      const resourceConsultantId = Number(pending.resourceId)
+      if (Number.isFinite(resourceConsultantId)) consultantId = resourceConsultantId
+    }
+
+    let spaceId: number | null | undefined = spaceFilterId ?? undefined
+    if (spacesUseResourceColumns && pending.resourceId !== undefined) {
+      if (!pending.resourceId || pending.resourceId === SPACE_RESOURCE_UNASSIGNED_ID) spaceId = null
+      else {
+        const resourceSpaceId = Number(pending.resourceId)
+        if (Number.isFinite(resourceSpaceId)) spaceId = resourceSpaceId
+      }
+    }
+
+    const qs = buildNewSlotSearchParams({
+      start: pending.start,
+      end: pending.end,
+      consultantId,
+      spaceId,
+      resourceId: pending.resourceId,
+      outsideBookable: type === 'booking' ? !selectionInfo.isBookable : false,
+    })
+    // Navigate without the compact-route hydration skip: the URL itself is the source of truth for the chosen panel.
+    navigate(`${pathForNewForm(type)}?${qs}`)
+  }
+
   const handleCalendarSelectionFromUi = (
     start: string,
     end: string,
     preserveDraggedRange = false,
     resourceId?: string | null,
+    anchorPoint?: { x: number; y: number } | null,
   ) => {
     if (!isNativeAndroid && overlapDrawerDismissConsumePointerRef.current) {
       overlapDrawerDismissConsumePointerRef.current = false
       calendarRef.current?.getApi()?.unselect()
+      return
+    }
+    if (useBookingSidePanel && !isNativeAndroid) {
+      openNewEntryChooser(start, end, preserveDraggedRange, resourceId, anchorPoint)
       return
     }
     if (isNativeAndroid) {
@@ -12294,7 +12290,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         meetingProvider: props.meetingProvider || 'zoom',
       })
       if (useBookingSidePanel && props.id != null) {
-        pushCompactFormRoute(`/calendar/booking/${props.id}`)
+        pushCompactFormRoute(`/calendar/drawer/appointment/${props.id}`)
       }
       return
     }
@@ -12304,7 +12300,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       setSelectedTodo(null)
       setSelectedPersonalBlock(props)
       if (useBookingSidePanel && props.id != null) {
-        pushCompactFormRoute(`/calendar/personal/${props.id}`)
+        pushCompactFormRoute(`/calendar/drawer/personal/${props.id}`)
       }
       return
     }
@@ -12314,7 +12310,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       setSelectedPersonalBlock(null)
       setSelectedTodo(props)
       if (useBookingSidePanel && props.id != null) {
-        pushCompactFormRoute(`/calendar/todo/${props.id}`)
+        pushCompactFormRoute(`/calendar/drawer/task/${props.id}`)
       }
     }
   }, [isNativeAndroid, placeSessionPopup, pushCompactFormRoute, useBookingSidePanel])
@@ -12332,7 +12328,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       meetingProvider: row.props.meetingProvider || 'zoom',
     })
     if (useBookingSidePanel && row.props.id != null) {
-      pushCompactFormRoute(`/calendar/booking/${row.props.id}`)
+      pushCompactFormRoute(`/calendar/drawer/appointment/${row.props.id}`)
     }
     closeSessionsSheet()
   }, [closeSessionsSheet, isNativeAndroid, placeSessionPopup, useBookingSidePanel, pushCompactFormRoute])
@@ -12422,7 +12418,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         meetingProvider: props.meetingProvider || 'zoom',
       })
       if (useBookingSidePanel && props.id != null) {
-        pushCompactFormRoute(`/calendar/booking/${props.id}`)
+        pushCompactFormRoute(`/calendar/drawer/appointment/${props.id}`)
       }
       return
     }
@@ -12432,7 +12428,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       setSelectedTodo(null)
       setSelectedPersonalBlock(props)
       if (useBookingSidePanel && props.id != null) {
-        pushCompactFormRoute(`/calendar/personal/${props.id}`)
+        pushCompactFormRoute(`/calendar/drawer/personal/${props.id}`)
       }
       return
     }
@@ -12442,7 +12438,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       setSelectedPersonalBlock(null)
       setSelectedTodo(props)
       if (useBookingSidePanel && props.id != null) {
-        pushCompactFormRoute(`/calendar/todo/${props.id}`)
+        pushCompactFormRoute(`/calendar/drawer/task/${props.id}`)
       }
     }
   }
@@ -12577,7 +12573,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     updateTodo,
   ])
 
-  const calendarSessionModalProps = {BookingTypeTabIcon,CalendarFormFooterDeleteIcon,CalendarFormFooterSaveIcon,CalendarLocalTimeDateRow,CalendarLocalTimespanRow,CalendarPaymentCompanyIcon,CalendarPaymentPersonIcon,CalendarScannerIcon,GuestConfigSaveIcon,LanguageModal,PageHeader,PersonalTaskCombo,REPEAT_WEEKDAY_EN,ROUTE_NEW_BOOKING,SessionNotesTextarea,activateNewFormPanel,addBookingGroupCaptionId,addBookingOnlineCaptionId,addClientInlineTitle,addGroupInlineTitle,androidLanguageModal,applyBookedSessionClientIds,applyFormClientIds,availabilityAllDayCaptionId,availabilityError,availabilityIntent,availabilityRangeEndInputRef,availabilityRangeStartInputRef,availabilitySaving,availabilitySelection,bookSessionClientFieldCompact,bookSessionClientsExpanded,bookSessionGroupFieldCompact,bookSessionNotesExpanded,bookSessionSelectedClient,bookSessionSelectedClients,bookedClientDropdownOpen,bookedClientSearch,bookedClientSearchInputRef,bookedPaymentClientDisplay,bookedPaymentManagerTab,bookedPaymentMenuOpen,bookedPaymentMeta,bookedPaymentPayeeDisplay,bookedPaymentPayeeDrafts,bookedPaymentPayeesUseSameCompanyForAll,bookedPaymentSidebarStatusMeta,bookedPaymentTotals,bookedPrimaryPaymentStatus,bookedSessionClientFieldCompact,bookedSessionClientsExpanded,bookedSessionGroupId,bookedSessionIsGroup,bookedSessionOnlineCaptionId,bookedSessionResolvedGroup,bookedSessionSelectedClient,bookedSessionSelectedClients,bookedStatusLabel,bookedStatusMenuOpen,bookedStatusTagColors,bookedStatusTransitionTargets,bookingEndEditedManuallyRef,bookingGroupMode,bookingPayeeCompanies,bookingStatusTagColors,calendarClientDetailId,calendarDashboardSelectionOnly,calendarFiltersBottomBar,calendarFormPageLayout,cancelBookedPersonalOverlap,cancelNonBookableMove,clearSingleClientTitle,clearSingleGroupTitle,clientDropdownOpen,clientError,clientSearch,clientSearchInputRef,clientSearchPlaceholder,closeBookedModal,closeBookingSelection,closePersonalModal,closeTodoModal,compactSelectionCheckAria,compactSelectionHeader,compactSessionEditHeader,confirmAvailabilityFromHeader,confirmBookedPersonalOverlap,confirmBookedPersonalOverlapYes,confirmDelete,confirmNonBookable,confirmNonBookableMove,confirmNonBookableMoveYes,confirmNonBookableYes,confirmOverlap,createClientFromBooking,createGroupFromBooking,createOpenBillForPaymentStatus,currency,deleteBookedSession,deletePersonalBlock,deleteTodo,completeTodo,editBookedAllDayCaptionId,form,formatDateTime,formatRepeatWeekdayLabel,fullName,getBookingEndTimeForStart,getMoreClientsLabel,getSessionPopupDragHandleProps,getSessionPopupInlineStyle,groupBookingEnabled,groupDropdownOpen,groupModalError,groupSearch,groupSearchInputRef,groupSearchPlaceholder,groupedSingleInvoiceClient,groupedSingleInvoicePayeeDraft,groupedSingleInvoiceStatus,hiddenBookSessionClientCount,hiddenBookedSessionClientCount,invoiceAllocationForPaymentStatus,isGroupedSingleInvoiceMode,isLocalBookingAllDay,isLocalTodoAllDayStart,isNativeAndroid,localTodayYmd,locale,locationFilterId,meetingPickerCancelUnchecksOnline,meetingProviderPickerOpen,meetingProviderPickerTarget,metaClients,metaConsultants,metaLocations,metaSpaces,metaTypes,metaUsers,multipleClientsPerSessionEnabled,newBookingAllDayCaptionId,newClientForm,newClientInitials,newGroupForm,newGroupMemberIds,newGroupMemberSearch,normalizeToLocalDateTime,onNewFormPanelTouchEnd,onNewFormPanelTouchStart,openAvailabilityModalFromSelection,openCalendarGroupDetail,openBookedSessionGroupGuests,openBookedPaymentAddClient,openBookedPaymentDetailsForClient,openBookedSessionGroupScanner,openBookedPaymentEntitlementScanner,openPaymentInvoicePdf,openBookedPaymentOpenBillEditor,openBookedPaymentAdvanceEditor,openCalendarClientDetail,parseClientNameInput,paymentManagerIsNewBooking,paymentManagerSessionClients,paymentStatusForClient,personInitials,personalEditAllDayCaptionId,personalFormAllDayCaptionId,personalModuleEnabled,personalTaskPresetDropdownOpen,personalTaskPresets,renderBookingModeTitle,resendPaymentInvoicePdf,saveBookedPaymentManager,saveBooking,saveBookingError,saveBookingLoading,savingClient,savingNewGroupModal,selectableMetaTypes,selectedBookedClientIds,selectedBookedPaymentClient,selectedBookedPaymentClientDraft,selectedBookedPaymentLinkedCompany,selectedBookedPaymentPayeeDraft,selectedBookedPaymentPayeeLocked,selectedBookedPaymentClientIsGroupMember,selectedBookedPaymentStatus,selectedBookedSession,selectedFormClientIds,selectedGroup,selectedPersonalBlock,selectedTodo,selection,sessionPopupRef,setAndroidLanguageModal,setAvailabilityError,setAvailabilityIntent,setAvailabilitySelection,setBookSessionClientsExpanded,setBookSessionNotesExpanded,setBookedClientDropdownOpen,setBookedClientSearch,setBookedPaymentAddMode,setBookedPaymentAddSearch,setBookedPaymentManagerTab,setBookedPaymentMenuOpen,setBookedSessionClientsExpanded,setBookedStatusMenuOpen,setBookedPaymentGroupNameDraft,setBookedPaymentSharedCompanyForAll,setBookingGroupMode,setClientDropdownOpen,setClientSearch,setConfirmDelete,setConfirmNonBookable,setConfirmOverlap,setEditingBookedClientSearch,setEditingClientSearch,setEditingGroupSearch,setForm,setGroupDropdownOpen,setGroupModalError,setGroupSearch,setMeetingPickerCancelUnchecksOnline,setMeetingProviderPickerOpen,setMeetingProviderPickerTarget,setNewClientForm,setNewGroupForm,setNewGroupMemberIds,setNewGroupMemberSearch,setPersonalTaskPresetDropdownOpen,setSaveBookingError,setSelectedBookedPaymentClientId,setSelectedBookedSession,setSelectedPersonalBlock,setSelectedTodo,setShowAddClientModal,setShowAddGroupModal,settings,showAddClientModal,showAddGroupModal,showBookingConsultantRow,showBookingSpaceRow,showBookingTypeRow,showLessClientsLabel,showSelectionFormFooter,splitLocalDateTimeParts,t,toCalendarTimeValue,todoEditAllDayCaptionId,todoFormAllDayCaptionId,todosModuleEnabled,toggleBookedPaymentSameCompanyForAll,markBookedClientsNoShow,transitionBookedStatus,updateBookedSession,updateBookingFormEndTime,updateBookingFormStartTime,updateBookingFormType,updateBookingFormServices,updateSelectedBookedSessionServices,updateSelectedBookedSessionStartTime,formServiceDrafts,formServiceChain,bookedServiceDrafts,bookedServiceChain,formServiceWarnings,bookedServiceWarnings,updatePersonalBlock,updateSelectedBookedPaymentClientDraft,updateSelectedBookedPaymentPayee,updateTodo,useBookingSidePanel,user,showToast,loadCalendarRangeOnly,visibleBookSessionClientChips,visibleBookedClients,visibleBookedSessionClientChips,visibleClients,visibleGroups,bookedPaymentAddCandidates,bookedPaymentAddMode,bookedPaymentAddSearch,paymentManagerAddClientSelectionActive,PAYMENT_MANAGER_ADD_CLIENT_ID,addBookedPaymentClientToSession,removeBookedPaymentClientFromGroup,removeBookedPaymentClientFromSession,bookedPaymentGroupNameDraft}
+  const calendarSessionModalProps = {CalendarFormFooterDeleteIcon,CalendarFormFooterSaveIcon,CalendarLocalTimeDateRow,CalendarLocalTimespanRow,CalendarPaymentCompanyIcon,CalendarPaymentPersonIcon,CalendarScannerIcon,GuestConfigSaveIcon,LanguageModal,PageHeader,PersonalTaskCombo,REPEAT_WEEKDAY_EN,SessionNotesTextarea,addBookingGroupCaptionId,addBookingOnlineCaptionId,addClientInlineTitle,addGroupInlineTitle,androidLanguageModal,applyBookedSessionClientIds,applyFormClientIds,availabilityAllDayCaptionId,availabilityError,availabilityIntent,availabilityRangeEndInputRef,availabilityRangeStartInputRef,availabilitySaving,availabilitySelection,bookSessionClientFieldCompact,bookSessionClientsExpanded,bookSessionGroupFieldCompact,bookSessionNotesExpanded,bookSessionSelectedClient,bookSessionSelectedClients,bookedClientDropdownOpen,bookedClientSearch,bookedClientSearchInputRef,bookedPaymentClientDisplay,bookedPaymentManagerTab,bookedPaymentMenuOpen,bookedPaymentMeta,bookedPaymentPayeeDisplay,bookedPaymentPayeeDrafts,bookedPaymentPayeesUseSameCompanyForAll,bookedPaymentSidebarStatusMeta,bookedPaymentTotals,bookedPrimaryPaymentStatus,bookedSessionClientFieldCompact,bookedSessionClientsExpanded,bookedSessionGroupId,bookedSessionIsGroup,bookedSessionOnlineCaptionId,bookedSessionResolvedGroup,bookedSessionSelectedClient,bookedSessionSelectedClients,bookedStatusLabel,bookedStatusMenuOpen,bookedStatusTagColors,bookedStatusTransitionTargets,bookingEndEditedManuallyRef,bookingGroupMode,bookingPayeeCompanies,bookingStatusTagColors,calendarClientDetailId,calendarDashboardSelectionOnly,calendarFiltersBottomBar,calendarFormPageLayout,cancelBookedPersonalOverlap,cancelNonBookableMove,clearSingleClientTitle,clearSingleGroupTitle,clientDropdownOpen,clientError,clientSearch,clientSearchInputRef,clientSearchPlaceholder,closeBookedModal,closeBookingSelection,closePersonalModal,closeTodoModal,compactSelectionCheckAria,compactSelectionHeader,compactSessionEditHeader,confirmAvailabilityFromHeader,confirmBookedPersonalOverlap,confirmBookedPersonalOverlapYes,confirmDelete,confirmNonBookable,confirmNonBookableMove,confirmNonBookableMoveYes,confirmNonBookableYes,confirmOverlap,createClientFromBooking,createGroupFromBooking,createOpenBillForPaymentStatus,currency,deleteBookedSession,deletePersonalBlock,deleteTodo,completeTodo,editBookedAllDayCaptionId,form,formatDateTime,formatRepeatWeekdayLabel,fullName,getBookingEndTimeForStart,getMoreClientsLabel,getSessionPopupDragHandleProps,getSessionPopupInlineStyle,groupBookingEnabled,groupDropdownOpen,groupModalError,groupSearch,groupSearchInputRef,groupSearchPlaceholder,groupedSingleInvoiceClient,groupedSingleInvoicePayeeDraft,groupedSingleInvoiceStatus,hiddenBookSessionClientCount,hiddenBookedSessionClientCount,invoiceAllocationForPaymentStatus,isGroupedSingleInvoiceMode,isLocalBookingAllDay,isLocalTodoAllDayStart,isNativeAndroid,localTodayYmd,locale,locationFilterId,meetingPickerCancelUnchecksOnline,meetingProviderPickerOpen,meetingProviderPickerTarget,metaClients,metaConsultants,metaLocations,metaSpaces,metaTypes,metaUsers,multipleClientsPerSessionEnabled,newBookingAllDayCaptionId,newClientForm,newClientInitials,newGroupForm,newGroupMemberIds,newGroupMemberSearch,normalizeToLocalDateTime,openCalendarGroupDetail,openBookedSessionGroupGuests,openBookedPaymentAddClient,openBookedPaymentDetailsForClient,openBookedSessionGroupScanner,openBookedPaymentEntitlementScanner,openPaymentInvoicePdf,openBookedPaymentOpenBillEditor,openBookedPaymentAdvanceEditor,openCalendarClientDetail,parseClientNameInput,paymentManagerIsNewBooking,paymentManagerSessionClients,paymentStatusForClient,personInitials,personalEditAllDayCaptionId,personalFormAllDayCaptionId,personalModuleEnabled,personalTaskPresetDropdownOpen,personalTaskPresets,renderBookingModeTitle,resendPaymentInvoicePdf,saveBookedPaymentManager,saveBooking,saveBookingError,saveBookingLoading,savingClient,savingNewGroupModal,selectableMetaTypes,selectedBookedClientIds,selectedBookedPaymentClient,selectedBookedPaymentClientDraft,selectedBookedPaymentLinkedCompany,selectedBookedPaymentPayeeDraft,selectedBookedPaymentPayeeLocked,selectedBookedPaymentClientIsGroupMember,selectedBookedPaymentStatus,selectedBookedSession,selectedFormClientIds,selectedGroup,selectedPersonalBlock,selectedTodo,selection,sessionPopupRef,setAndroidLanguageModal,setAvailabilityError,setAvailabilityIntent,setAvailabilitySelection,setBookSessionClientsExpanded,setBookSessionNotesExpanded,setBookedClientDropdownOpen,setBookedClientSearch,setBookedPaymentAddMode,setBookedPaymentAddSearch,setBookedPaymentManagerTab,setBookedPaymentMenuOpen,setBookedSessionClientsExpanded,setBookedStatusMenuOpen,setBookedPaymentGroupNameDraft,setBookedPaymentSharedCompanyForAll,setBookingGroupMode,setClientDropdownOpen,setClientSearch,setConfirmDelete,setConfirmNonBookable,setConfirmOverlap,setEditingBookedClientSearch,setEditingClientSearch,setEditingGroupSearch,setForm,setGroupDropdownOpen,setGroupModalError,setGroupSearch,setMeetingPickerCancelUnchecksOnline,setMeetingProviderPickerOpen,setMeetingProviderPickerTarget,setNewClientForm,setNewGroupForm,setNewGroupMemberIds,setNewGroupMemberSearch,setPersonalTaskPresetDropdownOpen,setSaveBookingError,setSelectedBookedPaymentClientId,setSelectedBookedSession,setSelectedPersonalBlock,setSelectedTodo,setShowAddClientModal,setShowAddGroupModal,settings,showAddClientModal,showAddGroupModal,showBookingConsultantRow,showBookingSpaceRow,showBookingTypeRow,showLessClientsLabel,showSelectionFormFooter,splitLocalDateTimeParts,t,toCalendarTimeValue,todoEditAllDayCaptionId,todoFormAllDayCaptionId,todosModuleEnabled,toggleBookedPaymentSameCompanyForAll,markBookedClientsNoShow,transitionBookedStatus,updateBookedSession,updateBookingFormEndTime,updateBookingFormStartTime,updateBookingFormType,updateBookingFormServices,updateSelectedBookedSessionServices,updateSelectedBookedSessionStartTime,formServiceDrafts,formServiceChain,bookedServiceDrafts,bookedServiceChain,formServiceWarnings,bookedServiceWarnings,updatePersonalBlock,updateSelectedBookedPaymentClientDraft,updateSelectedBookedPaymentPayee,updateTodo,useBookingSidePanel,user,showToast,loadCalendarRangeOnly,visibleBookSessionClientChips,visibleBookedClients,visibleBookedSessionClientChips,visibleClients,visibleGroups,bookedPaymentAddCandidates,bookedPaymentAddMode,bookedPaymentAddSearch,paymentManagerAddClientSelectionActive,PAYMENT_MANAGER_ADD_CLIENT_ID,addBookedPaymentClientToSession,removeBookedPaymentClientFromGroup,removeBookedPaymentClientFromSession,bookedPaymentGroupNameDraft}
 
   return (
     <div className={isNativeAndroid ? 'calendar-page-android-root' : 'calendar-page-web-root'}>
@@ -13397,12 +13393,12 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               arg.view.type !== 'resourceTimeGridThreeDay'
             )
               return
-            if (!isNativeAndroid && calendarMode !== 'bookings' && calendarMode !== 'spaces') return
             if (isViewOnly && !canCreateFromViewOnlyWeekClick) return
             const start = new Date(arg.date)
             const end = new Date(start.getTime() + SLOT_MS)
             const rid = (arg as { resource?: { id?: string } }).resource?.id
-            handleCalendarSelectionFromUi(toLocalDateTimeString(start), toLocalDateTimeString(end), false, rid)
+            const clickPoint = arg.jsEvent ? { x: arg.jsEvent.clientX, y: arg.jsEvent.clientY } : null
+            handleCalendarSelectionFromUi(toLocalDateTimeString(start), toLocalDateTimeString(end), false, rid, clickPoint)
           }}
           slotDuration={calendarSlotDuration}
           snapDuration={calendarSnapDuration}
@@ -13526,12 +13522,11 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   const end = toLocalDateTimeString(endDate)
                   const highlightEl = document.querySelector('.fc-highlight') as HTMLElement | null
                   const resourceId = (info as { resource?: { id?: string } }).resource?.id ?? null
-                  handleCalendarSelection(start, end, {
-                    preserveDraggedRange: true,
-                    anchorEl: highlightEl,
-                    spaceResourceId: spacesUseResourceColumns ? resourceId : undefined,
-                    consultantResourceId: bookingsUseResourceColumns ? resourceId : undefined,
-                  })
+                  const highlightRect = highlightEl?.getBoundingClientRect()
+                  const chooserPoint = highlightRect
+                    ? { x: Math.min(highlightRect.right + 10, window.innerWidth - 24), y: Math.min(highlightRect.top + 12, window.innerHeight - 24) }
+                    : null
+                  handleCalendarSelectionFromUi(start, end, true, resourceId, chooserPoint)
                 }
           }
           eventDrop={handleEventDrop}
@@ -13913,7 +13908,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               }
               placeSessionPopup(info.el)
               if (useBookingSidePanel && props.id != null) {
-                pushCompactFormRoute(`/calendar/booking/${props.id}`)
+                pushCompactFormRoute(`/calendar/drawer/appointment/${props.id}`)
               }
               clearSessionEventClickChrome(info.el)
               return
@@ -13925,7 +13920,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               placeSessionPopup(info.el)
               setSelectedPersonalBlock(props)
               if (useBookingSidePanel && props.id != null) {
-                pushCompactFormRoute(`/calendar/personal/${props.id}`)
+                pushCompactFormRoute(`/calendar/drawer/personal/${props.id}`)
               }
               clearSessionEventClickChrome(info.el)
               return
@@ -13937,7 +13932,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               placeSessionPopup(info.el)
               setSelectedTodo(props)
               if (useBookingSidePanel && props.id != null) {
-                pushCompactFormRoute(`/calendar/todo/${props.id}`)
+                pushCompactFormRoute(`/calendar/drawer/task/${props.id}`)
               }
               clearSessionEventClickChrome(info.el)
               return
@@ -14654,10 +14649,10 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 : null
             }
             onOpenClient={(clientId) => openCalendarClientDetail(clientId)}
-            onOpenTodo={(todoId) => pushCompactFormRoute(`/calendar/todo/${todoId}`)}
+            onOpenTodo={(todoId) => pushCompactFormRoute(`/calendar/drawer/task/${todoId}`)}
             onEditSession={() => {
               const bookingId = Number(selectedBookedSession?.id || 0)
-              if (bookingId > 0) pushCompactFormRoute(`/calendar/booking/${bookingId}`)
+              if (bookingId > 0) pushCompactFormRoute(`/calendar/drawer/appointment/${bookingId}`)
             }}
             onOpenFullOpenBill={(status, openBillId) => { openBookedPaymentOpenBillEditor(status, openBillId) }}
             onOpenFullAdvance={(status, client) => { openBookedPaymentAdvanceEditor(status, client) }}
@@ -15461,6 +15456,46 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {newEntryChooser && useBookingSidePanel && !isNativeAndroid && (
+        <div
+          className="calendar-new-entry-chooser-layer"
+          role="presentation"
+          onMouseDown={() => {
+            setNewEntryChooser(null)
+            calendarRef.current?.getApi()?.unselect()
+          }}
+        >
+          <div
+            className="calendar-new-entry-chooser"
+            role="menu"
+            aria-label={locale === 'sl' ? 'Izberite vrsto vnosa' : locale === 'sr' ? 'Izaberite vrstu unosa' : 'Choose entry type'}
+            style={{ left: newEntryChooser.x, top: newEntryChooser.y }}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button type="button" role="menuitem" onClick={() => chooseNewEntryType('booking')}>
+              <BookingTypeTabIcon name="booking" />
+              <span>{t('formBooking')}</span>
+            </button>
+            {todosModuleEnabled && (
+              <button type="button" role="menuitem" onClick={() => chooseNewEntryType('todo')}>
+                <BookingTypeTabIcon name="todo" />
+                <span>{t('formTodo')}</span>
+              </button>
+            )}
+            {personalModuleEnabled && (
+              <button type="button" role="menuitem" onClick={() => chooseNewEntryType('personal')}>
+                <BookingTypeTabIcon name="personal" />
+                <span>{t('formPersonal')}</span>
+              </button>
+            )}
+            <button type="button" role="menuitem" onClick={() => chooseNewEntryType('availability')}>
+              <BookingTypeTabIcon name="availability" />
+              <span>{t('calendarModeAvailability')}</span>
+            </button>
           </div>
         </div>
       )}

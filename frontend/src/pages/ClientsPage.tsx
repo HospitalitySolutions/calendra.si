@@ -5366,13 +5366,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                             <article
                               key={s.id}
                               className="clients-modern-session-row"
-                              onClick={() => navigate(`/calendar/booking/${s.id}`)}
+                              onClick={() => navigate(`/calendar/drawer/appointment/${s.id}`)}
                               role="button"
                               tabIndex={0}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' || e.key === ' ') {
                                   e.preventDefault()
-                                  navigate(`/calendar/booking/${s.id}`)
+                                  navigate(`/calendar/drawer/appointment/${s.id}`)
                                 }
                               }}
                             >
@@ -6281,13 +6281,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               <article
                                 key={s.id}
                                 className="clients-modern-session-row"
-                                onClick={() => navigate(`/calendar/booking/${s.id}`)}
+                                onClick={() => navigate(`/calendar/drawer/appointment/${s.id}`)}
                                 role="button"
                                 tabIndex={0}
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter' || e.key === ' ') {
                                     e.preventDefault()
-                                    navigate(`/calendar/booking/${s.id}`)
+                                    navigate(`/calendar/drawer/appointment/${s.id}`)
                                   }
                                 }}
                               >

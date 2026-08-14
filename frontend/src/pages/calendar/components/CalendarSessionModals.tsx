@@ -46,7 +46,7 @@ function bookingFormSignature(session: any, clientIds: any[], services: any[]) {
 }
 
 export function CalendarSessionModals({ ctx }: { ctx: any }) {
-  const {BookingTypeTabIcon,CalendarFormFooterDeleteIcon,CalendarFormFooterSaveIcon,CalendarLocalTimeDateRow,CalendarLocalTimespanRow,CalendarPaymentCompanyIcon,CalendarPaymentPersonIcon,CalendarScannerIcon,GuestConfigSaveIcon,LanguageModal,PageHeader,PersonalTaskCombo,REPEAT_WEEKDAY_EN,ROUTE_NEW_BOOKING,SessionNotesTextarea,activateNewFormPanel,addBookingGroupCaptionId,addBookingOnlineCaptionId,addClientInlineTitle,addGroupInlineTitle,androidLanguageModal,applyBookedSessionClientIds,applyFormClientIds,availabilityAllDayCaptionId,availabilityError,availabilityIntent,availabilityRangeEndInputRef,availabilityRangeStartInputRef,availabilitySaving,availabilitySelection,bookSessionClientFieldCompact,bookSessionClientsExpanded,bookSessionGroupFieldCompact,bookSessionNotesExpanded,bookSessionSelectedClient,bookSessionSelectedClients,bookedClientDropdownOpen,bookedClientSearch,bookedClientSearchInputRef,bookedPaymentClientDisplay,bookedPaymentManagerTab,bookedPaymentMenuOpen,bookedPaymentMeta,bookedPaymentPayeeDisplay,bookedPaymentPayeeDrafts,bookedPaymentPayeesUseSameCompanyForAll,bookedPaymentSidebarStatusMeta,bookedPaymentTotals,bookedPrimaryPaymentStatus,bookedSessionClientFieldCompact,bookedSessionClientsExpanded,bookedSessionGroupId,bookedSessionIsGroup,bookedSessionOnlineCaptionId,bookedSessionResolvedGroup,bookedSessionSelectedClient,bookedSessionSelectedClients,bookedStatusLabel,bookedStatusMenuOpen,bookedStatusTagColors,bookedStatusTransitionTargets,bookingEndEditedManuallyRef,bookingGroupMode,bookingPayeeCompanies,bookingStatusTagColors,calendarClientDetailId,calendarDashboardSelectionOnly,calendarFiltersBottomBar,calendarFormPageLayout,cancelBookedPersonalOverlap,cancelNonBookableMove,clearSingleClientTitle,clearSingleGroupTitle,clientDropdownOpen,clientError,clientSearch,clientSearchInputRef,clientSearchPlaceholder,closeBookedModal,closeBookingSelection,closePersonalModal,closeTodoModal,compactSelectionCheckAria,compactSelectionHeader,compactSessionEditHeader,confirmAvailabilityFromHeader,confirmBookedPersonalOverlap,confirmBookedPersonalOverlapYes,confirmDelete,confirmNonBookable,confirmNonBookableMove,confirmNonBookableMoveYes,confirmNonBookableYes,confirmOverlap,createClientFromBooking,createGroupFromBooking,createOpenBillForPaymentStatus,currency,deleteBookedSession,deletePersonalBlock,deleteTodo,completeTodo,editBookedAllDayCaptionId,form,formatDateTime,formatRepeatWeekdayLabel,fullName,getBookingEndTimeForStart,getMoreClientsLabel,getSessionPopupDragHandleProps,getSessionPopupInlineStyle,groupBookingEnabled,groupDropdownOpen,groupModalError,groupSearch,groupSearchInputRef,groupSearchPlaceholder,groupedSingleInvoiceClient,groupedSingleInvoicePayeeDraft,groupedSingleInvoiceStatus,hiddenBookSessionClientCount,hiddenBookedSessionClientCount,invoiceAllocationForPaymentStatus,isGroupedSingleInvoiceMode,isLocalBookingAllDay,isLocalTodoAllDayStart,isNativeAndroid,localTodayYmd,locale,locationFilterId,meetingPickerCancelUnchecksOnline,meetingProviderPickerOpen,meetingProviderPickerTarget,metaClients,metaConsultants,metaLocations,metaSpaces,metaTypes,metaUsers,multipleClientsPerSessionEnabled,newBookingAllDayCaptionId,newClientForm,newClientInitials,newGroupForm,newGroupMemberIds,newGroupMemberSearch,normalizeToLocalDateTime,onNewFormPanelTouchEnd,onNewFormPanelTouchStart,openAvailabilityModalFromSelection,openBookedPaymentAddClient,openBookedPaymentDetailsForClient,openBookedSessionGroupScanner,openBookedPaymentEntitlementScanner,openPaymentInvoicePdf,openBookedPaymentOpenBillEditor,openBookedPaymentAdvanceEditor,openCalendarClientDetail,openCalendarGroupDetail,openBookedSessionGroupGuests,parseClientNameInput,paymentManagerIsNewBooking,paymentManagerSessionClients,paymentStatusForClient,personInitials,personalEditAllDayCaptionId,personalFormAllDayCaptionId,personalModuleEnabled,personalTaskPresetDropdownOpen,personalTaskPresets,renderBookingModeTitle,resendPaymentInvoicePdf,saveBookedPaymentManager,saveBooking,saveBookingError,saveBookingLoading,savingClient,savingNewGroupModal,selectableMetaTypes,selectedBookedClientIds,selectedBookedPaymentClient,selectedBookedPaymentClientDraft,selectedBookedPaymentLinkedCompany,selectedBookedPaymentPayeeDraft,selectedBookedPaymentPayeeLocked,selectedBookedPaymentClientIsGroupMember,selectedBookedPaymentStatus,selectedBookedSession,selectedFormClientIds,selectedGroup,selectedPersonalBlock,selectedTodo,selection,sessionPopupRef,setAndroidLanguageModal,setAvailabilityError,setAvailabilityIntent,setAvailabilitySelection,setBookSessionClientsExpanded,setBookSessionNotesExpanded,setBookedClientDropdownOpen,setBookedClientSearch,setBookedPaymentAddMode,setBookedPaymentAddSearch,setBookedPaymentGroupNameDraft,setBookedPaymentManagerTab,setBookedPaymentMenuOpen,setBookedSessionClientsExpanded,setBookedStatusMenuOpen,setBookedPaymentSharedCompanyForAll,setBookingGroupMode,setClientDropdownOpen,setClientSearch,setConfirmDelete,setConfirmNonBookable,setConfirmOverlap,setEditingBookedClientSearch,setEditingClientSearch,setEditingGroupSearch,setForm,setGroupDropdownOpen,setGroupModalError,setGroupSearch,setMeetingPickerCancelUnchecksOnline,setMeetingProviderPickerOpen,setMeetingProviderPickerTarget,setNewClientForm,setNewGroupForm,setNewGroupMemberIds,setNewGroupMemberSearch,setPersonalTaskPresetDropdownOpen,setSaveBookingError,setSelectedBookedPaymentClientId,setSelectedBookedSession,setSelectedPersonalBlock,setSelectedTodo,setShowAddClientModal,setShowAddGroupModal,settings,showAddClientModal,showAddGroupModal,showBookingConsultantRow,showBookingSpaceRow,showBookingTypeRow,showLessClientsLabel,showSelectionFormFooter,splitLocalDateTimeParts,t,toCalendarTimeValue,todoEditAllDayCaptionId,todoFormAllDayCaptionId,todosModuleEnabled,toggleBookedPaymentSameCompanyForAll,markBookedClientsNoShow,transitionBookedStatus,updateBookedSession,updateBookingFormEndTime,updateBookingFormStartTime,updateBookingFormType,updateBookingFormServices,updateSelectedBookedSessionServices,updateSelectedBookedSessionStartTime,formServiceDrafts,formServiceChain,bookedServiceDrafts,bookedServiceChain,formServiceWarnings,bookedServiceWarnings,updatePersonalBlock,updateSelectedBookedPaymentClientDraft,updateSelectedBookedPaymentPayee,updateTodo,useBookingSidePanel,user,showToast,loadCalendarRangeOnly,visibleBookSessionClientChips,visibleBookedClients,visibleBookedSessionClientChips,visibleClients,visibleGroups,bookedPaymentAddCandidates,bookedPaymentAddMode,bookedPaymentAddSearch,paymentManagerAddClientSelectionActive,PAYMENT_MANAGER_ADD_CLIENT_ID,addBookedPaymentClientToSession,removeBookedPaymentClientFromGroup,removeBookedPaymentClientFromSession,bookedPaymentGroupNameDraft} = ctx
+  const {CalendarFormFooterDeleteIcon,CalendarFormFooterSaveIcon,CalendarLocalTimeDateRow,CalendarLocalTimespanRow,CalendarPaymentCompanyIcon,CalendarPaymentPersonIcon,CalendarScannerIcon,GuestConfigSaveIcon,LanguageModal,PageHeader,PersonalTaskCombo,REPEAT_WEEKDAY_EN,SessionNotesTextarea,addBookingGroupCaptionId,addBookingOnlineCaptionId,addClientInlineTitle,addGroupInlineTitle,androidLanguageModal,applyBookedSessionClientIds,applyFormClientIds,availabilityAllDayCaptionId,availabilityError,availabilityIntent,availabilityRangeEndInputRef,availabilityRangeStartInputRef,availabilitySaving,availabilitySelection,bookSessionClientFieldCompact,bookSessionClientsExpanded,bookSessionGroupFieldCompact,bookSessionNotesExpanded,bookSessionSelectedClient,bookSessionSelectedClients,bookedClientDropdownOpen,bookedClientSearch,bookedClientSearchInputRef,bookedPaymentClientDisplay,bookedPaymentManagerTab,bookedPaymentMenuOpen,bookedPaymentMeta,bookedPaymentPayeeDisplay,bookedPaymentPayeeDrafts,bookedPaymentPayeesUseSameCompanyForAll,bookedPaymentSidebarStatusMeta,bookedPaymentTotals,bookedPrimaryPaymentStatus,bookedSessionClientFieldCompact,bookedSessionClientsExpanded,bookedSessionGroupId,bookedSessionIsGroup,bookedSessionOnlineCaptionId,bookedSessionResolvedGroup,bookedSessionSelectedClient,bookedSessionSelectedClients,bookedStatusLabel,bookedStatusMenuOpen,bookedStatusTagColors,bookedStatusTransitionTargets,bookingEndEditedManuallyRef,bookingGroupMode,bookingPayeeCompanies,bookingStatusTagColors,calendarClientDetailId,calendarDashboardSelectionOnly,calendarFiltersBottomBar,calendarFormPageLayout,cancelBookedPersonalOverlap,cancelNonBookableMove,clearSingleClientTitle,clearSingleGroupTitle,clientDropdownOpen,clientError,clientSearch,clientSearchInputRef,clientSearchPlaceholder,closeBookedModal,closeBookingSelection,closePersonalModal,closeTodoModal,compactSelectionCheckAria,compactSelectionHeader,compactSessionEditHeader,confirmAvailabilityFromHeader,confirmBookedPersonalOverlap,confirmBookedPersonalOverlapYes,confirmDelete,confirmNonBookable,confirmNonBookableMove,confirmNonBookableMoveYes,confirmNonBookableYes,confirmOverlap,createClientFromBooking,createGroupFromBooking,createOpenBillForPaymentStatus,currency,deleteBookedSession,deletePersonalBlock,deleteTodo,completeTodo,editBookedAllDayCaptionId,form,formatDateTime,formatRepeatWeekdayLabel,fullName,getBookingEndTimeForStart,getMoreClientsLabel,getSessionPopupDragHandleProps,getSessionPopupInlineStyle,groupBookingEnabled,groupDropdownOpen,groupModalError,groupSearch,groupSearchInputRef,groupSearchPlaceholder,groupedSingleInvoiceClient,groupedSingleInvoicePayeeDraft,groupedSingleInvoiceStatus,hiddenBookSessionClientCount,hiddenBookedSessionClientCount,invoiceAllocationForPaymentStatus,isGroupedSingleInvoiceMode,isLocalBookingAllDay,isLocalTodoAllDayStart,isNativeAndroid,localTodayYmd,locale,locationFilterId,meetingPickerCancelUnchecksOnline,meetingProviderPickerOpen,meetingProviderPickerTarget,metaClients,metaConsultants,metaLocations,metaSpaces,metaTypes,metaUsers,multipleClientsPerSessionEnabled,newBookingAllDayCaptionId,newClientForm,newClientInitials,newGroupForm,newGroupMemberIds,newGroupMemberSearch,normalizeToLocalDateTime,openBookedPaymentAddClient,openBookedPaymentDetailsForClient,openBookedSessionGroupScanner,openBookedPaymentEntitlementScanner,openPaymentInvoicePdf,openBookedPaymentOpenBillEditor,openBookedPaymentAdvanceEditor,openCalendarClientDetail,openCalendarGroupDetail,openBookedSessionGroupGuests,parseClientNameInput,paymentManagerIsNewBooking,paymentManagerSessionClients,paymentStatusForClient,personInitials,personalEditAllDayCaptionId,personalFormAllDayCaptionId,personalModuleEnabled,personalTaskPresetDropdownOpen,personalTaskPresets,renderBookingModeTitle,resendPaymentInvoicePdf,saveBookedPaymentManager,saveBooking,saveBookingError,saveBookingLoading,savingClient,savingNewGroupModal,selectableMetaTypes,selectedBookedClientIds,selectedBookedPaymentClient,selectedBookedPaymentClientDraft,selectedBookedPaymentLinkedCompany,selectedBookedPaymentPayeeDraft,selectedBookedPaymentPayeeLocked,selectedBookedPaymentClientIsGroupMember,selectedBookedPaymentStatus,selectedBookedSession,selectedFormClientIds,selectedGroup,selectedPersonalBlock,selectedTodo,selection,sessionPopupRef,setAndroidLanguageModal,setAvailabilityError,setAvailabilityIntent,setAvailabilitySelection,setBookSessionClientsExpanded,setBookSessionNotesExpanded,setBookedClientDropdownOpen,setBookedClientSearch,setBookedPaymentAddMode,setBookedPaymentAddSearch,setBookedPaymentGroupNameDraft,setBookedPaymentManagerTab,setBookedPaymentMenuOpen,setBookedSessionClientsExpanded,setBookedStatusMenuOpen,setBookedPaymentSharedCompanyForAll,setBookingGroupMode,setClientDropdownOpen,setClientSearch,setConfirmDelete,setConfirmNonBookable,setConfirmOverlap,setEditingBookedClientSearch,setEditingClientSearch,setEditingGroupSearch,setForm,setGroupDropdownOpen,setGroupModalError,setGroupSearch,setMeetingPickerCancelUnchecksOnline,setMeetingProviderPickerOpen,setMeetingProviderPickerTarget,setNewClientForm,setNewGroupForm,setNewGroupMemberIds,setNewGroupMemberSearch,setPersonalTaskPresetDropdownOpen,setSaveBookingError,setSelectedBookedPaymentClientId,setSelectedBookedSession,setSelectedPersonalBlock,setSelectedTodo,setShowAddClientModal,setShowAddGroupModal,settings,showAddClientModal,showAddGroupModal,showBookingConsultantRow,showBookingSpaceRow,showBookingTypeRow,showLessClientsLabel,showSelectionFormFooter,splitLocalDateTimeParts,t,toCalendarTimeValue,todoEditAllDayCaptionId,todoFormAllDayCaptionId,todosModuleEnabled,toggleBookedPaymentSameCompanyForAll,markBookedClientsNoShow,transitionBookedStatus,updateBookedSession,updateBookingFormEndTime,updateBookingFormStartTime,updateBookingFormType,updateBookingFormServices,updateSelectedBookedSessionServices,updateSelectedBookedSessionStartTime,formServiceDrafts,formServiceChain,bookedServiceDrafts,bookedServiceChain,formServiceWarnings,bookedServiceWarnings,updatePersonalBlock,updateSelectedBookedPaymentClientDraft,updateSelectedBookedPaymentPayee,updateTodo,useBookingSidePanel,user,showToast,loadCalendarRangeOnly,visibleBookSessionClientChips,visibleBookedClients,visibleBookedSessionClientChips,visibleClients,visibleGroups,bookedPaymentAddCandidates,bookedPaymentAddMode,bookedPaymentAddSearch,paymentManagerAddClientSelectionActive,PAYMENT_MANAGER_ADD_CLIENT_ID,addBookedPaymentClientToSession,removeBookedPaymentClientFromGroup,removeBookedPaymentClientFromSession,bookedPaymentGroupNameDraft} = ctx
 
   const canViewConsumables = hasEmployeePermission(user, 'CONSUMABLES_VIEW')
   const canEditConsumables = hasEmployeePermission(user, 'CONSUMABLES_EDIT')
@@ -3522,9 +3522,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   >
                     <CalendarFormFooterSaveIcon />
                     <span className="calendar-form-footer-btn__label">
-                      {compactSessionEditHeader
-                        ? (locale === 'sl' ? 'Shrani spremembe' : locale === 'sr' ? 'Sačuvaj izmene' : 'Save changes')
-                        : t('formSave')}
+                      {t('formSave')}
                     </span>
                   </button>
                   </div>
@@ -4514,9 +4512,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               >
                 <CalendarFormFooterSaveIcon />
                 <span className="calendar-form-footer-btn__label">
-                  {compactSessionEditHeader
-                    ? (locale === 'sl' ? 'Shrani spremembe' : locale === 'sr' ? 'Sačuvaj izmene' : 'Save changes')
-                    : t('formSave')}
+                  {t('formSave')}
                 </span>
               </button>
             </div>
@@ -4544,15 +4540,27 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   <div className="calendar-edit-session-panel__compact-title-wrap">
                     <span className="calendar-edit-session-panel__compact-title">{t('formTodoEditTitle')}</span>
                   </div>
-                  <button
-                    type="button"
-                    className="calendar-mobile-header-text-action calendar-mobile-header-text-action--todo-complete"
-                    onClick={completeTodo}
-                    aria-label={locale === 'sl' ? 'Opravljeno' : 'Done'}
-                    title={locale === 'sl' ? 'Opravljeno' : 'Done'}
-                  >
-                    {locale === 'sl' ? 'Opravljeno' : 'Done'}
-                  </button>
+                  <div className="booking-side-panel-header-ico-group booking-side-panel-header-ico-group--todo-actions">
+                    <button
+                      type="button"
+                      className="calendar-form-footer-btn calendar-form-footer-btn--delete"
+                      onClick={deleteTodo}
+                      aria-label={t('formDelete')}
+                      title={t('formDelete')}
+                    >
+                      <CalendarFormFooterDeleteIcon />
+                      <span className="calendar-form-footer-btn__label">{t('formDelete')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="calendar-mobile-header-text-action calendar-mobile-header-text-action--todo-complete"
+                      onClick={completeTodo}
+                      aria-label={locale === 'sl' ? 'Opravljeno' : 'Done'}
+                      title={locale === 'sl' ? 'Opravljeno' : 'Done'}
+                    >
+                      {locale === 'sl' ? 'Opravljeno' : 'Done'}
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <PageHeader
@@ -4632,9 +4640,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               >
                 <CalendarFormFooterSaveIcon />
                 <span className="calendar-form-footer-btn__label">
-                  {compactSessionEditHeader
-                    ? (locale === 'sl' ? 'Shrani spremembe' : locale === 'sr' ? 'Sačuvaj izmene' : 'Save changes')
-                    : t('formSave')}
+                  {t('formSave')}
                 </span>
               </button>
             </div>
@@ -4688,7 +4694,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   >
                     ×
                   </button>
-                  <h1 className="booking-side-panel-new-create-title">{t('formBookSession')}</h1>
+                  <h1 className="booking-side-panel-new-create-title">{renderBookingModeTitle()}</h1>
                   <button
                     type="button"
                     className="booking-side-panel-submit-check booking-side-panel-submit-check--new-create"
@@ -4725,55 +4731,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             </div>
             <div
               className="booking-side-panel-body"
-              style={
-                useBookingSidePanel && !isNativeAndroid ? { touchAction: 'pan-y' as const } : undefined
-              }
-              onTouchStart={useBookingSidePanel && !isNativeAndroid ? onNewFormPanelTouchStart : undefined}
-              onTouchEnd={useBookingSidePanel && !isNativeAndroid ? onNewFormPanelTouchEnd : undefined}
             >
-            {!isNativeAndroid && (
-              <div className="booking-type-switcher">
-                <button
-                  type="button"
-                  className={!availabilitySelection && !form.todo && !form.personal ? 'booking-type-btn booking-type-btn--booking active' : 'booking-type-btn booking-type-btn--booking'}
-                  onClick={() => activateNewFormPanel('booking')}
-                >
-                  <span className="booking-type-btn-label"><BookingTypeTabIcon name="booking" />{t('formBooking')}</span>
-                </button>
-                {todosModuleEnabled && (
-                <button
-                  type="button"
-                  className={!availabilitySelection && form.todo ? 'booking-type-btn booking-type-btn--todo active' : 'booking-type-btn booking-type-btn--todo'}
-                  onClick={() => activateNewFormPanel('todo')}
-                >
-                  <span className="booking-type-btn-label"><BookingTypeTabIcon name="todo" />{t('formTodo')}</span>
-                </button>
-                )}
-                {personalModuleEnabled && (
-                <button
-                  type="button"
-                  className={!availabilitySelection && form.personal ? 'booking-type-btn booking-type-btn--personal active' : 'booking-type-btn booking-type-btn--personal'}
-                  onClick={() => activateNewFormPanel('personal')}
-                >
-                  <span className="booking-type-btn-label"><BookingTypeTabIcon name="personal" />{t('formPersonal')}</span>
-                </button>
-                )}
-                <button
-                  type="button"
-                  className={availabilitySelection ? 'booking-type-btn booking-type-btn--availability active' : 'booking-type-btn booking-type-btn--availability'}
-                  onClick={() => {
-                    const start = form.startTime || selection?.start
-                    const end = form.endTime || selection?.end
-                    if (!start || !end) return
-                    openAvailabilityModalFromSelection(start, end, form.consultantId ?? null, {
-                      skipCompactNavigate: useBookingSidePanel && location.pathname === ROUTE_NEW_BOOKING,
-                    })
-                  }}
-                >
-                  <span className="booking-type-btn-label"><BookingTypeTabIcon name="availability" />{t('calendarModeAvailability')}</span>
-                </button>
-              </div>
-            )}
             <div className={`form-row-layout${!availabilitySelection && !form.todo && !form.personal ? ' form-row-layout--booking' : ''}`}>
               {availabilitySelection ? (
                 <>

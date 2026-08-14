@@ -1,0 +1,222 @@
+:root {
+  /* One source of truth for every desktop app drawer. */
+  --calendra-panel-width: 560px;
+  --calendra-panel-z: 13500;
+  --calendra-panel-overlay-z: 13600;
+  --calendra-panel-gutter: 20px;
+  --calendra-panel-gutter-double: 40px;
+  --calendra-panel-gutter-negative: -20px;
+  --calendra-panel-header-height: 64px;
+  --calendra-panel-title-size: 16px;
+  --calendra-panel-control-size: 14px;
+  --calendra-panel-label-size: 13px;
+  --calendra-panel-blue: var(--color-primary, #1672f3);
+  --calendra-panel-field-height: 44px;
+  --calendra-panel-field-radius: 10px;
+  --calendra-panel-field-border: #d7e0ec;
+}
+
+@media (min-width: 1025px) {
+  body .app-side-panel-backdrop.app-side-panel-backdrop {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: var(--calendra-panel-overlay-z) !important;
+    display: flex !important;
+    align-items: stretch !important;
+    justify-content: flex-end !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    background: rgba(15, 23, 42, 0.12) !important;
+    backdrop-filter: none !important;
+  }
+
+  body .app-side-panel-backdrop.app-side-panel-backdrop > .app-side-panel.app-side-panel {
+    position: relative !important;
+    inset: auto !important;
+    transform: none !important;
+    width: min(var(--calendra-panel-width), 100vw) !important;
+    min-width: min(var(--calendra-panel-width), 100vw) !important;
+    max-width: min(var(--calendra-panel-width), 100vw) !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: var(--color-surface, #fff) !important;
+    box-shadow: -14px 0 36px rgba(15, 23, 42, 0.12) !important;
+    box-sizing: border-box !important;
+    padding: 0 var(--calendra-panel-gutter) 24px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    font-family: var(--font-sans, system-ui, sans-serif) !important;
+    font-size: var(--calendra-panel-control-size) !important;
+  }
+
+  @supports (height: 100dvh) {
+    body .app-side-panel-backdrop.app-side-panel-backdrop > .app-side-panel.app-side-panel { height: 100dvh !important; max-height: 100dvh !important; }
+  }
+
+  .app-side-panel-system-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: var(--calendra-panel-header-height);
+    width: calc(100% + var(--calendra-panel-gutter-double));
+    margin: 0 var(--calendra-panel-gutter-negative);
+    padding: 10px var(--calendra-panel-gutter);
+    background: var(--color-surface, #fff);
+    border: 0 !important;
+  }
+
+  .app-side-panel-system-close,
+  .app-side-panel-system-save {
+    appearance: none;
+    border: 0 !important;
+    outline: none;
+    box-shadow: none !important;
+    background: transparent !important;
+    color: var(--calendra-panel-blue) !important;
+    cursor: pointer;
+    font: inherit;
+  }
+
+  .app-side-panel-system-close {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px !important;
+    font-size: 24px;
+    font-weight: 400;
+    line-height: 1;
+  }
+
+  .app-side-panel-system-save {
+    min-height: 32px;
+    padding: 4px 0 4px 12px;
+    font-size: var(--calendra-panel-control-size);
+    font-weight: 650;
+  }
+
+
+  .app-side-panel-system-save:disabled {
+    opacity: 0.42;
+    cursor: default;
+    text-decoration: none !important;
+  }
+
+  .app-side-panel-system-close:hover,
+  .app-side-panel-system-close:focus-visible {
+    background: rgba(22, 114, 243, 0.06) !important;
+  }
+
+  .app-side-panel-system-save:not(:disabled):hover,
+  .app-side-panel-system-save:not(:disabled):focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .app-side-panel-system-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text, #0f172a);
+    font-size: var(--calendra-panel-title-size);
+    font-weight: 650;
+    line-height: 1.3;
+  }
+
+  .app-side-panel-system-source-close,
+  .app-side-panel-system-source-save,
+  .app-side-panel-system-source-title,
+  .app-side-panel-system-source-header,
+  .app-side-panel-system-source-footer,
+  .app-side-panel-system-cancel {
+    display: none !important;
+  }
+
+  /* Preserve meaningful subtitle/identity/status content from rich popup headers,
+     but neutralize the old popup chrome so it belongs to the shared drawer. */
+  body .app-side-panel.app-side-panel .app-side-panel-system-content-header {
+    margin: 0 !important;
+    padding: 4px 0 14px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  body .app-side-panel.app-side-panel hr,
+  body .app-side-panel.app-side-panel [class*="divider"],
+  body .app-side-panel.app-side-panel [class*="separator"] {
+    display: none !important;
+  }
+
+  body .app-side-panel.app-side-panel [class*="header"],
+  body .app-side-panel.app-side-panel [class*="footer"],
+  body .app-side-panel.app-side-panel .booking-side-panel-header,
+  body .app-side-panel.app-side-panel .booking-side-panel-footer,
+  body .app-side-panel.app-side-panel .form-actions,
+  body .app-side-panel.app-side-panel .form-row {
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+    box-shadow: none !important;
+  }
+
+  body .app-side-panel.app-side-panel input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  body .app-side-panel.app-side-panel select,
+  body .app-side-panel.app-side-panel .desktop-select__trigger,
+  body .app-side-panel.app-side-panel textarea {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-height: var(--calendra-panel-field-height) !important;
+    border: 1px solid var(--calendra-panel-field-border) !important;
+    border-radius: var(--calendra-panel-field-radius) !important;
+    background: var(--color-surface, #fff) !important;
+    color: var(--color-text, #0f172a) !important;
+    box-shadow: none !important;
+    font: inherit !important;
+    font-size: var(--calendra-panel-control-size) !important;
+  }
+
+  body .app-side-panel.app-side-panel input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  body .app-side-panel.app-side-panel select,
+  body .app-side-panel.app-side-panel .desktop-select__trigger {
+    padding: 0 12px !important;
+  }
+
+  body .app-side-panel.app-side-panel textarea {
+    min-height: 92px !important;
+    padding: 11px 12px !important;
+    resize: vertical;
+  }
+
+  body .app-side-panel.app-side-panel input:focus,
+  body .app-side-panel.app-side-panel select:focus,
+  body .app-side-panel.app-side-panel textarea:focus,
+  body .app-side-panel.app-side-panel .desktop-select__trigger:focus {
+    outline: none !important;
+    border-color: #94a3b8 !important;
+    box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.08) !important;
+  }
+
+  body .app-side-panel.app-side-panel label,
+  body .app-side-panel.app-side-panel .field-label,
+  body .app-side-panel.app-side-panel [class*="label"] {
+    font-size: var(--calendra-panel-label-size);
+  }
+
+  body .app-side-panel.app-side-panel button.primary:not(.app-side-panel-system-save),
+  body .app-side-panel.app-side-panel button[class*="primary"]:not(.app-side-panel-system-save) {
+    box-shadow: none !important;
+  }
+}

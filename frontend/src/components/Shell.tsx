@@ -19,6 +19,7 @@ import { useSelectedLocationId } from '../lib/locationContext'
 import type { User } from '../lib/types'
 import loginLogo from '../assets/login-logo.png'
 import { locationsQueryOptions, moduleCapabilitiesQueryOptions, settingsQueryOptions } from '../queries/sharedQueryOptions'
+import { AppSidePanelSystem } from './AppSidePanelSystem'
 
 function AndroidNavIconCalendar() {
   return (
@@ -607,10 +608,10 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
     }
     if (calendarFormUsesRoutes) {
       if (isCalendarRoute) {
-        navigate(`/calendar/todo/${id}`)
+        navigate(`/calendar/drawer/task/${id}`)
       } else {
         navigate('/calendar')
-        window.setTimeout(() => navigate(`/calendar/todo/${id}`), 0)
+        window.setTimeout(() => navigate(`/calendar/drawer/task/${id}`), 0)
       }
       return
     }
@@ -1654,6 +1655,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
         </header>
         <main className={isCalendarRoute ? 'content content--calendar-flush' : isClientsRoute ? 'content content--clients' : isInboxRoute ? 'content content--inbox' : isWaitlistRoute ? 'content content--waitlist' : isServicesRoute ? 'content content--services' : isEmployeesRoute ? 'content content--employees' : isAnalyticsRoute ? 'content content--analytics' : isBillingRoute ? 'content content--billing' : isScannerRoute ? 'content content--scanner' : isGuestAppConfigurationRoute ? 'content content--configuration-guest-app' : isIntegrationsConfigurationRoute ? 'content content--configuration-integrations' : isAccountManagementRoute ? 'content content--configuration-account' : isNotificationsConfigurationRoute ? 'content content--configuration-notifications' : isReservationRulesConfigurationRoute ? 'content content--configuration-reservation-rules' : isBillingConfigurationRoute ? 'content content--configuration-billing' : isWhiteConfigurationDetailRoute ? 'content content--configuration-detail-white' : 'content'}>{children}</main>
       </div>
+      <AppSidePanelSystem />
       {mobileNavOverlay}
       {globalVoiceButton}
       {supportEmailModalOpen && <SupportEmailModal locale={locale} onClose={() => setSupportEmailModalOpen(false)} />}
