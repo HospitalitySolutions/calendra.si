@@ -551,9 +551,11 @@ export function OperatingUnitsPanel({
                   <small>{sl ? 'Vsi računi, izdani na tej lokaciji, uporabijo to oznako kot predpono.' : 'All invoices issued at this location use this code as their prefix.'}</small>
                 </div>
                 <label className="ou-field"><span>{sl ? 'Oznaka elektronske naprave' : 'Electronic device ID'}</span><input value={draft.invoiceElectronicDeviceId} onChange={(event) => setDraft((current) => ({ ...current, invoiceElectronicDeviceId: event.target.value }))} /><small>{sl ? 'Oznaka tiskalnika ali POS naprave za izdajanje računov.' : 'Printer or POS device identifier used for invoices.'}</small></label>
-                <label className="ou-field"><span>{sl ? 'Naslednja številka' : 'Next number'}</span><input value={draft.invoiceNextNumber} onChange={(event) => setDraft((current) => ({ ...current, invoiceNextNumber: event.target.value }))} /></label>
-                <label className="ou-field"><span>{sl ? 'Začetna številka ob ponastavitvi' : 'Initial number on reset'}</span><input value={draft.invoiceInitialNumber} onChange={(event) => setDraft((current) => ({ ...current, invoiceInitialNumber: event.target.value }))} /></label>
+                <label className="ou-field"><span>{sl ? 'Številka naslednjega računa' : 'Next invoice number'}</span><input value={draft.invoiceNextNumber} onChange={(event) => setDraft((current) => ({ ...current, invoiceNextNumber: event.target.value }))} /></label>
                 <label className="ou-field"><span>{sl ? 'Ponastavitev' : 'Reset'}</span><DesktopSelect value={draft.invoiceResetPolicy} onChange={(event) => setDraft((current) => ({ ...current, invoiceResetPolicy: event.target.value === 'YEARLY' ? 'YEARLY' : 'NONE' }))}><option value="NONE">{sl ? 'Brez' : 'None'}</option><option value="YEARLY">{sl ? 'Letno' : 'Yearly'}</option></DesktopSelect></label>
+                {draft.invoiceResetPolicy !== 'NONE' ? (
+                  <label className="ou-field"><span>{sl ? 'Začetna številka ob ponastavitvi' : 'Initial number on reset'}</span><input value={draft.invoiceInitialNumber} onChange={(event) => setDraft((current) => ({ ...current, invoiceInitialNumber: event.target.value }))} /></label>
+                ) : null}
               </section>
             </div>
 

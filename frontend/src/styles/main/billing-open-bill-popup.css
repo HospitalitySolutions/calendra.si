@@ -11770,3 +11770,146 @@
     min-width: 26px !important;
   }
 }
+
+
+/* --------------------------------------------------------------------------
+   Word change list (2026-08-14): Nov/Uredi neizdan račun payment controls.
+   Keep the existing controls and restore their intended responsive visibility.
+   -------------------------------------------------------------------------- */
+@media (min-width: 1025px) {
+  .billing-create-panel--open .billing-invoice-payment-card .billing-invoice-add-dashed,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-payment-card .billing-invoice-add-dashed {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    min-height: 42px !important;
+    padding: 0 14px !important;
+    border: 1px solid #bfd7ff !important;
+    border-radius: 10px !important;
+    background: #ffffff !important;
+    color: #2563eb !important;
+    box-shadow: none !important;
+    font-size: .84rem !important;
+    font-weight: 750 !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-payment-card .billing-invoice-add-dashed:hover,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-payment-card .billing-invoice-add-dashed:hover {
+    border-color: #9fc4ff !important;
+    background: #f7faff !important;
+    color: #1d4ed8 !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  /* The remaining-to-match strip stays hidden on compact layouts, so the
+     whole-invoice discount control sits directly below + Dodaj način plačila. */
+  .billing-create-panel.billing-create-panel--open .billing-invoice-discount-card,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-card {
+    display: block !important;
+    margin-top: 2px !important;
+    padding: 18px 0 8px !important;
+    border: 0 !important;
+    border-top: 1px solid #dfe7f0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .billing-create-panel.billing-create-panel--open .billing-invoice-discount-head,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-head {
+    margin-bottom: 14px !important;
+  }
+
+  .billing-create-panel.billing-create-panel--open .billing-invoice-discount-title h3,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-title h3 {
+    margin: 0 !important;
+    color: #334155 !important;
+    font-size: .92rem !important;
+    font-weight: 760 !important;
+  }
+
+  .billing-create-panel.billing-create-panel--open .billing-invoice-discount-title .billing-invoice-info-dot,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-title .billing-invoice-info-dot {
+    display: inline-grid !important;
+    place-items: center !important;
+    width: 20px !important;
+    min-width: 20px !important;
+    height: 20px !important;
+    border-radius: 999px !important;
+    background: #e8eef6 !important;
+    color: #64748b !important;
+    font-size: .7rem !important;
+  }
+
+  .billing-create-panel.billing-create-panel--open .billing-invoice-discount-slider-layout,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-slider-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 76px !important;
+    gap: 12px !important;
+    align-items: center !important;
+  }
+
+  .billing-create-panel.billing-create-panel--open .billing-invoice-discount-slider-wrap,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-slider-wrap {
+    display: block !important;
+    height: 30px !important;
+  }
+
+  .billing-create-panel.billing-create-panel--open .billing-invoice-discount-range,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range {
+    width: 100% !important;
+    height: 30px !important;
+    margin: 0 !important;
+  }
+
+  .billing-create-panel.billing-create-panel--open .billing-invoice-discount-range::-webkit-slider-runnable-track,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range::-webkit-slider-runnable-track {
+    height: 4px !important;
+    background: #b8bec8 !important;
+  }
+
+  .billing-create-panel.billing-create-panel--open .billing-invoice-discount-range::-moz-range-track,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range::-moz-range-track {
+    height: 4px !important;
+    background: #b8bec8 !important;
+  }
+
+  .billing-create-panel.billing-create-panel--open .billing-invoice-discount-range::-webkit-slider-thumb,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range::-webkit-slider-thumb {
+    width: 16px !important;
+    height: 16px !important;
+    margin-top: -6px !important;
+    background: #0d6fe8 !important;
+    box-shadow: none !important;
+  }
+
+  .billing-create-panel.billing-create-panel--open .billing-invoice-discount-range::-moz-range-thumb,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-range::-moz-range-thumb {
+    width: 16px !important;
+    height: 16px !important;
+    background: #0d6fe8 !important;
+    box-shadow: none !important;
+  }
+
+  .billing-create-panel.billing-create-panel--open .billing-invoice-discount-value-pill,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-value-pill {
+    display: inline-grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    min-height: 46px !important;
+    padding: 0 10px !important;
+    border: 1px solid #d1ddea !important;
+    border-radius: 10px !important;
+    background: #fff !important;
+  }
+
+  .billing-create-panel.billing-create-panel--open .billing-invoice-discount-value-pill input,
+  .billing-create-panel.billing-create-panel--open .billing-invoice-discount-value-pill em,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-value-pill input,
+  .billing-open-detail-panel--invoice-editor .billing-invoice-discount-value-pill em {
+    font-size: .95rem !important;
+    font-weight: 760 !important;
+  }
+}
