@@ -157,7 +157,7 @@ public class GuestTenantService {
             if (company == null) continue;
             var settings = guestSettings.publicSettings(company.getId());
             if (!settings.guestAppEnabled()) continue;
-            if (normalizedType != null && !normalizedType.equals(settings.tenantType())) continue;
+            if (normalizedType != null && !normalizedType.equals(normalizeTenantType(settings.tenantType()))) continue;
             var presentation = locationPresentations.resolve(location);
             if (!matchesLocationSearch(normalizedQuery, company, location, presentation)) continue;
             out.add(toLocationSummary(location, settings, "ACTIVE"));
