@@ -662,3 +662,522 @@
     min-height: 108px !important;
   }
 }
+
+/* ========================================================================== 
+   Booked appointment drawer — approved Uredi termin desktop preview (2026-08)
+   Keeps desktop edit visually aligned with Dodaj termin while preserving the
+   existing mobile overflow menu and appointment actions.
+   ========================================================================== */
+@media (min-width: 1025px) {
+  .calendar-form-page.calendar-edit-session-panel--booked {
+    --calendar-booked-field-height: 48px;
+    --calendar-drawer-field-height: var(--calendar-booked-field-height);
+    --calendar-drawer-field-radius: 12px;
+    --calendar-drawer-gutter: 18px;
+    --calendar-drawer-label-size: 12px;
+    --calendar-drawer-control-size: 13px;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .booking-side-panel-header {
+    min-height: 62px !important;
+    padding: 9px var(--calendar-drawer-gutter) !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .booking-side-panel-header-toolbar--session-edit-booked {
+    display: grid !important;
+    grid-template-columns: 32px minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 10px !important;
+    min-height: 44px !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-edit-session-panel__compact-title-wrap {
+    grid-column: 2 !important;
+    min-width: 0 !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-edit-session-panel__compact-title {
+    color: var(--color-text, #0f172a) !important;
+    font-size: 16px !important;
+    font-weight: 650 !important;
+    line-height: 1.3 !important;
+    letter-spacing: 0 !important;
+  }
+
+  /* Desktop uses the same top-right Shrani text action as Dodaj termin.
+     The three-dot menu remains available on <=1024px only. */
+  .calendar-form-page.calendar-edit-session-panel--booked .booking-side-panel-header-ico-group {
+    position: static !important;
+    inset: auto !important;
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    justify-self: end !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0 !important;
+    z-index: 75 !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-mobile-session-more-wrap {
+    display: none !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .booking-side-panel-submit-check--booked {
+    position: static !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    width: auto !important;
+    min-width: 0 !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 4px 0 4px 12px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: var(--calendar-drawer-blue) !important;
+    box-shadow: none !important;
+    font-size: var(--calendar-drawer-control-size) !important;
+    line-height: 1.2 !important;
+    font-weight: 650 !important;
+    cursor: pointer !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .booking-side-panel-submit-check--booked:hover:not(:disabled),
+  .calendar-form-page.calendar-edit-session-panel--booked .booking-side-panel-submit-check--booked:focus-visible {
+    color: var(--calendar-drawer-blue) !important;
+    text-decoration: underline !important;
+    text-underline-offset: 3px !important;
+    outline: none !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .booking-side-panel-submit-check--booked:disabled {
+    opacity: 0.42 !important;
+    cursor: default !important;
+    text-decoration: none !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .booking-side-panel-body {
+    padding: 6px var(--calendar-drawer-gutter) 18px !important;
+    background: var(--color-surface, #fff) !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .form-row-layout.form-row-layout--booking {
+    gap: 17px !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .form-row.form-row-infield {
+    gap: 7px !important;
+  }
+
+  /* Stranke: one outer field only, never a nested border/ring. */
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-client-picker__search-row {
+    display: flex !important;
+    grid-template-columns: none !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-client-picker__search-wrap,
+  .calendar-form-page.calendar-edit-session-panel--booked .client-search-wrap {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    width: auto !important;
+    height: var(--calendar-booked-field-height) !important;
+    min-height: var(--calendar-booked-field-height) !important;
+    max-height: var(--calendar-booked-field-height) !important;
+    padding: 0 13px !important;
+    border: 1px solid var(--calendar-drawer-field-border) !important;
+    border-radius: var(--calendar-drawer-field-radius) !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-client-picker__search-wrap input,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-client-picker__search-wrap button.client-selected-display,
+  .calendar-form-page.calendar-edit-session-panel--booked .client-search-wrap input,
+  .calendar-form-page.calendar-edit-session-panel--booked .client-search-wrap button.client-selected-display {
+    min-height: 46px !important;
+    height: 46px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: 0 !important;
+    font-size: var(--calendar-drawer-control-size) !important;
+    font-weight: 500 !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-client-picker__search-wrap:focus-within {
+    border-color: #8ebcf7 !important;
+    box-shadow: 0 0 0 3px rgba(22, 114, 243, 0.09) !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-client-picker__actions {
+    display: inline-flex !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    gap: 9px !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-client-picker__actions button,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-client-picker__actions .client-add-btn,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__add-btn,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__details-btn,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__client-detail-btn,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__payee-tab-btn {
+    width: var(--calendar-booked-field-height) !important;
+    min-width: var(--calendar-booked-field-height) !important;
+    max-width: var(--calendar-booked-field-height) !important;
+    height: var(--calendar-booked-field-height) !important;
+    min-height: var(--calendar-booked-field-height) !important;
+    max-height: var(--calendar-booked-field-height) !important;
+    flex: 0 0 var(--calendar-booked-field-height) !important;
+    padding: 0 !important;
+    border-radius: var(--calendar-drawer-field-radius) !important;
+  }
+
+  /* Storitev, Zaposleni and Prostor use the same control geometry. */
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-service-chain__single-row,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-service-chain__single-select-wrap {
+    min-width: 0 !important;
+    gap: 10px !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-service-chain__single-row--with-edit {
+    grid-template-columns: minmax(0, 1fr) var(--calendar-booked-field-height) var(--calendar-booked-field-height) !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-service-chain__single-row--with-edit.calendar-service-chain__single-row--single-only {
+    grid-template-columns: minmax(0, 1fr) var(--calendar-booked-field-height) !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-service-chain__single-select,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-booking-field--consultant select.app-desktop-select,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-booking-field--space select.app-desktop-select {
+    min-height: var(--calendar-booked-field-height) !important;
+    height: var(--calendar-booked-field-height) !important;
+    border: 1px solid var(--calendar-drawer-field-border) !important;
+    border-radius: var(--calendar-drawer-field-radius) !important;
+    background-color: #fff !important;
+    box-shadow: none !important;
+    font-size: var(--calendar-drawer-control-size) !important;
+    font-weight: 600 !important;
+    pointer-events: auto !important;
+    position: relative !important;
+    z-index: 2 !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-service-chain__single-row--with-edit .calendar-service-chain__single-edit,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-service-chain__single-row--with-edit .calendar-service-chain__head-add {
+    width: var(--calendar-booked-field-height) !important;
+    min-width: var(--calendar-booked-field-height) !important;
+    max-width: var(--calendar-booked-field-height) !important;
+    height: var(--calendar-booked-field-height) !important;
+    min-height: var(--calendar-booked-field-height) !important;
+    max-height: var(--calendar-booked-field-height) !important;
+    border-radius: var(--calendar-drawer-field-radius) !important;
+    background: #fff !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-service-chain__single-price {
+    font-size: 12px !important;
+    font-weight: 700 !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-booking-service-infield-head,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-booking-service-infield-head--chain {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    gap: 10px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-booking-service-online-line {
+    margin-left: auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 7px !important;
+    white-space: nowrap !important;
+  }
+
+  /* Equal-sized Čas od / Čas do / Datum fields; Cel dan remains on the right
+     of the Datum label row. */
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-timespan-row:not(.calendar-timespan-row--two):not(.calendar-timespan-row--all-day) {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    align-items: end !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-timespan-input-inner,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-timespan-field,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-timespan-field--date {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .modern-time-picker__trigger,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-timespan-input-inner input[type="date"] {
+    width: 100% !important;
+    min-height: var(--calendar-booked-field-height) !important;
+    height: var(--calendar-booked-field-height) !important;
+    padding: 0 11px !important;
+    border: 1px solid var(--calendar-drawer-field-border) !important;
+    border-radius: var(--calendar-drawer-field-radius) !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    font-size: var(--calendar-drawer-control-size) !important;
+    font-weight: 500 !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-timespan-date-head--with-all-day {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-timespan-all-day-line {
+    margin-left: auto !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked textarea.calendar-session-notes-autogrow,
+  .calendar-form-page.calendar-edit-session-panel--booked .form-row textarea.calendar-session-notes-autogrow {
+    min-height: 108px !important;
+    border-radius: var(--calendar-drawer-field-radius) !important;
+  }
+
+  /* Desktop replacement for the old three-dot menu: compact icon actions at
+     the bottom of the drawer, matching the approved preview. */
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions {
+    position: sticky !important;
+    bottom: -18px !important;
+    z-index: 50 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 9px !important;
+    margin-top: 18px !important;
+    padding: 12px 0 14px !important;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.84), #fff 24%, #fff) !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__wrap {
+    position: relative !important;
+    display: inline-flex !important;
+    flex: 0 0 auto !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button {
+    box-sizing: border-box !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 46px !important;
+    min-width: 46px !important;
+    max-width: 46px !important;
+    height: 46px !important;
+    min-height: 46px !important;
+    max-height: 46px !important;
+    padding: 0 !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    background: #fff !important;
+    color: #475569 !important;
+    box-shadow: none !important;
+    cursor: pointer !important;
+    transition: border-color .14s ease, background-color .14s ease, color .14s ease, transform .14s ease !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button:hover:not(:disabled),
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button:focus-visible {
+    border-color: #bfdbfe !important;
+    background: #f8fbff !important;
+    color: #1672f3 !important;
+    outline: none !important;
+    transform: translateY(-1px) !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button:disabled {
+    opacity: .4 !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button > svg,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button > span > svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button--invoice {
+    color: #15803d !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button--advance {
+    color: #7c3aed !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button--scanner {
+    color: #2563eb !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button--delete {
+    color: #dc2626 !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button--source {
+    margin-left: auto !important;
+    cursor: help !important;
+    color: #64748b !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button--reserved { color: #64748b !important; }
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button--cancelled { color: #dc2626 !important; }
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button--no-show { color: #f97316 !important; }
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button--ongoing,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button--arrived { color: #2563eb !important; }
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button--checked-out,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__button--completed { color: #16a34a !important; }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions .calendar-session-billing-action-menu {
+    top: auto !important;
+    right: auto !important;
+    left: 0 !important;
+    bottom: calc(100% + 10px) !important;
+    z-index: 16550 !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions .calendar-session-billing-action-menu::before {
+    top: auto !important;
+    bottom: -6px !important;
+    right: auto !important;
+    left: 17px !important;
+    border-top: 0 !important;
+    border-left: 0 !important;
+    border-right: 1px solid rgba(226, 232, 240, 0.96) !important;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.96) !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions__status-menu {
+    left: 0 !important;
+    bottom: calc(100% + 10px) !important;
+    z-index: 16560 !important;
+  }
+
+  /* Keep every desktop dropdown above the calendar drawer/backdrop. */
+  body > .app-desktop-select-panel {
+    z-index: 25000 !important;
+    pointer-events: auto !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  .calendar-edit-session-panel--booked .booking-side-panel-submit-check--booked,
+  .calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions {
+    display: none !important;
+  }
+}
+
+/* Final alignment details for the approved Uredi termin desktop layout. */
+@media (min-width: 1025px) {
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-client-picker__search-icon,
+  .calendar-form-page.calendar-edit-session-panel--booked .client-search-icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 18px !important;
+    height: 18px !important;
+    flex: 0 0 18px !important;
+    padding: 0 !important;
+    margin: 0 8px 0 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #64748b !important;
+  }
+
+  /* Caption first, switch last: Storitev — Online [switch]. */
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-booking-service-online-caption {
+    order: 1 !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-booking-service-online-toggle {
+    order: 2 !important;
+  }
+
+  /* Keep the date naturally wider while all controls retain the same height. */
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-timespan-row:not(.calendar-timespan-row--two):not(.calendar-timespan-row--all-day) {
+    grid-template-columns: minmax(0, .82fr) minmax(0, .82fr) minmax(0, 1.36fr) !important;
+  }
+
+  /* Caption first, switch last: Cel dan [switch], aligned to the right. */
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-timespan-all-day-caption {
+    order: 1 !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-timespan-all-day-switch {
+    order: 2 !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions .calendar-no-show-client-picker {
+    z-index: 16570 !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-bottom-actions.is-confirming-delete > :not(.calendar-desktop-session-delete-confirm) {
+    display: none !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-delete-confirm {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    width: 100% !important;
+    min-height: 46px !important;
+    padding: 9px 10px 9px 12px !important;
+    border: 1px solid #fecaca !important;
+    border-radius: 12px !important;
+    background: #fffafa !important;
+    color: #7f1d1d !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-delete-confirm__actions {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex: 0 0 auto !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-delete-confirm__cancel,
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-delete-confirm__delete {
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 0 11px !important;
+    border-radius: 9px !important;
+    font-size: 12px !important;
+    font-weight: 650 !important;
+    cursor: pointer !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-delete-confirm__cancel {
+    border: 1px solid #e2e8f0 !important;
+    background: #fff !important;
+    color: #475569 !important;
+  }
+
+  .calendar-form-page.calendar-edit-session-panel--booked .calendar-desktop-session-delete-confirm__delete {
+    border: 1px solid #dc2626 !important;
+    background: #dc2626 !important;
+    color: #fff !important;
+  }
+}

@@ -2421,6 +2421,16 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       <span className="calendar-edit-session-panel__compact-title">{t('formBookedSession')}</span>
                     </div>
                     <div className="booking-side-panel-header-ico-group">
+                      <button
+                        type="button"
+                        className="booking-side-panel-submit-check booking-side-panel-submit-check--booked"
+                        onClick={() => void updateBookedSession()}
+                        disabled={bookedSessionSaveDisabled}
+                        aria-label={t('formSave')}
+                        title={t('formSave')}
+                      >
+                        <span className="booking-side-panel-submit-check__label">{t('formSave')}</span>
+                      </button>
                       <div className="calendar-mobile-session-more-wrap">
                         <button
                           type="button"
@@ -2758,6 +2768,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <div className="client-picker calendar-client-picker" onClick={(e) => e.stopPropagation()} style={{ minWidth: 0 }}>
                   <div className="calendar-client-picker__search-row">
                     <div className={`client-search-wrap calendar-client-picker__search-wrap${bookedSessionClientFieldCompact ? ' client-search-wrap--compact-client' : ''}${bookedClientDropdownOpen && bookedSessionSelectedClients.length > 0 && !bookedSessionClientFieldCompact ? ' calendar-client-picker__search-wrap--confirmable' : ''}`}>
+                      <span className="client-search-icon calendar-client-picker__search-icon" aria-hidden>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                      </span>
                       {bookedSessionClientFieldCompact ? (
                         <>
                           <button
@@ -3372,6 +3385,237 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, notes: e.target.value })}
                 />
                 </div>
+              </div>
+            </div>
+
+            <div
+              className={`calendar-desktop-session-bottom-actions${confirmDelete && !showRecurringDeleteDialog ? ' is-confirming-delete' : ''}`}
+              aria-label={locale === 'sl' ? 'Dejanja termina' : 'Appointment actions'}
+            >
+              {confirmDelete && !showRecurringDeleteDialog && (
+                <div className="calendar-desktop-session-delete-confirm" role="group" aria-label={t('formDeleteSessionQuestion')}>
+                  <span>{t('formDeleteSessionQuestion')}</span>
+                  <div className="calendar-desktop-session-delete-confirm__actions">
+                    <button
+                      type="button"
+                      className="calendar-desktop-session-delete-confirm__cancel"
+                      onClick={() => setConfirmDelete(false)}
+                    >
+                      {t('formCancel')}
+                    </button>
+                    <button
+                      type="button"
+                      className="calendar-desktop-session-delete-confirm__delete"
+                      onClick={() => void prepareReleasedSlotAction('DELETE', 'SINGLE')}
+                    >
+                      {t('formYesDelete')}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {canShowOpenBillForBookedStatus && (
+                <div className="calendar-session-billing-action-wrap calendar-desktop-session-bottom-actions__wrap">
+                  <button
+                    type="button"
+                    className="calendar-desktop-session-bottom-actions__button calendar-desktop-session-bottom-actions__button--invoice"
+                    title={locale === 'sl' ? 'Račun' : 'Invoice'}
+                    aria-label={locale === 'sl' ? 'Račun' : 'Invoice'}
+                    disabled={bookedPaymentActionButtonsDisabled}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      if (bookedBillingInvoiceActionCount <= 1) {
+                        if (bookedBillingCanEditInvoice) void openBookedInvoiceEditor()
+                        else if (bookedBillingHasInvoiceViewRows) openBookedBillingView('invoices')
+                        return
+                      }
+                      toggleBookedBillingActionMenu('invoice')
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <path d="M7 3.75h6.9l3.85 3.85v12.65H7a1.75 1.75 0 0 1-1.75-1.75v-13A1.75 1.75 0 0 1 7 3.75Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                      <path d="M13.7 3.9V7.7h3.8M8.75 10.8h5.25M8.75 14h3.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      <text x="14.7" y="18.4" fontSize="5.7" fontWeight="800" fill="currentColor">€</text>
+                    </svg>
+                  </button>
+                  {renderBillingActionMenu('invoice')}
+                </div>
+              )}
+
+              {advanceBillingEnabled && (
+                <div className="calendar-session-billing-action-wrap calendar-desktop-session-bottom-actions__wrap">
+                  <button
+                    type="button"
+                    className="calendar-desktop-session-bottom-actions__button calendar-desktop-session-bottom-actions__button--advance"
+                    title={locale === 'sl' ? 'Predplačilo' : 'Advance'}
+                    aria-label={locale === 'sl' ? 'Predplačilo' : 'Advance'}
+                    disabled={bookedPaymentActionButtonsDisabled}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      if (!bookedBillingHasExistingAdvance) {
+                        openBookedAdvanceForm()
+                        return
+                      }
+                      toggleBookedBillingActionMenu('advance')
+                    }}
+                  >
+                    <CalendarAdvancePaymentIcon />
+                  </button>
+                  {renderBillingActionMenu('advance')}
+                </div>
+              )}
+
+              {scannerModuleEnabled ? (
+                <button
+                  type="button"
+                  className="calendar-desktop-session-bottom-actions__button calendar-desktop-session-bottom-actions__button--scanner"
+                  title={bookingServiceScanTitle}
+                  aria-label={bookingServiceScanTitle}
+                  disabled={bookingServiceScanDisabled}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (bookingServiceScanDisabled) return
+                    openBookedEntitlementPaymentModal(bookingServiceEntitlementStatus, bookingServiceEntitlementClient)
+                  }}
+                >
+                  <BookedEntitlementScanIcon />
+                </button>
+              ) : null}
+
+              <div className="calendar-booking-status-menu-wrap calendar-desktop-session-bottom-actions__wrap">
+                <button
+                  type="button"
+                  className={`calendar-desktop-session-bottom-actions__button calendar-desktop-session-bottom-actions__button--status calendar-desktop-session-bottom-actions__button--${currentBookingStatusTone}`}
+                  title={`${locale === 'sl' ? 'Status' : 'Status'}: ${currentBookingStatusLabel}`}
+                  aria-label={`${locale === 'sl' ? 'Status' : 'Status'}: ${currentBookingStatusLabel}`}
+                  aria-haspopup="menu"
+                  aria-expanded={bookedStatusMenuOpen}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setBookedPaymentMenuOpen(false)
+                    setNoShowClientPickerOpen(false)
+                    setBookedStatusMenuOpen((prev) => !prev)
+                  }}
+                >
+                  <CalendarBookingStatusIcon statusKey={currentBookingStatusKey} />
+                </button>
+                {bookedStatusMenuOpen && (
+                  <div className="calendar-booking-status-menu calendar-desktop-session-bottom-actions__status-menu" role="menu">
+                    {visibleBookingStatusOptions.map((option) => {
+                      const selected = option.key === currentBookingStatusKey
+                      const actionable = bookingStatusOptionIsActionable(option)
+                      return (
+                        <button
+                          key={option.key}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={selected}
+                          aria-disabled={!selected && !actionable}
+                          className={`calendar-booking-status-menu__item calendar-booking-status-menu__item--${option.tone}${selected ? ' is-selected' : ''}${actionable ? ' is-actionable' : ''}`}
+                          onClick={() => selectBookingStatusOption(option)}
+                        >
+                          <span className="calendar-booking-status-menu__icon" aria-hidden="true">
+                            <CalendarBookingStatusIcon statusKey={option.key} className="calendar-booking-status-menu__icon-svg" />
+                          </span>
+                          <span className="calendar-booking-status-menu__copy">
+                            <span className="calendar-booking-status-menu__label">{option.label}</span>
+                          </span>
+                          {selected && <span className="calendar-booking-status-menu__check" aria-hidden="true">✓</span>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                {noShowClientPickerOpen && (
+                        <div className="calendar-no-show-client-picker" role="dialog" aria-label={locale === 'sl' ? 'Izberi stranke NO SHOW' : 'Select no-show clients'}>
+                          <div className="calendar-no-show-client-picker__header">
+                            <strong>{locale === 'sl' ? 'Kdo ni prišel?' : 'Who did not show?'}</strong>
+                            <span>{locale === 'sl' ? 'Izbrane stranke bodo označene kot NO SHOW, za njih pa se pripravi odprti račun.' : 'Selected clients will be marked as NO SHOW and their open invoice tab will be prepared.'}</span>
+                          </div>
+                          <div className="calendar-no-show-client-picker__quick-actions">
+                            <button
+                              type="button"
+                              onClick={() => setNoShowSelectedClientIds(noShowSelectableClientOptions.map((client: any) => Number(client.id)))}
+                            >
+                              {locale === 'sl' ? 'Izberi vse' : 'Select all'}
+                            </button>
+                            <button type="button" onClick={() => setNoShowSelectedClientIds([])}>
+                              {locale === 'sl' ? 'Počisti' : 'Clear'}
+                            </button>
+                          </div>
+                          <div className="calendar-no-show-client-picker__list">
+                            {noShowClientOptions.map((client: any) => {
+                              const clientId = Number(client.id)
+                              const closed = noShowClientBillClosed(clientId)
+                              const selected = !closed && noShowSelectedClientIds.includes(clientId)
+                              const label = fullName(client) || client.email || `#${clientId}`
+                              return (
+                                <button
+                                  key={clientId}
+                                  type="button"
+                                  className={`calendar-no-show-client-picker__client${selected ? ' is-selected' : ''}${closed ? ' is-disabled' : ''}`}
+                                  onClick={() => toggleNoShowClient(clientId)}
+                                  aria-pressed={selected}
+                                  aria-disabled={closed}
+                                  disabled={closed || noShowSubmitting}
+                                >
+                                  <span className="calendar-no-show-client-picker__avatar">{typeof personInitials === 'function' ? personInitials(client) : String(label || '?').trim().slice(0, 2).toUpperCase()}</span>
+                                  <span className="calendar-no-show-client-picker__name">
+                                    <span>{label}</span>
+                                    {closed && <small>{locale === 'sl' ? 'Račun je že zaključen.' : 'Bill is already closed.'}</small>}
+                                  </span>
+                                  <span className="calendar-no-show-client-picker__checkbox" aria-hidden="true">{selected ? '✓' : ''}</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                          <div className="calendar-no-show-client-picker__footer">
+                            <button
+                              type="button"
+                              className="calendar-no-show-client-picker__secondary"
+                              onClick={() => setNoShowClientPickerOpen(false)}
+                              disabled={noShowSubmitting}
+                            >
+                              {locale === 'sl' ? 'Prekliči' : 'Cancel'}
+                            </button>
+                            <button
+                              type="button"
+                              className="calendar-no-show-client-picker__primary"
+                              onClick={() => void submitNoShowClients()}
+                              disabled={noShowSubmitting || noShowSelectedClientIds.filter((clientId) => noShowSelectableClientOptions.some((client: any) => Number(client.id) === clientId)).length === 0}
+                            >
+                              {noShowSubmitting
+                                ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…')
+                                : (locale === 'sl' ? 'Potrdi NO SHOW' : 'Confirm NO SHOW')}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+              </div>
+
+              <button
+                type="button"
+                className="calendar-desktop-session-bottom-actions__button calendar-desktop-session-bottom-actions__button--delete"
+                title={t('formDeleteSession')}
+                aria-label={t('formDeleteSession')}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  void requestBookedSessionDelete()
+                }}
+              >
+                <CalendarFormFooterDeleteIcon />
+              </button>
+
+              <div
+                className="calendar-desktop-session-bottom-actions__button calendar-desktop-session-bottom-actions__button--source"
+                role="note"
+                title={`${bookingSourceFieldLabel}: ${bookingSourceMeta.label}`}
+                aria-label={`${bookingSourceFieldLabel}: ${bookingSourceMeta.label}`}
+              >
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path d="M8 16 16 8M10 8h6v6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M16 13v5H6V8h5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </div>
             </div>
             </div>
