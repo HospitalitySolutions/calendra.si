@@ -837,7 +837,6 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const hoverCardRef = useRef<HTMLDivElement>(null)
   const hoveredTimegridRowRef = useRef<HTMLTableRowElement | null>(null)
   const timegridHoverLineRef = useRef<HTMLDivElement | null>(null)
-  const [calendarSlideX, setCalendarSlideX] = useState(0)
   const [calendarIsSwiping, setCalendarIsSwiping] = useState(false)
   const [swipeTransitionActive, setSwipeTransitionActive] = useState(false)
   const [calendarToolbarTitle, setCalendarToolbarTitle] = useState('')
@@ -1266,7 +1265,16 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   }, [])
 
   const getCalendarSwipeWidth = useCallback(() => {
-    const width = calendarAndroidWeekRef.current?.getBoundingClientRect().width
+    // Measure the date plane itself (the part that slides), not the whole page.
+    // The time axis stays fixed, and desktop day/3-day views may also have a
+    // dashboard/right rail beside the calendar.
+    const calendarRoot = calendarAndroidWeekRef.current?.querySelector('.fc') as HTMLElement | null
+    const movingPlane = (calendarRoot?.querySelector('.fc-timegrid-cols')
+      ?? calendarRoot?.querySelector('.fc-daygrid-body')) as HTMLElement | null
+    const width = movingPlane?.getBoundingClientRect().width
+      || calendarRoot?.getBoundingClientRect().width
+      || calendarFcShellRef.current?.getBoundingClientRect().width
+      || calendarAndroidWeekRef.current?.getBoundingClientRect().width
     return Math.max(1, width || window.innerWidth)
   }, [])
 
@@ -1293,30 +1301,55 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   }, [])
 
   const createCalendarSnapshot = useCallback(() => {
-    const shell = calendarAndroidWeekRef.current?.querySelector('.calendar-fc-shell') as HTMLElement | null
-    if (!shell) return
+    // Clone the actual FullCalendar root rather than the web-only shell. This keeps
+    // the swipe preview available in native/mobile layouts too, and makes the
+    // snapshot exactly the same size as the visible calendar (important when the
+    // web layout also contains the dashboard/right rail).
+    const source = calendarAndroidWeekRef.current?.querySelector('.fc') as HTMLElement | null
+    const host = source?.parentElement as HTMLElement | null
+    if (!source || !host) return
 
     if (calendarSnapshotRef.current) {
       calendarSnapshotRef.current.remove()
+      calendarSnapshotRef.current = null
     }
 
-    const clone = shell.cloneNode(true) as HTMLElement
+    const clone = source.cloneNode(true) as HTMLElement
     clone.classList.add('calendar-snapshot-layer')
+    clone.setAttribute('aria-hidden', 'true')
+    clone.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'))
+
+    const sourceRect = source.getBoundingClientRect()
+    const hostRect = host.getBoundingClientRect()
+    if (window.getComputedStyle(host).position === 'static') {
+      host.style.position = 'relative'
+    }
 
     clone.style.position = 'absolute'
-    clone.style.top = '0'
-    clone.style.left = '0'
-    clone.style.width = '100%'
-    clone.style.height = '100%'
+    clone.style.top = `${sourceRect.top - hostRect.top + host.scrollTop}px`
+    clone.style.left = `${sourceRect.left - hostRect.left + host.scrollLeft}px`
+    clone.style.width = `${sourceRect.width}px`
+    clone.style.height = `${sourceRect.height}px`
+    clone.style.margin = '0'
     clone.style.pointerEvents = 'none'
-    clone.style.zIndex = '5'
+    clone.style.zIndex = '20'
     clone.style.transform = 'none'
-    clone.style.transition = 'none' // Wipe any snapshot legacy transition
+    clone.style.transition = 'none'
 
-    if (shell.parentElement) {
-      shell.parentElement.style.position = 'relative'
-      shell.parentElement.appendChild(clone)
-    }
+    host.appendChild(clone)
+
+    // cloneNode does not preserve element scroll offsets. Keep FullCalendar's
+    // internal scrollers aligned so the outgoing period does not jump vertically
+    // when a swipe starts.
+    const sourceScrollers = Array.from(source.querySelectorAll('.fc-scroller')) as HTMLElement[]
+    const cloneScrollers = Array.from(clone.querySelectorAll('.fc-scroller')) as HTMLElement[]
+    sourceScrollers.forEach((scroller, index) => {
+      const cloneScroller = cloneScrollers[index]
+      if (!cloneScroller) return
+      cloneScroller.scrollTop = scroller.scrollTop
+      cloneScroller.scrollLeft = scroller.scrollLeft
+    })
+
     calendarSnapshotRef.current = clone
   }, [])
 
@@ -1327,7 +1360,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       document.querySelectorAll('.fc-event-mirror').forEach((n) => n.remove())
     }
 
-    // Phase 1 animations are enabled only for mobile calendar layouts.
+    // Animate every supported calendar view on both touch and mouse layouts.
     if (!calendarSwipeNavigationEnabled) {
       if (dir < 0) api.prev()
       else api.next()
@@ -1339,7 +1372,12 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     const screenW = getCalendarSwipeWidth()
     setCalendarIsSwiping(true)
     setSwipeTransitionActive(true)
-    setCalendarSlideX(dir < 0 ? -screenW : screenW)
+    const wrap = swipeWrapRef.current
+    if (wrap) {
+      wrap.style.setProperty('--calendar-slide-x', `${dir < 0 ? -screenW : screenW}px`)
+      wrap.classList.add('calendar-sliding-enabled', 'calendar-is-swiping')
+      wrap.classList.remove('calendar-not-swiping')
+    }
 
     if (dir < 0) api.prev()
     else api.next()
@@ -1347,7 +1385,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         setCalendarIsSwiping(false)
-        setCalendarSlideX(0)
+        swipeWrapRef.current?.style.setProperty('--calendar-slide-x', '0px')
 
         if (calendarSnapshotRef.current) {
           calendarSnapshotRef.current.style.setProperty('--calendar-slide-clone', `${dir < 0 ? screenW : -screenW}px`)
@@ -1414,7 +1452,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
           wrap.classList.remove('calendar-sliding-enabled', 'calendar-is-swiping', 'calendar-not-swiping')
         }
         setCalendarIsSwiping(false)
-        setCalendarSlideX(0)
+        swipeWrapRef.current?.style.setProperty('--calendar-slide-x', '0px')
         setSwipeTransitionActive(false)
         if (calendarSnapshotRef.current) {
           calendarSnapshotRef.current.remove()
@@ -1434,7 +1472,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
           wrap.classList.remove('calendar-sliding-enabled', 'calendar-is-swiping', 'calendar-not-swiping')
         }
         setCalendarIsSwiping(false)
-        setCalendarSlideX(0)
+        swipeWrapRef.current?.style.setProperty('--calendar-slide-x', '0px')
         setSwipeTransitionActive(false)
         if (calendarSnapshotRef.current) {
           calendarSnapshotRef.current.remove()
@@ -1495,7 +1533,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
             calendarSnapshotRef.current.remove()
             calendarSnapshotRef.current = null
           }
-          setCalendarSlideX(0)
+          swipeWrapRef.current?.style.setProperty('--calendar-slide-x', '0px')
           setSwipeTransitionActive(false)
         }, 320)
         return
@@ -1510,7 +1548,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
           calendarSnapshotRef.current.remove()
           calendarSnapshotRef.current = null
         }
-        setCalendarSlideX(0)
+        swipeWrapRef.current?.style.setProperty('--calendar-slide-x', '0px')
         setSwipeTransitionActive(false)
       }, 320)
       return
@@ -11918,7 +11956,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         wrap.classList.remove('calendar-sliding-enabled', 'calendar-is-swiping', 'calendar-not-swiping')
       }
       setCalendarIsSwiping(false)
-      setCalendarSlideX(0)
+      swipeWrapRef.current?.style.setProperty('--calendar-slide-x', '0px')
       if (calendarSnapshotRef.current) {
         calendarSnapshotRef.current.remove()
         calendarSnapshotRef.current = null
@@ -12890,7 +12928,6 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               height: `${(view === 'dayGridMonth' ? 1 : calendarPinchZoom) * 100}%`,
               transformOrigin: `${pinchOriginPct.x}% ${pinchOriginPct.y}%`
             } : {}),
-            '--calendar-slide-x': `${calendarSlideX}px`,
           } as React.CSSProperties}
         >
         <div
