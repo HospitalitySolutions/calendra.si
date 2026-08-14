@@ -9,7 +9,6 @@ import {
   HomeIcon,
   LogOutIcon,
   MessageIcon,
-  SettingsIcon,
   UserIcon,
   WalletIcon,
 } from './Icons'
@@ -23,16 +22,15 @@ const navItems = [
   { to: '/sporocila', label: 'Sporočila', icon: MessageIcon },
   { to: '/obvestila', label: 'Obvestila', icon: BellIcon },
   { to: '/profil', label: 'Profil', icon: UserIcon },
-  { to: '/profil#nastavitve', label: 'Nastavitve', icon: SettingsIcon },
 ]
 
 const accountMenuItems = [
-  { to: '/profil', label: 'Moj profil', icon: UserIcon },
+  { to: '/', label: 'Pregled', icon: HomeIcon },
   { to: '/termini', label: 'Moji termini', icon: CalendarIcon },
   { to: '/denarnica', label: 'Denarnica', icon: WalletIcon },
   { to: '/sporocila', label: 'Sporočila', icon: MessageIcon },
   { to: '/obvestila', label: 'Obvestila', icon: BellIcon },
-  { to: '/profil#nastavitve', label: 'Nastavitve', icon: SettingsIcon },
+  { to: '/profil', label: 'Moj profil', icon: UserIcon },
 ]
 
 export function CustomerShell() {
