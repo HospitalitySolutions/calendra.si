@@ -453,3 +453,212 @@
     display: none !important;
   }
 }
+
+
+@media (min-width: 1025px) {
+  /* Desktop refinement based on approved Dodaj termin preview.
+     Keep one neutral right-side panel and remove leftover modal chrome. */
+  .calendar-form-page .calendar-booking-row-divider,
+  .calendar-form-page .calendar-booking-row-divider--timespan {
+    display: none !important;
+    height: 0 !important;
+    background: transparent !important;
+    margin: 0 !important;
+  }
+
+  /* Search input should have a single outer field only. */
+  .calendar-form-page .calendar-client-picker,
+  .calendar-form-page .calendar-client-picker__search-row {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .calendar-form-page .calendar-client-picker__search-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 10px !important;
+    align-items: stretch !important;
+  }
+
+  .calendar-form-page .calendar-client-picker__search-wrap,
+  .calendar-form-page .client-search-wrap {
+    display: flex !important;
+    align-items: center !important;
+    min-height: var(--calendar-drawer-field-height) !important;
+    height: var(--calendar-drawer-field-height) !important;
+    padding: 0 12px !important;
+    border: 1px solid var(--calendar-drawer-field-border) !important;
+    border-radius: var(--calendar-drawer-field-radius) !important;
+    background: var(--color-surface, #fff) !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+  }
+
+  .calendar-form-page .calendar-client-picker__search-wrap input,
+  .calendar-form-page .calendar-client-picker__search-wrap button.client-selected-display,
+  .calendar-form-page .client-search-wrap input,
+  .calendar-form-page .client-search-wrap button.client-selected-display {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 0 0 10px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-size: var(--calendar-drawer-control-size) !important;
+  }
+
+  .calendar-form-page .calendar-client-picker__search-icon,
+  .calendar-form-page .client-search-icon {
+    width: 18px !important;
+    height: 18px !important;
+    margin-right: 0 !important;
+    color: var(--color-text-muted, #64748b) !important;
+    flex: 0 0 auto !important;
+  }
+
+  .calendar-form-page .calendar-client-picker__search-icon svg,
+  .calendar-form-page .client-search-icon svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .calendar-form-page .calendar-client-picker__actions {
+    display: inline-flex !important;
+    gap: 10px !important;
+    align-items: stretch !important;
+  }
+
+  .calendar-form-page .calendar-client-picker__actions button,
+  .calendar-form-page .calendar-client-picker__add-btn,
+  .calendar-form-page .calendar-client-picker__waitlist-btn,
+  .calendar-form-page .calendar-client-picker__clear-btn,
+  .calendar-form-page .client-add-btn,
+  .calendar-form-page .calendar-service-chain__head-add,
+  .calendar-form-page .calendar-service-chain__single-edit {
+    width: var(--calendar-drawer-field-height) !important;
+    min-width: var(--calendar-drawer-field-height) !important;
+    max-width: var(--calendar-drawer-field-height) !important;
+    height: var(--calendar-drawer-field-height) !important;
+    min-height: var(--calendar-drawer-field-height) !important;
+    padding: 0 !important;
+    border: 1px solid var(--calendar-drawer-field-border) !important;
+    border-radius: var(--calendar-drawer-field-radius) !important;
+    background: var(--color-surface, #fff) !important;
+    box-shadow: none !important;
+  }
+
+  /* Standardize service / employee / room field styling. */
+  .calendar-form-page .calendar-service-chain__single-field,
+  .calendar-form-page .calendar-booking-field--consultant,
+  .calendar-form-page .calendar-booking-field--space {
+    min-width: 0 !important;
+  }
+
+  .calendar-form-page .calendar-service-chain__single-row,
+  .calendar-form-page .calendar-service-chain__single-select-wrap {
+    gap: 10px !important;
+  }
+
+  .calendar-form-page .calendar-service-chain__single-select-wrap,
+  .calendar-form-page .calendar-service-chain__single-select,
+  .calendar-form-page select.app-desktop-select,
+  .calendar-form-page .calendar-booking-field--consultant select,
+  .calendar-form-page .calendar-booking-field--space select {
+    min-height: var(--calendar-drawer-field-height) !important;
+    height: var(--calendar-drawer-field-height) !important;
+    border-radius: var(--calendar-drawer-field-radius) !important;
+  }
+
+  .calendar-form-page .calendar-booking-field--consultant .form-field-inline-control,
+  .calendar-form-page .calendar-booking-field--space .form-field-inline-control {
+    width: 100% !important;
+  }
+
+  .calendar-form-page .form-row-layout.form-row-layout--booking > .calendar-booking-field--consultant,
+  .calendar-form-page .form-row-layout.form-row-layout--booking > .calendar-booking-field--space {
+    position: relative !important;
+  }
+
+  .calendar-form-page .form-row-layout.form-row-layout--booking > .calendar-booking-field--space::before,
+  .calendar-form-page .form-row-layout.form-row-layout--booking > .calendar-booking-field--consultant::before {
+    content: none !important;
+    display: none !important;
+  }
+
+  /* Place Online / Cel dan switches on the right side of the label rows. */
+  .calendar-form-page .calendar-booking-service-with-online .calendar-booking-service-infield-head,
+  .calendar-form-page .calendar-booking-client-with-group .calendar-booking-service-infield-head,
+  .calendar-form-page .calendar-timespan-date-head--with-all-day {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  .calendar-form-page .calendar-booking-service-online-line,
+  .calendar-form-page .calendar-timespan-all-day-line {
+    margin-left: auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    white-space: nowrap !important;
+  }
+
+  .calendar-form-page .calendar-booking-service-online-caption,
+  .calendar-form-page .calendar-timespan-all-day-caption {
+    color: var(--color-text-muted, #64748b) !important;
+    font-size: var(--calendar-drawer-label-size) !important;
+    font-weight: 600 !important;
+  }
+
+  /* Equal field geometry for time / date controls. */
+  .calendar-form-page .calendar-timespan-row:not(.calendar-timespan-row--two):not(.calendar-timespan-row--all-day) {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+    align-items: end !important;
+  }
+
+  .calendar-form-page .calendar-timespan-row--two:not(.calendar-timespan-row--all-day) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+    align-items: end !important;
+  }
+
+  .calendar-form-page .calendar-timespan-input-inner,
+  .calendar-form-page .calendar-timespan-field,
+  .calendar-form-page .calendar-timespan-field--date {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .calendar-form-page .modern-time-picker__trigger,
+  .calendar-form-page .calendar-timespan-input-inner input[type="date"] {
+    width: 100% !important;
+    min-height: var(--calendar-drawer-field-height) !important;
+    height: var(--calendar-drawer-field-height) !important;
+    border: 1px solid var(--calendar-drawer-field-border) !important;
+    border-radius: var(--calendar-drawer-field-radius) !important;
+    background: var(--color-surface, #fff) !important;
+    box-shadow: none !important;
+    padding: 0 12px !important;
+    font-size: var(--calendar-drawer-control-size) !important;
+  }
+
+  .calendar-form-page .calendar-timespan-label {
+    color: var(--color-text, #0f172a) !important;
+    font-size: var(--calendar-drawer-label-size) !important;
+    font-weight: 600 !important;
+  }
+
+  /* Notes should match the approved roomy desktop panel. */
+  .calendar-form-page textarea.calendar-session-notes-autogrow,
+  .calendar-form-page .form-row textarea.calendar-session-notes-autogrow {
+    min-height: 108px !important;
+  }
+}

@@ -176,7 +176,7 @@ export const DesktopSelect = forwardRef<HTMLSelectElement, DesktopSelectProps>(f
       top: `${top}px`,
       left: `${left}px`,
       width: `${width}px`,
-      zIndex: 12050,
+      zIndex: 16000,
     })
   }, [])
 
