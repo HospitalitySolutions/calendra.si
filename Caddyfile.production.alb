@@ -90,6 +90,7 @@
 		path /racun/*
 	}
 	handle @site_customer_account {
+		header X-Robots-Tag "noindex, nofollow"
 		uri strip_prefix /racun
 		reverse_proxy customer-web:80 {
 			header_up X-Forwarded-Proto https
