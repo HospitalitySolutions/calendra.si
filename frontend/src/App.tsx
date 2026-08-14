@@ -35,19 +35,6 @@ import { sameNavigationFamily } from './queries/navigationRouteFamily'
 import { isChunkLoadError, recoverFromChunkLoadError, resetChunkLoadRecovery } from './lib/chunkRecovery'
 
 const OAUTH_HANDLED_KEY = 'oauth_toast_handled'
-const REGISTER_BILLING_DETAILS_REQUIRED_KEY = 'calendra.register.requiresBillingDetails'
-const REGISTER_BILLING_DETAILS_SEARCH_KEY = 'calendra.register.billingDetailsSearch'
-
-function getPendingRegisterBillingDetailsPath() {
-  try {
-    if (sessionStorage.getItem(REGISTER_BILLING_DETAILS_REQUIRED_KEY) !== '1') return ''
-    const selectionSearch = (sessionStorage.getItem(REGISTER_BILLING_DETAILS_SEARCH_KEY) || '').replace(/^\?/, '')
-    return selectionSearch ? `/register/billing-details?${selectionSearch}` : '/register/billing-details'
-  } catch {
-    return ''
-  }
-}
-
 function lazyWithReload<T extends ComponentType<any>>(
   importer: () => Promise<{ default: T }>,
 ) {
@@ -561,11 +548,6 @@ export default function App() {
 
   if (location.pathname === '/register/billing-details') {
     return <RegisterBillingDetailsPage />
-  }
-
-  const pendingRegisterBillingDetailsPath = getPendingRegisterBillingDetailsPath()
-  if (pendingRegisterBillingDetailsPath) {
-    return <Navigate to={pendingRegisterBillingDetailsPath} replace />
   }
 
   const isPlatformAdmin = user.role === 'SUPER_ADMIN'

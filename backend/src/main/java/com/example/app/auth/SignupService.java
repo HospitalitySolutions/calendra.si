@@ -54,6 +54,7 @@ public class SignupService {
     private static final String POST_PROVISION_OWNER_USER_ID = "postProvisionOwnerUserId";
     private static final String SIGNUP_CODE_KEY = "signupCode";
     private static final long SIGNUP_CODE_TTL_MINUTES = 60L;
+    private static final int SELF_SERVE_TRIAL_DAYS = 14;
     private static final String CALENDRA_LOGO_CONTENT_ID = "calendraSignupVerificationLogo";
     private static final String CALENDRA_LOGO_CLASSPATH = "static/widget/calendra-transparent-logo.png";
     private static final int INTENT_TOKEN_BYTES = 32;
@@ -443,6 +444,7 @@ public class SignupService {
                 request.billingInterval(),
                 request.fiscalizationNeeded(),
                 request.tenantType(),
+                request.trialRequested(),
                 request.returnSearch()
         );
         ResponseEntity<?> provisioned = provisionNewTenant(finalized, normalizedEmail, httpRequest, httpResponse, false);
@@ -546,6 +548,7 @@ public class SignupService {
                 request.billingInterval(),
                 request.fiscalizationNeeded(),
                 request.tenantType(),
+                request.trialRequested(),
                 request.returnSearch()
         );
         ResponseEntity<?> provisioned = provisionNewTenant(finalized, normalizedEmail, httpRequest, httpResponse, false);
@@ -576,6 +579,7 @@ public class SignupService {
         deactivateSignupIntentsForEmail(normalizedEmail);
         String normalizedPackageType = normalizePackageType(request.packageName(), "PROFESSIONAL");
         String interval = normalizeBillingInterval(request.billingInterval());
+        boolean selfServeTrial = Boolean.TRUE.equals(request.trialRequested());
         boolean basicMonthlyTrial = isBasicMonthlyTrial(normalizedPackageType, interval);
         int selectedUserCount = Math.max(1, request.userCount() == null ? 1 : request.userCount());
         int selectedSmsCount = basicMonthlyTrial
@@ -635,13 +639,19 @@ public class SignupService {
         int spaceQuota = Math.max(1, request.spaceCount() == null ? 5 : request.spaceCount());
         seedSetting(company, SettingKey.TENANCY_SPACE_QUOTA, String.valueOf(spaceQuota));
         seedSetting(company, SettingKey.TENANCY_SMS_SENT_COUNT, "0");
-        LocalDate subStart = LocalDate.now(ZoneId.systemDefault());
-        LocalDate subEnd = "TRIAL".equals(normalizedPackageType)
-                ? subStart.plusDays(7)
-                : ("YEARLY".equals(interval) ? subStart.plusYears(1) : subStart.plusMonths(1));
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        LocalDate subStart = selfServeTrial ? today.plusDays(SELF_SERVE_TRIAL_DAYS) : today;
+        LocalDate subEnd = selfServeTrial
+                ? ("YEARLY".equals(interval) ? subStart.plusYears(1) : subStart.plusMonths(1))
+                : ("TRIAL".equals(normalizedPackageType)
+                        ? subStart.plusDays(7)
+                        : ("YEARLY".equals(interval) ? subStart.plusYears(1) : subStart.plusMonths(1)));
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_START, subStart.toString());
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_END, subEnd.toString());
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, interval);
+        if (selfServeTrial) {
+            seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_STATUS, "TRIAL");
+        }
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_PAYMENT_METHOD, "");
         seedSetting(company, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, "0.00");
         tryEnsurePlatformSubscriptionOpenBill(
@@ -661,7 +671,7 @@ public class SignupService {
         );
 
         // Notify the platform owner as soon as the tenant itself has been created.
-        // Free/basic trials skip the billing-details page entirely, so sending this
+        // Self-serve trials skip the billing-details page entirely, so sending this
         // notification from saveSignupBillingDetails() misses those registrations.
         // notifyAfterCommit() guarantees that no message is sent if provisioning rolls back.
         notifyPlatformAdminTenantCreated(
@@ -1149,6 +1159,10 @@ public class SignupService {
         String tenantType = settings.findByCompanyIdAndKey(cid, SettingKey.MODULE_CONFIG_TYPE)
                 .map(AppSetting::getValue)
                 .orElse("hair_salon");
+        boolean trialRequested = settings.findByCompanyIdAndKey(cid, SettingKey.BILLING_SUBSCRIPTION_STATUS)
+                .map(AppSetting::getValue)
+                .map(value -> "TRIAL".equalsIgnoreCase(value))
+                .orElse(false);
         return new AuthController.SignupRequest(
                 companyName,
                 owner.getFirstName(),
@@ -1164,6 +1178,7 @@ public class SignupService {
                 interval,
                 fiscal,
                 tenantType,
+                trialRequested,
                 null
         );
     }
@@ -1217,6 +1232,7 @@ public class SignupService {
         m.put("billingInterval", request.billingInterval());
         m.put("fiscalizationNeeded", request.fiscalizationNeeded());
         m.put("tenantType", request.tenantType());
+        m.put("trialRequested", request.trialRequested());
         m.put("returnSearch", request.returnSearch());
         return m;
     }
@@ -1239,6 +1255,7 @@ public class SignupService {
                 stringVal(map.get("billingInterval")),
                 boolVal(map.get("fiscalizationNeeded")),
                 stringVal(map.get("tenantType")),
+                boolVal(map.get("trialRequested")),
                 stringVal(map.get("returnSearch"))
         );
     }
@@ -1706,6 +1723,7 @@ public class SignupService {
                 pending.billingInterval(),
                 pending.fiscalizationNeeded(),
                 pending.tenantType(),
+                pending.trialRequested(),
                 returnSearch
         );
         ResponseEntity<?> provisioned = provisionNewTenant(request, normalizedEmail, httpRequest, httpResponse, false);

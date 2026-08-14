@@ -22,7 +22,7 @@ export function RegisterPage() {
   const sl = locale === 'sl'
   const initial = useMemo(() => parseRegisterSelection(window.location.search), [])
   const [companyName, setCompanyName] = useState(initial.companyName || '')
-  const [userCount, setUserCount] = useState(Math.min(100, Math.max(1, initial.additionalUsers || 1)))
+  const [userCount, setUserCount] = useState(Math.min(20, Math.max(1, initial.additionalUsers || 1)))
   const [businessType, setBusinessType] = useState<TenantConfigType>(normalizeTenantConfigType(initial.businessType))
   const [error, setError] = useState('')
 
@@ -48,7 +48,7 @@ export function RegisterPage() {
     navigate(`/register/add-ons?${selectionToSearch(next)}`)
   }
 
-  const sliderPercent = ((Math.max(1, Math.min(100, userCount)) - 1) / 99) * 100
+  const sliderPercent = ((Math.max(1, Math.min(20, userCount)) - 1) / 19) * 100
 
   return (
     <div className="register-onboarding register-onboarding-step-one">
@@ -57,7 +57,10 @@ export function RegisterPage() {
         <RegisterOnboardingHeader
           activeStep={1}
           locale={locale}
-          onLogo={() => navigate('/login')}
+          onBack={() => {
+            if (window.history.length > 1) navigate(-1)
+            else navigate('/login')
+          }}
           onContinue={continueStep}
         />
 
@@ -106,7 +109,7 @@ export function RegisterPage() {
                     className="register-user-slider"
                     type="range"
                     min={1}
-                    max={100}
+                    max={20}
                     step={1}
                     value={userCount}
                     onChange={(event) => setUserCount(Math.max(1, Number(event.target.value) || 1))}
@@ -117,9 +120,6 @@ export function RegisterPage() {
                     {userCount === 1
                       ? (sl ? '1 uporabnik' : '1 user')
                       : (sl ? `${userCount} uporabnikov` : `${userCount} users`)}
-                  </div>
-                  <div className="register-user-slider-stops" aria-hidden>
-                    <span>1</span><span>2–5</span><span>6–10</span><span>11–20</span><span>20+</span>
                   </div>
                 </div>
               </div>

@@ -105,7 +105,7 @@ export function parseRegisterSelection(search: string): RegisterSelection {
   return normalizeRegisterSelection({
     plan,
     billing,
-    additionalUsers: clampInt(params.get('users'), 1, 100, 1),
+    additionalUsers: clampInt(params.get('users'), 1, 20, 1),
     additionalSms,
     addons,
     companyName: params.get('company')?.trim() || '',

@@ -264,28 +264,6 @@ public class GoogleOAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHa
 
 
     private String buildPostSignupTarget(SignupPendingSession pending) {
-        if (!signupRequiresBillingDetails(pending)) {
-            return frontendBaseUrl() + "/calendar";
-        }
-        return buildRegisterBillingDetailsUrl(pending == null ? null : pending.returnSearch());
-    }
-
-    private boolean signupRequiresBillingDetails(SignupPendingSession pending) {
-        if (pending == null) return false;
-        String packageName = pending.packageName() == null ? "" : pending.packageName().trim().toUpperCase();
-        String interval = pending.billingInterval() == null ? "MONTHLY" : pending.billingInterval().trim().toUpperCase();
-        boolean basicMonthly = ("BASIC".equals(packageName) || "TRIAL".equals(packageName))
-                && !"YEARLY".equals(interval) && !"ANNUAL".equals(interval);
-        if (!basicMonthly) return true;
-        if (pending.userCount() != null && pending.userCount() > 1) return true;
-        if (pending.smsCount() != null && pending.smsCount() > 0) return true;
-        return pending.addonKeys() != null && !pending.addonKeys().isEmpty();
-    }
-    private String buildRegisterBillingDetailsUrl(String returnSearch) {
-        String base = frontendBaseUrl() + "/register/billing-details";
-        String rs = returnSearch == null ? "" : returnSearch.trim();
-        if (rs.isBlank()) return base;
-        if (rs.startsWith("?")) return base + rs;
-        return base + "?" + rs;
+        return frontendBaseUrl() + "/calendar";
     }
 }

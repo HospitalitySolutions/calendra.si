@@ -322,7 +322,7 @@ public class PlatformAdminController {
             }
 
             String packageName = normalizeUpper(packageByCompany.get(companyId));
-            if ("TRIAL".equals(packageName)) {
+            if ("TRIAL".equals(billingStatus) || "TRIAL".equals(packageName)) {
                 trial++;
             }
             if ("CUSTOM".equals(packageName)) {
@@ -333,7 +333,8 @@ public class PlatformAdminController {
                 ownerPasswordPending++;
             }
 
-            if (!"PAID".equals(billingStatus) || isPositiveAmount(dueByCompany.get(companyId))) {
+            if ((!"PAID".equals(billingStatus) && !"TRIAL".equals(billingStatus))
+                    || isPositiveAmount(dueByCompany.get(companyId))) {
                 paymentWarnings++;
             }
         }

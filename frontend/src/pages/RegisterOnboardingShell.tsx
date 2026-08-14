@@ -1,19 +1,18 @@
 import type { ReactNode } from 'react'
-import loginLogo from '../assets/login-logo.png'
 
 export type RegisterOnboardingStep = 1 | 2 | 3
 
 export function RegisterOnboardingHeader({
   activeStep,
   locale,
-  onLogo,
+  onBack,
   onContinue,
   continueDisabled = false,
   continueLabel,
 }: {
   activeStep: RegisterOnboardingStep
   locale: string
-  onLogo: () => void
+  onBack: () => void
   onContinue?: () => void
   continueDisabled?: boolean
   continueLabel?: string
@@ -26,8 +25,16 @@ export function RegisterOnboardingHeader({
 
   return (
     <header className="register-onboarding-header">
-      <button type="button" className="register-onboarding-brand" onClick={onLogo} aria-label="Calendra">
-        <img src={loginLogo} alt="Calendra" />
+      <button
+        type="button"
+        className="register-onboarding-back"
+        onClick={onBack}
+        aria-label={sl ? 'Nazaj' : 'Back'}
+        title={sl ? 'Nazaj' : 'Back'}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <path d="m15 18-6-6 6-6" />
+        </svg>
       </button>
       <div className="register-onboarding-steps" aria-label={sl ? 'Napredek registracije' : 'Registration progress'}>
         {steps.map((label, index) => {
@@ -89,6 +96,9 @@ export function RegisterOptionIcon({ kind }: { kind: string }) {
                             ? <><rect x="4" y="4" width="5" height="5" rx="1.2"/><rect x="15" y="4" width="5" height="5" rx="1.2"/><rect x="4" y="15" width="5" height="5" rx="1.2"/><rect x="15" y="15" width="5" height="5" rx="1.2"/></>
                             : k.includes('appointment') || k.includes('calendar') ? <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="m9 15 2 2 4-4"/></>
                             : k.includes('staff') || k.includes('user') || k.includes('team') ? <><circle cx="9" cy="8" r="3"/><path d="M3.5 20v-1.5A4.5 4.5 0 0 1 8 14h2a4.5 4.5 0 0 1 4.5 4.5V20M16 5.5a3 3 0 0 1 0 5.8M17 14a4.5 4.5 0 0 1 3.5 4.4V20"/></>
+                            : k.includes('komunikacija_po_meri') || k.includes('custom_communication') || k.includes('custom_messaging') ? <><path d="M4 5h16v11H8l-4 4V5Z"/><path d="M8 9h8M8 12h5"/><path d="M18 3v4M16 5h4"/></>
+                            : k.includes('polja_po_meri') || k.includes('custom_fields') || k.includes('custom_field') ? <><path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h3M14 12h2M8 16h5"/><circle cx="16" cy="16" r="1.5"/></>
+                            : k.includes('prejeto') || k === 'inbox' || k.includes('inbox_') || k.includes('_inbox') ? <><path d="M4 5h16v14H4z"/><path d="m4 13 4-4h8l4 4"/><path d="M8 13v2h8v-2"/></>
                             : k.includes('billing') || k.includes('fiscal') || k.includes('invoice') ? <><path d="M6 3h12v5H6zM5 8h14v13H5z"/><path d="M8 12h8M8 16h5"/></>
                             : k.includes('course') || k.includes('group') ? <><path d="m3 9 9-5 9 5-9 5-9-5Z"/><path d="M7 12v5c3 2 7 2 10 0v-5"/></>
                             : k.includes('location') || k.includes('multi') ? <><path d="M12 21s7-5.4 7-12a7 7 0 1 0-14 0c0 6.6 7 12 7 12Z"/><circle cx="12" cy="9" r="2"/></>

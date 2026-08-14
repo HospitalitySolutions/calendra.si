@@ -36,20 +36,33 @@ export const registerOnboardingStyles = `
     gap: 28px;
     border-bottom: 1px solid rgba(214,224,239,.8);
   }
-  .register-onboarding-brand {
-    display: inline-flex;
-    align-items: center;
+  .register-onboarding-back {
+    width: 46px;
+    height: 46px;
+    display: inline-grid;
+    place-items: center;
     justify-self: start;
-    border: 0;
-    background: transparent;
+    border: 1px solid #d7e0ec;
+    border-radius: 14px;
+    background: rgba(255,255,255,.62);
+    color: var(--ro-text);
     padding: 0;
     cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, transform .15s ease;
   }
-  .register-onboarding-brand img {
-    width: 170px;
-    max-width: 100%;
-    height: auto;
-    display: block;
+  .register-onboarding-back:hover {
+    border-color: #b9c8dc;
+    background: #fff;
+    transform: translateX(-1px);
+  }
+  .register-onboarding-back svg {
+    width: 23px;
+    height: 23px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
   .register-onboarding-steps {
     display: grid;
@@ -255,16 +268,6 @@ export const registerOnboardingStyles = `
     font-weight: 700;
     font-size: .98rem;
   }
-  .register-user-slider-stops {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    margin-top: 14px;
-    color: #5e687b;
-    font-size: .82rem;
-  }
-  .register-user-slider-stops span { text-align: center; }
-  .register-user-slider-stops span:first-child { text-align: left; }
-  .register-user-slider-stops span:last-child { text-align: right; }
   .register-business-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0,1fr));
@@ -551,7 +554,6 @@ export const registerOnboardingStyles = `
   @media (max-width: 1100px) {
     .register-onboarding-shell { width:min(100% - 40px, 1040px); }
     .register-onboarding-header { grid-template-columns: 160px 1fr 150px; gap:18px; }
-    .register-onboarding-brand img { width:145px; }
     .register-onboarding-step { font-size:.9rem; gap:8px; }
     .register-onboarding-step-circle { width:32px; height:32px; }
     .register-onboarding-grid { grid-template-columns:1fr; gap:44px; }
@@ -566,7 +568,6 @@ export const registerOnboardingStyles = `
   @media (max-width: 760px) {
     .register-onboarding-shell { width:min(100% - 28px, 720px); }
     .register-onboarding-header { min-height:auto; padding:15px 0 0; grid-template-columns:1fr auto; gap:14px; }
-    .register-onboarding-brand img { width:132px; }
     .register-onboarding-continue { min-width:114px; height:46px; padding:0 16px; }
     .register-onboarding-steps { grid-column:1/-1; grid-row:2; min-height:62px; }
     .register-onboarding-step { font-size:.78rem; }
@@ -576,7 +577,6 @@ export const registerOnboardingStyles = `
     .register-addons-grid { grid-template-columns:1fr; }
     .register-business-card { min-height:94px; }
     .register-addon-card { min-height:118px; }
-    .register-user-slider-stops { font-size:.7rem; }
     .register-addons-footer { align-items:flex-start; flex-direction:column; }
     .register-product-visual { height:290px; }
     .register-visual-calendar { width:300px; height:190px; }

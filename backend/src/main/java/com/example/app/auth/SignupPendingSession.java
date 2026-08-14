@@ -21,6 +21,8 @@ public record SignupPendingSession(
         List<String> addonKeys,
         String billingInterval,
         Boolean fiscalizationNeeded,
+        /** Self-serve onboarding starts the selected package as a free trial before billing begins. */
+        Boolean trialRequested,
         /** Same shape as {@code location.search} on the register account page (includes leading {@code ?}). */
         String returnSearch
 ) implements Serializable {

@@ -15,7 +15,6 @@ import {
   registerPlanToPackage,
   selectionToSearch,
 } from './registerFlow'
-import { selectionRequiresBillingDetails } from './registerPlanCopy'
 import {
   RegisterBenefitsVisual,
   RegisterOnboardingHeader,
@@ -24,8 +23,6 @@ import { registerOnboardingStyles } from './registerOnboardingStyles'
 import { normalizeTenantConfigType } from './configuration/guestWebsiteSettings'
 
 const REGISTER_SELECTION_STORAGE_KEY = 'calendra.register.selectionSearch'
-const REGISTER_BILLING_DETAILS_REQUIRED_KEY = 'calendra.register.requiresBillingDetails'
-const REGISTER_BILLING_DETAILS_SEARCH_KEY = 'calendra.register.billingDetailsSearch'
 
 type RegisterView = 'form' | 'verify' | 'registered' | 'invalid'
 
@@ -50,16 +47,6 @@ function selectedAddonKeys(addons: Record<string, boolean>) {
 
 function tenantTypeForBusinessType(raw?: string) {
   return normalizeTenantConfigType(raw)
-}
-
-function storePendingBillingDetails(search: string) {
-  try {
-    sessionStorage.setItem(REGISTER_SELECTION_STORAGE_KEY, search)
-    sessionStorage.setItem(REGISTER_BILLING_DETAILS_SEARCH_KEY, search)
-    sessionStorage.setItem(REGISTER_BILLING_DETAILS_REQUIRED_KEY, '1')
-  } catch {
-    // Best-effort only; the redirect URL still carries the selection.
-  }
 }
 
 function googleMark() {
@@ -148,6 +135,7 @@ export function RegisterAccountPage() {
       addonKeys: selectedAddonKeys(selection.addons),
       billingInterval: getBillingInterval(selection),
       fiscalizationNeeded: false,
+      trialRequested: true,
       returnSearch,
     })
   }
@@ -156,15 +144,13 @@ export function RegisterAccountPage() {
     if (!data.user) return false
     markOnboardingTourPending()
     storeAuthenticatedSession({ token: data.token, user: data.user })
-    const nextSearch = data.returnSearch?.trim().replace(/^\?/, '') || selectionToSearch(selection)
-    const nextSelection = parseRegisterSelection(nextSearch)
-    const normalizedSearch = selectionToSearch(nextSelection)
-    if (selectionRequiresBillingDetails(nextSelection)) {
-      storePendingBillingDetails(normalizedSearch)
-      window.location.assign(`/register/billing-details?${normalizedSearch}`)
-    } else {
-      window.location.assign('/calendar')
+    try {
+      sessionStorage.removeItem('calendra.register.requiresBillingDetails')
+      sessionStorage.removeItem('calendra.register.billingDetailsSearch')
+    } catch {
+      // Best-effort cleanup for registrations started before trial onboarding was enabled.
     }
+    window.location.assign('/calendar')
     return true
   }
 
@@ -211,6 +197,7 @@ export function RegisterAccountPage() {
         addonKeys: selectedAddonKeys(selection.addons),
         billingInterval: getBillingInterval(selection),
         fiscalizationNeeded: false,
+        trialRequested: true,
         returnSearch,
       })
       if (finishAuthenticatedSignup(data)) return
@@ -352,7 +339,7 @@ export function RegisterAccountPage() {
         <RegisterOnboardingHeader
           activeStep={3}
           locale={locale}
-          onLogo={() => navigate('/login')}
+          onBack={() => navigate(`/register/add-ons?${selectionToSearch(selection)}`)}
           onContinue={headerContinue}
           continueDisabled={submitting || resending}
         />

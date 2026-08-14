@@ -167,6 +167,51 @@ class SignupServiceBillingIsolationTest {
         verify(tenantCreatedAdminEmailService, times(1)).notifyAfterCommit(any());
     }
 
+    @Test
+    void selfServeTrial_delaysBillingAndKeepsSelectedPackage() {
+        Company company = new Company();
+        company.setId(20L);
+        company.setTenantCode("trial-co");
+        company.setName("Trial Co");
+        when(companyProvisioningService.createWithTenantCode(any())).thenReturn(company);
+
+        AuthController.SignupRequest signup = new AuthController.SignupRequest(
+                "Trial Co",
+                "Tina",
+                "Tester",
+                "trial@example.com",
+                null,
+                "StrongPass1",
+                "PREMIUM",
+                6,
+                0,
+                5,
+                List.of("custom-addon"),
+                "MONTHLY",
+                false,
+                "yoga_pilates",
+                true,
+                "locale=sl"
+        );
+
+        ResponseEntity<?> response = service.provisionNewTenant(
+                signup,
+                "trial@example.com",
+                new MockHttpServletRequest(),
+                new MockHttpServletResponse(),
+                false
+        );
+
+        assertTrue(response.getStatusCode().is2xxSuccessful());
+        assertEquals("PREMIUM", settingValue(20L, SettingKey.SIGNUP_PACKAGE_NAME));
+        assertEquals("TRIAL", settingValue(20L, SettingKey.BILLING_SUBSCRIPTION_STATUS));
+        assertEquals(
+                java.time.LocalDate.now().plusDays(14).toString(),
+                settingValue(20L, SettingKey.BILLING_SUBSCRIPTION_START)
+        );
+        assertEquals("custom-addon", settingValue(20L, SettingKey.SIGNUP_ADDON_KEYS));
+    }
+
     private String settingValue(Long companyId, SettingKey key) {
         AppSetting setting = settingStore.get(key(companyId, key.name()));
         return setting == null ? null : setting.getValue();

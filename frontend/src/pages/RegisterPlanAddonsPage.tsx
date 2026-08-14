@@ -15,6 +15,16 @@ import { registerOnboardingStyles } from './registerOnboardingStyles'
 
 const PLAN_RANK: Record<RegisterPlanKey, number> = { basic: 0, pro: 1, business: 2 }
 
+function isOnlinePaymentsFeature(item: { key: string; name?: string }) {
+  const key = item.key.trim().toLowerCase().replace(/[\s_]+/g, '-')
+  const name = (item.name || '').trim().toLowerCase()
+  return key === 'payments'
+    || key === 'online-payments'
+    || name === 'spletna plačila'
+    || name === 'spletno plačevanje'
+    || name === 'online payments'
+}
+
 export function RegisterPlanAddonsPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -37,7 +47,7 @@ export function RegisterPlanAddonsPage() {
   }, [location.search])
 
   const optionalFeatures = useMemo(
-    () => getFeatureItems(lang).filter((item) => item.minPlan !== 'basic'),
+    () => getFeatureItems(lang).filter((item) => item.minPlan !== 'basic' && !isOnlinePaymentsFeature(item)),
     [lang, catalogRevision],
   )
   const addonCatalog = useMemo(() => getAddonCatalog(lang), [lang, catalogRevision])
@@ -83,9 +93,14 @@ export function RegisterPlanAddonsPage() {
   const totalCount = optionalFeatures.length + addonOptions.length
 
   const continueStep = () => {
+    const features = { ...(selection.features || {}) }
+    for (const key of Object.keys(features)) {
+      if (isOnlinePaymentsFeature({ key })) delete features[key]
+    }
     const normalized = normalizeRegisterSelection({
       ...selection,
-      plan: derivePlan(selection.features || {}, selection.addons || {}),
+      features,
+      plan: derivePlan(features, selection.addons || {}),
       additionalSms: 0,
     })
     navigate(`/register/account?${selectionToSearch(normalized)}`)
@@ -98,7 +113,7 @@ export function RegisterPlanAddonsPage() {
         <RegisterOnboardingHeader
           activeStep={2}
           locale={locale}
-          onLogo={() => navigate('/login')}
+          onBack={() => navigate(`/register?${selectionToSearch(selection)}`)}
           onContinue={continueStep}
         />
 
@@ -132,7 +147,7 @@ export function RegisterPlanAddonsPage() {
                       onClick={() => toggleFeature(feature.key)}
                       aria-pressed={selected}
                     >
-                      <span className="register-addon-icon-new"><RegisterOptionIcon kind={feature.key} /></span>
+                      <span className="register-addon-icon-new"><RegisterOptionIcon kind={`${feature.key} ${feature.name}`} /></span>
                       <span>
                         <span className="register-addon-card-title">{feature.name}</span>
                         <span className="register-addon-card-copy">{feature.description}</span>
@@ -151,7 +166,7 @@ export function RegisterPlanAddonsPage() {
                       onClick={() => toggleAddon(addon.key)}
                       aria-pressed={selected}
                     >
-                      <span className="register-addon-icon-new"><RegisterOptionIcon kind={addon.key} /></span>
+                      <span className="register-addon-icon-new"><RegisterOptionIcon kind={`${addon.key} ${addon.name}`} /></span>
                       <span>
                         <span className="register-addon-card-title">{addon.name}</span>
                         <span className="register-addon-card-copy">{addon.description}</span>

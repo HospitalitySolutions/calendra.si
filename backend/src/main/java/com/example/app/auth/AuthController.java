@@ -663,6 +663,8 @@ public class AuthController {
             Boolean fiscalizationNeeded,
             /** Optional company/activity type collected in the first onboarding step. */
             String tenantType,
+            /** Self-serve onboarding starts the selected package as a free trial before billing begins. */
+            Boolean trialRequested,
             /** Optional: {@code location.search} from the register flow for redirects after email confirmation. */
             String returnSearch
     ) {
@@ -681,11 +683,34 @@ public class AuthController {
                 List<String> addonKeys,
                 String billingInterval,
                 Boolean fiscalizationNeeded,
+                String tenantType,
                 String returnSearch
         ) {
             this(companyName, firstName, lastName, email, phone, password, packageName,
                     userCount, smsCount, spaceCount, addonKeys, billingInterval,
-                    fiscalizationNeeded, null, returnSearch);
+                    fiscalizationNeeded, tenantType, false, returnSearch);
+        }
+
+        /** Backwards-compatible constructor matching the previous canonical shape without tenant type. */
+        public SignupRequest(
+                String companyName,
+                String firstName,
+                String lastName,
+                String email,
+                String phone,
+                String password,
+                String packageName,
+                Integer userCount,
+                Integer smsCount,
+                Integer spaceCount,
+                List<String> addonKeys,
+                String billingInterval,
+                Boolean fiscalizationNeeded,
+                String returnSearch
+        ) {
+            this(companyName, firstName, lastName, email, phone, password, packageName,
+                    userCount, smsCount, spaceCount, addonKeys, billingInterval,
+                    fiscalizationNeeded, null, false, returnSearch);
         }
 
         /** Backwards-compatible constructor for tests/callers from before package add-ons were added. */
@@ -719,6 +744,7 @@ public class AuthController {
                     billingInterval,
                     fiscalizationNeeded,
                     null,
+                    false,
                     returnSearch
             );
         }
