@@ -131,6 +131,7 @@ export type TenantConfigType =
 
 export type TenantConfigPresetFamily =
   | "salon"
+  | "gym"
   | "spa"
   | "therapy"
   | "personal_training"
