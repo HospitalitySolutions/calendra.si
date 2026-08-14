@@ -11770,3 +11770,136 @@
     min-width: 26px !important;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Nov neizdan račun — approved stacked payment redesign (2026-08-14)
+   - Postavke računa spans the full content width
+   - Načini plačila sits directly below Postavke računa
+   - legacy bottom information cards are removed for create-open flow
+   - totals stay inside Načini plačila, footer contains actions only
+   -------------------------------------------------------------------------- */
+@media (min-width: 1025px) {
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 18px !important;
+    width: 100% !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-items-panel,
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-payment-panel {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-items-panel {
+    padding: 18px 20px 18px !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-payment-panel {
+    padding: 18px 20px 20px !important;
+    gap: 14px !important;
+    border-left: 1px solid #e7edf5 !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-payment-row {
+    grid-template-columns: 36px minmax(220px, 1fr) minmax(140px, 220px) 44px 36px !important;
+    gap: 10px !important;
+    min-height: 58px !important;
+    padding: 8px 0 !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-payment-row > select,
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-payment-amount-input {
+    height: 44px !important;
+    min-height: 44px !important;
+    font-size: 0.84rem !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-match-mini {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-delete-mini {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-payment-card,
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-discount-card,
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-totals-card {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-totals-card {
+    margin-top: 2px !important;
+    padding-top: 14px !important;
+    border-top: 1px solid #edf2f7 !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-modern-body--open-create {
+    gap: 18px !important;
+  }
+
+  .billing-create-panel--open .billing-bill-modal-footer {
+    min-height: 86px !important;
+    padding-top: 16px !important;
+    padding-bottom: 18px !important;
+    border-top: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .billing-create-panel--open .billing-bill-modal-footer-actions--desktop-create-open {
+    width: auto !important;
+    margin-left: auto !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-add-top {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 40px !important;
+    height: 40px !important;
+    padding: 0 14px !important;
+    border: 1px solid #cfe0fb !important;
+    border-radius: 10px !important;
+    background: #ffffff !important;
+    color: #1769ff !important;
+    font-size: 0.84rem !important;
+    font-weight: 750 !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
+    cursor: pointer;
+  }
+
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-add-top:hover:not(:disabled) {
+    background: #f7faff !important;
+    border-color: #b9d3ff !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-add-top:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* The approved preview keeps the payment area compact when a method already exists. */
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-payment-card .billing-invoice-add-dashed {
+    display: none !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  /* Desktop preview keeps totals in Načini plačila, not in the footer. */
+  .billing-create-panel--open .billing-invoice-totals-card--create-footer {
+    display: none !important;
+  }
+}

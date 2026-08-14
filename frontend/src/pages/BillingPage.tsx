@@ -10558,11 +10558,38 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </section>
                 ) : null}
 
-                <section className="billing-invoice-workspace-card">
+                <section className={`billing-invoice-workspace-card${!isCreateAdvanceBill ? ' billing-invoice-workspace-card--open-create-stacked' : ''}`}>
                   <div className="billing-invoice-items-panel">
                     <div className="billing-invoice-section-title-row">
                       <h3>{isCreateAdvanceBill ? (locale === 'sl' ? 'Postavke predplačila' : 'Advance items') : (locale === 'sl' ? 'Postavke računa' : 'Bill items')}</h3>
-                      <span>{billForm.items.length} {billForm.items.length === 1 ? (locale === 'sl' ? 'postavka' : 'item') : (locale === 'sl' ? 'postavk' : 'items')}</span>
+                      {isCreateAdvanceBill ? (
+                        <span>{billForm.items.length} {billForm.items.length === 1 ? (locale === 'sl' ? 'postavka' : 'item') : (locale === 'sl' ? 'postavk' : 'items')}</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="billing-invoice-add-top"
+                          disabled={availableBillServices.length === 0}
+                          onClick={() => {
+                            const firstService = availableBillServices[0]
+                            if (!firstService) return
+                            setBillForm({
+                              ...billForm,
+                              items: [
+                                ...billForm.items,
+                                {
+                                  transactionServiceId: firstService.id,
+                                  quantity: 1,
+                                  netPrice: String(firstService.netPrice),
+                                  grossPrice: grossStringFromService(firstService),
+                                  sourceSessionBookingId: billForm.sessionId ?? undefined,
+                                },
+                              ],
+                            })
+                          }}
+                        >
+                          + {billingCopy.addLine}
+                        </button>
+                      )}
                     </div>
                     {(!isCreateAdvanceBill || billForm.items.length > 0) && (
                       <div className={`billing-invoice-table-head billing-invoice-table-head--compact-create${isCreateAdvanceBill ? ' billing-invoice-table-head--advance' : ''}`} aria-hidden>
@@ -10644,12 +10671,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                 </section>
 
-                <section className="billing-invoice-compact-summary" aria-label={locale === 'sl' ? 'Povzetek računa' : 'Bill summary'}>
-                  <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--blue">▣</span><span>{isCreateAdvanceBill ? billingCopy.billTypeAdvance : (locale === 'sl' ? 'Računi' : 'Bills')}</span><strong>1 {isCreateAdvanceBill ? billingCopy.billTypeAdvance.toLowerCase() : (locale === 'sl' ? 'račun' : 'bill')}</strong></div>
-                  <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--green">☷</span><span>{locale === 'sl' ? 'Postavke' : 'Line items'}</span><strong>{billForm.items.length}</strong></div>
-                  <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--purple">€</span><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(createGross)}</strong></div>
-                  <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--red">▤</span><span>{locale === 'sl' ? 'Neplačano' : 'Unpaid'}</span><strong>{currency(createGross)}</strong></div>
-                </section>
+                {isCreateAdvanceBill && (
+                  <section className="billing-invoice-compact-summary" aria-label={locale === 'sl' ? 'Povzetek računa' : 'Bill summary'}>
+                    <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--blue">▣</span><span>{billingCopy.billTypeAdvance}</span><strong>1 {billingCopy.billTypeAdvance.toLowerCase()}</strong></div>
+                    <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--green">☷</span><span>{locale === 'sl' ? 'Postavke' : 'Line items'}</span><strong>{billForm.items.length}</strong></div>
+                    <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--purple">€</span><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(createGross)}</strong></div>
+                    <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--red">▤</span><span>{locale === 'sl' ? 'Neplačano' : 'Unpaid'}</span><strong>{currency(createGross)}</strong></div>
+                  </section>
+                )}
                 {renderCreateBillPayeeDialog()}
               </div>
 
