@@ -299,31 +299,6 @@ function RolePermissionIcon({ name }: { name: 'shield' | 'group' | 'calendar' | 
   )
 }
 
-function groupIconName(key: string): Parameters<typeof RolePermissionIcon>[0]['name'] {
-  if (key === 'CALENDAR_BOOKINGS') return 'calendar'
-  if (key === 'CLIENTS') return 'client'
-  if (key === 'EMPLOYEES') return 'employee'
-  if (key === 'ROLES_PERMISSIONS') return 'shield'
-  if (key === 'SERVICES') return 'platform'
-  if (key === 'SPACES') return 'platform'
-  if (key === 'COURSES') return 'platform'
-  if (key === 'BILLING_INVOICES') return 'billing'
-  if (key === 'ORDERS') return 'billing'
-  if (key === 'WALLET_BENEFITS') return 'wallet'
-  if (key === 'INBOX_MESSAGES') return 'group'
-  if (key === 'NOTIFICATIONS') return 'info'
-  if (key === 'DELIVERY_LOGS') return 'reports'
-  if (key === 'REPORTS_ANALYTICS') return 'reports'
-  if (key === 'SETTINGS') return 'settings'
-  if (key === 'INTEGRATIONS') return 'integrations'
-  if (key === 'WEBSITE_WIDGET') return 'platform'
-  if (key === 'GUEST_MOBILE_APP') return 'platform'
-  if (key === 'PAYMENTS') return 'billing'
-  if (key === 'SCANNER') return 'wallet'
-  if (key === 'CONSUMABLES') return 'platform'
-  return 'group'
-}
-
 function permissionKey(groupKey: string, action: PermissionAction): EmployeePermission {
   return `${groupKey}_${action}` as EmployeePermission
 }
@@ -784,7 +759,6 @@ export function EmployeeRolesPermissionsTab() {
                     <tr key={group.key}>
                       <td>
                         <div className="employee-roles-group-cell">
-                          <span className={`employee-roles-group-icon employee-roles-group-icon--${group.key.toLowerCase().replace(/_/g, '-')}`}><RolePermissionIcon name={groupIconName(group.key)} /></span>
                           <div><strong>{group.label}</strong><span>{group.description}</span></div>
                         </div>
                       </td>
@@ -847,7 +821,6 @@ export function EmployeeRolesPermissionsTab() {
                   <article key={group.key} className={`employee-roles-mobile-group${isExpanded ? ' employee-roles-mobile-group--expanded' : ''}`}>
                     <div className="employee-roles-mobile-group-summary">
                       <div className="employee-roles-group-cell employee-roles-mobile-group-cell">
-                        <span className={`employee-roles-group-icon employee-roles-group-icon--${group.key.toLowerCase().replace(/_/g, '-')}`}><RolePermissionIcon name={groupIconName(group.key)} /></span>
                         <div><strong>{group.label}</strong><span>{group.description}</span></div>
                       </div>
 

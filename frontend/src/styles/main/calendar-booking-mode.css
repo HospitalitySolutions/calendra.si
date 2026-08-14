@@ -9333,15 +9333,6 @@
     flex: 0 0 auto !important;
 }
 
-/* Uredi termin + button follows the Dodaj termin action treatment. */
-.calendar-edit-session-panel--booked .calendar-client-picker__actions .client-add-btn,
-.calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__add-btn {
-    border-color: #0d8df4 !important;
-    background: #0d8df4 !important;
-    color: #fff !important;
-    box-shadow: none !important;
-}
-
 /* The booked editor previously exposes a long text label at the tablet/mobile
    breakpoint.  Dodaj termin uses the compact + button, so keep parity here. */
 .calendar-edit-session-panel--booked .calendar-client-picker__add-label {

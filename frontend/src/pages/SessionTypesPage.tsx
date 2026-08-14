@@ -726,14 +726,16 @@ function ServiceConfigNameCell({
   title,
   subtitle,
   visual,
+  showIcon = true,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   visual: ServiceConfigVisual;
+  showIcon?: boolean;
 }) {
   return (
     <div className="service-config-name-cell">
-      <ServiceConfigIcon visual={visual} />
+      {showIcon ? <ServiceConfigIcon visual={visual} /> : null}
       <div className="service-config-name-stack">
         <strong>{title}</strong>
         {subtitle ? <span>{subtitle}</span> : null}
@@ -2763,6 +2765,7 @@ export function SessionTypesPage() {
                       ].filter(Boolean).join(" — ")
                     }
                     visual={serviceConfigVisual(index)}
+                    showIcon={false}
                   />
                   <div className="clients-card-menu-wrap">
                     <button
@@ -2912,10 +2915,11 @@ export function SessionTypesPage() {
                             ].filter(Boolean).join(" — ")
                           }
                           visual={serviceConfigVisual(index)}
+                          showIcon={false}
                         />
-                        {serviceGroupsModuleEnabled ? (
-                          <span className={`service-group-indicator${type.serviceGroupId == null ? " is-ungrouped" : ""}`}>
-                            {type.serviceGroupName || (locale === "sl" ? "Brez skupine" : "Ungrouped")}
+                        {serviceGroupsModuleEnabled && type.serviceGroupId != null && type.serviceGroupName?.trim() ? (
+                          <span className="service-group-indicator">
+                            {type.serviceGroupName}
                           </span>
                         ) : null}
                       </div>

@@ -4731,9 +4731,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 <p>{clientsCopy.editClientSubtitle}</p>
               </div>
               <div className="clients-action-workspace-client">
-                <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>
-                  {(detailClient.firstName?.[0] || '').toUpperCase()}{(detailClient.lastName?.[0] || '').toUpperCase()}
-                </span>
                 <div className="clients-name-stack clients-action-workspace-title-stack">
                   <span className="clients-name">
                     {fullName(detailClient)}
@@ -5813,7 +5810,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
               <form className="clients-create-modal-form" autoComplete="off" onSubmit={handleSubmit}>
                 <div className="clients-action-workspace-header">
                   <div className="clients-action-workspace-client">
-                    <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>N</span>
                     <div className="clients-name-stack clients-action-workspace-title-stack">
                       <span className="clients-name">{clientsCopy.newClientTitle}</span>
                       <span className="clients-id">ID # — <span className="clients-action-workspace-status-dot" /> {activeStatusLabel}</span>
