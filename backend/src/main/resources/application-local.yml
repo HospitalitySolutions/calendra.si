@@ -1,9 +1,32 @@
 # Profile: local — local machine / Docker development profile.
-# Keep Hibernate schema updates enabled for quick local iteration and keep Flyway disabled.
-# Staging/production profiles override this with Flyway enabled and ddl-auto=validate.
+# Local uses the same migration-first schema lifecycle as staging/production:
+# Flyway applies every migration to an empty database before Hibernate validates it.
+# baseline-on-migrate stays false locally so an old Hibernate-created schema cannot
+# silently skip the migration history; reset that local DB/volume once instead.
 spring:
   flyway:
-    enabled: ${SPRING_FLYWAY_ENABLED:false}
+    enabled: ${SPRING_FLYWAY_ENABLED:true}
+    validate-on-migrate: true
+    clean-disabled: true
+    baseline-on-migrate: ${SPRING_FLYWAY_BASELINE_ON_MIGRATE:false}
+    baseline-version: ${SPRING_FLYWAY_BASELINE_VERSION:0}
   jpa:
     hibernate:
-      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
+
+app:
+  # Keep the old multi-tenant demo seeder off by default locally. It can still be
+  # re-enabled with APP_SEED_DEMO_TENANTS_ENABLED=true when those fixtures are useful.
+  seed:
+    enabled: ${APP_SEED_ENABLED:true}
+    demo-tenants-enabled: ${APP_SEED_DEMO_TENANTS_ENABLED:false}
+
+  # Predictable local-only staff login. LocalTestUserBootstrap is additionally
+  # protected with @Profile("local"), so none of these defaults run in staging/prod.
+  local-test-user:
+    enabled: ${APP_LOCAL_TEST_USER_ENABLED:true}
+    email: ${APP_LOCAL_TEST_USER_EMAIL:local@calendra.si}
+    password: "${APP_LOCAL_TEST_USER_PASSWORD:Admin123!}"
+    first-name: ${APP_LOCAL_TEST_USER_FIRST_NAME:Local}
+    last-name: ${APP_LOCAL_TEST_USER_LAST_NAME:Admin}
+    company-name: ${APP_LOCAL_TEST_USER_COMPANY_NAME:Calendra Local}

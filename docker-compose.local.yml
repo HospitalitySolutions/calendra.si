@@ -52,6 +52,10 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/calendradb
       SPRING_DATASOURCE_USERNAME: calendra
       SPRING_DATASOURCE_PASSWORD: calendra
+      # Local schema lifecycle mirrors staging/production: Flyway owns DDL, Hibernate validates.
+      SPRING_FLYWAY_ENABLED: ${SPRING_FLYWAY_ENABLED:-true}
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: ${SPRING_FLYWAY_BASELINE_ON_MIGRATE:-false}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO:-validate}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       APP_RATE_LIMIT_BACKEND: memory
@@ -72,6 +76,14 @@ services:
       APP_AUTH_FRONTEND_URL: ${APP_AUTH_FRONTEND_URL:-http://localhost:3000}
       APP_WEBAUTHN_RP_ID: ${APP_WEBAUTHN_RP_ID:-localhost}
       APP_WEBAUTHN_ALLOWED_ORIGINS: ${APP_WEBAUTHN_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      # Local-only bootstrap account. Override these in your shell/root .env if desired.
+      APP_LOCAL_TEST_USER_ENABLED: ${APP_LOCAL_TEST_USER_ENABLED:-true}
+      APP_LOCAL_TEST_USER_EMAIL: ${APP_LOCAL_TEST_USER_EMAIL:-local@calendra.si}
+      APP_LOCAL_TEST_USER_PASSWORD: "${APP_LOCAL_TEST_USER_PASSWORD:-Admin123!}"
+      APP_LOCAL_TEST_USER_FIRST_NAME: ${APP_LOCAL_TEST_USER_FIRST_NAME:-Local}
+      APP_LOCAL_TEST_USER_LAST_NAME: ${APP_LOCAL_TEST_USER_LAST_NAME:-Admin}
+      APP_LOCAL_TEST_USER_COMPANY_NAME: ${APP_LOCAL_TEST_USER_COMPANY_NAME:-Calendra Local}
+      APP_SEED_DEMO_TENANTS_ENABLED: ${APP_SEED_DEMO_TENANTS_ENABLED:-false}
     ports:
       - "127.0.0.1:4000:4000"
 

@@ -11,6 +11,9 @@ import com.example.app.settings.SettingKey;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.user.UserRepository;
+import com.example.app.workspacesubscription.WorkspaceSubscription;
+import com.example.app.workspacesubscription.WorkspaceSubscriptionRepository;
+import com.example.app.workspacesubscription.WorkspaceSubscriptionStatus;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
@@ -105,6 +108,7 @@ public class LocalTestUserBootstrap implements CommandLineRunner {
     private final CompanyRepository companies;
     private final CompanyProvisioningService companyProvisioningService;
     private final AppSettingRepository settings;
+    private final WorkspaceSubscriptionRepository workspaceSubscriptions;
     private final PasswordEncoder passwordEncoder;
 
     @Value("${app.local-test-user.email:local@calendra.si}")
@@ -128,6 +132,7 @@ public class LocalTestUserBootstrap implements CommandLineRunner {
             CompanyRepository companies,
             CompanyProvisioningService companyProvisioningService,
             AppSettingRepository settings,
+            WorkspaceSubscriptionRepository workspaceSubscriptions,
             PasswordEncoder passwordEncoder
     ) {
         this.users = users;
@@ -135,6 +140,7 @@ public class LocalTestUserBootstrap implements CommandLineRunner {
         this.companies = companies;
         this.companyProvisioningService = companyProvisioningService;
         this.settings = settings;
+        this.workspaceSubscriptions = workspaceSubscriptions;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -195,6 +201,7 @@ public class LocalTestUserBootstrap implements CommandLineRunner {
         users.save(membership);
 
         seedLocalDefaults(company, normalizedEmail);
+        ensureLocalWorkspaceSubscription(company, normalizedEmail);
         companyProvisioningService.ensureDefaultPaymentMethods(company);
         companyProvisioningService.initializeDefaultLocation(
                 company,
@@ -220,6 +227,49 @@ public class LocalTestUserBootstrap implements CommandLineRunner {
                 .filter(company -> company.getName() != null && company.getName().equalsIgnoreCase(requestedName))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private void ensureLocalWorkspaceSubscription(Company company, String normalizedEmail) {
+        // Flyway provisions the workspace subscription infrastructure before this runner executes.
+        // The local bootstrap still upgrades the generated/default subscription to a deterministic
+        // Premium test subscription so every local module can be exercised after each restart.
+        WorkspaceSubscription subscription = workspaceSubscriptions
+                .findByWorkspaceId(company.getWorkspace().getId())
+                .orElseGet(WorkspaceSubscription::new);
+
+        subscription.setWorkspace(company.getWorkspace());
+        subscription.setLegacyPrimaryCompany(company);
+        subscription.setPlanKey("PREMIUM");
+        subscription.setBillingInterval("MONTHLY");
+        subscription.setStatus(WorkspaceSubscriptionStatus.ACTIVE);
+        subscription.setCurrentPeriodStart(LocalDate.now());
+        subscription.setCurrentPeriodEnd(LocalDate.now().plusYears(10));
+        subscription.setTrialEndsAt(null);
+        subscription.setGraceUntil(null);
+        subscription.setBillingEmail(normalizedEmail);
+        subscription.setFeaturesJson(
+                "[\"CORE\",\"MULTI_UNIT\",\"WORKSPACE_ANALYTICS\",\"WORKSPACE_PUBLIC_BOOKING\",\"CONFIGURATION_COPY\",\"API_ACCESS\"]"
+        );
+        subscription.setAddonsJson("[]");
+
+        // A zero limit means unlimited for Premium workspace-level capacities.
+        subscription.setMaxOperatingUnits(0);
+        subscription.setMaxLocations(0);
+        subscription.setMaxActiveUsers(0);
+        subscription.setMaxConsultants(0);
+        subscription.setMaxClients(0);
+        subscription.setMaxMonthlyBookings(0);
+        subscription.setIncludedSmsParts(500);
+        subscription.setIncludedEmailMessages(0);
+        subscription.setStorageLimitMb(0);
+        subscription.setMaxPublicBookingPages(0);
+        subscription.setAnalyticsRetentionDays(3650);
+        subscription.setAllowSmsOverage(true);
+        subscription.setAllowEmailOverage(true);
+        subscription.setAllowBookingOverage(true);
+        subscription.setApiAccess(true);
+
+        workspaceSubscriptions.save(subscription);
     }
 
     private void seedLocalDefaults(Company company, String normalizedEmail) {
