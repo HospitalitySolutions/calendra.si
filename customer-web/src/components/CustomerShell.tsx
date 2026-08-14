@@ -1,26 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { customerApi } from '../api/customerApi'
 import { useAuth } from '../auth/AuthContext'
 import {
   BellIcon,
   CalendarIcon,
+  HomeIcon,
   LogOutIcon,
   MessageIcon,
-  SearchIcon,
   SettingsIcon,
   UserIcon,
   WalletIcon,
 } from './Icons'
+import { MarketplaceSearchBar } from './MarketplaceSearchBar'
 import { initials } from '../utils'
 
 const navItems = [
-  { to: '/profil', label: 'Profil', icon: UserIcon },
+  { to: '/', label: 'Pregled', icon: HomeIcon, end: true },
   { to: '/termini', label: 'Termini', icon: CalendarIcon },
   { to: '/denarnica', label: 'Denarnica', icon: WalletIcon },
   { to: '/sporocila', label: 'Sporočila', icon: MessageIcon },
   { to: '/obvestila', label: 'Obvestila', icon: BellIcon },
+  { to: '/profil', label: 'Profil', icon: UserIcon },
+  { to: '/profil#nastavitve', label: 'Nastavitve', icon: SettingsIcon },
 ]
 
 const accountMenuItems = [
@@ -34,19 +37,9 @@ const accountMenuItems = [
 
 export function CustomerShell() {
   const { user, logout } = useAuth()
-  const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const { data: home } = useQuery({ queryKey: ['customer-home-shell'], queryFn: customerApi.home, staleTime: 45_000 })
-
-  const title = location.pathname === '/' ? 'Moj račun'
-    : location.pathname.startsWith('/isci') ? 'Poišči termin'
-      : location.pathname.startsWith('/termini') ? 'Termini'
-        : location.pathname.startsWith('/denarnica') ? 'Denarnica'
-          : location.pathname.startsWith('/sporocila') ? 'Sporočila'
-            : location.pathname.startsWith('/obvestila') ? 'Obvestila'
-              : location.pathname.startsWith('/profil') ? 'Profil'
-                : 'Moj račun'
 
   useEffect(() => {
     if (!menuOpen) return
@@ -74,20 +67,26 @@ export function CustomerShell() {
       <a className="brand-button brand-button--main" href="/za-stranke" aria-label="Calendra za stranke">
         <img src="/racun/calendra-wordmark.webp" alt="Calendra"/>
       </a>
-      <div className="sidebar-user"><strong>{user?.firstName} {user?.lastName}</strong><small>{user?.email}</small></div>
+      <div className="sidebar-user">
+        <span className="sidebar-user__avatar">{initials(user?.firstName, user?.lastName)}</span>
+        <span className="sidebar-user__copy"><strong>{user?.firstName} {user?.lastName}</strong><small>{user?.email}</small></span>
+      </div>
       <nav className="sidebar-nav" aria-label="Moj račun">
-        {navItems.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}><Icon/><span>{label}</span>{label === 'Sporočila' && Boolean(home?.unreadInboxCount) && <b className="nav-badge">{home?.unreadInboxCount}</b>}{label === 'Obvestila' && Boolean(home?.unreadNotificationCount) && <b className="nav-badge">{home?.unreadNotificationCount}</b>}</NavLink>)}
+        {navItems.map(({ to, label, icon: Icon, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}><Icon/><span>{label}</span>{label === 'Sporočila' && Boolean(home?.unreadInboxCount) && <b className="nav-badge">{home?.unreadInboxCount}</b>}{label === 'Obvestila' && Boolean(home?.unreadNotificationCount) && <b className="nav-badge">{home?.unreadNotificationCount}</b>}</NavLink>)}
       </nav>
       <div className="sidebar-bottom">
-        <a href="/ponudniki" className="nav-link"><SearchIcon/><span>Poišči ponudnika</span></a>
+        <a href="https://calendra.si/kontakt" className="nav-link"><MessageIcon/><span>Pomoč in podpora</span></a>
       </div>
     </aside>
 
     <main className="app-main">
       <header className="topbar">
-        <div><span className="topbar__mobile-brand">Calendra</span><h1>{title}</h1></div>
+        <MarketplaceSearchBar/>
         <div className="topbar__actions">
-          <a className="button button--secondary topbar-search-button" href="/ponudniki"><SearchIcon size={17}/> Poišči termin</a>
+          <NavLink className="icon-button topbar-notifications" to="/obvestila" aria-label="Obvestila">
+            <BellIcon size={19}/>
+            {Boolean(home?.unreadNotificationCount) && <span className="notification-dot">{home?.unreadNotificationCount}</span>}
+          </NavLink>
           <div className="account-menu" ref={menuRef}>
             <button className="avatar-button avatar-button--menu" onClick={() => setMenuOpen(value => !value)} aria-label="Moj račun" aria-expanded={menuOpen}>
               {initials(user?.firstName, user?.lastName)}<span className="avatar-caret">⌄</span>
@@ -108,7 +107,7 @@ export function CustomerShell() {
     </main>
 
     <nav className="mobile-nav" aria-label="Moj račun">
-      {navItems.slice(0, 4).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => `mobile-nav__item ${isActive ? 'mobile-nav__item--active' : ''}`}><span className="mobile-nav__icon"><Icon size={21}/>{label === 'Sporočila' && Boolean(home?.unreadInboxCount) && <i/>}</span><span>{label}</span></NavLink>)}
+      {navItems.slice(0, 4).map(({ to, label, icon: Icon, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => `mobile-nav__item ${isActive ? 'mobile-nav__item--active' : ''}`}><span className="mobile-nav__icon"><Icon size={21}/>{label === 'Sporočila' && Boolean(home?.unreadInboxCount) && <i/>}</span><span>{label}</span></NavLink>)}
     </nav>
   </div>
 }
