@@ -6967,6 +6967,24 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     )
   }
 
+  const addCreateBillLine = () => {
+    const firstService = availableBillServices[0]
+    if (!firstService) return
+    setBillForm((current) => ({
+      ...current,
+      items: [
+        ...current.items,
+        {
+          transactionServiceId: firstService.id,
+          quantity: 1,
+          netPrice: String(firstService.netPrice),
+          grossPrice: grossStringFromService(firstService),
+          sourceSessionBookingId: current.sessionId ?? undefined,
+        },
+      ],
+    }))
+  }
+
   const renderModernBillFormLineEditor = (item: BillForm['items'][number], index: number) => {
     const lineState = calculateDiscountedLineStates(billForm.items, createBillDiscountDraft)[index]
     const displayedLineGross = lineState?.finalGross ?? lineGrossTotal(item)
@@ -7093,7 +7111,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       <section className={`billing-invoice-payment-card billing-invoice-payment-card--compact-create${billForm.billType === 'ADVANCE' ? ' billing-invoice-payment-card--advance' : ''}`}>
         <div className="billing-invoice-section-title-row">
           <h3>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</h3>
-          <span>{splits.length} {splits.length === 1 ? (locale === 'sl' ? 'način' : 'method') : (locale === 'sl' ? 'načini' : 'methods')}</span>
+          {billForm.billType === 'ADVANCE' ? (
+            <span>{splits.length} {splits.length === 1 ? (locale === 'sl' ? 'način' : 'method') : (locale === 'sl' ? 'načini' : 'methods')}</span>
+          ) : (
+            <button
+              type="button"
+              className="billing-invoice-add-top"
+              disabled={createAvailablePaymentMethods.length === 0}
+              onClick={() => addCreateBillPaymentSplit(totalGross)}
+            >
+              + {locale === 'sl' ? 'Dodaj način plačila' : 'Add payment method'}
+            </button>
+          )}
         </div>
         <div className="billing-invoice-payment-list">
           {splits.length > 0 ? splits.map((split) => {
@@ -7182,14 +7211,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               </div>
             )
           }) : <div className="billing-invoice-payment-empty">{billingCopy.selectPaymentMethod}</div>}
-          <button
-            type="button"
-            className="billing-invoice-add-dashed"
-            disabled={createAvailablePaymentMethods.length === 0}
-            onClick={() => addCreateBillPaymentSplit(totalGross)}
-          >
-            + {locale === 'sl' ? 'Dodaj način plačila' : 'Add payment method'}
-          </button>
+          {billForm.billType === 'ADVANCE' && (
+            <button
+              type="button"
+              className="billing-invoice-add-dashed"
+              disabled={createAvailablePaymentMethods.length === 0}
+              onClick={() => addCreateBillPaymentSplit(totalGross)}
+            >
+              + {locale === 'sl' ? 'Dodaj način plačila' : 'Add payment method'}
+            </button>
+          )}
           {renderPaymentRemainingToMatch(splits, totalGross)}
         </div>
       </section>
@@ -10569,23 +10600,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                           type="button"
                           className="billing-invoice-add-top"
                           disabled={availableBillServices.length === 0}
-                          onClick={() => {
-                            const firstService = availableBillServices[0]
-                            if (!firstService) return
-                            setBillForm({
-                              ...billForm,
-                              items: [
-                                ...billForm.items,
-                                {
-                                  transactionServiceId: firstService.id,
-                                  quantity: 1,
-                                  netPrice: String(firstService.netPrice),
-                                  grossPrice: grossStringFromService(firstService),
-                                  sourceSessionBookingId: billForm.sessionId ?? undefined,
-                                },
-                              ],
-                            })
-                          }}
+                          onClick={addCreateBillLine}
                         >
                           + {billingCopy.addLine}
                         </button>
@@ -10611,33 +10626,19 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                           />
                         ) : null
                       ) : billForm.items.map((item, index) => renderModernBillFormLineEditor(item, index))}
-                      <button
-                        type="button"
-                        className="billing-invoice-add-dashed billing-invoice-add-dashed--line"
-                        disabled={availableBillServices.length === 0}
-                        onClick={() => {
-                          const firstService = availableBillServices[0]
-                          if (!firstService) return
-                          setBillForm({
-                            ...billForm,
-                            items: [
-                              ...billForm.items,
-                              {
-                                transactionServiceId: firstService.id,
-                                quantity: 1,
-                                netPrice: String(firstService.netPrice),
-                                grossPrice: grossStringFromService(firstService),
-                                sourceSessionBookingId: billForm.sessionId ?? undefined,
-                              },
-                            ],
-                          })
-                        }}
-                      >
-                        <strong>+ {billingCopy.addLine}</strong>
-                        {!isCreateAdvanceBill && (
-                          <small>{locale === 'sl' ? 'Dodajte eno ali več transakcijskih storitev' : 'Add one or more transaction services'}</small>
-                        )}
-                      </button>
+                      {isCreateAdvanceBill && (
+                        <button
+                          type="button"
+                          className="billing-invoice-add-dashed billing-invoice-add-dashed--line"
+                          disabled={availableBillServices.length === 0}
+                          onClick={addCreateBillLine}
+                        >
+                          <strong>+ {billingCopy.addLine}</strong>
+                          {!isCreateAdvanceBill && (
+                            <small>{locale === 'sl' ? 'Dodajte eno ali več transakcijskih storitev' : 'Add one or more transaction services'}</small>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
 

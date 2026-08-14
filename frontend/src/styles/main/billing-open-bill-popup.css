@@ -11903,3 +11903,85 @@
     display: none !important;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Nov neizdan račun — follow-up visual adjustments (2026-08-14)
+   - add payment button moves into the payment section header
+   - matched payment strip loses the green tinted background
+   - inline "Dodaj postavko" row is removed (top header button only)
+   - payee selector is more compact and laid out horizontally
+   -------------------------------------------------------------------------- */
+@media (min-width: 1025px) {
+  .billing-create-panel--open .billing-invoice-management-card--open-create-compact {
+    padding: 10px 12px !important;
+    min-height: auto !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-tabs-row--create-open-compact {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 10px !important;
+    width: auto !important;
+    max-width: 100% !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-tabs-row--create-open-compact .billing-invoice-bill-tab {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    min-height: 44px !important;
+    height: 44px !important;
+    padding: 4px 10px !important;
+    gap: 8px !important;
+    border-radius: 12px !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-tabs-row--create-open-compact .billing-invoice-tab-icon {
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 28px !important;
+    font-size: 0.82rem !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-tabs-row--create-open-compact .billing-invoice-tab-copy {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0 !important;
+    min-width: 0 !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-tabs-row--create-open-compact .billing-invoice-tab-copy strong {
+    font-size: 0.9rem !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-tabs-row--create-open-compact .billing-invoice-tab-copy small {
+    display: none !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-tabs-row--create-open-compact .billing-invoice-tab-edit {
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 28px !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-workspace-card--open-create-stacked .billing-invoice-item-list > .billing-invoice-add-dashed--line {
+    display: none !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-payment-card .billing-invoice-section-title-row .billing-invoice-add-top {
+    flex: 0 0 auto !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-remaining-strip--matched {
+    border-color: #e6edf5 !important;
+    background: #ffffff !important;
+  }
+
+  .billing-create-panel--open .billing-invoice-remaining-strip--matched .billing-invoice-remaining-dot {
+    background: #f3f8ff !important;
+  }
+}
