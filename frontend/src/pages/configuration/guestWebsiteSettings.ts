@@ -116,10 +116,23 @@ export const DEFAULT_GUEST_PAYMENT_METHOD_IDS: GuestPaymentMethodId[] = [
 ];
 
 export type TenantConfigType =
+  | "hair_salon"
+  | "beauty_salon"
+  | "massage"
+  | "spa_sauna"
+  | "tattooing_piercing"
+  | "fitness_personal_training"
+  | "physical_therapy"
+  | "psychology_counselling"
+  | "yoga_pilates"
+  | "pet_services"
+  | "education_coaching"
+  | "other";
+
+export type TenantConfigPresetFamily =
   | "salon"
-  | "gym"
-  | "therapy"
   | "spa"
+  | "therapy"
   | "personal_training"
   | "other";
 
@@ -128,26 +141,61 @@ export const TENANT_CONFIG_TYPE_OPTIONS: Array<{
   labelEn: string;
   labelSl: string;
 }> = [
-  { id: "salon", labelEn: "Salon", labelSl: "Salon" },
-  { id: "gym", labelEn: "Gym", labelSl: "Fitnes" },
-  { id: "therapy", labelEn: "Therapy", labelSl: "Terapija" },
-  { id: "spa", labelEn: "Spa", labelSl: "Spa" },
-  { id: "other", labelEn: "Other", labelSl: "Ostalo" },
-  {
-    id: "personal_training",
-    labelEn: "Personal Training",
-    labelSl: "Osebni trening",
-  },
+  { id: "hair_salon", labelEn: "Hair salon", labelSl: "Frizerski salon" },
+  { id: "beauty_salon", labelEn: "Beauty salon", labelSl: "Kozmetični salon" },
+  { id: "massage", labelEn: "Massage", labelSl: "Masaža" },
+  { id: "spa_sauna", labelEn: "Spa & sauna", labelSl: "Spa & savna" },
+  { id: "tattooing_piercing", labelEn: "Tattooing & piercing", labelSl: "Tetoviranje & piercing" },
+  { id: "fitness_personal_training", labelEn: "Fitness & personal training", labelSl: "Fitnes & osebno trenerstvo" },
+  { id: "physical_therapy", labelEn: "Physical therapy", labelSl: "Fizioterapija" },
+  { id: "psychology_counselling", labelEn: "Psychology & counselling", labelSl: "Psihologija & svetovanje" },
+  { id: "yoga_pilates", labelEn: "Yoga & Pilates", labelSl: "Joga & pilates" },
+  { id: "pet_services", labelEn: "Pet services", labelSl: "Storitve za hišne ljubljenčke" },
+  { id: "education_coaching", labelEn: "Education & coaching", labelSl: "Izobraževanje & coaching" },
+  { id: "other", labelEn: "Other", labelSl: "Drugo" },
 ];
+
+const LEGACY_TENANT_CONFIG_TYPE_MAP: Record<string, TenantConfigType> = {
+  salon: "hair_salon",
+  gym: "fitness_personal_training",
+  therapy: "psychology_counselling",
+  spa: "spa_sauna",
+  personal_training: "fitness_personal_training",
+};
+
+export const TENANT_CONFIG_PRESET_FAMILY: Record<TenantConfigType, TenantConfigPresetFamily> = {
+  hair_salon: "salon",
+  beauty_salon: "salon",
+  tattooing_piercing: "salon",
+  pet_services: "salon",
+  massage: "spa",
+  spa_sauna: "spa",
+  physical_therapy: "therapy",
+  psychology_counselling: "therapy",
+  fitness_personal_training: "personal_training",
+  yoga_pilates: "personal_training",
+  education_coaching: "therapy",
+  other: "other",
+};
 
 export const normalizeTenantConfigType = (raw: any): TenantConfigType => {
   const value = String(raw || "")
     .trim()
     .toLowerCase()
     .replace(/[\s-]+/g, "_");
+  if (value in LEGACY_TENANT_CONFIG_TYPE_MAP) {
+    return LEGACY_TENANT_CONFIG_TYPE_MAP[value];
+  }
   return TENANT_CONFIG_TYPE_OPTIONS.some((option) => option.id === value)
     ? (value as TenantConfigType)
-    : "salon";
+    : "hair_salon";
+};
+
+export const tenantConfigTypeToPresetFamily = (
+  raw: any,
+): TenantConfigPresetFamily => {
+  const value = normalizeTenantConfigType(raw);
+  return TENANT_CONFIG_PRESET_FAMILY[value] || "salon";
 };
 
 export const isGuestPaymentMethodId = (value: string): value is GuestPaymentMethodId =>
@@ -223,7 +271,7 @@ export const defaultGuestAppSettings = (): GuestAppSettingsForm => ({
   entitlementsEnabled: false,
   inboxEnabled: true,
   multipleServicesEnabled: false,
-  tenantType: "salon",
+  tenantType: "hair_salon",
   cardImageUrl: "",
   iconImageUrl: "",
   defaultLanguage: "sl",

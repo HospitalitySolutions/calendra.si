@@ -14,15 +14,7 @@ import {
   RegisterTrustNote,
 } from './RegisterOnboardingShell'
 import { registerOnboardingStyles } from './registerOnboardingStyles'
-
-const BUSINESS_TYPES = [
-  { key: 'hair_salon', sl: 'Frizerski salon', en: 'Hair salon' },
-  { key: 'beauty_salon', sl: 'Kozmetični salon', en: 'Beauty salon' },
-  { key: 'massage', sl: 'Masaža', en: 'Massage' },
-  { key: 'personal_training', sl: 'Osebni trener', en: 'Personal trainer' },
-  { key: 'studio', sl: 'Studio / fitnes', en: 'Studio / fitness' },
-  { key: 'other', sl: 'Drugo', en: 'Other' },
-] as const
+import { TENANT_CONFIG_TYPE_OPTIONS, normalizeTenantConfigType, type TenantConfigType } from './configuration/guestWebsiteSettings'
 
 export function RegisterPage() {
   const navigate = useNavigate()
@@ -31,7 +23,7 @@ export function RegisterPage() {
   const initial = useMemo(() => parseRegisterSelection(window.location.search), [])
   const [companyName, setCompanyName] = useState(initial.companyName || '')
   const [userCount, setUserCount] = useState(Math.min(100, Math.max(1, initial.additionalUsers || 1)))
-  const [businessType, setBusinessType] = useState(initial.businessType || 'hair_salon')
+  const [businessType, setBusinessType] = useState<TenantConfigType>(normalizeTenantConfigType(initial.businessType))
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -133,20 +125,20 @@ export function RegisterPage() {
               </div>
 
               <div className="register-onboarding-section">
-                <div className="register-onboarding-label">{sl ? 'Vrsta podjetja' : 'Business type'}</div>
+                <div className="register-onboarding-label">{sl ? 'Tip podjetja' : 'Business type'}</div>
                 <div className="register-business-grid">
-                  {BUSINESS_TYPES.map((item) => {
-                    const selected = businessType === item.key
+                  {TENANT_CONFIG_TYPE_OPTIONS.map((item) => {
+                    const selected = businessType === item.id
                     return (
                       <button
-                        key={item.key}
+                        key={item.id}
                         type="button"
                         className={`register-business-card${selected ? ' is-selected' : ''}`}
-                        onClick={() => setBusinessType(item.key)}
+                        onClick={() => setBusinessType(item.id)}
                         aria-pressed={selected}
                       >
-                        <span className="register-business-icon"><RegisterOptionIcon kind={item.key} /></span>
-                        <span>{sl ? item.sl : item.en}</span>
+                        <span className="register-business-icon"><RegisterOptionIcon kind={item.id} /></span>
+                        <span>{sl ? item.labelSl : item.labelEn}</span>
                       </button>
                     )
                   })}

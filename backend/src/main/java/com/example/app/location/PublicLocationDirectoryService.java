@@ -386,11 +386,11 @@ public class PublicLocationDirectoryService {
     private static String normalizeCategory(String raw) {
         String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT).replace('-', '_');
         return switch (value) {
-            case "gym", "personal_training", "fitness", "sport", "šport" -> "fitness";
-            case "therapy", "health", "healthcare", "zdravje" -> "health";
-            case "spa", "wellness" -> "wellness";
-            case "consulting", "counselling", "counseling", "svetovanje" -> "consulting";
-            case "salon", "beauty", "lepota" -> "salon";
+            case "gym", "personal_training", "fitness", "sport", "šport", "fitness_personal_training", "yoga_pilates" -> "fitness";
+            case "therapy", "health", "healthcare", "zdravje", "physical_therapy", "psychology_counselling" -> "health";
+            case "spa", "wellness", "massage", "spa_sauna" -> "wellness";
+            case "consulting", "counselling", "counseling", "svetovanje", "education_coaching" -> "consulting";
+            case "salon", "beauty", "lepota", "hair_salon", "beauty_salon", "tattooing_piercing", "pet_services" -> "salon";
             default -> null;
         };
     }

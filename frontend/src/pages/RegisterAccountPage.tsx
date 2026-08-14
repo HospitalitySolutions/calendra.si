@@ -21,6 +21,7 @@ import {
   RegisterOnboardingHeader,
 } from './RegisterOnboardingShell'
 import { registerOnboardingStyles } from './registerOnboardingStyles'
+import { normalizeTenantConfigType } from './configuration/guestWebsiteSettings'
 
 const REGISTER_SELECTION_STORAGE_KEY = 'calendra.register.selectionSearch'
 const REGISTER_BILLING_DETAILS_REQUIRED_KEY = 'calendra.register.requiresBillingDetails'
@@ -48,15 +49,7 @@ function selectedAddonKeys(addons: Record<string, boolean>) {
 }
 
 function tenantTypeForBusinessType(raw?: string) {
-  switch ((raw || '').trim().toLowerCase()) {
-    case 'personal_training': return 'personal_training'
-    case 'studio': return 'gym'
-    case 'massage': return 'spa'
-    case 'therapy': return 'therapy'
-    case 'spa': return 'spa'
-    case 'gym': return 'gym'
-    default: return 'salon'
-  }
+  return normalizeTenantConfigType(raw)
 }
 
 function storePendingBillingDetails(search: string) {

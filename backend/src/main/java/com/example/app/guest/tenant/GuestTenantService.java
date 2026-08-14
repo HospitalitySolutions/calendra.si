@@ -480,7 +480,13 @@ public class GuestTenantService {
         if (raw == null || raw.isBlank()) return null;
         String value = raw.trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
         return switch (value) {
-            case "salon", "gym", "spa", "therapy", "personal_training" -> value;
+            case "salon" -> "hair_salon";
+            case "gym", "personal_training" -> "fitness_personal_training";
+            case "therapy" -> "psychology_counselling";
+            case "spa" -> "spa_sauna";
+            case "hair_salon", "beauty_salon", "massage", "spa_sauna", "tattooing_piercing",
+                 "fitness_personal_training", "physical_therapy", "psychology_counselling",
+                 "yoga_pilates", "pet_services", "education_coaching", "other" -> value;
             default -> null;
         };
     }

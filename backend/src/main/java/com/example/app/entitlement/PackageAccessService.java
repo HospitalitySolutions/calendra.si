@@ -104,7 +104,7 @@ public class PackageAccessService {
         }
         String tenantConfigType = normalizeConfigType(settings.findByCompanyIdAndKey(companyId, SettingKey.MODULE_CONFIG_TYPE)
                 .map(AppSetting::getValue)
-                .orElse("salon"));
+                .orElse("hair_salon"));
         String minPackage = normalizeModuleVisibilityPackage(fallbackMinPackage);
         String configType = "";
         String rawRules = latestGlobalModuleVisibilityRules();
@@ -163,7 +163,13 @@ public class PackageAccessService {
             return "";
         }
         return switch (normalized) {
-            case "salon", "gym", "therapy", "spa", "personal_training" -> normalized;
+            case "salon" -> "hair_salon";
+            case "gym", "personal_training" -> "fitness_personal_training";
+            case "therapy" -> "psychology_counselling";
+            case "spa" -> "spa_sauna";
+            case "hair_salon", "beauty_salon", "massage", "spa_sauna", "tattooing_piercing",
+                 "fitness_personal_training", "physical_therapy", "psychology_counselling",
+                 "yoga_pilates", "pet_services", "education_coaching", "other" -> normalized;
             default -> "";
         };
     }
@@ -171,8 +177,14 @@ public class PackageAccessService {
     private static String normalizeConfigType(String raw) {
         String normalized = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
         return switch (normalized) {
-            case "salon", "gym", "therapy", "spa", "personal_training" -> normalized;
-            default -> "salon";
+            case "salon" -> "hair_salon";
+            case "gym", "personal_training" -> "fitness_personal_training";
+            case "therapy" -> "psychology_counselling";
+            case "spa" -> "spa_sauna";
+            case "hair_salon", "beauty_salon", "massage", "spa_sauna", "tattooing_piercing",
+                 "fitness_personal_training", "physical_therapy", "psychology_counselling",
+                 "yoga_pilates", "pet_services", "education_coaching", "other" -> normalized;
+            default -> "hair_salon";
         };
     }
 

@@ -2,7 +2,9 @@ import { normalizePackageType } from "../../lib/packageAccess";
 import {
   TENANT_CONFIG_TYPE_OPTIONS,
   normalizeTenantConfigType,
+  tenantConfigTypeToPresetFamily,
   type GuestAppSettingsForm,
+  type TenantConfigPresetFamily,
   type TenantConfigType,
 } from "./guestWebsiteSettings";
 
@@ -474,7 +476,7 @@ const moduleMinPackageAllowed = (
 type ModulesPresetRule = {
   key: ModulesStringKey;
   minPackage: ModulesPresetPackage;
-  values: Partial<Record<TenantConfigType, ModulesPresetValue>>;
+  values: Partial<Record<TenantConfigPresetFamily, ModulesPresetValue>>;
 };
 
 const MODULE_CONFIG_PRESET_RULES: ModulesPresetRule[] = [
@@ -614,12 +616,13 @@ export const applyModuleConfigPreset = (
   currentPackage: string | null | undefined,
 ): ModulesDraft => {
   const configType = normalizeTenantConfigType(rawConfigType);
+  const presetFamily = tenantConfigTypeToPresetFamily(configType);
   const next: ModulesDraft = { ...draft, MODULE_CONFIG_TYPE: configType };
   // "Other" is a neutral classification: keep the tenant's current module choices
   // instead of applying a preset that could unexpectedly disable features.
-  if (configType === "other") return normalizeModulesDraftDependencies(next);
+  if (presetFamily === "other") return normalizeModulesDraftDependencies(next);
   MODULE_CONFIG_PRESET_RULES.forEach((rule) => {
-    const presetValue = rule.values[configType] || "off";
+    const presetValue = rule.values[presetFamily] || "off";
     next[rule.key] =
       presetValue === "on" &&
       moduleMinPackageAllowed(currentPackage, rule.minPackage)

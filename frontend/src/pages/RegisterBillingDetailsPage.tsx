@@ -13,6 +13,11 @@ import { useRegisterFooterClickOutside } from "../lib/useRegisterFooterClickOuts
 import { useLocale } from "../locale";
 import { clearAuthStoragePreservingTheme } from "../theme";
 import { registerPageStyles } from "./registerPageStyles";
+import {
+  TENANT_CONFIG_TYPE_OPTIONS,
+  normalizeTenantConfigType,
+  type TenantConfigType,
+} from "./configuration/guestWebsiteSettings";
 import { RegisterFooterChevron, RegisterFooterListIcon } from "./RegisterPage";
 import {
   getBillingInterval,
@@ -934,43 +939,24 @@ const copyByLocale = {
   },
 } as const;
 
-type RegisterTenantType =
-  | "salon"
-  | "gym"
-  | "therapy"
-  | "spa"
-  | "personal_training";
-
+type RegisterTenantType = TenantConfigType;
 
 function registerTenantTypeFromBusinessType(raw?: string): RegisterTenantType {
-  switch ((raw || "").trim().toLowerCase()) {
-    case "personal_training": return "personal_training";
-    case "studio":
-    case "gym": return "gym";
-    case "massage":
-    case "spa": return "spa";
-    case "therapy": return "therapy";
-    default: return "salon";
-  }
+  return normalizeTenantConfigType(raw);
 }
+
 const tenantTypeOptions: Record<
   RegisterLocale,
   Array<{ value: RegisterTenantType; label: string }>
 > = {
-  en: [
-    { value: "salon", label: "Salon" },
-    { value: "gym", label: "Gym" },
-    { value: "therapy", label: "Therapy" },
-    { value: "spa", label: "Spa" },
-    { value: "personal_training", label: "Personal Training" },
-  ],
-  sl: [
-    { value: "salon", label: "Salon" },
-    { value: "gym", label: "Fitnes" },
-    { value: "therapy", label: "Terapija" },
-    { value: "spa", label: "Spa" },
-    { value: "personal_training", label: "Osebni trening" },
-  ],
+  en: TENANT_CONFIG_TYPE_OPTIONS.map((option) => ({
+    value: option.id,
+    label: option.labelEn,
+  })),
+  sl: TENANT_CONFIG_TYPE_OPTIONS.map((option) => ({
+    value: option.id,
+    label: option.labelSl,
+  })),
 };
 
 function stepLabel(raw: string) {

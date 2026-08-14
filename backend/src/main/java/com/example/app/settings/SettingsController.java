@@ -972,7 +972,13 @@ public class SettingsController {
             return "";
         }
         return switch (normalized) {
-            case "salon", "gym", "therapy", "spa", "personal_training" -> normalized;
+            case "salon" -> "hair_salon";
+            case "gym", "personal_training" -> "fitness_personal_training";
+            case "therapy" -> "psychology_counselling";
+            case "spa" -> "spa_sauna";
+            case "hair_salon", "beauty_salon", "massage", "spa_sauna", "tattooing_piercing",
+                 "fitness_personal_training", "physical_therapy", "psychology_counselling",
+                 "yoga_pilates", "pet_services", "education_coaching", "other" -> normalized;
             default -> "";
         };
     }
@@ -980,8 +986,14 @@ public class SettingsController {
     private static String normalizeModuleConfigType(String raw) {
         String normalized = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
         return switch (normalized) {
-            case "salon", "gym", "therapy", "spa", "personal_training" -> normalized;
-            default -> "salon";
+            case "salon" -> "hair_salon";
+            case "gym", "personal_training" -> "fitness_personal_training";
+            case "therapy" -> "psychology_counselling";
+            case "spa" -> "spa_sauna";
+            case "hair_salon", "beauty_salon", "massage", "spa_sauna", "tattooing_piercing",
+                 "fitness_personal_training", "physical_therapy", "psychology_counselling",
+                 "yoga_pilates", "pet_services", "education_coaching", "other" -> normalized;
+            default -> "hair_salon";
         };
     }
 

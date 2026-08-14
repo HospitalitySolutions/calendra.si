@@ -281,7 +281,7 @@ public class LocalTestUserBootstrap implements CommandLineRunner {
         }
         upsertSetting(company, SettingKey.GUEST_APP_SETTINGS_JSON, LOCAL_GUEST_APP_SETTINGS);
 
-        seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, "salon");
+        seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, "hair_salon");
         seedSetting(company, SettingKey.SESSION_LENGTH_MINUTES, "60");
         seedSetting(company, SettingKey.WORKING_HOURS_START, "05:00");
         seedSetting(company, SettingKey.WORKING_HOURS_END, "23:00");

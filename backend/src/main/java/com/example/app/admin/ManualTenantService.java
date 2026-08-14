@@ -45,7 +45,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class ManualTenantService {
     private static final Logger log = LoggerFactory.getLogger(ManualTenantService.class);
-    private static final Set<String> TENANT_TYPES = Set.of("salon", "gym", "therapy", "spa", "personal_training");
+    private static final Set<String> TENANT_TYPES = Set.of("hair_salon", "beauty_salon", "massage", "spa_sauna", "tattooing_piercing", "fitness_personal_training", "physical_therapy", "psychology_counselling", "yoga_pilates", "pet_services", "education_coaching", "other");
     private static final Set<String> ACCESS_STATUSES = Set.of("ACTIVE", "SUSPENDED", "CANCELLED");
     private static final Set<String> BILLING_STATUSES = Set.of("PENDING_PAYMENT", "PAID", "PAST_DUE");
     private static final String DEFAULT_INVOICE_DELIVERY_SUBJECT_EN = "Invoice {{invoiceNumber}} from {{companyName}}";
@@ -184,7 +184,7 @@ public class ManualTenantService {
         return new ManualTenantOptions(
                 FEATURES.stream().map(f -> new ManualTenantFeatureOption(f.key(), f.label())).toList(),
                 addOns,
-                List.of("salon", "gym", "therapy", "spa", "personal_training")
+                List.of("hair_salon", "beauty_salon", "massage", "spa_sauna", "tattooing_piercing", "fitness_personal_training", "physical_therapy", "psychology_counselling", "yoga_pilates", "pet_services", "education_coaching", "other")
         );
     }
 
@@ -463,7 +463,7 @@ public class ManualTenantService {
             }
         }
         Map<String, Object> guest = new LinkedHashMap<>();
-        guest.put("tenantType", setting(company.getId(), SettingKey.MODULE_CONFIG_TYPE, "salon"));
+        guest.put("tenantType", setting(company.getId(), SettingKey.MODULE_CONFIG_TYPE, "hair_salon"));
         guest.put("guestAppEnabled", selected.contains("guestAppEnabled"));
         guest.put("walletEnabled", selected.contains("guestWalletEnabled"));
         guest.put("ordersEnabled", selected.contains("guestOrdersEnabled"));
@@ -692,7 +692,14 @@ public class ManualTenantService {
 
     private String normalizeTenantType(String raw) {
         String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
-        return TENANT_TYPES.contains(value) ? value : "salon";
+        value = switch (value) {
+            case "salon" -> "hair_salon";
+            case "gym", "personal_training" -> "fitness_personal_training";
+            case "therapy" -> "psychology_counselling";
+            case "spa" -> "spa_sauna";
+            default -> value;
+        };
+        return TENANT_TYPES.contains(value) ? value : "hair_salon";
     }
 
     private String normalizePackage(String raw) {

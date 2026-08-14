@@ -1148,7 +1148,7 @@ public class SignupService {
                 .orElse(false);
         String tenantType = settings.findByCompanyIdAndKey(cid, SettingKey.MODULE_CONFIG_TYPE)
                 .map(AppSetting::getValue)
-                .orElse("salon");
+                .orElse("hair_salon");
         return new AuthController.SignupRequest(
                 companyName,
                 owner.getFirstName(),
@@ -1788,11 +1788,27 @@ public class SignupService {
     }
 
     private String normalizeTenantConfigType(String rawValue) {
-        if (rawValue == null || rawValue.isBlank()) return "salon";
+        if (rawValue == null || rawValue.isBlank()) return "hair_salon";
         String normalized = rawValue.trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
         return switch (normalized) {
-            case "gym", "therapy", "spa", "personal_training" -> normalized;
-            default -> "salon";
+            case "salon" -> "hair_salon";
+            case "gym", "personal_training" -> "fitness_personal_training";
+            case "therapy" -> "psychology_counselling";
+            case "spa" -> "spa_sauna";
+            case "hair_salon", "beauty_salon", "massage", "spa_sauna", "tattooing_piercing",
+                 "fitness_personal_training", "physical_therapy", "psychology_counselling",
+                 "yoga_pilates", "pet_services", "education_coaching", "other" -> normalized;
+            default -> "hair_salon";
+        };
+    }
+
+    private String tenantPresetFamily(String rawValue) {
+        return switch (normalizeTenantConfigType(rawValue)) {
+            case "hair_salon", "beauty_salon", "tattooing_piercing", "pet_services" -> "salon";
+            case "massage", "spa_sauna" -> "spa";
+            case "physical_therapy", "psychology_counselling", "education_coaching" -> "therapy";
+            case "fitness_personal_training", "yoga_pilates" -> "personal_training";
+            default -> "other";
         };
     }
 
@@ -1810,12 +1826,13 @@ public class SignupService {
 
     private void applyModuleConfigPreset(Company company, String tenantType, String packageType) {
         String normalizedTenantType = normalizeTenantConfigType(tenantType);
+        String presetFamily = tenantPresetFamily(normalizedTenantType);
         String normalizedPackage = normalizePackageType(packageType, "BASIC");
         boolean proAllowed = hasMinPackage(packageType, "PROFESSIONAL");
         boolean premiumAllowed = "PREMIUM".equals(normalizedPackage);
         boolean professionalDefaults = "PROFESSIONAL".equals(normalizedPackage) || "TRIAL".equals(normalizedPackage);
-        boolean supportsOnlineSessions = "therapy".equals(normalizedTenantType) || "personal_training".equals(normalizedTenantType);
-        boolean supportsGroupBookings = "gym".equals(normalizedTenantType) || "personal_training".equals(normalizedTenantType);
+        boolean supportsOnlineSessions = "therapy".equals(presetFamily) || "personal_training".equals(presetFamily);
+        boolean supportsGroupBookings = "personal_training".equals(presetFamily);
 
         seedSetting(company, SettingKey.ONLINE_SESSION_BOOKING_ENABLED,
                 Boolean.toString(!professionalDefaults && supportsOnlineSessions));
@@ -1902,7 +1919,7 @@ public class SignupService {
         seedSetting(company, SettingKey.CUSTOM_FIELDS_ENABLED, "false");
         seedSetting(company, SettingKey.BILLING_ADVANCE_ENABLED, "false");
         seedSetting(company, SettingKey.MULTIPLE_COMPANIES_ENABLED, "false");
-        seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, "salon");
+        seedSetting(company, SettingKey.MODULE_CONFIG_TYPE, "hair_salon");
         seedSetting(company, SettingKey.PERSONAL_ENABLED, "true");
         seedSetting(company, SettingKey.TODOS_ENABLED, "true");
         seedSetting(company, SettingKey.MULTIPLE_SESSIONS_PER_SPACE_ENABLED, "false");

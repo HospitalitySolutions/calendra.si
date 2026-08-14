@@ -266,11 +266,18 @@ public class TenantCreatedAdminEmailService {
     private static String humanCompanyType(String raw) {
         if (raw == null || raw.isBlank()) return "Ni določeno";
         return switch (raw.trim().toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_')) {
-            case "salon" -> "Salon / storitveno podjetje";
-            case "gym" -> "Fitnes";
-            case "therapy" -> "Svetovanje / terapija";
-            case "spa" -> "Spa / wellness";
-            case "personal_training" -> "Osebno trenerstvo";
+            case "salon", "hair_salon" -> "Frizerski salon";
+            case "beauty_salon" -> "Kozmetični salon";
+            case "massage" -> "Masaža";
+            case "spa", "spa_sauna" -> "Spa / wellness";
+            case "tattooing_piercing" -> "Tetoviranje / piercing";
+            case "gym", "personal_training", "fitness_personal_training" -> "Fitnes / osebno trenerstvo";
+            case "therapy", "physical_therapy" -> "Fizioterapija";
+            case "psychology_counselling" -> "Psihologija / svetovanje";
+            case "yoga_pilates" -> "Joga / pilates";
+            case "pet_services" -> "Storitve za hišne ljubljenčke";
+            case "education_coaching" -> "Izobraževanje / coaching";
+            case "other" -> "Drugo";
             default -> raw.trim();
         };
     }

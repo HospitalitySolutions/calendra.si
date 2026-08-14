@@ -509,7 +509,7 @@ public class LoadTestDataSeeder implements CommandLineRunner {
         upsertSetting(companyId, "NOTIFICATIONS_EMAIL_ALERTS_ENABLED", "true");
         upsertSetting(companyId, "NOTIFICATIONS_SMS_ALERTS_ENABLED", "true");
         upsertSetting(companyId, "NOTIFICATIONS_GUEST_APP_ALERTS_ENABLED", "true");
-        upsertSetting(companyId, "MODULE_CONFIG_TYPE", "salon");
+        upsertSetting(companyId, "MODULE_CONFIG_TYPE", "hair_salon");
         upsertSetting(companyId, "SESSION_LENGTH_MINUTES", "60");
         upsertSetting(companyId, "WORKING_HOURS_START", "08:00");
         upsertSetting(companyId, "WORKING_HOURS_END", "20:00");
