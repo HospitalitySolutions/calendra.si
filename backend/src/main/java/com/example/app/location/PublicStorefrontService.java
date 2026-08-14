@@ -22,7 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
  */
 @Service
 public class PublicStorefrontService {
-    private static final List<String> STOREFRONT_PRODUCT_TYPES = List.of("PACK", "MEMBERSHIP", "GIFT_CARD");
+    private static final List<String> STOREFRONT_PRODUCT_TYPES = List.of("PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE");
 
     private final PublicLocationDirectoryService directory;
     private final CompanyRepository companies;
