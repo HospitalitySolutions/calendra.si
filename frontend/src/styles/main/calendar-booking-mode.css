@@ -9272,3 +9272,166 @@
         box-shadow: 0 0 0 3px rgba(13, 141, 244, 0.12);
     }
 }
+
+/* --------------------------------------------------------------------------
+   Uredi termin client picker parity.
+
+   CalendarPage now loads the shared Clients modal styles so the inline
+   "Nova stranka" flow is styled correctly.  Keep the booked-session client
+   picker fully owned by the calendar stylesheet: one bordered search/select
+   control plus the same compact square action used by Dodaj termin.
+
+   This also undoes the older <=1024px design-match rule that stacked the
+   Uredi-termin Add client action below the search field.
+   -------------------------------------------------------------------------- */
+.calendar-edit-session-panel--booked .calendar-client-picker__search-row {
+    display: flex !important;
+    grid-template-columns: none !important;
+    align-items: stretch !important;
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+.calendar-edit-session-panel--booked .calendar-client-picker__search-wrap {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    border: 1px solid #d5d8dd !important;
+    background: #fff !important;
+    box-shadow: none !important;
+}
+
+/* The wrapper is the field.  Never draw a second input/button field inside it. */
+.calendar-edit-session-panel--booked .calendar-client-picker__search-wrap input,
+.calendar-edit-session-panel--booked .calendar-client-picker__search-wrap button.client-selected-display {
+    width: 100% !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.calendar-edit-session-panel--booked .calendar-client-picker__search-wrap input:focus,
+.calendar-edit-session-panel--booked .calendar-client-picker__search-wrap button.client-selected-display:focus,
+.calendar-edit-session-panel--booked .calendar-client-picker__search-wrap button.client-selected-display:focus-visible {
+    border: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.calendar-edit-session-panel--booked .calendar-client-picker__search-wrap:focus-within {
+    border-color: #0d8df4 !important;
+    box-shadow: 0 0 0 3px rgba(13, 141, 244, 0.12) !important;
+}
+
+.calendar-edit-session-panel--booked .calendar-client-picker__actions {
+    display: inline-flex !important;
+    grid-template-columns: none !important;
+    align-items: stretch !important;
+    justify-content: flex-end !important;
+    width: auto !important;
+    flex: 0 0 auto !important;
+}
+
+/* Uredi termin + button follows the Dodaj termin action treatment. */
+.calendar-edit-session-panel--booked .calendar-client-picker__actions .client-add-btn,
+.calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__add-btn {
+    border-color: #0d8df4 !important;
+    background: #0d8df4 !important;
+    color: #fff !important;
+    box-shadow: none !important;
+}
+
+/* The booked editor previously exposes a long text label at the tablet/mobile
+   breakpoint.  Dodaj termin uses the compact + button, so keep parity here. */
+.calendar-edit-session-panel--booked .calendar-client-picker__add-label {
+    display: none !important;
+}
+
+@media (min-width: 1025px) {
+    .calendar-edit-session-panel--booked .calendar-client-picker__search-row {
+        gap: 10px !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-client-picker__search-wrap {
+        min-height: 56px !important;
+        padding: 0 14px !important;
+        border-radius: 16px !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-client-picker__search-wrap input,
+    .calendar-edit-session-panel--booked .calendar-client-picker__search-wrap button.client-selected-display {
+        min-height: 54px !important;
+        height: 54px !important;
+        padding: 0 !important;
+        font-size: 1rem !important;
+        line-height: 1.2 !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions {
+        gap: 9px !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions button,
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions .client-add-btn,
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__add-btn,
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__details-btn,
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__client-detail-btn,
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__payee-tab-btn {
+        width: 56px !important;
+        min-width: 56px !important;
+        max-width: 56px !important;
+        height: 56px !important;
+        min-height: 56px !important;
+        max-height: 56px !important;
+        flex: 0 0 56px !important;
+        padding: 0 !important;
+        border-radius: 16px !important;
+    }
+}
+
+@media (max-width: 1024px) {
+    .calendar-edit-session-panel--booked .calendar-client-picker__search-row {
+        gap: 7px !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-client-picker__search-wrap {
+        height: 46px !important;
+        min-height: 46px !important;
+        max-height: 46px !important;
+        padding: 0 12px !important;
+        border-radius: 14px !important;
+        box-sizing: border-box !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-client-picker__search-wrap input,
+    .calendar-edit-session-panel--booked .calendar-client-picker__search-wrap button.client-selected-display {
+        height: 44px !important;
+        min-height: 44px !important;
+        max-height: 44px !important;
+        padding: 0 !important;
+        font-size: 0.88rem !important;
+        line-height: 1.2 !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions {
+        gap: 7px !important;
+    }
+
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions button,
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions .client-add-btn,
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__add-btn,
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__details-btn,
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__client-detail-btn,
+    .calendar-edit-session-panel--booked .calendar-client-picker__actions .calendar-client-picker__payee-tab-btn {
+        width: 46px !important;
+        min-width: 46px !important;
+        max-width: 46px !important;
+        height: 46px !important;
+        min-height: 46px !important;
+        max-height: 46px !important;
+        flex: 0 0 46px !important;
+        padding: 0 !important;
+        border-radius: 14px !important;
+    }
+}
