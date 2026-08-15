@@ -5,6 +5,7 @@ import com.example.app.activitylog.ActivityDetails;
 import com.example.app.activitylog.ActivityLogService;
 import com.example.app.activitylog.ActivityModule;
 import com.example.app.billing.PriceMath;
+import com.example.app.billing.TaxRate;
 import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.settings.TenantFeatureAccessService;
@@ -38,6 +39,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/types")
 public class SessionTypeController {
     private static final int SESSION_TYPE_CODE_MAX_LENGTH = 12;
+    private static final String SESSION_TYPE_BILLING_SOURCE = "SESSION_TYPE";
     private static final String DEFAULT_SESSION_TYPE_COLOR = "#D7DFF0";
     private static final java.util.regex.Pattern HEX_COLOR_PATTERN = java.util.regex.Pattern.compile("^#[0-9A-Fa-f]{6}$");
     private final SessionTypeRepository repo;
@@ -106,7 +108,9 @@ public class SessionTypeController {
             Integer sortOrder,
             Boolean availableAllLocations,
             List<Long> locationIds,
-            List<TypeServiceItem> services
+            List<TypeServiceItem> services,
+            BigDecimal billingGrossPrice,
+            TaxRate billingTaxRate
     ) {
         public TypeRequest(
                 String code,
@@ -141,7 +145,9 @@ public class SessionTypeController {
                     null,
                     true,
                     List.of(),
-                    services
+                    services,
+                    null,
+                    null
             );
         }
     }
@@ -252,7 +258,11 @@ public class SessionTypeController {
         type.setActive(req.active() == null || Boolean.TRUE.equals(req.active()));
         applyLocationVisibility(type, req, companyId, true);
         type = repo.save(type);
-        saveLinkedServices(type, req.services(), companyId);
+        if (usesAutomaticBilling(req)) {
+            saveAutomaticBillingService(type, req.billingGrossPrice(), req.billingTaxRate(), companyId);
+        } else {
+            saveLinkedServices(type, req.services(), companyId);
+        }
         final Long createdId = type.getId();
         TypeResponse result = toResponse(repo.findAllWithLinkedServicesByCompanyId(companyId).stream()
                 .filter(x -> x.getId().equals(createdId))
@@ -329,7 +339,11 @@ public class SessionTypeController {
         applyLocationVisibility(type, req, companyId, false);
         type.getLinkedServices().clear();
         repo.saveAndFlush(type);
-        saveLinkedServices(type, req.services() != null ? req.services() : List.of(), companyId);
+        if (usesAutomaticBilling(req)) {
+            saveAutomaticBillingService(type, req.billingGrossPrice(), req.billingTaxRate(), companyId);
+        } else {
+            saveLinkedServices(type, req.services() != null ? req.services() : List.of(), companyId);
+        }
         purgeLocationPrices(type, companyId);
         TypeResponse result = toResponse(repo.findAllWithLinkedServicesByCompanyId(companyId).stream()
                 .filter(t -> t.getId().equals(id))
@@ -433,6 +447,100 @@ public class SessionTypeController {
             type.getLinkedServices().add(link);
         }
         repo.save(type);
+    }
+
+    /**
+     * Simplified service editor mode: every calendar service owns one automatically managed
+     * transaction service. The transaction service remains a normal (non-system-generated)
+     * billing row so invoices and existing billing selectors continue to work unchanged.
+     */
+    private void saveAutomaticBillingService(
+            SessionType type,
+            BigDecimal grossPrice,
+            TaxRate requestedTaxRate,
+            Long companyId
+    ) {
+        if (type == null || type.getId() == null) {
+            throw new IllegalStateException("The service must be saved before its billing service is created.");
+        }
+
+        BigDecimal normalizedGross = grossPrice == null ? BigDecimal.ZERO : grossPrice;
+        if (normalizedGross.signum() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Service price cannot be negative.");
+        }
+        TaxRate taxRate = requestedTaxRate == null ? TaxRate.VAT_22 : requestedTaxRate;
+        String sourceKey = String.valueOf(type.getId());
+        String description = normalizeServiceDescription(type.getDescription());
+        if (description == null) description = type.getName();
+
+        TransactionService tx = txRepo
+                .findByCompanyIdAndSystemSourceAndSystemSourceKey(
+                        companyId,
+                        SESSION_TYPE_BILLING_SOURCE,
+                        sourceKey
+                )
+                .orElseGet(TransactionService::new);
+
+        boolean creating = tx.getId() == null;
+        if (creating) {
+            tx.setCompany(type.getCompany());
+            tx.setCode(generateUniqueTransactionServiceCode(companyId, description));
+            tx.setSystemGenerated(false);
+            tx.setSystemSource(SESSION_TYPE_BILLING_SOURCE);
+            tx.setSystemSourceKey(sourceKey);
+        }
+        tx.setDescription(description);
+        tx.setTaxRate(taxRate);
+        tx.setNetPrice(PriceMath.netFromGross(normalizedGross, taxRate));
+        tx.setActive(type.isActive());
+        tx = txRepo.save(tx);
+
+        TypeTransactionService link = new TypeTransactionService();
+        link.setSessionType(type);
+        link.setTransactionService(tx);
+        // Null means the session type follows the billing service's current default price.
+        link.setPrice(null);
+        type.getLinkedServices().add(link);
+        repo.save(type);
+    }
+
+    private boolean usesAutomaticBilling(TypeRequest req) {
+        return req != null && (req.billingGrossPrice() != null || req.billingTaxRate() != null);
+    }
+
+    private String generateUniqueTransactionServiceCode(Long companyId, String description) {
+        String ascii = Normalizer.normalize(description == null ? "SERVICE" : description, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        String base = normalizeTransactionServiceCode(ascii);
+        if (base == null) base = "SERVICE";
+
+        if (txRepo.findByCompanyIdAndCodeIgnoreCase(companyId, base).isEmpty()) {
+            return base;
+        }
+        for (int suffix = 2; suffix < 1_000_000; suffix++) {
+            String suffixText = String.valueOf(suffix);
+            int prefixLength = Math.max(1, SESSION_TYPE_CODE_MAX_LENGTH - suffixText.length());
+            String candidate = base.substring(0, Math.min(base.length(), prefixLength)) + suffixText;
+            if (txRepo.findByCompanyIdAndCodeIgnoreCase(companyId, candidate).isEmpty()) {
+                return candidate;
+            }
+        }
+        throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "A unique billing service code could not be generated."
+        );
+    }
+
+    private String normalizeTransactionServiceCode(String raw) {
+        if (raw == null) return null;
+        String upper = raw.trim().toUpperCase(Locale.ROOT);
+        if (upper.isEmpty()) return null;
+        String alnum = upper.replaceAll("[^A-Z0-9]", "");
+        if (alnum.isEmpty()) return null;
+        if (alnum.length() > SESSION_TYPE_CODE_MAX_LENGTH) {
+            return alnum.substring(0, SESSION_TYPE_CODE_MAX_LENGTH);
+        }
+        return alnum;
     }
 
 

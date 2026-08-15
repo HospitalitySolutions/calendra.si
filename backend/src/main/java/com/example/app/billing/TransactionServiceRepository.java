@@ -22,6 +22,12 @@ public interface TransactionServiceRepository extends JpaRepository<TransactionS
             String systemSourceKey
     );
 
+    Optional<TransactionService> findByCompanyIdAndSystemSourceAndSystemSourceKey(
+            Long companyId,
+            String systemSource,
+            String systemSourceKey
+    );
+
     @Modifying
     @Transactional
     @Query(value = """

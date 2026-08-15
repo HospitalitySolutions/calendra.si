@@ -322,6 +322,8 @@ type TypeFormState = {
   name: string;
   description: string;
   internalDescription: string;
+  billingGrossPrice: string;
+  billingTaxRate: TaxRate;
   color: string;
   durationMinutes: number;
   breakMinutes: number;
@@ -342,6 +344,8 @@ function typeFormsEqual(a: TypeFormState, b: TypeFormState): boolean {
   if (a.name !== b.name) return false;
   if (a.description !== b.description) return false;
   if (a.internalDescription !== b.internalDescription) return false;
+  if (a.billingGrossPrice.trim() !== b.billingGrossPrice.trim()) return false;
+  if (a.billingTaxRate !== b.billingTaxRate) return false;
   if (
     normalizeServiceTypeColorForUi(a.color) !==
     normalizeServiceTypeColorForUi(b.color)
@@ -762,6 +766,19 @@ function typeGrossPrice(type: SessionTypeT): number | null {
   return Math.round(sum * 100) / 100;
 }
 
+function typeBillingTaxRate(
+  type: SessionTypeT,
+  billingServices: BillingService[],
+): TaxRate | null {
+  const firstLink = type.linkedServices?.[0];
+  if (!firstLink) return null;
+  return (
+    billingServices.find(
+      (service) => service.id === firstLink.transactionServiceId,
+    )?.taxRate ?? null
+  );
+}
+
 function sessionTypeVisibilityMode(type: SessionTypeT): GuestBookingMode {
   return guestBookingModeFromFlags(
     type.widgetGroupBookingEnabled === true,
@@ -903,6 +920,8 @@ export function SessionTypesPage() {
     name: "",
     description: "",
     internalDescription: "",
+    billingGrossPrice: "0.00",
+    billingTaxRate: "VAT_22",
     color: SERVICE_TYPE_DEFAULT_COLOR,
     durationMinutes: 60,
     breakMinutes: 0,
@@ -1809,6 +1828,15 @@ export function SessionTypesPage() {
     const reservedGuestEmails = effectiveGroupBookingEnabled
       ? parseGuestLimitUserEmails(typeForm.guestLimitUserEmailsText)
       : [];
+    const billingGrossPrice = parseOptionalNumber(typeForm.billingGrossPrice);
+    if (billingGrossPrice == null || billingGrossPrice < 0) {
+      window.alert(
+        locale === "sl"
+          ? "Vnesite veljavno ceno storitve."
+          : "Enter a valid service price.",
+      );
+      return;
+    }
     if (
       maxParticipantsParsed != null &&
       reservedGuestEmails.length > maxParticipantsParsed
@@ -1853,6 +1881,8 @@ export function SessionTypesPage() {
           : undefined,
       availableAllLocations: typeForm.availableAllLocations,
       locationIds: typeForm.availableAllLocations ? [] : typeForm.locationIds,
+      billingGrossPrice,
+      billingTaxRate: typeForm.billingTaxRate,
       services: typeForm.serviceLines.map((l) => ({
         // UI edits gross per line; API keeps the type-link price in net.
         // Convert using the selected transaction service tax rate.
@@ -1875,29 +1905,6 @@ export function SessionTypesPage() {
         ? await api.put(`/types/${editingType.id}`, payload)
         : await api.post("/types", payload);
       const savedTypeId = Number(savedResponse.data?.id ?? editingType?.id);
-      if (selectedLocationId != null && Number.isFinite(savedTypeId)) {
-        await api.put(
-          `/types/${savedTypeId}/location-prices`,
-          {
-            items: typeForm.serviceLines.map((line) => {
-              const gross = parseOptionalNumber(line.locationPrice || "");
-              const selectedService = services.find(
-                (service) => service.id === line.transactionServiceId,
-              );
-              return {
-                transactionServiceId: line.transactionServiceId,
-                price:
-                  gross == null
-                    ? null
-                    : selectedService
-                      ? netFromGross(gross, selectedService.taxRate)
-                      : gross,
-              };
-            }),
-          },
-          { params: { locationId: selectedLocationId } },
-        );
-      }
       if (consumablesCapabilityEnabled && canEditConsumables && Number.isFinite(savedTypeId)) {
         await api.put(`/consumables/service-types/${savedTypeId}/defaults`,
           typeForm.consumableLines.map((line) => ({
@@ -1914,6 +1921,8 @@ export function SessionTypesPage() {
         name: "",
         description: "",
         internalDescription: "",
+        billingGrossPrice: "0.00",
+        billingTaxRate: "VAT_22",
         color: SERVICE_TYPE_DEFAULT_COLOR,
         durationMinutes: 60,
         breakMinutes: defaultServiceBreakMinutes,
@@ -2390,10 +2399,23 @@ export function SessionTypesPage() {
 
   const openTypeEdit = async (type: SessionTypeT) => {
     setEditingType(type);
+    const primaryLink = type.linkedServices?.[0] ?? null;
+    const primaryBillingService = primaryLink
+      ? services.find((service) => service.id === primaryLink.transactionServiceId) ?? null
+      : null;
+    const primaryGrossPrice = primaryLink?.unitGross != null
+      ? Number(primaryLink.unitGross)
+      : primaryLink?.price != null && primaryBillingService
+        ? Number(grossPriceStringFromNet(primaryLink.price, primaryBillingService.taxRate))
+        : primaryBillingService
+          ? Number(grossPriceStringFromNet(Number(primaryBillingService.netPrice), primaryBillingService.taxRate))
+          : 0;
     const next: TypeFormState = {
       name: type.name,
       description: type.description || "",
       internalDescription: type.internalDescription || "",
+      billingGrossPrice: Number.isFinite(primaryGrossPrice) ? primaryGrossPrice.toFixed(2) : "0.00",
+      billingTaxRate: primaryBillingService?.taxRate ?? "VAT_22",
       color: normalizeServiceTypeColorForUi(type.color),
       durationMinutes: clampSessionTypeInt0to999(type.durationMinutes ?? 60),
       breakMinutes: clampSessionTypeInt0to999(type.breakMinutes ?? 0),
@@ -2741,6 +2763,7 @@ export function SessionTypesPage() {
         <div className="clients-mobile-list service-config-mobile-list">
           {filteredTypes.map((type, index) => {
             const price = typeGrossPrice(type);
+            const taxRate = typeBillingTaxRate(type, services);
             return (
               <article
                 key={type.id}
@@ -2852,6 +2875,10 @@ export function SessionTypesPage() {
                     <strong>{price != null ? currency(price) : "—"}</strong>
                   </div>
                   <div>
+                    <span>{locale === "sl" ? "DDV" : "VAT"}</span>
+                    <strong>{taxRate ? taxLabels[taxRate] : "—"}</strong>
+                  </div>
+                  <div>
                     <span>{locale === "sl" ? "Status" : "Status"}</span>
                     <strong>
                       <button
@@ -2883,6 +2910,7 @@ export function SessionTypesPage() {
                 <ServiceConfigSortableTableHeader label={locale === "sl" ? "Kategorija" : "Category"} sortKey="category" sortState={typeSort} onSort={(key) => setTypeSort((current) => nextServiceConfigSortState(current, key))} />
                 <ServiceConfigSortableTableHeader label={locale === "sl" ? "Trajanje" : "Duration"} sortKey="duration" sortState={typeSort} onSort={(key) => setTypeSort((current) => nextServiceConfigSortState(current, key))} />
                 <ServiceConfigSortableTableHeader label={locale === "sl" ? "Cena" : "Price"} sortKey="price" sortState={typeSort} onSort={(key) => setTypeSort((current) => nextServiceConfigSortState(current, key))} />
+                <th>{locale === "sl" ? "DDV" : "VAT"}</th>
                 <ServiceConfigSortableTableHeader label={locale === "sl" ? "Status" : "Status"} sortKey="status" sortState={typeSort} onSort={(key) => setTypeSort((current) => nextServiceConfigSortState(current, key))} />
                 <th>{locale === "sl" ? "Dejanja" : "Actions"}</th>
               </tr>
@@ -2890,6 +2918,7 @@ export function SessionTypesPage() {
             <tbody>
               {filteredTypes.map((type, index) => {
                 const price = typeGrossPrice(type);
+                const taxRate = typeBillingTaxRate(type, services);
                 return (
                   <tr
                     key={type.id}
@@ -2934,6 +2963,9 @@ export function SessionTypesPage() {
                     </td>
                     <td className="clients-muted service-config-price-cell">
                       {price != null ? currency(price) : "—"}
+                    </td>
+                    <td className="clients-muted service-config-tax-cell">
+                      {taxRate ? taxLabels[taxRate] : "—"}
                     </td>
                     <td>
                       <button
@@ -3255,6 +3287,8 @@ export function SessionTypesPage() {
       name: "",
       description: "",
       internalDescription: "",
+      billingGrossPrice: "0.00",
+      billingTaxRate: "VAT_22",
       color: SERVICE_TYPE_DEFAULT_COLOR,
       durationMinutes: 60,
       breakMinutes: defaultServiceBreakMinutes,
@@ -4355,6 +4389,19 @@ export function SessionTypesPage() {
               onSubmit={submitType}
             >
               <section className="session-type-config-section session-type-config-section--tab-panel session-type-config-unified">
+                <div className="session-type-auto-billing-notice" role="note">
+                  <span className="session-type-auto-billing-notice__icon" aria-hidden>i</span>
+                  <span>
+                    {editingType
+                      ? locale === "sl"
+                        ? "Cena in DDV sta samodejno sinhronizirana s povezano obračunsko storitvijo."
+                        : "Price and VAT are automatically synchronized with the linked billing service."
+                      : locale === "sl"
+                        ? "Ob shranjevanju bo samodejno ustvarjena obračunska storitev z enakim imenom."
+                        : "Saving will automatically create a billing service with the same name."}
+                  </span>
+                </div>
+                <div className="session-type-config-top-grid">
                 <div className="session-type-config-unified-card session-type-config-unified-card--basic">
                   <div className="session-type-config-section-title">
                     <span className="session-type-config-section-icon" aria-hidden>
@@ -4505,6 +4552,44 @@ export function SessionTypesPage() {
                     </Field>
                   </div>
 
+                  <div className="session-type-config-grid session-type-config-grid--two session-type-config-price-grid">
+                    <Field label={locale === "sl" ? "Cena (bruto) *" : "Price (gross) *"}>
+                      <div className="session-type-price-input">
+                        <span aria-hidden>€</span>
+                        <input
+                          required
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          inputMode="decimal"
+                          value={typeForm.billingGrossPrice}
+                          onChange={(event) =>
+                            setTypeForm({
+                              ...typeForm,
+                              billingGrossPrice: event.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    </Field>
+                    <Field label={locale === "sl" ? "DDV *" : "VAT *"}>
+                      <DesktopSelect
+                        value={typeForm.billingTaxRate}
+                        onChange={(event) =>
+                          setTypeForm({
+                            ...typeForm,
+                            billingTaxRate: event.target.value as TaxRate,
+                          })
+                        }
+                      >
+                        <option value="VAT_22">22%</option>
+                        <option value="VAT_9_5">9.5%</option>
+                        <option value="VAT_0">0%</option>
+                        <option value="NO_VAT">{locale === "sl" ? "Brez DDV" : "No VAT"}</option>
+                      </DesktopSelect>
+                    </Field>
+                  </div>
+
                   <div className="session-type-color-picker">
                     <div className="session-type-color-picker__label">
                       {locale === "sl" ? "Barva storitve" : "Service color"}
@@ -4547,6 +4632,62 @@ export function SessionTypesPage() {
                         : "The selected color will be used for this service on the calendar."}
                     </p>
                   </div>
+                </div>
+
+                <aside className="session-type-config-preview-panel" aria-label={locale === "sl" ? "Predogled storitve" : "Service preview"}>
+                  <div className="session-type-config-section-title">
+                    <span className="session-type-config-section-icon session-type-config-section-icon--preview" aria-hidden>
+                      <ServiceConfigTabIcon name="search" />
+                    </span>
+                    <div>
+                      <h3>{locale === "sl" ? "Predogled" : "Preview"}</h3>
+                      <p>{locale === "sl" ? "Tako bo prikazana storitev po shranjevanju." : "How the service will look after saving."}</p>
+                    </div>
+                  </div>
+
+                  <div className="session-type-preview-service-card">
+                    <span
+                      className="session-type-preview-service-icon"
+                      style={{ background: normalizeServiceTypeColorForUi(typeForm.color) }}
+                      aria-hidden
+                    >
+                      <ServiceConfigTabIcon name="types" />
+                    </span>
+                    <div>
+                      <strong>{typeForm.description.trim() || (locale === "sl" ? "Nova storitev" : "New service")}</strong>
+                      <span>
+                        {`${typeForm.durationMinutes || 0} min`}
+                        {selectedTypeServiceGroup?.name ? ` · ${selectedTypeServiceGroup.name}` : ""}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="session-type-preview-billing-card">
+                    <div className="session-type-preview-billing-title">
+                      <span aria-hidden>✓</span>
+                      <strong>{locale === "sl" ? "Obračunska storitev" : "Billing service"}</strong>
+                    </div>
+                    <p>
+                      {locale === "sl"
+                        ? "Samodejno bo ustvarjena oziroma posodobljena z enakim imenom."
+                        : "It will be created or updated automatically with the same name."}
+                    </p>
+                    <dl>
+                      <div>
+                        <dt>{locale === "sl" ? "Ime" : "Name"}</dt>
+                        <dd>{typeForm.description.trim() || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt>{locale === "sl" ? "Cena" : "Price"}</dt>
+                        <dd>{currency(Math.max(0, parseDecimalInput(typeForm.billingGrossPrice)))}</dd>
+                      </div>
+                      <div>
+                        <dt>{locale === "sl" ? "DDV" : "VAT"}</dt>
+                        <dd>{typeForm.billingTaxRate === "NO_VAT" && locale === "sl" ? "Brez DDV" : taxLabels[typeForm.billingTaxRate]}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                </aside>
                 </div>
 
                 {serviceGroupsModuleEnabled ? (
@@ -4624,163 +4765,6 @@ export function SessionTypesPage() {
                     )}
                   </div>
                 ) : null}
-
-                <div className="session-type-config-unified-card session-type-config-unified-card--services">
-                  <div className="session-type-config-unified-card-header">
-                    <div className="session-type-config-section-title">
-                      <span className="session-type-config-section-icon session-type-config-section-icon--services" aria-hidden>
-                        <ServiceConfigTabIcon name="services" />
-                      </span>
-                      <div>
-                        <h3>
-                          {locale === "sl"
-                            ? "Obračunske storitve"
-                            : "Billing services"}
-                        </h3>
-                        <p>
-                          {locale === "sl"
-                            ? "Povežite obračunske storitve, ki se uporabljajo za zaračunavanje te storitve."
-                            : "Link the billing services used to charge for this service."}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="session-type-config-unified-actions">
-                      <button
-                        type="button"
-                        className="secondary small-btn"
-                        onClick={openServiceLinkModal}
-                      >
-                        <ServiceConfigTabIcon name="plus" />
-                        {locale === "sl" ? "Dodaj obstoječo" : "Add existing"}
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary small-btn"
-                        onClick={openNewLinkedServiceModal}
-                      >
-                        <ServiceConfigTabIcon name="plus" />
-                        {locale === "sl" ? "Ustvari novo" : "Create new"}
-                      </button>
-                    </div>
-                  </div>
-
-                  {typeForm.serviceLines.length === 0 ? (
-                    <div className="session-type-linked-empty">
-                      {locale === "sl"
-                        ? "Ni povezanih obračunskih storitev."
-                        : "No billing services are linked."}
-                    </div>
-                  ) : (
-                    <div className="session-type-linked-services-list">
-                      <div className="session-type-linked-services-head" aria-hidden>
-                        <span>{locale === "sl" ? "Storitev" : "Service"}</span>
-                        <span>{locale === "sl" ? "Bruto cena" : "Gross price"}</span>
-                        <span>{locale === "sl" ? "Dejanja" : "Actions"}</span>
-                      </div>
-                      {typeForm.serviceLines.map((line, idx) => {
-                        const linkedService = services.find(
-                          (service) => service.id === line.transactionServiceId,
-                        );
-                        if (!linkedService) return null;
-                        return (
-                          <div
-                            key={`${line.transactionServiceId}-${idx}`}
-                            className="session-type-linked-service-row"
-                          >
-                            <span className="session-type-linked-card-icon session-type-linked-card-icon--service" aria-hidden>
-                              <ServiceConfigTabIcon name="services" />
-                            </span>
-                            <span className="session-type-linked-card-copy">
-                              <strong>{linkedService.code}</strong>
-                              <span>{linkedService.description}</span>
-                            </span>
-                            <input
-                              type="number"
-                              step="0.01"
-                              placeholder={
-                                locale === "sl"
-                                  ? "Bruto cena (neobvezno)"
-                                  : "Gross price (optional)"
-                              }
-                              value={line.price}
-                              onChange={(e) => {
-                                const next = typeForm.serviceLines.map(
-                                  (item, lineIndex) =>
-                                    lineIndex === idx
-                                      ? { ...item, price: e.target.value }
-                                      : item,
-                                );
-                                setTypeForm({ ...typeForm, serviceLines: next });
-                              }}
-                            />
-                            {selectedLocationId != null ? (
-                              <div className="session-type-location-price-field">
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  placeholder={
-                                    locale === "sl"
-                                      ? "Cena poslovalnice (prazno = privzeto)"
-                                      : "Location price (blank = default)"
-                                  }
-                                  value={line.locationPrice || ""}
-                                  onChange={(e) => {
-                                    const next = typeForm.serviceLines.map(
-                                      (item, lineIndex) =>
-                                        lineIndex === idx
-                                          ? { ...item, locationPrice: e.target.value }
-                                          : item,
-                                    );
-                                    setTypeForm({ ...typeForm, serviceLines: next });
-                                  }}
-                                  aria-label={
-                                    locale === "sl"
-                                      ? "Bruto cena za izbrano poslovalnico"
-                                      : "Gross price for selected location"
-                                  }
-                                />
-                                <small>
-                                  {locale === "sl"
-                                    ? `Poslovalnica: ${locations.find((item) => item.id === selectedLocationId)?.name || selectedLocationId}`
-                                    : `Location: ${locations.find((item) => item.id === selectedLocationId)?.name || selectedLocationId}`}
-                                </small>
-                              </div>
-                            ) : null}
-                            <div className="session-type-linked-card-actions">
-                              <button
-                                type="button"
-                                className="secondary slim-btn"
-                                onClick={() =>
-                                  openLinkedServicePriceEdit(
-                                    linkedService,
-                                    idx,
-                                    line.price,
-                                  )
-                                }
-                              >
-                                {locale === "sl" ? "Uredi" : "Edit"}
-                              </button>
-                              <button
-                                type="button"
-                                className="danger secondary slim-btn"
-                                onClick={() =>
-                                  setTypeForm({
-                                    ...typeForm,
-                                    serviceLines: typeForm.serviceLines.filter(
-                                      (_, lineIndex) => lineIndex !== idx,
-                                    ),
-                                  })
-                                }
-                              >
-                                {locale === "sl" ? "Odstrani" : "Remove"}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
 
                 {consumablesCapabilityEnabled ? (
                   <div className="session-type-config-unified-card session-type-config-unified-card--consumables">

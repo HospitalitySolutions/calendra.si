@@ -7119,3 +7119,225 @@ button.session-type-color-swatch span {
         justify-self: end;
     }
 }
+
+/* Simplified service pricing: the calendar service owns one automatically managed billing service. */
+.session-type-auto-billing-notice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 46px;
+    padding: 10px 14px;
+    border: 1px solid rgba(37, 99, 235, 0.22);
+    border-radius: 13px;
+    background: rgba(239, 246, 255, 0.95);
+    color: #2563eb;
+    font-size: 0.84rem;
+    line-height: 1.4;
+}
+
+.session-type-auto-billing-notice__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    border-radius: 999px;
+    background: #2563eb;
+    color: #fff;
+    font-size: 0.76rem;
+    font-weight: 800;
+}
+
+.session-type-config-price-grid {
+    margin-top: 0;
+}
+
+.session-type-price-input {
+    position: relative;
+}
+
+.session-type-price-input > span {
+    position: absolute;
+    z-index: 1;
+    top: 50%;
+    left: 14px;
+    transform: translateY(-50%);
+    color: #64748b;
+    font-size: 0.9rem;
+    pointer-events: none;
+}
+
+.session-type-price-input > input {
+    width: 100%;
+    padding-left: 34px;
+}
+
+[data-theme="dark"] .session-type-auto-billing-notice {
+    border-color: rgba(96, 165, 250, 0.3);
+    background: rgba(30, 64, 175, 0.14);
+    color: #93c5fd;
+}
+
+@media (max-width: 1024px) {
+    .session-type-auto-billing-notice {
+        min-height: 42px;
+        padding: 9px 11px;
+        border-radius: 11px;
+        font-size: 0.78rem;
+    }
+}
+
+.session-type-config-top-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.9fr);
+    gap: 14px;
+    align-items: stretch;
+}
+
+.session-type-config-preview-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 22px;
+    border: 1px solid rgba(59, 130, 246, 0.18);
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(255, 255, 255, 0.98));
+    box-shadow: 0 5px 18px rgba(15, 23, 42, 0.04);
+}
+
+.session-type-config-section-icon--preview {
+    color: #2563eb;
+    background: #eff6ff;
+}
+
+.session-type-preview-service-card,
+.session-type-preview-billing-card {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 15px;
+    background: #fff;
+}
+
+.session-type-preview-service-card {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 16px;
+}
+
+.session-type-preview-service-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 50px;
+    height: 50px;
+    min-width: 50px;
+    border-radius: 14px;
+    color: #475569;
+}
+
+.session-type-preview-service-icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+.session-type-preview-service-card > div {
+    display: grid;
+    gap: 4px;
+}
+
+.session-type-preview-service-card strong {
+    color: #0f172a;
+    font-size: 1rem;
+}
+
+.session-type-preview-service-card span:not(.session-type-preview-service-icon) {
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+.session-type-preview-billing-card {
+    display: grid;
+    gap: 11px;
+    padding: 16px;
+}
+
+.session-type-preview-billing-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #0f172a;
+}
+
+.session-type-preview-billing-title > span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: #ecfdf5;
+    color: #059669;
+    font-size: 0.72rem;
+    font-weight: 900;
+}
+
+.session-type-preview-billing-card > p {
+    margin: 0;
+    color: #7c879b;
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+.session-type-preview-billing-card dl {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+}
+
+.session-type-preview-billing-card dl > div {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 10px;
+    align-items: baseline;
+}
+
+.session-type-preview-billing-card dt {
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.session-type-preview-billing-card dd {
+    margin: 0;
+    color: #0f172a;
+    font-size: 0.82rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+[data-theme="dark"] .session-type-config-preview-panel,
+[data-theme="dark"] .session-type-preview-service-card,
+[data-theme="dark"] .session-type-preview-billing-card {
+    background: #111827;
+    border-color: rgba(148, 163, 184, 0.18);
+}
+
+[data-theme="dark"] .session-type-preview-service-card strong,
+[data-theme="dark"] .session-type-preview-billing-title,
+[data-theme="dark"] .session-type-preview-billing-card dd {
+    color: #f8fafc;
+}
+
+@media (max-width: 1180px) {
+    .session-type-config-top-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 1024px) {
+    .session-type-config-preview-panel {
+        padding: 14px;
+        border-radius: 15px;
+    }
+}
