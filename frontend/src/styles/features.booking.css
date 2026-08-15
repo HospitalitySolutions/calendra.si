@@ -5794,13 +5794,16 @@ button.course-edit-save-button.gapp-primary-button {
 
 
 .service-config-name-with-group {
-  display: grid;
-  gap: 7px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .service-config-name-with-group > .service-group-indicator {
+  flex: 0 0 auto;
   width: max-content;
-  margin-left: 68px;
+  margin-left: 0;
 }
 
 .service-group-indicator {

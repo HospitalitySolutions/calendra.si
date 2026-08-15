@@ -2935,6 +2935,11 @@ export function SessionTypesPage() {
                   >
                     <td>
                       <div className="service-config-name-with-group">
+                        {type.groupBookingEnabled === true ? (
+                          <span className="service-group-indicator">
+                            {locale === "sl" ? "Skupina" : locale === "sr" ? "Grupa" : "Group"}
+                          </span>
+                        ) : null}
                         <ServiceConfigNameCell
                           title={
                             [
@@ -2946,11 +2951,6 @@ export function SessionTypesPage() {
                           visual={serviceConfigVisual(index)}
                           showIcon={false}
                         />
-                        {serviceGroupsModuleEnabled && type.serviceGroupId != null && type.serviceGroupName?.trim() ? (
-                          <span className="service-group-indicator">
-                            {type.serviceGroupName}
-                          </span>
-                        ) : null}
                       </div>
                     </td>
                     <td className="clients-muted service-config-category-cell">
@@ -5148,7 +5148,7 @@ export function SessionTypesPage() {
                     </span>
                     <span className="session-type-config-group-copy">
                       <strong>
-                        {locale === "sl" ? "Skupina VKLOP/IZKLOP" : "Group ON/OFF"}
+                        {locale === "sl" ? "Skupina" : locale === "sr" ? "Grupa" : "Group"}
                       </strong>
                       <span>
                         {locale === "sl"
