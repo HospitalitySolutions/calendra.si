@@ -33,6 +33,7 @@ class WorkspaceSubscriptionMigrationTest {
         insertSetting(jdbc, firstCompanyId, "BILLING_SUBSCRIPTION_STATUS", "PAID");
         insertSetting(jdbc, firstCompanyId, "BILLING_SUBSCRIPTION_START", "not-a-date");
         insertSetting(jdbc, firstCompanyId, "SIGNUP_USER_COUNT", "not-an-integer");
+        insertSetting(jdbc, firstCompanyId, "BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT", "3");
         insertSetting(jdbc, firstCompanyId, "SIGNUP_SMS_COUNT", "100");
         insertSetting(jdbc, firstCompanyId, "TENANCY_SMS_SENT_COUNT", "12");
         insertSetting(jdbc, secondCompanyId, "SIGNUP_SMS_COUNT", "50");
@@ -74,7 +75,9 @@ class WorkspaceSubscriptionMigrationTest {
         assertThat(jdbc.queryForObject(
                 "select max_locations from workspace_subscriptions where id=?", Integer.class, subscriptionId)).isGreaterThanOrEqualTo(2);
         assertThat(jdbc.queryForObject(
-                "select max_active_users from workspace_subscriptions where id=?", Integer.class, subscriptionId)).isGreaterThanOrEqualTo(1);
+                "select max_active_users from workspace_subscriptions where id=?", Integer.class, subscriptionId)).isEqualTo(4);
+        assertThat(jdbc.queryForObject(
+                "select max_consultants from workspace_subscriptions where id=?", Integer.class, subscriptionId)).isEqualTo(4);
 
         // Unit, location and distinct-login limits are enforced even for raw SQL writers.
         jdbc.update("update workspace_subscriptions set max_operating_units=2, max_locations=2, max_active_users=1 where id=?", subscriptionId);

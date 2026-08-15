@@ -4,6 +4,7 @@ import com.example.app.billingissuer.LegalEntity;
 import com.example.app.billingissuer.LegalEntityRepository;
 import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
+import com.example.app.entitlement.PackageAccessService;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
@@ -37,6 +38,7 @@ public class WorkspaceSubscriptionService {
     private final UserRepository users;
     private final LegalEntityRepository legalEntities;
     private final AppSettingRepository settings;
+    private final PackageAccessService packageAccessService;
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
 
@@ -47,6 +49,7 @@ public class WorkspaceSubscriptionService {
             UserRepository users,
             LegalEntityRepository legalEntities,
             AppSettingRepository settings,
+            PackageAccessService packageAccessService,
             NamedParameterJdbcTemplate jdbc,
             ObjectMapper objectMapper
     ) {
@@ -56,6 +59,7 @@ public class WorkspaceSubscriptionService {
         this.users = users;
         this.legalEntities = legalEntities;
         this.settings = settings;
+        this.packageAccessService = packageAccessService;
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
     }
@@ -183,26 +187,45 @@ public class WorkspaceSubscriptionService {
     @Transactional
     public WorkspaceSubscription syncFromLegacyCompany(Long companyId) {
         if (companyId == null) return null;
-        Company company = companies.findById(companyId).orElse(null);
-        if (company == null || company.getWorkspace() == null) return null;
-        WorkspaceSubscription subscription = subscriptions.findByWorkspaceId(company.getWorkspace().getId()).orElse(null);
-        if (subscription == null || (subscription.getLegacyPrimaryCompany() != null
-                && !Objects.equals(subscription.getLegacyPrimaryCompany().getId(), companyId))) return subscription;
+        Company requestedCompany = companies.findById(companyId).orElse(null);
+        if (requestedCompany == null || requestedCompany.getWorkspace() == null) return null;
+        WorkspaceSubscription subscription = subscriptions.findByWorkspaceId(requestedCompany.getWorkspace().getId()).orElse(null);
+        if (subscription == null) return null;
+
+        // Subscription settings are owned by the retained billing-owner operating unit. Callers may
+        // originate from any unit in the workspace, so always project from the billing owner when set.
+        Company company = subscription.getLegacyPrimaryCompany() == null
+                ? requestedCompany
+                : subscription.getLegacyPrimaryCompany();
+        Long sourceCompanyId = company.getId();
         subscription.setLegacyPrimaryCompany(company);
-        subscription.setPlanKey(normalizePlan(setting(companyId, SettingKey.SIGNUP_PACKAGE_NAME, subscription.getPlanKey())));
-        subscription.setBillingInterval(normalizeInterval(setting(companyId, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, subscription.getBillingInterval())));
-        subscription.setStatus(normalizeStatus(setting(companyId, SettingKey.BILLING_SUBSCRIPTION_STATUS, subscription.getStatus().name()), subscription.getPlanKey()));
-        subscription.setCurrentPeriodStart(parseDate(setting(companyId, SettingKey.BILLING_SUBSCRIPTION_START, null)));
-        subscription.setCurrentPeriodEnd(parseDate(setting(companyId, SettingKey.BILLING_SUBSCRIPTION_END, null)));
-        int configuredUsers = Math.max(1, parseInt(setting(companyId, SettingKey.SIGNUP_USER_COUNT, null), 1));
+        subscription.setPlanKey(normalizePlan(setting(sourceCompanyId, SettingKey.SIGNUP_PACKAGE_NAME, subscription.getPlanKey())));
+        subscription.setBillingInterval(normalizeInterval(setting(sourceCompanyId, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, subscription.getBillingInterval())));
+        subscription.setStatus(normalizeStatus(setting(sourceCompanyId, SettingKey.BILLING_SUBSCRIPTION_STATUS, subscription.getStatus().name()), subscription.getPlanKey()));
+        subscription.setCurrentPeriodStart(parseDate(setting(sourceCompanyId, SettingKey.BILLING_SUBSCRIPTION_START, null)));
+        subscription.setCurrentPeriodEnd(parseDate(setting(sourceCompanyId, SettingKey.BILLING_SUBSCRIPTION_END, null)));
+
+        // Use the same entitlement calculation as POST /api/users: paid/base users plus any
+        // current-cycle user additions. This keeps the DB trigger and application quota aligned.
+        int configuredUsers = packageAccessService.userQuota(sourceCompanyId);
         subscription.setMaxActiveUsers(capacityAtLeastCurrent(configuredUsers, currentUsage(subscription.getWorkspace().getId()).activeUsers()));
-        subscription.setIncludedSmsParts(Math.max(0, parseInt(setting(companyId, SettingKey.SIGNUP_SMS_COUNT, null), subscription.getIncludedSmsParts())));
-        List<String> addons = parseCsv(setting(companyId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS,
-                setting(companyId, SettingKey.SIGNUP_ADDON_KEYS, "")));
+        subscription.setIncludedSmsParts(Math.max(0, parseInt(setting(sourceCompanyId, SettingKey.SIGNUP_SMS_COUNT, null), subscription.getIncludedSmsParts())));
+        List<String> addons = parseCsv(setting(sourceCompanyId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS,
+                setting(sourceCompanyId, SettingKey.SIGNUP_ADDON_KEYS, "")));
         subscription.setAddonsJson(writeStringList(addons));
         applyPlanCapacity(subscription, configuredUsers);
         applyPlanFeatures(subscription, addons);
         return subscriptions.save(subscription);
+    }
+
+
+    @Transactional
+    public WorkspaceSubscription syncFromLegacyCompanyAndFlush(Long companyId) {
+        WorkspaceSubscription subscription = syncFromLegacyCompany(companyId);
+        if (subscription != null) {
+            subscriptions.flush();
+        }
+        return subscription;
     }
 
     @Transactional

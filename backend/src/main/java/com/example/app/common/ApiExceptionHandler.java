@@ -18,6 +18,20 @@ public class ApiExceptionHandler {
                 : String.valueOf(ex.getMessage());
         String lower = msg.toLowerCase();
 
+        if (lower.contains("workspace active-user limit reached")) {
+            return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED)
+                    .body(Map.of(
+                            "code", "USER_LIMIT_REACHED",
+                            "message", "Your package user limit has been reached. Upgrade or increase your user count to add more."
+                    ));
+        }
+        if (lower.contains("workspace consultant limit reached")) {
+            return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED)
+                    .body(Map.of(
+                            "code", "CONSULTANT_LIMIT_REACHED",
+                            "message", "Your package consultant limit has been reached. Upgrade or increase your user count to add more."
+                    ));
+        }
         if (lower.contains("client_id") && lower.contains("not-null")) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", "Client is required for Individual billing. For Company billing, select a recipient company."));

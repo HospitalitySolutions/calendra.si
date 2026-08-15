@@ -14,6 +14,7 @@ import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
 import com.example.app.session.SessionBookingRepository;
 import com.example.app.session.BookableSlotRepository;
+import com.example.app.workspacesubscription.WorkspaceSubscriptionService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -62,11 +63,12 @@ public class UserController {
     private final LoginAccountService loginAccountService;
     private final LocationRepository locationRepository;
     private final ConsultantLocationService consultantLocationService;
+    private final WorkspaceSubscriptionService workspaceSubscriptionService;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private ActivityLogService activityLogs;
 
-    public UserController(UserRepository userRepository, EmployeeAccessRoleRepository accessRoleRepository, PasswordEncoder passwordEncoder, ObjectMapper objectMapper, PackageAccessService packageAccessService, TenantFileS3Service fileStorage, TenantOwnerAccessService tenantOwnerAccessService, PasswordResetService passwordResetService, SessionBookingRepository sessionBookingRepository, BookableSlotRepository bookableSlotRepository, LoginAccountService loginAccountService, LocationRepository locationRepository, ConsultantLocationService consultantLocationService) {
+    public UserController(UserRepository userRepository, EmployeeAccessRoleRepository accessRoleRepository, PasswordEncoder passwordEncoder, ObjectMapper objectMapper, PackageAccessService packageAccessService, TenantFileS3Service fileStorage, TenantOwnerAccessService tenantOwnerAccessService, PasswordResetService passwordResetService, SessionBookingRepository sessionBookingRepository, BookableSlotRepository bookableSlotRepository, LoginAccountService loginAccountService, LocationRepository locationRepository, ConsultantLocationService consultantLocationService, WorkspaceSubscriptionService workspaceSubscriptionService) {
         this.userRepository = userRepository;
         this.accessRoleRepository = accessRoleRepository;
         this.passwordEncoder = passwordEncoder;
@@ -80,6 +82,7 @@ public class UserController {
         this.loginAccountService = loginAccountService;
         this.locationRepository = locationRepository;
         this.consultantLocationService = consultantLocationService;
+        this.workspaceSubscriptionService = workspaceSubscriptionService;
     }
 
     @GetMapping
@@ -222,6 +225,9 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public ResponseEntity<?> create(@RequestBody CreateUserRequest request, @AuthenticationPrincipal User me) {
+        // Heal legacy/stale workspace limits before the application-level quota check and insert.
+        // The subscription projection uses the same user entitlement calculation as PackageAccessService.
+        workspaceSubscriptionService.syncFromLegacyCompanyAndFlush(me.getCompany().getId());
         packageAccessService.requireCanCreateUser(me);
         String normalizedEmail = request.email().trim().toLowerCase();
 
@@ -272,16 +278,11 @@ public class UserController {
                 ? accessRole.getPermissionsJson()
                 : writePermissionsJson(request.permissions() == null ? SecurityUtils.defaultEmployeePermissions() : request.permissions()));
 
-        try {
-            User saved = userRepository.save(user);
-            passwordResetService.sendEmployeeAccountCreatedEmail(saved, request.locale());
-            Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(me.getCompany().getId());
-            recordEmployee(me, ActivityAction.EMPLOYEE_CREATED, saved, "Created employee", null);
-            return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(saved, tenantOwnerId));
-        } catch (DataIntegrityViolationException ex) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("message", "A consultant with this email already exists."));
-        }
+        User saved = userRepository.saveAndFlush(user);
+        passwordResetService.sendEmployeeAccountCreatedEmail(saved, request.locale());
+        Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(me.getCompany().getId());
+        recordEmployee(me, ActivityAction.EMPLOYEE_CREATED, saved, "Created employee", null);
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(saved, tenantOwnerId));
     }
 
     @PutMapping("/{id}")
