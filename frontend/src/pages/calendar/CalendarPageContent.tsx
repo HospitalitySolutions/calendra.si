@@ -13026,20 +13026,15 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   if (!u) return arg.resource.title
                   const name = fullName(u)
                   const toneIndex = consultantHeaderToneById.get(rid) ?? 0
-                  if (!consultantResourceLabelsCompact) {
-                    return (
-                      <span className="calendar-resource-label-wrap" title={name}>
-                        <span className={`calendar-resource-label-avatar calendar-resource-label-avatar--tone-${toneIndex}`} aria-hidden="true">
-                          {personInitials(u)}
-                        </span>
-                        <span className={`calendar-resource-label-text calendar-resource-label-text--tone-${toneIndex}`}>{name}</span>
-                      </span>
-                    )
-                  }
+                  const avatarSrc = String(u.avatarPath || '').trim()
                   return (
                     <span className="calendar-resource-label-wrap" title={name}>
-                      <span className={`calendar-resource-label-avatar calendar-resource-label-avatar--tone-${toneIndex}`} aria-hidden="true">
-                        {personInitials(u)}
+                      <span className={`calendar-resource-label-avatar calendar-resource-label-avatar--tone-${toneIndex}${avatarSrc ? ' calendar-resource-label-avatar--image' : ''}`} aria-hidden="true">
+                        {avatarSrc ? (
+                          <img className="calendar-resource-label-avatar-image" src={avatarSrc} alt="" />
+                        ) : (
+                          personInitials(u)
+                        )}
                       </span>
                       <span className="calendar-resource-label-sr">{name}</span>
                     </span>
