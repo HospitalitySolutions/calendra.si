@@ -465,18 +465,18 @@ export function OperatingUnitsPanel({
   }
 
   if (loading && locations.length === 0) {
-    return <div className="operating-units-loading">{sl ? 'Nalaganje poslovnih prostorov…' : 'Loading business units…'}</div>
+    return <div className="operating-units-loading">{sl ? 'Nalaganje poslovnih prostorov…' : 'Loading business premises…'}</div>
   }
 
   return (
     <section className="operating-units-panel">
       <header className="operating-units-head operating-units-head--actions-only">
-        {locationsEnabled ? <button type="button" className="ou-primary-button" onClick={beginNewLocation}>{icon('plus')}{sl ? 'Nova lokacija' : 'New location'}</button> : null}
+        {locationsEnabled ? <button type="button" className="ou-primary-button" onClick={beginNewLocation}>{icon('plus')}{sl ? 'Nov poslovni prostor' : 'New business premise'}</button> : null}
       </header>
 
       <div className="ou-workspace">
         <aside className="ou-location-sidebar">
-          <div className="ou-section-title"><h3>{sl ? 'Lokacije' : 'Locations'}</h3><span>{locations.length}</span></div>
+          <div className="ou-section-title"><h3>{sl ? 'Poslovni prostori' : 'Business premises'}</h3><span>{locations.length}</span></div>
           <div className="ou-location-list">
             {locations.map((location) => (
               <button
@@ -497,11 +497,11 @@ export function OperatingUnitsPanel({
             {selectedLocationId === 'new' ? (
               <button type="button" className="ou-location-item is-selected is-new">
                 <span className="ou-location-icon">{icon('plus')}</span>
-                <span className="ou-location-copy"><strong>{sl ? 'Nova lokacija' : 'New location'}</strong><small>{sl ? 'Vnesite podatke' : 'Enter details'}</small></span>
+                <span className="ou-location-copy"><strong>{sl ? 'Nov poslovni prostor' : 'New business premise'}</strong><small>{sl ? 'Vnesite podatke' : 'Enter details'}</small></span>
               </button>
             ) : null}
           </div>
-          {locationsEnabled ? <button type="button" className="ou-secondary-add" onClick={beginNewLocation}>{icon('plus')}{sl ? 'Nova lokacija' : 'New location'}</button> : null}
+          {locationsEnabled ? <button type="button" className="ou-secondary-add" onClick={beginNewLocation}>{icon('plus')}{sl ? 'Nov poslovni prostor' : 'New business premise'}</button> : null}
         </aside>
 
         <main className="ou-detail">
@@ -509,7 +509,7 @@ export function OperatingUnitsPanel({
             <div className="ou-detail-titlebar">
               <div className="ou-detail-title">
                 <span className="ou-detail-icon">{icon('building')}</span>
-                <strong>{draft.name || (sl ? 'Nova lokacija' : 'New location')}</strong>
+                <strong>{draft.name || (sl ? 'Nov poslovni prostor' : 'New business premise')}</strong>
                 {draft.defaultLocation ? <span className="ou-default-badge">{sl ? 'Privzeta' : 'Default'}</span> : null}
               </div>
               <span className={`ou-status-badge${draft.active ? '' : ' is-inactive'}`}>{draft.active ? (sl ? 'Aktivna' : 'Active') : (sl ? 'Neaktivna' : 'Inactive')}</span>

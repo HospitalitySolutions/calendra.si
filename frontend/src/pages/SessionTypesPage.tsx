@@ -2934,24 +2934,24 @@ export function SessionTypesPage() {
                     }}
                   >
                     <td>
-                      <div className="service-config-name-with-group">
-                        {type.groupBookingEnabled === true ? (
-                          <span className="service-group-indicator">
-                            {locale === "sl" ? "Skupina" : locale === "sr" ? "Grupa" : "Group"}
+                      <ServiceConfigNameCell
+                        title={
+                          <span className="service-config-name-inline">
+                            <span>
+                              {type.description?.trim() ||
+                                (locale === "sl" ? "Storitev" : locale === "sr" ? "Usluga" : "Service")}
+                            </span>
+                            {type.groupBookingEnabled === true ? (
+                              <span className="service-group-indicator">
+                                {locale === "sl" ? "Skupina" : locale === "sr" ? "Grupa" : "Group"}
+                              </span>
+                            ) : null}
                           </span>
-                        ) : null}
-                        <ServiceConfigNameCell
-                          title={
-                            [
-                              type.description?.trim() ||
-                                (locale === "sl" ? "Storitev" : locale === "sr" ? "Usluga" : "Service"),
-                              type.internalDescription?.trim(),
-                            ].filter(Boolean).join(" — ")
-                          }
-                          visual={serviceConfigVisual(index)}
-                          showIcon={false}
-                        />
-                      </div>
+                        }
+                        subtitle={type.internalDescription?.trim() || undefined}
+                        visual={serviceConfigVisual(index)}
+                        showIcon={false}
+                      />
                     </td>
                     <td className="clients-muted service-config-category-cell">
                       {typeLinkedCategory(type)}
@@ -4389,16 +4389,6 @@ export function SessionTypesPage() {
               onSubmit={submitType}
             >
               <section className="session-type-config-section session-type-config-section--tab-panel session-type-config-unified">
-                {editingType ? (
-                  <div className="session-type-auto-billing-notice" role="note">
-                    <span className="session-type-auto-billing-notice__icon" aria-hidden>i</span>
-                    <span>
-                      {locale === "sl"
-                        ? "Cena in DDV sta samodejno sinhronizirana s povezano obračunsko storitvijo."
-                        : "Price and VAT are automatically synchronized with the linked billing service."}
-                    </span>
-                  </div>
-                ) : null}
                 <div className="session-type-config-unified-card session-type-config-unified-card--basic">
                   <div className="session-type-config-section-title">
                     <span className="session-type-config-section-icon" aria-hidden>

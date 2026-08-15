@@ -410,6 +410,18 @@
     line-height: 1.2;
 }
 
+.service-config-name-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.service-config-name-inline .service-group-indicator {
+    flex: 0 0 auto;
+}
+
 .service-config-name-stack span {
     max-width: 360px;
     overflow: hidden;
