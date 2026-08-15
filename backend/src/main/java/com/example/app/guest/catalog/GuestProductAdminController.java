@@ -436,9 +436,9 @@ public class GuestProductAdminController {
     }
 
     /**
-     * Preserve automatic pricing for a single eligible service. When a pass covers several
-     * services the selling price is intentionally manual because those services can have
-     * different prices while the pass itself has one fixed selling price.
+     * Keep automatic pricing validation only for legacy class tickets. Visit packages may
+     * use a manually selected selling price (for example a discounted package price), even
+     * when they are linked to a single service.
      */
     private static void validatePackOrClassPriceGross(
             ProductType productType,
@@ -446,7 +446,7 @@ public class GuestProductAdminController {
             Integer usageLimit,
             BigDecimal priceGross
     ) {
-        if (productType != ProductType.PACK && productType != ProductType.CLASS_TICKET) {
+        if (productType != ProductType.CLASS_TICKET) {
             return;
         }
         if (eligibleSessionTypes == null || eligibleSessionTypes.size() != 1) {

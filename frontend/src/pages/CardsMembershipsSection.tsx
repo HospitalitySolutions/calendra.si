@@ -143,6 +143,7 @@ type GuestProductFormState = {
   promoText: string;
   productType: GuestAdminProductType;
   priceGross: string;
+  priceGrossManuallyOverridden: boolean;
   currency: string;
   active: boolean;
   guestVisible: boolean;
@@ -186,6 +187,7 @@ const defaultGuestProductForm = (): GuestProductFormState => ({
   promoText: "",
   productType: "PACK",
   priceGross: "0.00",
+  priceGrossManuallyOverridden: false,
   currency: "EUR",
   active: true,
   guestVisible: true,
@@ -324,6 +326,12 @@ const normalizeGuestProductFormForType = (
   return {
     ...current,
     productType: nextProductType,
+    priceGrossManuallyOverridden:
+      nextProductType === "PACK"
+        ? current.productType === "PACK"
+          ? current.priceGrossManuallyOverridden
+          : false
+        : false,
     usageLimit:
       nextProductType === "CLASS_TICKET" ||
       nextProductType === "MEMBERSHIP" ||
@@ -474,6 +482,7 @@ function syncGuestProductPriceFromSessionTypes(
 ): GuestProductFormState {
   if (form.serviceScope === "SERVICE_GROUP") return form;
   if (!guestProductTypeUsesAutoPrice(form.productType, form.sessionTypeIds.length)) return form;
+  if (form.productType === "PACK" && form.priceGrossManuallyOverridden) return form;
   const suggested = suggestedGuestCardGross(
     form.productType,
     form.sessionTypeId,
@@ -970,6 +979,9 @@ export const CardsMembershipsSection = forwardRef<
               ? "PACK"
               : product.productType,
           priceGross: Number(product.priceGross ?? 0).toFixed(2),
+          // Existing visit packages may already have a deliberately discounted/manual price.
+          // Preserve it when the editor opens instead of recalculating from the service.
+          priceGrossManuallyOverridden: product.productType === "PACK",
           currency: product.currency || "EUR",
           active: product.active,
           guestVisible: product.guestVisible,
@@ -2191,8 +2203,8 @@ export const CardsMembershipsSection = forwardRef<
                   guestProductForm.serviceScope === "SERVICES" && guestProductTypeUsesAutoPrice(guestProductForm.productType, guestProductForm.sessionTypeIds.length)
                     ? guestProductForm.productType === "PACK"
                       ? locale === "sl"
-                        ? "Izračunano iz storitve (vsota bruto cen povezanih obračunskih storitev) × količina."
-                        : "Calculated from the service type (sum of transaction line grosses) × quantity."
+                        ? "Predlagana cena je izračunana iz storitve × količina. Ceno lahko ročno spremenite."
+                        : "The suggested price is calculated from the service × quantity. You can change it manually."
                       : locale === "sl"
                         ? "Izračunano iz storitve (vsota bruto cen povezanih obračunskih storitev) za en obisk."
                         : "Calculated from the service type (sum of transaction line grosses) for one entry."
@@ -2203,17 +2215,26 @@ export const CardsMembershipsSection = forwardRef<
                   type="number"
                   min="0"
                   step="0.01"
-                  readOnly={guestProductForm.serviceScope === "SERVICES" && guestProductTypeUsesAutoPrice(
-                    guestProductForm.productType,
-                    guestProductForm.sessionTypeIds.length,
-                  )}
-                  aria-readonly={guestProductForm.serviceScope === "SERVICES" && guestProductTypeUsesAutoPrice(
-                    guestProductForm.productType,
-                    guestProductForm.sessionTypeIds.length,
-                  )}
+                  readOnly={
+                    guestProductForm.productType === "CLASS_TICKET" &&
+                    guestProductForm.serviceScope === "SERVICES" &&
+                    guestProductTypeUsesAutoPrice(
+                      guestProductForm.productType,
+                      guestProductForm.sessionTypeIds.length,
+                    )
+                  }
+                  aria-readonly={
+                    guestProductForm.productType === "CLASS_TICKET" &&
+                    guestProductForm.serviceScope === "SERVICES" &&
+                    guestProductTypeUsesAutoPrice(
+                      guestProductForm.productType,
+                      guestProductForm.sessionTypeIds.length,
+                    )
+                  }
                   value={guestProductForm.priceGross}
                   onChange={(e) => {
                     if (
+                      guestProductForm.productType === "CLASS_TICKET" &&
                       guestProductForm.serviceScope === "SERVICES" &&
                       guestProductTypeUsesAutoPrice(
                         guestProductForm.productType,
@@ -2225,6 +2246,10 @@ export const CardsMembershipsSection = forwardRef<
                     setGuestProductForm((current) => ({
                       ...current,
                       priceGross: nextPrice,
+                      priceGrossManuallyOverridden:
+                        current.productType === "PACK"
+                          ? true
+                          : current.priceGrossManuallyOverridden,
                       voucherFaceValueGross:
                         current.productType === "GIFT_CARD" &&
                         current.voucherRedemptionMode === "VALUE" &&

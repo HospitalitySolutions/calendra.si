@@ -4389,19 +4389,16 @@ export function SessionTypesPage() {
               onSubmit={submitType}
             >
               <section className="session-type-config-section session-type-config-section--tab-panel session-type-config-unified">
-                <div className="session-type-auto-billing-notice" role="note">
-                  <span className="session-type-auto-billing-notice__icon" aria-hidden>i</span>
-                  <span>
-                    {editingType
-                      ? locale === "sl"
+                {editingType ? (
+                  <div className="session-type-auto-billing-notice" role="note">
+                    <span className="session-type-auto-billing-notice__icon" aria-hidden>i</span>
+                    <span>
+                      {locale === "sl"
                         ? "Cena in DDV sta samodejno sinhronizirana s povezano obračunsko storitvijo."
-                        : "Price and VAT are automatically synchronized with the linked billing service."
-                      : locale === "sl"
-                        ? "Ob shranjevanju bo samodejno ustvarjena obračunska storitev z enakim imenom."
-                        : "Saving will automatically create a billing service with the same name."}
-                  </span>
-                </div>
-                <div className="session-type-config-top-grid">
+                        : "Price and VAT are automatically synchronized with the linked billing service."}
+                    </span>
+                  </div>
+                ) : null}
                 <div className="session-type-config-unified-card session-type-config-unified-card--basic">
                   <div className="session-type-config-section-title">
                     <span className="session-type-config-section-icon" aria-hidden>
@@ -4632,62 +4629,6 @@ export function SessionTypesPage() {
                         : "The selected color will be used for this service on the calendar."}
                     </p>
                   </div>
-                </div>
-
-                <aside className="session-type-config-preview-panel" aria-label={locale === "sl" ? "Predogled storitve" : "Service preview"}>
-                  <div className="session-type-config-section-title">
-                    <span className="session-type-config-section-icon session-type-config-section-icon--preview" aria-hidden>
-                      <ServiceConfigTabIcon name="search" />
-                    </span>
-                    <div>
-                      <h3>{locale === "sl" ? "Predogled" : "Preview"}</h3>
-                      <p>{locale === "sl" ? "Tako bo prikazana storitev po shranjevanju." : "How the service will look after saving."}</p>
-                    </div>
-                  </div>
-
-                  <div className="session-type-preview-service-card">
-                    <span
-                      className="session-type-preview-service-icon"
-                      style={{ background: normalizeServiceTypeColorForUi(typeForm.color) }}
-                      aria-hidden
-                    >
-                      <ServiceConfigTabIcon name="types" />
-                    </span>
-                    <div>
-                      <strong>{typeForm.description.trim() || (locale === "sl" ? "Nova storitev" : "New service")}</strong>
-                      <span>
-                        {`${typeForm.durationMinutes || 0} min`}
-                        {selectedTypeServiceGroup?.name ? ` · ${selectedTypeServiceGroup.name}` : ""}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="session-type-preview-billing-card">
-                    <div className="session-type-preview-billing-title">
-                      <span aria-hidden>✓</span>
-                      <strong>{locale === "sl" ? "Obračunska storitev" : "Billing service"}</strong>
-                    </div>
-                    <p>
-                      {locale === "sl"
-                        ? "Samodejno bo ustvarjena oziroma posodobljena z enakim imenom."
-                        : "It will be created or updated automatically with the same name."}
-                    </p>
-                    <dl>
-                      <div>
-                        <dt>{locale === "sl" ? "Ime" : "Name"}</dt>
-                        <dd>{typeForm.description.trim() || "—"}</dd>
-                      </div>
-                      <div>
-                        <dt>{locale === "sl" ? "Cena" : "Price"}</dt>
-                        <dd>{currency(Math.max(0, parseDecimalInput(typeForm.billingGrossPrice)))}</dd>
-                      </div>
-                      <div>
-                        <dt>{locale === "sl" ? "DDV" : "VAT"}</dt>
-                        <dd>{typeForm.billingTaxRate === "NO_VAT" && locale === "sl" ? "Brez DDV" : taxLabels[typeForm.billingTaxRate]}</dd>
-                      </div>
-                    </dl>
-                  </div>
-                </aside>
                 </div>
 
                 {serviceGroupsModuleEnabled ? (
