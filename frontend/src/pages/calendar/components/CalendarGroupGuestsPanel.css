@@ -1561,3 +1561,409 @@
     justify-content: flex-end !important;
   }
 }
+
+/* ========================================================================== */
+/* Approved Podrobnosti skupine layout — tablet/mobile only                   */
+/* Keeps desktop styling untouched while matching the approved mobile preview. */
+/* ========================================================================== */
+.calendar-group-guests-mobile-section-title {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .calendar-group-guests-side-panel .calendar-group-guests-summary {
+    display: none !important;
+  }
+
+  .calendar-group-guests-side-panel .cp-panel-header {
+    padding: 24px 28px 18px;
+    border-bottom: 0;
+  }
+
+  .calendar-group-guests-side-panel .cp-panel-header__title {
+    color: #111827;
+    font-size: 1.75rem;
+    font-weight: 750;
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+  }
+
+  .calendar-group-guests-side-panel .cp-panel-header__subtitle {
+    margin-top: 7px;
+    color: #667085;
+    font-size: 0.9375rem;
+    line-height: 1.4;
+  }
+
+  .calendar-group-guests-side-panel .cp-panel-header .cp-icon-btn {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    color: #344054;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-body {
+    padding: 20px 28px 12px !important;
+    overflow-x: hidden !important;
+    background: #ffffff;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-toolbar {
+    display: grid;
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+    width: 100%;
+    margin-top: 0 !important;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-search,
+  .calendar-group-guests-side-panel .calendar-group-guests-add-toggle {
+    width: 100%;
+    min-width: 0;
+    height: 54px;
+    min-height: 54px;
+    border-radius: 12px;
+    box-shadow: none;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-search {
+    padding: 0 16px;
+    gap: 12px;
+    color: #526078;
+    border: 1px solid #cfd8e6;
+    background: #ffffff;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-search svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-search input {
+    color: #172033;
+    font-size: 15px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-search input::placeholder {
+    color: #7f8da4;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-search:focus-within {
+    border-color: #0b6ff5;
+    box-shadow: 0 0 0 3px rgba(11, 111, 245, 0.09);
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-add-toggle {
+    justify-content: center;
+    gap: 10px;
+    padding: 0 18px;
+    color: #0b6ff5;
+    border: 1.5px solid #0b6ff5;
+    background: #ffffff;
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-add-toggle svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-add-toggle:hover,
+  .calendar-group-guests-side-panel .calendar-group-guests-add-toggle--active {
+    color: #075fcf;
+    background: #f5f9ff;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-mobile-section-title {
+    display: block;
+    margin: 26px -28px 0;
+    padding: 16px 28px 14px;
+    color: #667085;
+    border-top: 1px solid #e7ebf1;
+    border-bottom: 1px solid #e7ebf1;
+    background: #ffffff;
+    font-size: 13px;
+    font-weight: 750;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-table {
+    width: auto;
+    min-width: 0;
+    margin: 0 -28px !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #ffffff;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-table-head {
+    display: none !important;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-rows {
+    width: 100%;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-row {
+    width: 100%;
+    min-width: 0 !important;
+    min-height: 84px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center;
+    gap: 12px !important;
+    padding: 14px 28px !important;
+    border-bottom: 1px solid #e7ebf1;
+    background: #ffffff;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-person {
+    min-width: 0;
+    gap: 12px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-avatar {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    color: #0b6ff5;
+    background: #edf4ff;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-person-copy {
+    min-width: 0;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-person-copy strong {
+    color: #111827;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-mobile-contact {
+    display: block !important;
+    max-width: 100%;
+    margin-top: 5px;
+    overflow: hidden;
+    color: #98a2b3;
+    font-size: 12px;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-contact {
+    display: none !important;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-actions,
+  .calendar-group-guests-side-panel .calendar-group-guests-actions--current {
+    min-width: 0;
+    display: flex;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 10px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-status {
+    width: auto !important;
+    min-width: 0 !important;
+    justify-content: flex-end;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-status-pill {
+    width: auto !important;
+    min-width: 104px;
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-status-select {
+    width: 116px;
+    min-width: 116px;
+    height: 38px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-row-action {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-row-action svg {
+    display: block !important;
+    width: 20px !important;
+    height: 20px !important;
+    min-width: 20px;
+    min-height: 20px;
+    fill: none !important;
+    stroke: currentColor !important;
+    stroke-width: 2.1 !important;
+    stroke-linecap: round !important;
+    stroke-linejoin: round !important;
+    pointer-events: none;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-row-action--remove {
+    color: #ef3b3b !important;
+    border: 1px solid #ff8b8b;
+    background: #ffffff;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-row-action--add {
+    color: #ffffff !important;
+    border: 1px solid #16a34a;
+    background: #16a34a;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-empty {
+    padding: 42px 28px;
+    border-bottom: 1px solid #e7ebf1;
+    color: #667085;
+  }
+
+  .calendar-group-guests-side-panel .cp-panel-footer {
+    min-height: 0;
+    padding: 16px 28px max(20px, env(safe-area-inset-bottom));
+    border-top: 1px solid #e7ebf1;
+    background: #ffffff;
+  }
+
+  .calendar-group-guests-side-panel .cp-panel-footer__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-footer-note {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: #667085;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-info-icon {
+    width: 20px;
+    min-width: 20px;
+    height: 20px;
+    margin-top: 1px;
+    color: #0b6ff5;
+  }
+}
+
+@media (max-width: 640px) {
+  .calendar-group-guests-side-panel .cp-panel-header {
+    padding: 22px 20px 16px;
+  }
+
+  .calendar-group-guests-side-panel .cp-panel-header__title {
+    font-size: 1.55rem;
+  }
+
+  .calendar-group-guests-side-panel .cp-panel-header__subtitle {
+    font-size: 0.875rem;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-body {
+    padding: 18px 20px 10px !important;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-mobile-section-title {
+    margin-right: -20px;
+    margin-left: -20px;
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-table {
+    margin-right: -20px !important;
+    margin-left: -20px !important;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-row {
+    min-height: 82px;
+    padding: 13px 20px !important;
+    gap: 9px !important;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-avatar {
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-person {
+    gap: 10px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-actions,
+  .calendar-group-guests-side-panel .calendar-group-guests-actions--current {
+    gap: 8px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-status-pill {
+    min-width: 96px;
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-status-select {
+    width: 104px;
+    min-width: 104px;
+    height: 36px;
+    font-size: 11px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-row-action {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+  }
+
+  .calendar-group-guests-side-panel .cp-panel-footer {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+}
+
+@media (max-width: 420px) {
+  .calendar-group-guests-side-panel .calendar-group-guests-row {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-status-pill {
+    min-width: 88px;
+    padding: 0 8px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-status-select {
+    width: 96px;
+    min-width: 96px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-row-action {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+  }
+}

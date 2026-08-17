@@ -481,6 +481,8 @@ export function CalendarGroupGuestsPanel({
           {error && <PanelBanner tone="error">{error}</PanelBanner>}
           {mode === 'current' && isFull && <div className="calendar-group-guests-capacity-note">{copy.full}</div>}
 
+          <div className="calendar-group-guests-mobile-section-title">{copy.guests}</div>
+
           <div className="calendar-group-guests-table" data-mode={mode}>
             <div className="calendar-group-guests-table-head">
               <span>{copy.guest}</span>
