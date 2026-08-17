@@ -54,6 +54,7 @@ import { queryKeys } from '../queries/queryKeys'
 import '../styles/main/billing-tabs.css'
 import '../styles/main/billing-open-bill-popup.css'
 import '../styles/main/billing-batch-payment.css'
+import '../styles/main/billing-pos-editor.css'
 
 /** POS-style entry: typed digits are minor units (new digits append on the right), e.g. "55" → €0.55, "555" → €5.55. */
 const MAX_CASH_REGISTER_DIGITS = 12
@@ -222,6 +223,7 @@ function cleanStripeSetupMessage(message: string): string {
 }
 
 type DiscountType = 'PERCENT' | 'AMOUNT'
+type PosCatalogTab = 'services' | 'benefits' | 'giftCards'
 
 type LineItemDiscountDraft = { type: DiscountType; value: string }
 
@@ -1254,6 +1256,21 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [openBillDiscountEdits, setOpenBillDiscountEdits] = useState<Record<number, DiscountDraft>>({})
   const [openCreateItemDiscountIndex, setOpenCreateItemDiscountIndex] = useState<number | null>(null)
   const [openOpenBillItemDiscount, setOpenOpenBillItemDiscount] = useState<{ openBillId: number; index: number } | null>(null)
+  const [posCatalogTab, setPosCatalogTab] = useState<PosCatalogTab>('services')
+  const [posCatalogQuery, setPosCatalogQuery] = useState('')
+  const [posPaymentNotes, setPosPaymentNotes] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    if (createBillPanelOpen) {
+      setPosCatalogTab(billForm.billType === 'ADVANCE' ? 'benefits' : 'services')
+      setPosCatalogQuery('')
+      return
+    }
+    if (detailOpenBill) {
+      setPosCatalogTab('services')
+      setPosCatalogQuery('')
+    }
+  }, [createBillPanelOpen, billForm.billType, detailOpenBill?.id])
 
   useEffect(() => {
     if (openCreateItemDiscountIndex == null && openOpenBillItemDiscount == null) return
@@ -6172,89 +6189,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setDraggedOpenBillLine(null)
   }
 
-  const renderPaymentRemainingToMatch = (splits: OpenBillPaymentSplitDraft[], totalGross: number) => {
-    const difference = paymentSplitDifference(totalGross, splits)
-    const isMatched = Math.abs(difference) <= 0.01
-    const isOver = difference < 0
-    const label = isMatched
-      ? (locale === 'sl' ? 'Plačila so usklajena' : 'Payments matched')
-      : isOver
-        ? (locale === 'sl' ? 'Preplačano' : 'Overpaid by')
-        : (locale === 'sl' ? 'Preostanek do ujemanja' : 'Remaining to match')
-    const helper = isMatched
-      ? (locale === 'sl' ? 'Vsota plačil se ujema s skupnim zneskom.' : 'Payment total matches the bill total.')
-      : (locale === 'sl' ? 'Dopolnite razliko na eni od metod plačila zgoraj.' : 'Auto-fill the remaining balance to match the total.')
-    return (
-      <div className={`billing-invoice-remaining-strip${isMatched ? ' billing-invoice-remaining-strip--matched' : ''}${isOver ? ' billing-invoice-remaining-strip--over' : ''}`}>
-        <div className="billing-invoice-remaining-copy">
-          <span className="billing-invoice-remaining-dot" aria-hidden>{isMatched ? '✓' : '€'}</span>
-          <div>
-            <strong>{label}</strong>
-            <small>{helper}</small>
-          </div>
-        </div>
-        <strong className="billing-invoice-remaining-amount">{currency(Math.abs(difference))}</strong>
-      </div>
-    )
-  }
-
-  const renderDiscountCard = (
-    draft: DiscountDraft,
-    subtotalGross: number,
-    onValueChange: (value: string) => void,
-    items?: { quantity: number; grossPrice: string }[],
-  ) => {
-    const wholeBillValue = draft.wholeBillPercent ?? '0'
-    const sliderValue = Math.max(0, Math.min(100, Number(wholeBillValue || 0) || 0))
-    return (
-      <section className="billing-invoice-discount-card billing-invoice-discount-card--whole-bill">
-        <div className="billing-invoice-discount-head">
-          <div className="billing-invoice-discount-title">
-            <h3>{locale === 'sl' ? 'Popust za vse postavke' : 'Discount for all line items'}</h3>
-            <span className="billing-invoice-info-dot">i</span>
-          </div>
-        </div>
-        <div className="billing-invoice-discount-slider-layout">
-          <label className="billing-invoice-discount-slider-wrap">
-            <span className="sr-only">{locale === 'sl' ? 'Vrednost popusta' : 'Discount value'}</span>
-            <input
-              className="billing-invoice-discount-range"
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value={sliderValue}
-              onChange={(event) => onValueChange(String(Math.max(0, Math.min(100, Number(event.target.value) || 0))))}
-            />
-          </label>
-          <label className="billing-invoice-discount-value-pill">
-            <span className="sr-only">{locale === 'sl' ? 'Odstotek popusta' : 'Discount percentage'}</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={wholeBillValue}
-              onChange={(event) => onValueChange(sanitizeDiscountValueInput(event.target.value))}
-              onBlur={() => onValueChange(String(wholeBillPercentNumber({ ...draft, wholeBillPercent: wholeBillValue })))}
-              placeholder="0"
-            />
-            <em>%</em>
-          </label>
-        </div>
-      </section>
-    )
-  }
-
-
-  const discountIconSvg = () => (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M20.6 13.2 13.2 20.6a2.1 2.1 0 0 1-3 0L3.4 13.8a2.1 2.1 0 0 1-.6-1.5V5.1A2.1 2.1 0 0 1 4.9 3h7.2c.56 0 1.1.22 1.5.62l7 7a2.1 2.1 0 0 1 0 2.98Z" />
-      <path d="M7.5 7.5h.01" />
-      <path d="M9 16l6-6" />
-      <path d="M9.2 10.1h.01" />
-      <path d="M14.8 15.9h.01" />
-    </svg>
-  )
-
   const renderItemDiscountPopover = (
     draft: LineItemDiscountDraft,
     onPatch: (patch: Partial<LineItemDiscountDraft>) => void,
@@ -6309,164 +6243,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     if (currentIndex === removedIndex) return undefined
     const shifted = currentIndex > removedIndex ? currentIndex - 1 : currentIndex
     return nextLength > 0 ? Math.min(shifted, nextLength - 1) : undefined
-  }
-
-  const renderOpenBillEditorPaymentMethods = (ob: OpenBill, totalGross: number) => {
-    const splits = getOpenBillPaymentSplits(ob, totalGross)
-    const effectiveType = resolveOpenBillEffectiveType(ob)
-    const availableMethods = effectiveType === 'ADVANCE'
-      ? visiblePaymentMethods.filter((method) => !isDepositPaymentMethod(method))
-      : visiblePaymentMethods
-    const hasEntitlementCoverage = splits.some(isEntitlementPaymentSplit)
-    return (
-      <section className="billing-invoice-payment-card">
-        <div className="billing-invoice-section-title-row">
-          <h3>{hasEntitlementCoverage ? (locale === 'sl' ? 'Kritje z ugodnostjo' : 'Entitlement coverage') : (locale === 'sl' ? 'Načini plačila' : 'Payment methods')}</h3>
-          <span>{hasEntitlementCoverage ? (locale === 'sl' ? 'predplačano' : 'prepaid') : `${splits.length} ${splits.length === 1 ? (locale === 'sl' ? 'način' : 'method') : (locale === 'sl' ? 'načini' : 'methods')}`}</span>
-        </div>
-        <div className="billing-invoice-payment-list">
-          {splits.length > 0 ? splits.map((split) => {
-            const isEntitlement = isEntitlementPaymentSplit(split)
-            const isAdvanceSplit = isAdvancePaymentSplit(split)
-            const advanceSelections = getAdvanceSelectionsForSplit(split)
-            const selectedMethod = isEntitlement ? null : paymentMethods.find((method) => method.id === split.paymentMethodId)
-            const methodOptions = selectedMethod && !availableMethods.some((entry) => entry.id === selectedMethod.id)
-              ? [...availableMethods, selectedMethod]
-              : availableMethods
-            const displayedAmountGross = isAdvanceSplit ? formatPaymentAmountInput(sumAdvanceSelectionGross(advanceSelections)) : split.amountGross
-            return (
-              <div key={split.key} className={`billing-invoice-payment-row billing-invoice-payment-row--split${isEntitlement ? ' billing-invoice-payment-row--entitlement' : ''}${isEntitlement || isAdvanceSplit ? ' billing-invoice-payment-row--with-summary' : ''}`}>
-                <span className="billing-invoice-payment-icon" aria-hidden>
-                  {isEntitlement ? entitlementPaymentIcon() : selectedMethod ? paymentTypeIcon(selectedMethod.paymentType, selectedMethod.name) : paymentTypeIcon(undefined)}
-                </span>
-                <DesktopSelect
-                  value={isEntitlement ? ENTITLEMENT_PAYMENT_OPTION_VALUE : (split.paymentMethodId ?? '')}
-                  onChange={(e) => {
-                    if (e.target.value === ENTITLEMENT_PAYMENT_OPTION_VALUE) {
-                      selectEntitlementPaymentMethod(ob, split.key, totalGross)
-                      return
-                    }
-                    const paymentMethodId = Number(e.target.value)
-                    const nextMethod = paymentMethods.find((method) => method.id === paymentMethodId) || null
-                    const nextAdvanceSelections = isDepositPaymentMethod(nextMethod) ? getAdvanceSelectionsForSplit(split) : []
-                    updateOpenBillPaymentSplit(ob, split.key, {
-                      kind: 'payment',
-                      entitlementCode: undefined,
-                      entitlementId: undefined,
-                      entitlementName: undefined,
-                      entitlementType: undefined,
-                      paymentMethodId,
-                      amountGross: isDepositPaymentMethod(nextMethod) ? formatPaymentAmountInput(sumAdvanceSelectionGross(nextAdvanceSelections)) : split.amountGross,
-                      advanceSelections: nextAdvanceSelections,
-                    })
-                    if (isDepositPaymentMethod(nextMethod)) {
-                      openAdvancePaymentModalForOpenBill(ob, split.key)
-                    }
-                  }}
-                  aria-label={billingCopy.paymentMethod}
-                >
-                  {methodOptions.map((method) => (
-                    <option key={method.id} value={method.id}>{localizedPaymentMethodName(method, locale)}</option>
-                  ))}
-                  {effectiveType === 'INVOICE' && entitlementsEnabled && <option value={ENTITLEMENT_PAYMENT_OPTION_VALUE}>{entitlementPaymentLabel()}</option>}
-                </DesktopSelect>
-                <input
-                  className="billing-invoice-payment-amount-input"
-                  type="text"
-                  inputMode="decimal"
-                  value={displayedAmountGross}
-                  readOnly={isEntitlement || isAdvanceSplit}
-                  onClick={() => {
-                    if (isEntitlement) {
-                      openEntitlementPaymentChooser(ob, split.key, totalGross)
-                      return
-                    }
-                    if (isAdvanceSplit) openAdvancePaymentModalForOpenBill(ob, split.key)
-                  }}
-                  onChange={(e) => {
-                    if (isEntitlement || isAdvanceSplit) return
-                    updateOpenBillPaymentSplit(ob, split.key, { amountGross: e.target.value.replace(/[^0-9.,-]/g, '').replace(',', '.') })
-                  }}
-                  onBlur={() => {
-                    if (!isEntitlement && !isAdvanceSplit) updateOpenBillPaymentSplit(ob, split.key, { amountGross: formatPaymentAmountInput(Number(split.amountGross || 0)) })
-                  }}
-                  aria-label={locale === 'sl' ? 'Znesek plačila' : 'Payment amount'}
-                />
-                <button
-                  type="button"
-                  className={`billing-invoice-match-mini${isAdvanceSplit ? ' billing-invoice-match-mini--advance' : ''}${!isEntitlement && !isAdvanceSplit ? ' billing-invoice-match-mini--text' : ''}`}
-                  aria-label={isEntitlement
-                    ? (locale === 'sl' ? 'Izberi način vnosa ugodnosti' : 'Choose entitlement input')
-                    : isAdvanceSplit
-                      ? (locale === 'sl' ? 'Izberi predplačila' : 'Choose advance payments')
-                      : (locale === 'sl' ? 'Dopolni razliko na to metodo plačila' : 'Match remaining on this payment method')}
-                  title={isEntitlement
-                    ? (locale === 'sl' ? 'Ugodnost' : 'Entitlement')
-                    : isAdvanceSplit
-                      ? (locale === 'sl' ? 'Izberi predplačila' : 'Choose advance payments')
-                      : (locale === 'sl' ? 'Dopolni razliko' : 'Match remaining')}
-                  onClick={() => {
-                    if (isEntitlement) {
-                      openEntitlementPaymentChooser(ob, split.key, totalGross)
-                      return
-                    }
-                    if (isAdvanceSplit) {
-                      openAdvancePaymentModalForOpenBill(ob, split.key)
-                      return
-                    }
-                    matchOpenBillPaymentSplitToRemaining(ob, split.key, totalGross)
-                  }}
-                >
-                  {isEntitlement ? entitlementScanIcon() : isAdvanceSplit ? paymentTypeIcon('OTHER', 'Predplačilo') : (
-                    <>
-                      <span className="billing-invoice-match-icon" aria-hidden>{matchRemainingIcon()}</span>
-                      <span className="billing-invoice-match-label">{locale === 'sl' ? 'Dopolni razliko' : 'Match difference'}</span>
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className="billing-invoice-delete-mini"
-                  aria-label={locale === 'sl' ? 'Odstrani način plačila' : 'Remove payment method'}
-                  title={locale === 'sl' ? 'Odstrani način plačila' : 'Remove payment method'}
-                  onClick={() => removeOpenBillPaymentSplit(ob, split.key)}
-                >
-                  🗑
-                </button>
-                {isEntitlement && split.entitlementCode && (
-                  <div className="billing-invoice-entitlement-summary">
-                    <div>
-                      <strong>{locale === 'sl' ? 'Krito z ugodnostjo' : 'Covered by entitlement'}{split.entitlementName ? `: ${split.entitlementName}` : ''}</strong>
-                      <small>{locale === 'sl' ? 'Predplačana ugodnost pokrije termin. Nov račun ne bo izdan.' : 'The prepaid entitlement covers this session. No new invoice will be issued.'}</small>
-                    </div>
-                    <b>{currency(paymentSplitEffectiveGross(split))}</b>
-                  </div>
-                )}
-                {isAdvanceSplit && (
-                  <div className="billing-invoice-advance-summary">
-                    <strong>{advanceSelections.length > 0 ? describeAdvanceSelectionCount(advanceSelections.length) : (locale === 'sl' ? 'Predplačila niso izbrana.' : 'No advances selected.')}</strong>
-                    <span>{advanceSelections.length > 0 ? currency(sumAdvanceSelectionGross(advanceSelections)) : (locale === 'sl' ? 'Kliknite za izbor predplačil.' : 'Open the picker to select advances.')}</span>
-                  </div>
-                )}
-              </div>
-            )
-          }) : (
-            <div className="billing-invoice-payment-empty">{locale === 'sl' ? 'Ni izbranega načina plačila.' : 'No payment method selected.'}</div>
-          )}
-          <button
-            type="button"
-            className="billing-invoice-add-dashed"
-            disabled={availableMethods.length === 0 || hasEntitlementCoverage}
-            onClick={() => addOpenBillPaymentSplit(ob, totalGross)}
-          >
-            + {hasEntitlementCoverage
-              ? (locale === 'sl' ? 'Ugodnost krije celoten račun' : 'Entitlement covers the full bill')
-              : (locale === 'sl' ? 'Dodaj način plačila' : 'Add payment method')}
-          </button>
-          {renderPaymentRemainingToMatch(splits, totalGross)}
-        </div>
-      </section>
-    )
   }
 
   const renderAdvancePaymentModal = () => {
@@ -6957,384 +6733,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           )}
         </div>
       </SidePanel>
-    )
-  }
-
-  const renderModernOpenBillLineEditor = (
-    rowBill: OpenBill,
-    idx: number,
-    options?: { showClientColumn?: boolean; clientLabel?: string; selectable?: boolean },
-  ) => {
-    const item = getOpenBillItems(rowBill)[idx]
-    if (!item) return null
-    const baseBillServices = selectableServicesForOpenBill(rowBill)
-    // System VAT-carrier services used by generated consumable lines are intentionally hidden
-    // from the normal service catalogue. Keep the current persisted service as an option so
-    // the open-bill editor still renders the material name instead of a blank select.
-    const persistedItem = rowBill.items.find((serverItem) => Number(serverItem.id) === Number(item.openBillItemId)) ?? rowBill.items[idx]
-    const persistedService = persistedItem?.transactionService
-    const billServices = persistedService && !baseBillServices.some((entry) => Number(entry.id) === Number(persistedService.id))
-      ? [...baseBillServices, persistedService]
-      : baseBillServices
-    const lineKey = openBillEditorLineKey(rowBill, idx, item)
-    const selectable = options?.selectable !== false
-    const selected = Boolean(selectedOpenBillLines[lineKey])
-    const billItems = getOpenBillItems(rowBill)
-    const billDiscountDraft = getOpenBillDiscountDraft(rowBill)
-    const lineState = calculateDiscountedLineStates(billItems, billDiscountDraft)[idx]
-    const displayedLineGross = lineState?.finalGross ?? lineGrossTotal(item)
-    // Keep the editable Cena column tied to the original unit gross price.
-    // Item-level discounts only change the calculated Skupaj column.
-    const displayedUnitGross = Number(item.grossPrice || 0)
-    const lineDraft = getLineItemDiscount(billDiscountDraft, idx)
-    const lineDiscountActive = discountValueNumber(lineDraft) > 0
-    const lineDiscountOpen = openOpenBillItemDiscount?.openBillId === rowBill.id && openOpenBillItemDiscount.index === idx
-    const popupDraft = lineDraft
-    const lineDiscountButtonLabel = normalizeDiscountType(lineDraft.type) === 'AMOUNT'
-      ? currency(discountValueNumber(lineDraft))
-      : `${discountValueNumber(lineDraft)}%`
-    const removeLine = () => {
-      const currentItems = getOpenBillItems(rowBill)
-      const nextItems = currentItems.filter((_, i) => i !== idx)
-      setOpenBillItems(rowBill, nextItems)
-      const currentDraft = getOpenBillDiscountDraft(rowBill)
-      setOpenBillDiscountDraft(rowBill, { itemDiscounts: shiftedItemDiscountsAfterRemoval(currentDraft.itemDiscounts, idx, nextItems.length) })
-      if (openOpenBillItemDiscount?.openBillId === rowBill.id) setOpenOpenBillItemDiscount(null)
-    }
-    return (
-      <div
-        key={lineKey}
-        className={`billing-invoice-item-row${options?.showClientColumn ? ' billing-invoice-item-row--with-client' : ''}${selected ? ' is-selected' : ''}`}
-        draggable
-        onDragStart={() => setDraggedOpenBillLine({ openBillId: rowBill.id, index: idx })}
-        onDragEnd={() => setDraggedOpenBillLine(null)}
-      >
-        <span className="billing-invoice-row-tools">
-          {selectable && (
-            <input
-              type="checkbox"
-              checked={selected}
-              onChange={(event) => {
-                const checked = event.target.checked
-                setSelectedOpenBillLines((prev) => {
-                  const next = { ...prev }
-                  if (checked) next[lineKey] = true
-                  else delete next[lineKey]
-                  return next
-                })
-              }}
-              onClick={(event) => event.stopPropagation()}
-              aria-label={locale === 'sl' ? 'Izberi postavko za premik' : 'Select item to move'}
-            />
-          )}
-          <span className="billing-invoice-drag-handle" aria-hidden>⠿</span>
-        </span>
-        <div className="billing-bill-modal-field billing-bill-modal-field--service">
-          <DesktopSelect
-            value={item.transactionServiceId}
-            onChange={(e) => {
-              const id = Number(e.target.value)
-              const svc = billServices.find((entry) => entry.id === id)
-              const next = [...getOpenBillItems(rowBill)]
-              next[idx] = { ...next[idx], transactionServiceId: id, netPrice: String(svc?.netPrice ?? 0), grossPrice: grossStringFromService(svc) }
-              setOpenBillItems(rowBill, next)
-            }}
-          >
-            {billServices.map((service) => (
-              <option key={service.id} value={service.id}>{serviceOptionLabel(service)}</option>
-            ))}
-          </DesktopSelect>
-        </div>
-        {options?.showClientColumn && (
-          <div className="billing-invoice-client-chip" title={options.clientLabel}>{options.clientLabel || '—'}</div>
-        )}
-        <div className="billing-bill-modal-field billing-bill-modal-field--qty">
-          <input
-            type="number"
-            min="1"
-            value={item.quantity}
-            onChange={(e) => {
-              const next = [...getOpenBillItems(rowBill)]
-              next[idx] = { ...next[idx], quantity: Number(e.target.value) }
-              setOpenBillItems(rowBill, next)
-            }}
-          />
-        </div>
-        <div className="billing-bill-modal-field billing-bill-modal-field--price">
-          <input
-            type="text"
-            inputMode="numeric"
-            autoComplete="off"
-            value={formatCashRegisterAmount(displayedUnitGross, locale)}
-            onChange={(e) => {
-              const digits = cashRegisterDigitsFromRaw(e.target.value)
-              const cents = digits ? Number.parseInt(digits, 10) : 0
-              const grossStr = Number.isFinite(cents) ? (cents / 100).toFixed(2) : '0'
-              const next = [...getOpenBillItems(rowBill)]
-              next[idx] = { ...next[idx], grossPrice: grossStr, netPrice: String(grossToNet(grossStr, item.transactionServiceId)) }
-              setOpenBillItems(rowBill, next)
-            }}
-          />
-        </div>
-        <div className="billing-invoice-row-amount"><strong>{currency(displayedLineGross)}</strong></div>
-        <div className={`billing-invoice-item-discount-cell${lineDiscountOpen ? ' is-open' : ''}`}>
-          <button
-            type="button"
-            className={`billing-invoice-discount-mini${lineDiscountActive ? ' is-active' : ''}${lineDiscountOpen ? ' is-open' : ''}`}
-            onClick={(event) => {
-              event.stopPropagation()
-              setOpenOpenBillItemDiscount(lineDiscountOpen ? null : { openBillId: rowBill.id, index: idx })
-            }}
-            aria-label={locale === 'sl' ? 'Popust za postavko' : 'Discount this item'}
-            title={locale === 'sl' ? 'Popust za postavko' : 'Discount this item'}
-          >
-            <span>{lineDiscountButtonLabel}</span>
-          </button>
-          {lineDiscountOpen && renderItemDiscountPopover(
-            popupDraft,
-            (patch) => setOpenBillItemDiscountDraft(rowBill, idx, patch),
-            () => setOpenOpenBillItemDiscount(null),
-          )}
-        </div>
-        <button
-          type="button"
-          className="billing-invoice-delete-mini"
-          onClick={removeLine}
-          aria-label={billingCopy.removeBillLine}
-          title={billingCopy.removeBillLine}
-        >
-          🗑
-        </button>
-      </div>
-    )
-  }
-
-  const renderModernBillFormLineEditor = (item: BillForm['items'][number], index: number) => {
-    const lineState = calculateDiscountedLineStates(billForm.items, createBillDiscountDraft)[index]
-    const displayedLineGross = lineState?.finalGross ?? lineGrossTotal(item)
-    // The editable price is always the original unit gross price. Discounts only
-    // affect the calculated Amount column and must not be folded back into Price.
-    const displayedUnitGross = Number(item.grossPrice || 0)
-    const lineDraft = getLineItemDiscount(createBillDiscountDraft, index)
-    const lineDiscountActive = discountValueNumber(lineDraft) > 0
-    const lineDiscountOpen = openCreateItemDiscountIndex === index
-    const popupDraft = lineDraft
-    const patchCreateItemDiscount = (patch: Partial<LineItemDiscountDraft>) => {
-      setBillForm((prev) => {
-        const existing = normalizeItemDiscountMap(prev.itemDiscounts, { keepZero: true })[index] ?? { type: 'PERCENT' as DiscountType, value: '0' }
-        const nextLine = {
-          type: patch.type ?? existing.type,
-          value: Object.prototype.hasOwnProperty.call(patch, 'value') ? (patch.value ?? '0') : existing.value,
-        }
-        const nextItemDiscounts = normalizeItemDiscountMap(prev.itemDiscounts, { keepZero: true })
-        nextItemDiscounts[index] = nextLine
-        return { ...prev, itemDiscounts: nextItemDiscounts }
-      })
-    }
-    const removeLine = () => {
-      const nextItems = billForm.items.filter((_, i) => i !== index)
-      setBillForm((prev) => ({
-        ...prev,
-        items: nextItems,
-        itemDiscounts: shiftedItemDiscountsAfterRemoval(normalizeItemDiscountMap(prev.itemDiscounts, { keepZero: true }), index, nextItems.length),
-        discountItemIndex: clampDiscountIndexAfterRemoval(prev.discountItemIndex, index, nextItems.length),
-      }))
-      if (openCreateItemDiscountIndex === index) setOpenCreateItemDiscountIndex(null)
-    }
-    const lineDiscountButtonLabel = normalizeDiscountType(lineDraft.type) === 'AMOUNT'
-      ? currency(discountValueNumber(lineDraft))
-      : `${discountValueNumber(lineDraft)}%`
-    return (
-      <div key={index} className={`billing-invoice-item-row billing-invoice-item-row--compact-create${billForm.billType === 'ADVANCE' ? ' billing-invoice-item-row--advance' : ''}`}>
-        <span className="billing-invoice-drag-handle" aria-hidden>⠿</span>
-        <div className="billing-bill-modal-field billing-bill-modal-field--service">
-          <DesktopSelect
-            value={item.transactionServiceId}
-            onChange={(e) => {
-              const id = Number(e.target.value)
-              const service = services.find((entry) => entry.id === id)
-              const next = [...billForm.items]
-              next[index] = { ...next[index], transactionServiceId: id, netPrice: String(service?.netPrice ?? 0), grossPrice: grossStringFromService(service) }
-              setBillForm({ ...billForm, items: next })
-            }}
-          >
-            {availableBillServices.map((service) => (
-              <option key={service.id} value={service.id}>{serviceOptionLabel(service)}</option>
-            ))}
-          </DesktopSelect>
-        </div>
-        <div className="billing-bill-modal-field billing-bill-modal-field--qty">
-          <input
-            type="number"
-            min="1"
-            value={item.quantity || ''}
-            onChange={(e) => {
-              const next = [...billForm.items]
-              next[index] = { ...next[index], quantity: e.target.value === '' ? 0 : Number(e.target.value) }
-              setBillForm({ ...billForm, items: next })
-            }}
-          />
-        </div>
-        <div className="billing-bill-modal-field billing-bill-modal-field--price">
-          <input
-            type="text"
-            inputMode="numeric"
-            autoComplete="off"
-            aria-label={billingCopy.grossUnitPrice}
-            value={formatCashRegisterAmount(displayedUnitGross, locale)}
-            onFocus={(e) => e.currentTarget.select()}
-            onClick={(e) => e.currentTarget.select()}
-            onChange={(e) => {
-              const digits = cashRegisterDigitsFromRaw(e.target.value)
-              const cents = digits ? Number.parseInt(digits, 10) : 0
-              const grossStr = Number.isFinite(cents) ? (cents / 100).toFixed(2) : '0'
-              const next = [...billForm.items]
-              next[index] = { ...next[index], grossPrice: grossStr, netPrice: String(grossToNet(grossStr, item.transactionServiceId)) }
-              setBillForm({ ...billForm, items: next })
-            }}
-          />
-        </div>
-        <div className="billing-invoice-row-amount"><strong>{currency(displayedLineGross)}</strong></div>
-        <div className={`billing-invoice-item-discount-cell${lineDiscountOpen ? ' is-open' : ''}`}>
-          <button
-            type="button"
-            className={`billing-invoice-discount-mini${lineDiscountActive ? ' is-active' : ''}${lineDiscountOpen ? ' is-open' : ''}`}
-            data-mobile-label={lineDiscountButtonLabel}
-            onClick={(event) => {
-              event.stopPropagation()
-              setOpenCreateItemDiscountIndex(lineDiscountOpen ? null : index)
-            }}
-            aria-label={locale === 'sl' ? 'Popust za postavko' : 'Discount this item'}
-            title={locale === 'sl' ? 'Popust za postavko' : 'Discount this item'}
-          >
-            <span>{lineDiscountButtonLabel}</span>
-          </button>
-          {lineDiscountOpen && renderItemDiscountPopover(
-            popupDraft,
-            patchCreateItemDiscount,
-            () => setOpenCreateItemDiscountIndex(null),
-          )}
-        </div>
-        <button
-          type="button"
-          className="billing-invoice-delete-mini"
-          onClick={removeLine}
-          aria-label={billingCopy.removeBillLine}
-          title={billingCopy.removeBillLine}
-        >
-          🗑
-        </button>
-      </div>
-    )
-  }
-
-
-  const renderCreateBillPaymentMethods = (totalGross: number) => {
-    const splits = getCreateBillPaymentSplits(totalGross)
-    return (
-      <section className={`billing-invoice-payment-card billing-invoice-payment-card--compact-create${billForm.billType === 'ADVANCE' ? ' billing-invoice-payment-card--advance' : ''}`}>
-        <div className="billing-invoice-section-title-row">
-          <h3>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</h3>
-          <span>{splits.length} {splits.length === 1 ? (locale === 'sl' ? 'način' : 'method') : (locale === 'sl' ? 'načini' : 'methods')}</span>
-        </div>
-        <div className="billing-invoice-payment-list">
-          {splits.length > 0 ? splits.map((split) => {
-            const selectedMethod = paymentMethods.find((method) => method.id === split.paymentMethodId)
-            const isAdvanceSplit = isAdvancePaymentSplit(split)
-            const advanceSelections = getAdvanceSelectionsForSplit(split)
-            const methodOptions = selectedMethod && !createAvailablePaymentMethods.some((entry) => entry.id === selectedMethod.id)
-              ? [...createAvailablePaymentMethods, selectedMethod]
-              : createAvailablePaymentMethods
-            const displayedAmountGross = isAdvanceSplit ? formatPaymentAmountInput(sumAdvanceSelectionGross(advanceSelections)) : split.amountGross
-            return (
-              <div key={split.key} className={`billing-invoice-payment-row billing-invoice-payment-row--split${isAdvanceSplit ? ' billing-invoice-payment-row--with-summary' : ''}`}>
-                <span className="billing-invoice-payment-icon" aria-hidden>
-                  {selectedMethod ? paymentTypeIcon(selectedMethod.paymentType, selectedMethod.name) : paymentTypeIcon(undefined)}
-                </span>
-                <DesktopSelect
-                  value={split.paymentMethodId ?? ''}
-                  onChange={(e) => {
-                    const paymentMethodId = Number(e.target.value)
-                    const nextMethod = paymentMethods.find((method) => method.id === paymentMethodId) || null
-                    const nextAdvanceSelections = isDepositPaymentMethod(nextMethod) ? getAdvanceSelectionsForSplit(split) : []
-                    updateCreateBillPaymentSplit(split.key, {
-                      paymentMethodId,
-                      amountGross: isDepositPaymentMethod(nextMethod) ? formatPaymentAmountInput(sumAdvanceSelectionGross(nextAdvanceSelections)) : split.amountGross,
-                      advanceSelections: nextAdvanceSelections,
-                    })
-                    if (isDepositPaymentMethod(nextMethod)) openAdvancePaymentModalForCreate(split.key)
-                  }}
-                  aria-label={billingCopy.paymentMethod}
-                >
-                  {methodOptions.map((method) => (
-                    <option key={method.id} value={method.id}>{localizedPaymentMethodName(method, locale)}</option>
-                  ))}
-                </DesktopSelect>
-                <input
-                  className="billing-invoice-payment-amount-input"
-                  type="text"
-                  inputMode="decimal"
-                  value={displayedAmountGross}
-                  readOnly={isAdvanceSplit}
-                  onClick={() => { if (isAdvanceSplit) openAdvancePaymentModalForCreate(split.key) }}
-                  onChange={(e) => {
-                    if (isAdvanceSplit) return
-                    updateCreateBillPaymentSplit(split.key, { amountGross: e.target.value.replace(/[^0-9.,-]/g, '').replace(',', '.') })
-                  }}
-                  onBlur={() => {
-                    if (!isAdvanceSplit) updateCreateBillPaymentSplit(split.key, { amountGross: formatPaymentAmountInput(Number(split.amountGross || 0)) })
-                  }}
-                  aria-label={locale === 'sl' ? 'Znesek plačila' : 'Payment amount'}
-                />
-                <button
-                  type="button"
-                  className={`billing-invoice-match-mini${isAdvanceSplit ? ' billing-invoice-match-mini--advance' : ''}${!isAdvanceSplit ? ' billing-invoice-match-mini--text' : ''}`}
-                  aria-label={isAdvanceSplit ? (locale === 'sl' ? 'Izberi predplačila' : 'Choose advance payments') : (locale === 'sl' ? 'Dopolni razliko na to metodo plačila' : 'Match remaining on this payment method')}
-                  title={isAdvanceSplit ? (locale === 'sl' ? 'Izberi predplačila' : 'Choose advance payments') : (locale === 'sl' ? 'Dopolni razliko' : 'Match remaining')}
-                  onClick={() => {
-                    if (isAdvanceSplit) {
-                      openAdvancePaymentModalForCreate(split.key)
-                      return
-                    }
-                    matchCreateBillPaymentSplitToRemaining(split.key, totalGross)
-                  }}
-                >
-                  {isAdvanceSplit ? paymentTypeIcon('OTHER', 'Predplačilo') : (
-                    <>
-                      <span className="billing-invoice-match-icon" aria-hidden>{matchRemainingIcon()}</span>
-                      <span className="billing-invoice-match-label">{locale === 'sl' ? 'Dopolni razliko' : 'Match difference'}</span>
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className="billing-invoice-delete-mini"
-                  onClick={() => removeCreateBillPaymentSplit(split.key)}
-                  aria-label={locale === 'sl' ? 'Odstrani način plačila' : 'Remove payment method'}
-                  title={locale === 'sl' ? 'Odstrani način plačila' : 'Remove payment method'}
-                >
-                  🗑
-                </button>
-                {isAdvanceSplit && (
-                  <div className="billing-invoice-advance-summary">
-                    <strong>{advanceSelections.length > 0 ? describeAdvanceSelectionCount(advanceSelections.length) : (locale === 'sl' ? 'Predplačila niso izbrana.' : 'No advances selected.')}</strong>
-                    <span>{advanceSelections.length > 0 ? currency(sumAdvanceSelectionGross(advanceSelections)) : (locale === 'sl' ? 'Kliknite za izbor predplačil.' : 'Open the picker to select advances.')}</span>
-                  </div>
-                )}
-              </div>
-            )
-          }) : <div className="billing-invoice-payment-empty">{billingCopy.selectPaymentMethod}</div>}
-          <button
-            type="button"
-            className="billing-invoice-add-dashed"
-            disabled={createAvailablePaymentMethods.length === 0}
-            onClick={() => addCreateBillPaymentSplit(totalGross)}
-          >
-            + {locale === 'sl' ? 'Dodaj način plačila' : 'Add payment method'}
-          </button>
-          {renderPaymentRemainingToMatch(splits, totalGross)}
-        </div>
-      </section>
     )
   }
 
@@ -8055,431 +7453,539 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       </SidePanel>
     )
   }
-  const renderModernOpenBillEditor = (ob: OpenBill) => {
-    const rootBill = getOpenBillEditorRoot(ob)
-    const baseRelatedOpenBills = getRelatedOpenBillsForEditor(rootBill)
-    const onePayeeKey = onePayeeKeyForRelatedOpenBills(baseRelatedOpenBills, rootBill)
-    const temporaryOpenBills = getTemporaryOpenBillTabsForRoot(rootBill)
-      .filter((entry) => !baseRelatedOpenBills.some((base) => base.id === entry.id))
-    const temporaryOpenBillIdSet = new Set(temporaryOpenBills.map((entry) => entry.id))
-    const relatedOpenBills = [...baseRelatedOpenBills, ...temporaryOpenBills]
-    const onePayeeLocked = hasIssuedBillForOpenBillGroup(rootBill)
-    const onePayeeForAll = temporaryOpenBills.length === 0 && !onePayeeLocked && Boolean(openBillOnePayeeForAll[onePayeeKey])
-    const visibleTabs = onePayeeForAll ? baseRelatedOpenBills.slice(0, 1) : relatedOpenBills
-    const activeBill = onePayeeForAll
-      ? (baseRelatedOpenBills[0] ?? rootBill)
-      : (relatedOpenBills.find((entry) => entry.id === ob.id) ?? rootBill)
-    const activeItems = getOpenBillItems(activeBill)
-    const combinedRows = baseRelatedOpenBills.flatMap((entry) => getOpenBillItems(entry).map((item, index) => ({ entry, item, index })))
-    const displayedRows = onePayeeForAll ? combinedRows : activeItems.map((item, index) => ({ entry: activeBill, item, index }))
-    const totalsItems = onePayeeForAll ? combinedRows.map((row) => row.item) : activeItems
-    const detailSubtotalGross = estimateGross(totalsItems)
-    const detailDiscountDraft = getOpenBillDiscountDraft(activeBill)
-    const detailDiscountedItems = applyDiscountToItemsForVat(totalsItems, detailDiscountDraft)
-    const detailVatRows = vatBreakdownRowsForItems(detailDiscountedItems)
-    const detailDiscountGross = calculateDiscountGross(detailSubtotalGross, detailDiscountDraft, totalsItems)
-    const detailGross = payableGrossAfterDiscount(detailSubtotalGross, detailDiscountDraft, totalsItems)
-    const activeEntitlementSettlement = onePayeeForAll ? null : openBillEntitlementSettlementSelection(activeBill, detailGross)
-    const activeBillSelectableServices = selectableServicesForOpenBill(activeBill)
-    const totalOpenBills = onePayeeForAll ? 1 : relatedOpenBills.length
-    const totalLineItems = relatedOpenBills.reduce((sum, entry) => sum + getOpenBillItems(entry).length, 0)
-    const totalAcrossBills = relatedOpenBills.reduce((sum, entry) => sum + openBillPayableGross(entry), 0)
-    const totalUnpaidAcrossBills = relatedOpenBills.reduce((sum, entry) => {
-      const gross = openBillPayableGross(entry)
-      return sum + (openBillEntitlementSettlementSelection(entry, gross) ? 0 : gross)
-    }, 0)
-    const addBillSourceBill = baseRelatedOpenBills[0] ?? rootBill
-    const addBillSessionId = addBillSourceBill.sessionId
-      ?? getOpenBillIncludedSessions(addBillSourceBill).find((s) => Number(s.sessionId) > 0)?.sessionId
-      ?? null
-    const canAddAdditionalBill = addBillSessionId != null && Number(addBillSessionId) > 0 && !onePayeeForAll
-    const relatedIds = new Set(relatedOpenBills.map((entry) => entry.id))
-    const externalCandidateOpenBills = openBills
-      .filter((entry) => !relatedIds.has(entry.id))
-      .sort((a, b) => Number(b.id) - Number(a.id))
-    const externalSearch = externalOpenBillSearch.trim().toLowerCase()
-    const filteredExternalOpenBills = externalCandidateOpenBills.filter((entry) => {
-      if (!externalSearch) return true
-      const haystack = [
-        `#${entry.id}`,
-        formatBillingSessionIdDisplay(entry.sessionId),
-        openBillClientLabel(entry),
-        openBillEditorSubtitle(entry),
-        formatOpenBillSession(entry.sessionInfo),
-      ].join(' ').toLowerCase()
-      return haystack.includes(externalSearch)
-    })
-    const displayedLineKeys = displayedRows.map((row) => openBillEditorLineKey(row.entry, row.index, row.item))
-    const selectedDisplayedRows = displayedRows.filter((row) => selectedOpenBillLines[openBillEditorLineKey(row.entry, row.index, row.item)])
-    const selectableRows = !onePayeeForAll && displayedRows.length > 0
-    const allDisplayedRowsSelected = selectableRows && displayedLineKeys.every((key) => selectedOpenBillLines[key])
-    const transferTargets = !onePayeeForAll ? relatedOpenBills.filter((entry) => entry.id !== activeBill.id) : []
-    const selectedMoveTargetId = moveSelectedTargetOpenBillId != null && transferTargets.some((entry) => entry.id === moveSelectedTargetOpenBillId)
-      ? moveSelectedTargetOpenBillId
-      : (transferTargets[0]?.id ?? null)
-    const selectedMoveTarget = selectedMoveTargetId == null ? null : transferTargets.find((entry) => entry.id === selectedMoveTargetId) ?? null
+  const posCatalogCategoryForService = (service: BillingService): PosCatalogTab => {
+    const value = `${service.code || ''} ${service.description || ''}`.toLocaleLowerCase()
+    if (/(daril|gift|voucher|vrednost|value|boni?|darilni|bon za|gift card)/i.test(value)) return 'giftCards'
+    if (/(ugod|membership|član|clan|članarina|clanarina|meseč|mesec|karta|paket|obisk|ticket|pass|dostop|tečaj|tecaj|course|access|subscription)/i.test(value)) return 'benefits'
+    return 'services'
+  }
 
-    const setAllDisplayedLineSelection = (checked: boolean) => {
-      setSelectedOpenBillLines((prev) => {
-        const next = { ...prev }
-        displayedLineKeys.forEach((key) => {
-          if (checked) next[key] = true
-          else delete next[key]
-        })
-        return next
-      })
+  const posCatalogTabLabel = (tab: PosCatalogTab) => {
+    if (locale === 'sl') {
+      if (tab === 'services') return 'Storitve'
+      if (tab === 'benefits') return 'Ugodnosti'
+      return 'Boni'
     }
+    if (tab === 'services') return 'Services'
+    if (tab === 'benefits') return 'Benefits'
+    return 'Gift cards'
+  }
 
-    const moveSelectedLinesToBill = (targetBill: OpenBill) => {
-      if (selectedDisplayedRows.length === 0 || targetBill.id === activeBill.id) return
-      const selectedKeys = new Set(selectedDisplayedRows.map((row) => openBillEditorLineKey(row.entry, row.index, row.item)))
-      const movedItems: OpenBillEditItem[] = []
-      const sourceMap = new Map<number, { bill: OpenBill; indices: Set<number> }>()
+  const posCatalogRows = (catalogServices: BillingService[], billType?: BillDocumentType | string | null) => {
+    const normalizedQuery = posCatalogQuery.trim().toLocaleLowerCase()
+    const categoryRows = catalogServices.filter((service) => posCatalogCategoryForService(service) === posCatalogTab)
+    // Some older workspaces only have billing services and do not tag benefit names.
+    // Keep Novo predplačilo usable while the catalog is being migrated to explicit product types.
+    const tabRows = categoryRows.length === 0 && String(billType || '').toUpperCase() === 'ADVANCE' && posCatalogTab === 'benefits'
+      ? catalogServices
+      : categoryRows
+    if (!normalizedQuery) return tabRows
+    return tabRows.filter((service) => `${service.code || ''} ${service.description || ''}`.toLocaleLowerCase().includes(normalizedQuery))
+  }
 
-      displayedRows.forEach((row) => {
-        const key = openBillEditorLineKey(row.entry, row.index, row.item)
-        if (!selectedKeys.has(key)) return
-        movedItems.push({ ...row.item })
-        const current = sourceMap.get(row.entry.id) ?? { bill: row.entry, indices: new Set<number>() }
-        current.indices.add(row.index)
-        sourceMap.set(row.entry.id, current)
-      })
+  const posServiceSecondaryText = (service: BillingService | null | undefined, fallback?: string) => {
+    if (fallback?.trim()) return fallback.trim()
+    const code = String(service?.code || '').trim()
+    return code && code.toLocaleLowerCase() !== String(service?.description || '').trim().toLocaleLowerCase() ? code : ''
+  }
 
-      sourceMap.forEach(({ bill, indices }) => {
-        setOpenBillItems(bill, getOpenBillItems(bill).filter((_, index) => !indices.has(index)))
-      })
-      setOpenBillItems(targetBill, [...getOpenBillItems(targetBill), ...movedItems])
-      setSelectedOpenBillLines((prev) => {
-        const next = { ...prev }
-        selectedKeys.forEach((key) => { delete next[key] })
-        return next
-      })
-      selectOpenBillEditorTab(targetBill)
+  const posCreatePayeeLabel = () => {
+    if (billForm.billingTarget === 'COMPANY') return selectedRecipientCompany?.name || (locale === 'sl' ? 'Izberi podjetje' : 'Select company')
+    return selectedClient ? fullName(selectedClient) : (locale === 'sl' ? 'Išči stranko po imenu, telefonu ali e-pošti …' : 'Search client by name, phone or email …')
+  }
+
+  const posOpenBillPayeeLabel = (ob: OpenBill) => {
+    const draft = openBillDetailsEdits[ob.id]
+    if (draft?.billingTarget === 'COMPANY' && draft.recipientCompanyId) {
+      return companies.find((company) => company.id === draft.recipientCompanyId)?.name || (locale === 'sl' ? 'Podjetje' : 'Company')
     }
+    if (draft?.billingTarget === 'PERSON' && draft.clientId) {
+      const client = clients.find((entry) => entry.id === draft.clientId)
+      if (client) return fullName(client)
+    }
+    return openBillClientLabel(ob)
+  }
 
+  const renderPosCatalog = (
+    catalogServices: BillingService[],
+    onAdd: (service: BillingService) => void,
+    billType?: BillDocumentType | string | null,
+  ) => {
+    const rows = posCatalogRows(catalogServices, billType)
+    const totalForTab = posCatalogRows(catalogServices, billType).length
+    const placeholder = posCatalogTab === 'services'
+      ? (locale === 'sl' ? 'Išči storitve …' : 'Search services …')
+      : posCatalogTab === 'benefits'
+        ? (locale === 'sl' ? 'Išči ugodnosti …' : 'Search benefits …')
+        : (locale === 'sl' ? 'Išči bone …' : 'Search gift cards …')
     return (
-      <div className="billing-invoice-modern-body">
-        <section className="billing-invoice-management-card billing-invoice-management-card--bookmarks billing-invoice-management-card--open-edit-compact">
-          <div className="billing-invoice-management-head billing-invoice-management-head--edit-open">
-            <div className="billing-invoice-management-context">
-              <p className="billing-invoice-session-meta">{openBillEditorSubtitle(activeBill)}</p>
-            </div>
-            {baseRelatedOpenBills.length > 1 && temporaryOpenBills.length === 0 && !onePayeeLocked && (
+      <>
+        <div className="billing-pos-tabs" role="tablist" aria-label={locale === 'sl' ? 'Katalog' : 'Catalog'}>
+          {(['services', 'benefits', 'giftCards'] as PosCatalogTab[]).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={posCatalogTab === tab}
+              className={posCatalogTab === tab ? 'is-active' : ''}
+              onClick={() => { setPosCatalogTab(tab); setPosCatalogQuery('') }}
+            >
+              {posCatalogTabLabel(tab)}
+            </button>
+          ))}
+        </div>
+        <input
+          className="billing-pos-search"
+          value={posCatalogQuery}
+          onChange={(event) => setPosCatalogQuery(event.target.value)}
+          placeholder={placeholder}
+          aria-label={placeholder}
+        />
+        <div className="billing-pos-catalog-list">
+          {rows.length > 0 ? rows.map((service) => (
+            <div key={service.id} className="billing-pos-catalog-row">
+              <div className="billing-pos-catalog-copy">
+                <strong>{serviceOptionLabel(service)}</strong>
+                {posServiceSecondaryText(service) && <small>{posServiceSecondaryText(service)}</small>}
+              </div>
+              <span className="billing-pos-catalog-price">{currency(Number(grossStringFromService(service)))}</span>
               <button
                 type="button"
-                className="billing-invoice-one-payee-switch"
-                aria-pressed={onePayeeForAll}
-                onClick={() => {
-                  const next = !onePayeeForAll
-                  setOpenBillOnePayeeForAll((prev) => ({ ...prev, [onePayeeKey]: next }))
-                  if (next && baseRelatedOpenBills[0]) selectOpenBillEditorTab(baseRelatedOpenBills[0])
-                }}
+                className="billing-pos-add-btn"
+                onClick={() => onAdd(service)}
+                aria-label={`${locale === 'sl' ? 'Dodaj' : 'Add'} ${serviceOptionLabel(service)}`}
               >
-                <span>{locale === 'sl' ? 'Uporabi enega plačnika za vse račune' : 'Use one payee for all bills'}</span>
-                <span className="calendar-payment-manager-info-dot" aria-hidden>i</span>
-                <span className={`modern-switch ${onePayeeForAll ? 'on' : ''}`} aria-hidden><span /></span>
+                +
               </button>
-            )}
-          </div>
-          <div className="billing-invoice-tabs-row billing-invoice-tabs-row--bookmarks">
-            {visibleTabs.map((entry) => {
-              const meta = openBillEditorTabMeta(entry)
-              const selected = entry.id === activeBill.id
-              const temporary = temporaryOpenBillIdSet.has(entry.id)
-              return (
-                <button
-                  key={entry.id}
-                  type="button"
-                  className={`billing-invoice-bill-tab billing-invoice-bill-tab--bookmark billing-invoice-bill-tab--${temporary ? 'temporary' : (meta.target === 'COMPANY' ? 'company' : 'client')}${selected ? ' is-active' : ''}` }
-                  onClick={() => selectOpenBillEditorTab(entry)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => moveOpenBillLineToBill(entry)}
-                >
-                  <span className="billing-invoice-tab-icon" aria-hidden>
-                    {temporary
-                      ? '▯'
-                      : (meta.target === 'COMPANY'
-                        ? '▦'
-                        : meta.label.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join(''))}
-                  </span>
-                  <span className="billing-invoice-tab-copy">
-                    <strong>{temporary ? (entry.reference || meta.label || `#${entry.id}`) : meta.label}</strong>
-                    <small>{temporary ? (locale === 'sl' ? 'Za prenos' : 'For transfer') : meta.typeLabel}</small>
-                    {!temporary && meta.serviceClientLabel && (
-                      <span className="billing-invoice-tab-service-client">
-                        {locale === 'sl' ? 'Klient: ' : 'Client: '}{meta.serviceClientLabel}
-                      </span>
-                    )}
-                  </span>
-                  {temporary ? (
-                    <span
-                      className="billing-invoice-tab-edit billing-invoice-tab-remove"
-                      role="button"
-                      tabIndex={0}
-                      title={locale === 'sl' ? 'Odstrani začasni račun' : 'Remove temporary bill'}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        removeTemporaryOpenBillTab(rootBill, entry.id)
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          removeTemporaryOpenBillTab(rootBill, entry.id)
-                        }
-                      }}
-                    >
-                      ×
-                    </span>
-                  ) : (
-                    <span
-                      className="billing-invoice-tab-edit"
-                      role="button"
-                      tabIndex={0}
-                      title={locale === 'sl' ? 'Uredi plačnika' : 'Edit payee'}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        openOpenBillPayeeEditor(entry)
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          openOpenBillPayeeEditor(entry)
-                        }
-                      }}
-                    >
-                      ✎
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-            {!onePayeeForAll && (
-              <div className="billing-invoice-add-tab-wrap">
-                <button
-                  type="button"
-                  className="billing-invoice-add-tab billing-invoice-add-tab--bookmark"
-                  onClick={() => setOpenBillAddMenuForId((current) => (current === rootBill.id ? null : rootBill.id))}
-                  title={locale === 'sl' ? 'Dodaj račun ali odpri obstoječega za prenos postavk.' : 'Add a bill or open an existing one for moving items.'}
-                >
-                  <span>+</span>
-                  <strong>{locale === 'sl' ? 'Dodaj račun' : 'Add bill'}</strong>
-                </button>
-                {openBillAddMenuForId === rootBill.id && (
-                  <div className="billing-invoice-add-menu" role="menu">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={!canAddAdditionalBill}
-                      onClick={() => {
-                        setOpenBillAddMenuForId(null)
-                        openAddOpenBillForSessionModal(addBillSourceBill)
-                      }}
-                    >
-                      <span className="billing-invoice-add-menu-icon" aria-hidden>+</span>
-                      <span>
-                        <strong>{locale === 'sl' ? 'Dodaj nov račun tej seji' : 'Add new bill to this session'}</strong>
-                        <small>{locale === 'sl' ? 'Ustvari nov zavihek za plačnika v trenutni seji.' : 'Create a new payee tab for the current session.'}</small>
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      disabled={externalCandidateOpenBills.length === 0}
-                      onClick={() => {
-                        setOpenBillAddMenuForId(null)
-                        setExternalOpenBillPickerForRootId(rootBill.id)
-                      }}
-                    >
-                      <span className="billing-invoice-add-menu-icon billing-invoice-add-menu-icon--purple" aria-hidden>▣</span>
-                      <span>
-                        <strong>{locale === 'sl' ? 'Odpri račun iz druge seje' : 'Open bill from another session'}</strong>
-                        <small>{locale === 'sl' ? 'Začasno ga dodajte samo za prenos postavk.' : 'Temporarily add it only to move line items.'}</small>
-                      </span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          {temporaryOpenBills.length > 0 && (
-            <div className="billing-invoice-inline-note billing-invoice-inline-note--transfer">
-              <span aria-hidden>ⓘ</span>
-              {locale === 'sl'
-                ? 'Račun iz druge seje je odprt začasno samo za prenos postavk. Po zaprtju in ponovnem odprtju vrstice ne bo več viden, razen če ga ponovno dodate.'
-                : 'The bill from another session is open temporarily only for moving items. After closing and reopening this row it will not be shown unless you add it again.'}
+            </div>
+          )) : (
+            <div className="billing-pos-catalog-empty">
+              {locale === 'sl' ? 'Ni razpoložljivih postavk.' : 'No items available.'}
             </div>
           )}
-          {externalOpenBillPickerForRootId === rootBill.id && (
-            <div className="billing-invoice-external-picker">
-              <div className="billing-invoice-external-picker-head">
-                <div>
-                  <strong>{locale === 'sl' ? 'Odpri račun iz druge seje' : 'Open bill from another session'}</strong>
-                  <small>{locale === 'sl' ? 'Izberite obstoječi odprti račun, ki bo začasno prikazan za prenos postavk.' : 'Choose an existing open bill that will be shown temporarily for moving items.'}</small>
-                </div>
-                <button type="button" onClick={() => setExternalOpenBillPickerForRootId(null)} aria-label="Close">×</button>
-              </div>
-              <input
-                value={externalOpenBillSearch}
-                onChange={(event) => setExternalOpenBillSearch(event.target.value)}
-                placeholder={locale === 'sl' ? 'Išči po št. računa, seji, stranki ...' : 'Search by bill no., session, client ...'}
-              />
-              <div className="billing-invoice-external-picker-list">
-                {filteredExternalOpenBills.slice(0, 8).map((entry) => (
-                  <button key={entry.id} type="button" onClick={() => addTemporaryOpenBillTab(rootBill, entry)}>
-                    <span>
-                      <strong>{entry.reference || `#${entry.id}`}</strong>
-                      <small>{openBillClientLabel(entry)} · {formatOpenBillSession(entry.sessionInfo)}</small>
-                    </span>
-                    <span aria-hidden>→</span>
+          <div className="billing-pos-catalog-count">
+            {locale === 'sl' ? `Prikazano ${rows.length} od ${totalForTab}` : `Showing ${rows.length} of ${totalForTab}`}
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  const renderPosWholeBillDiscount = (
+    draft: DiscountDraft,
+    subtotalGross: number,
+    items: { quantity: number; grossPrice: string }[],
+    onChange: (value: string) => void,
+  ) => {
+    const percentage = wholeBillPercentNumber(draft)
+    const discountGross = calculateDiscountGross(subtotalGross, draft, items)
+    return (
+      <div className="billing-pos-discount-row">
+        <span className="billing-pos-discount-label">{locale === 'sl' ? 'Popust na račun' : 'Invoice discount'}</span>
+        <input
+          className="billing-pos-discount-slider"
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value={percentage}
+          onChange={(event) => onChange(event.target.value)}
+          aria-label={locale === 'sl' ? 'Popust na račun v odstotkih' : 'Invoice discount percentage'}
+        />
+        <label className="billing-pos-percent-input">
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            value={percentage}
+            onChange={(event) => onChange(String(Math.max(0, Math.min(100, Number(event.target.value || 0)))))}
+          />
+          <span>%</span>
+        </label>
+        <span className="billing-pos-discount-value">−{currency(discountGross)}</span>
+      </div>
+    )
+  }
+
+  const renderPosTotalsMeta = (
+    items: { transactionServiceId: number; quantity: number; netPrice: string; grossPrice: string }[],
+    draft: DiscountDraft,
+    discountGross: number,
+  ) => {
+    const discountedItems = applyDiscountToItemsForVat(items, draft)
+    const vatRows = vatBreakdownRowsForItems(discountedItems)
+    const hasDiscount = discountGross > 0.005
+    if (!hasDiscount && vatRows.length === 0) return null
+    return (
+      <div className="billing-pos-meta-lines">
+        {hasDiscount && (
+          <div className="billing-pos-meta-row">
+            <span>{locale === 'sl' ? 'Popust' : 'Discount'}</span>
+            <strong className="is-discount">−{currency(discountGross)}</strong>
+          </div>
+        )}
+        {vatRows.map((row) => (
+          <div key={row.key} className="billing-pos-meta-row">
+            <span>{row.label}</span>
+            <strong>{currency(row.taxTotal)}</strong>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  const renderPosCreatePaymentMethods = (
+    totalGross: number,
+    items: { transactionServiceId: number; quantity: number; netPrice: string; grossPrice: string }[],
+    draft: DiscountDraft,
+    discountGross: number,
+  ) => {
+    const splits = getCreateBillPaymentSplits(totalGross)
+    const methods = createAvailablePaymentMethods
+    const totalPaid = Number(splits.reduce((sum, split) => sum + paymentSplitEffectiveGross(split), 0).toFixed(2))
+    const remaining = Number((totalGross - totalPaid).toFixed(2))
+    const addSpecificMethod = (method: PaymentMethod) => {
+      if (splits.some((split) => split.paymentMethodId === method.id)) return
+      const assigned = splits.reduce((sum, split) => sum + paymentSplitEffectiveGross(split), 0)
+      const key = `create-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const nextSplit: OpenBillPaymentSplitDraft = {
+        key,
+        paymentMethodId: method.id,
+        amountGross: formatPaymentAmountInput(Math.max(0, totalGross - assigned)),
+      }
+      setCreateBillPaymentSplits([...splits, nextSplit])
+      if (isDepositPaymentMethod(method)) window.setTimeout(() => openAdvancePaymentModalForCreate(key), 0)
+    }
+    const equalizeRemaining = (splitKey?: string) => {
+      if (!splits.length || Math.abs(remaining) <= 0.01) return
+      const target = splitKey ? splits.find((entry) => entry.key === splitKey) : splits[splits.length - 1]
+      if (!target || isAdvancePaymentSplit(target)) return
+      const nextValue = Number((Number(target.amountGross || 0) + remaining).toFixed(2))
+      updateCreateBillPaymentSplit(target.key, { amountGross: formatPaymentAmountInput(Math.max(0, nextValue)) })
+    }
+    return (
+      <section className="billing-pos-payment-section">
+        <h3>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</h3>
+        <div className="billing-pos-method-chips">
+          {methods.slice(0, 5).map((method) => {
+            const selected = splits.some((split) => split.paymentMethodId === method.id)
+            return (
+              <button key={method.id} type="button" className={selected ? 'is-selected' : ''} onClick={() => addSpecificMethod(method)}>
+                {localizedPaymentMethodName(method, locale)}
+              </button>
+            )
+          })}
+        </div>
+        <div className="billing-pos-payment-table">
+          <div className="billing-pos-payment-head"><span>{locale === 'sl' ? 'Način plačila' : 'Payment method'}</span><span>{locale === 'sl' ? 'Znesek' : 'Amount'}</span><span /></div>
+          {splits.map((split) => {
+            const selectedMethod = paymentMethods.find((method) => method.id === split.paymentMethodId) || null
+            const isAdvanceSplit = isAdvancePaymentSplit(split)
+            const displayedAmountGross = isAdvanceSplit ? formatPaymentAmountInput(sumAdvanceSelectionGross(getAdvanceSelectionsForSplit(split))) : split.amountGross
+            const methodOptions = selectedMethod && !methods.some((entry) => entry.id === selectedMethod.id) ? [...methods, selectedMethod] : methods
+            return (
+              <div key={split.key} className="billing-pos-payment-row">
+                <select
+                  value={split.paymentMethodId ?? ''}
+                  onChange={(event) => {
+                    const paymentMethodId = Number(event.target.value)
+                    const nextMethod = paymentMethods.find((method) => method.id === paymentMethodId) || null
+                    const selections = isDepositPaymentMethod(nextMethod) ? getAdvanceSelectionsForSplit(split) : []
+                    updateCreateBillPaymentSplit(split.key, {
+                      paymentMethodId,
+                      amountGross: isDepositPaymentMethod(nextMethod) ? formatPaymentAmountInput(sumAdvanceSelectionGross(selections)) : split.amountGross,
+                      advanceSelections: selections,
+                    })
+                    if (isDepositPaymentMethod(nextMethod)) openAdvancePaymentModalForCreate(split.key)
+                  }}
+                >
+                  {methodOptions.map((method) => <option key={method.id} value={method.id}>{localizedPaymentMethodName(method, locale)}</option>)}
+                </select>
+                <div className="billing-pos-payment-amount-wrap">
+                  <label className="billing-pos-money-input"><span>€</span><input
+                    value={displayedAmountGross}
+                    readOnly={isAdvanceSplit}
+                    onClick={() => { if (isAdvanceSplit) openAdvancePaymentModalForCreate(split.key) }}
+                    onChange={(event) => { if (!isAdvanceSplit) updateCreateBillPaymentSplit(split.key, { amountGross: event.target.value.replace(/[^0-9.,-]/g, '').replace(',', '.') }) }}
+                    onBlur={() => { if (!isAdvanceSplit) updateCreateBillPaymentSplit(split.key, { amountGross: formatPaymentAmountInput(Number(split.amountGross || 0)) }) }}
+                  /></label>
+                  <button type="button" className="billing-pos-equalize-btn" onClick={() => equalizeRemaining(split.key)} disabled={isAdvanceSplit || Math.abs(remaining) <= 0.01}>
+                    {locale === 'sl' ? 'Poravnaj do 0' : 'Equalize to 0'}
                   </button>
-                ))}
-                {filteredExternalOpenBills.length === 0 && (
-                  <div className="billing-invoice-external-empty">
-                    {locale === 'sl' ? 'Ni drugih odprtih računov za prenos.' : 'No other open bills are available for transfer.'}
-                  </div>
-                )}
+                </div>
+                <button type="button" className="billing-pos-remove-payment" onClick={() => removeCreateBillPaymentSplit(split.key)} aria-label={locale === 'sl' ? 'Odstrani način plačila' : 'Remove payment method'}>×</button>
               </div>
-            </div>
-          )}
-          {onePayeeForAll && (
-            <div className="billing-invoice-inline-note">
-              <span aria-hidden>ⓘ</span>
-              {locale === 'sl'
-                ? 'Vsi klienti v tem terminu so združeni v en račun. Stolpec Klient prikazuje, komu pripada postavka.'
-                : 'All clients in this session are combined into one bill. The Client column shows who used each service.'}
-            </div>
-          )}
-        </section>
+            )
+          })}
+          <button type="button" className="billing-pos-add-payment" disabled={methods.length === 0} onClick={() => addCreateBillPaymentSplit(totalGross)}>+ {locale === 'sl' ? 'Dodaj način plačila' : 'Add payment method'}</button>
+        </div>
+        <div className="billing-pos-payment-totals">
+          <div><span>{locale === 'sl' ? 'Skupaj plačano' : 'Total paid'}</span><strong className={Math.abs(remaining) <= 0.01 ? 'is-complete' : ''}>{currency(totalPaid)}</strong></div>
+          <div><span>{locale === 'sl' ? 'Preostalo za plačilo' : 'Remaining to pay'}</span><strong>{currency(Math.max(0, remaining))}</strong></div>
+        </div>
+        {renderPosTotalsMeta(items, draft, discountGross)}
+      </section>
+    )
+  }
 
-        <section className="billing-invoice-workspace-card">
-          <div className="billing-invoice-items-panel">
-            <div className="billing-invoice-section-title-row">
-              <h3>{locale === 'sl' ? 'Postavke računa' : 'Bill items'}</h3>
-              <span>{displayedRows.length} {displayedRows.length === 1 ? (locale === 'sl' ? 'postavka' : 'item') : (locale === 'sl' ? 'postavk' : 'items')}</span>
-            </div>
-            {transferTargets.length > 0 && (
-              <div className="billing-invoice-selection-toolbar">
-                <strong>{selectedDisplayedRows.length} {locale === 'sl' ? 'izbranih postavk' : 'items selected'}</strong>
-                <span aria-hidden>→</span>
-                <label>
-                  <span>{locale === 'sl' ? 'Premakni v račun' : 'Move to bill'}</span>
-                  <DesktopSelect
-                    value={selectedMoveTargetId ?? ''}
-                    onChange={(event) => setMoveSelectedTargetOpenBillId(event.target.value === '' ? null : Number(event.target.value))}
-                  >
-                    {transferTargets.map((entry) => {
-                      const meta = openBillEditorTabMeta(entry)
-                      return <option key={entry.id} value={entry.id}>{temporaryOpenBillIdSet.has(entry.id) ? (locale === 'sl' ? `Za prenos · ${meta.label}` : `For transfer · ${meta.label}`) : meta.label}</option>
-                    })}
-                  </DesktopSelect>
-                </label>
-                <button
-                  type="button"
-                  className="billing-invoice-move-selected-btn"
-                  disabled={selectedDisplayedRows.length === 0 || !selectedMoveTarget}
-                  onClick={() => { if (selectedMoveTarget) moveSelectedLinesToBill(selectedMoveTarget) }}
+
+  const renderPosOpenPaymentMethods = (
+    ob: OpenBill,
+    totalGross: number,
+    items: { transactionServiceId: number; quantity: number; netPrice: string; grossPrice: string }[],
+    draft: DiscountDraft,
+    discountGross: number,
+  ) => {
+    const splits = getOpenBillPaymentSplits(ob, totalGross)
+    const effectiveType = resolveOpenBillEffectiveType(ob)
+    const methods = effectiveType === 'ADVANCE' ? visiblePaymentMethods.filter((method) => !isDepositPaymentMethod(method)) : visiblePaymentMethods
+    const totalPaid = Number(splits.reduce((sum, split) => sum + paymentSplitEffectiveGross(split), 0).toFixed(2))
+    const remaining = Number((totalGross - totalPaid).toFixed(2))
+    const addSpecificMethod = (method: PaymentMethod) => {
+      if (splits.some((split) => split.paymentMethodId === method.id)) return
+      const assigned = splits.reduce((sum, split) => sum + paymentSplitEffectiveGross(split), 0)
+      const key = `new-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const nextSplit: OpenBillPaymentSplitDraft = {
+        key,
+        paymentMethodId: method.id,
+        amountGross: formatPaymentAmountInput(Math.max(0, totalGross - assigned)),
+      }
+      setOpenBillPaymentSplits(ob, [...splits, nextSplit])
+      if (isDepositPaymentMethod(method)) window.setTimeout(() => openAdvancePaymentModalForOpenBill(ob, key), 0)
+    }
+    const equalizeRemaining = (splitKey?: string) => {
+      if (!splits.length || Math.abs(remaining) <= 0.01) return
+      const target = splitKey ? splits.find((entry) => entry.key === splitKey) : splits[splits.length - 1]
+      if (!target || isEntitlementPaymentSplit(target) || isAdvancePaymentSplit(target)) return
+      const nextValue = Number((Number(target.amountGross || 0) + remaining).toFixed(2))
+      updateOpenBillPaymentSplit(ob, target.key, { amountGross: formatPaymentAmountInput(Math.max(0, nextValue)) })
+    }
+    return (
+      <section className="billing-pos-payment-section">
+        <h3>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</h3>
+        <div className="billing-pos-method-chips">
+          {methods.slice(0, 5).map((method) => {
+            const selected = splits.some((split) => split.paymentMethodId === method.id)
+            return <button key={method.id} type="button" className={selected ? 'is-selected' : ''} onClick={() => addSpecificMethod(method)}>{localizedPaymentMethodName(method, locale)}</button>
+          })}
+        </div>
+        <div className="billing-pos-payment-table">
+          <div className="billing-pos-payment-head"><span>{locale === 'sl' ? 'Način plačila' : 'Payment method'}</span><span>{locale === 'sl' ? 'Znesek' : 'Amount'}</span><span /></div>
+          {splits.map((split) => {
+            const selectedMethod = paymentMethods.find((method) => method.id === split.paymentMethodId) || null
+            const isEntitlement = isEntitlementPaymentSplit(split)
+            const isAdvanceSplit = isAdvancePaymentSplit(split)
+            const displayedAmountGross = isAdvanceSplit ? formatPaymentAmountInput(sumAdvanceSelectionGross(getAdvanceSelectionsForSplit(split))) : split.amountGross
+            const methodOptions = selectedMethod && !methods.some((entry) => entry.id === selectedMethod.id) ? [...methods, selectedMethod] : methods
+            return (
+              <div key={split.key} className="billing-pos-payment-row">
+                {isEntitlement ? <span className="billing-pos-entitlement-label">{locale === 'sl' ? 'Ugodnost' : 'Entitlement'}</span> : <select
+                  value={split.paymentMethodId ?? ''}
+                  onChange={(event) => {
+                    const paymentMethodId = Number(event.target.value)
+                    const nextMethod = paymentMethods.find((method) => method.id === paymentMethodId) || null
+                    const selections = isDepositPaymentMethod(nextMethod) ? getAdvanceSelectionsForSplit(split) : []
+                    updateOpenBillPaymentSplit(ob, split.key, {
+                      paymentMethodId,
+                      amountGross: isDepositPaymentMethod(nextMethod) ? formatPaymentAmountInput(sumAdvanceSelectionGross(selections)) : split.amountGross,
+                      advanceSelections: selections,
+                    })
+                    if (isDepositPaymentMethod(nextMethod)) openAdvancePaymentModalForOpenBill(ob, split.key)
+                  }}
                 >
-                  {locale === 'sl' ? 'Premakni' : 'Move'}
+                  {methodOptions.map((method) => <option key={method.id} value={method.id}>{localizedPaymentMethodName(method, locale)}</option>)}
+                </select>}
+                <div className="billing-pos-payment-amount-wrap">
+                  <label className="billing-pos-money-input"><span>€</span><input
+                    value={displayedAmountGross}
+                    readOnly={isEntitlement || isAdvanceSplit}
+                    onClick={() => { if (isAdvanceSplit) openAdvancePaymentModalForOpenBill(ob, split.key) }}
+                    onChange={(event) => { if (!isEntitlement && !isAdvanceSplit) updateOpenBillPaymentSplit(ob, split.key, { amountGross: event.target.value.replace(/[^0-9.,-]/g, '').replace(',', '.') }) }}
+                    onBlur={() => { if (!isEntitlement && !isAdvanceSplit) updateOpenBillPaymentSplit(ob, split.key, { amountGross: formatPaymentAmountInput(Number(split.amountGross || 0)) }) }}
+                  /></label>
+                  <button type="button" className="billing-pos-equalize-btn" onClick={() => equalizeRemaining(split.key)} disabled={isEntitlement || isAdvanceSplit || Math.abs(remaining) <= 0.01}>
+                    {locale === 'sl' ? 'Poravnaj do 0' : 'Equalize to 0'}
+                  </button>
+                </div>
+                <button type="button" className="billing-pos-remove-payment" disabled={isEntitlement} onClick={() => removeOpenBillPaymentSplit(ob, split.key)} aria-label={locale === 'sl' ? 'Odstrani način plačila' : 'Remove payment method'}>×</button>
+              </div>
+            )
+          })}
+          <button type="button" className="billing-pos-add-payment" disabled={methods.length === 0} onClick={() => addOpenBillPaymentSplit(ob, totalGross)}>+ {locale === 'sl' ? 'Dodaj način plačila' : 'Add payment method'}</button>
+        </div>
+        <div className="billing-pos-payment-totals">
+          <div><span>{locale === 'sl' ? 'Skupaj plačano' : 'Total paid'}</span><strong className={Math.abs(remaining) <= 0.01 ? 'is-complete' : ''}>{currency(totalPaid)}</strong></div>
+          <div><span>{locale === 'sl' ? 'Preostalo za plačilo' : 'Remaining to pay'}</span><strong>{currency(Math.max(0, remaining))}</strong></div>
+        </div>
+        {renderPosTotalsMeta(items, draft, discountGross)}
+      </section>
+    )
+  }
+
+
+  const renderPosCreateSelectedItems = (showButtonStyle: boolean) => {
+    const lineStates = calculateDiscountedLineStates(billForm.items, createBillDiscountDraft)
+    const consultant = users.find((entry) => entry.id === billForm.consultantId) || me
+    const consultantLabel = consultant ? fullName(consultant) : ''
+    return (
+      <div className="billing-pos-selected-box">
+        {billForm.items.length > 0 ? billForm.items.map((item, index) => {
+          const service = services.find((entry) => entry.id === item.transactionServiceId)
+          const lineDraft = getLineItemDiscount(createBillDiscountDraft, index)
+          const lineDiscountActive = discountValueNumber(lineDraft) > 0
+          const lineDiscountOpen = openCreateItemDiscountIndex === index
+          const lineTotal = lineStates[index]?.finalGross ?? lineGrossTotal(item)
+          const patchLineDiscount = (patch: Partial<LineItemDiscountDraft>) => {
+            setBillForm((prev) => {
+              const discounts = normalizeItemDiscountMap(prev.itemDiscounts, { keepZero: true })
+              const current = discounts[index] ?? { type: 'PERCENT' as DiscountType, value: '0' }
+              discounts[index] = { type: patch.type ?? current.type, value: Object.prototype.hasOwnProperty.call(patch, 'value') ? (patch.value ?? '0') : current.value }
+              return { ...prev, itemDiscounts: discounts }
+            })
+          }
+          return (
+            <div key={`${item.transactionServiceId}-${index}`} className="billing-pos-selected-row">
+              <div className="billing-pos-selected-copy">
+                <strong>{service ? serviceOptionLabel(service) : `#${item.transactionServiceId}`}</strong>
+                {(posServiceSecondaryText(service) || consultantLabel) && <small>{[posServiceSecondaryText(service), consultantLabel].filter(Boolean).join(' · ')}</small>}
+              </div>
+              <span className="billing-pos-unit-price">{currency(Number(item.grossPrice || 0))}</span>
+              <div className="billing-pos-qty">
+                <button type="button" onClick={() => setBillForm((prev) => ({ ...prev, items: prev.items.map((row, rowIndex) => rowIndex === index ? { ...row, quantity: Math.max(1, Number(row.quantity || 1) - 1) } : row) }))}>−</button>
+                <span>{item.quantity}</span>
+                <button type="button" onClick={() => setBillForm((prev) => ({ ...prev, items: prev.items.map((row, rowIndex) => rowIndex === index ? { ...row, quantity: Number(row.quantity || 0) + 1 } : row) }))}>+</button>
+              </div>
+              <strong className="billing-pos-line-total">{currency(lineTotal)}</strong>
+              <div className="billing-pos-line-discount">
+                <button type="button" className={`${showButtonStyle ? 'billing-pos-inline-discount-btn ' : ''}${lineDiscountActive ? 'is-active' : ''}`.trim()} onClick={(event) => { event.stopPropagation(); setOpenCreateItemDiscountIndex(lineDiscountOpen ? null : index) }}>
+                  {locale === 'sl' ? 'Popust' : 'Discount'} <span aria-hidden>⌄</span>
                 </button>
+                {lineDiscountOpen && renderItemDiscountPopover(lineDraft, patchLineDiscount, () => setOpenCreateItemDiscountIndex(null))}
               </div>
-            )}
-            <div className="billing-invoice-table-head billing-invoice-table-head--with-client">
-              <span className="billing-invoice-row-tools billing-invoice-row-tools--head">
-                {!onePayeeForAll && displayedRows.length > 0 && (
-                  <input
-                    type="checkbox"
-                    checked={allDisplayedRowsSelected}
-                    onChange={(event) => setAllDisplayedLineSelection(event.target.checked)}
-                    aria-label={locale === 'sl' ? 'Izberi vse postavke' : 'Select all items'}
-                  />
-                )}
-              </span>
-              <span>{locale === 'sl' ? 'Storitev' : 'Service'}</span>
-              <span>{locale === 'sl' ? 'Klient' : 'Client'}</span>
-              <span>{locale === 'sl' ? 'Kol.' : 'Qty'}</span>
-              <span>{locale === 'sl' ? 'Cena' : 'Price'}</span>
-              <span>{locale === 'sl' ? 'Skupaj' : 'Amount'}</span>
-              <span>{locale === 'sl' ? 'Popust' : 'Discount'}</span>
-              <span>{locale === 'sl' ? 'Akcije' : 'Actions'}</span>
+              <button type="button" className="billing-pos-row-remove" aria-label={locale === 'sl' ? 'Odstrani postavko' : 'Remove item'} onClick={() => {
+                const nextItems = billForm.items.filter((_, rowIndex) => rowIndex !== index)
+                setBillForm((prev) => ({ ...prev, items: nextItems, itemDiscounts: shiftedItemDiscountsAfterRemoval(normalizeItemDiscountMap(prev.itemDiscounts, { keepZero: true }), index, nextItems.length), discountItemIndex: clampDiscountIndexAfterRemoval(prev.discountItemIndex, index, nextItems.length) }))
+                if (openCreateItemDiscountIndex === index) setOpenCreateItemDiscountIndex(null)
+              }}>×</button>
             </div>
-            <div className="billing-invoice-item-list">
-              {displayedRows.length === 0 ? (
-                <EmptyState title={billingCopy.noBillLinesTitle} text={billingCopy.noBillLinesText} />
-              ) : displayedRows.map((row) => renderModernOpenBillLineEditor(row.entry, row.index, {
-                showClientColumn: true,
-                clientLabel: openBillItemServiceClientLabel(row.entry, row.item),
-                selectable: !onePayeeForAll,
-              }))}
-              <button
-                type="button"
-                className="billing-invoice-add-dashed billing-invoice-add-dashed--line"
-                disabled={activeBillSelectableServices.length === 0}
-                onClick={() => {
-                  const firstService = activeBillSelectableServices[0]
-                  if (!firstService) return
-                  setOpenBillItems(activeBill, [
-                    ...getOpenBillItems(activeBill),
-                    {
-                      clientRowKey: createOpenBillClientRowKey(),
-                      transactionServiceId: firstService.id,
-                      quantity: 1,
-                      netPrice: String(firstService.netPrice),
-                      grossPrice: grossStringFromService(firstService),
-                      sourceSessionBookingId: createManualOpenBillLineSourceId(),
-                    },
-                  ])
-                }}
-              >
-                <strong>+ {locale === 'sl' ? 'Dodaj postavko' : 'Add line item'}</strong>
-                <small>{locale === 'sl' ? 'Povlecite postavke za spremembo vrstnega reda' : 'Drag & drop items to reorder'}</small>
-              </button>
-            </div>
-          </div>
+          )
+        }) : <div className="billing-pos-selected-empty">{locale === 'sl' ? 'Izberite storitev, ugodnost ali bon na levi.' : 'Choose a service, benefit or gift card on the left.'}</div>}
+      </div>
+    )
+  }
 
-          <div className="billing-invoice-payment-panel">
-            {renderOpenBillEditorPaymentMethods(activeBill, detailGross)}
-            {renderDiscountCard(
-              detailDiscountDraft,
-              detailSubtotalGross,
-              (value) => {
-                setOpenOpenBillItemDiscount(null)
-                setOpenBillDiscountDraft(activeBill, { wholeBillPercent: value })
-              },
-              totalsItems,
-            )}
-            <section className="billing-invoice-totals-card">
-              <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(detailSubtotalGross)}</strong></div>
-              {detailVatRows.map((row) => (
-                <div key={row.key} className="billing-bill-modal-summary-line">
-                  <span>{row.label}</span>
-                  <strong>{currency(row.taxTotal)}</strong>
-                </div>
-              ))}
-              {detailDiscountGross > 0.005 && (
-                <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'} <span className="billing-invoice-info-dot">i</span></span><strong>- {currency(detailDiscountGross)}</strong></div>
-              )}
-              {activeEntitlementSettlement && (
-                <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--entitlement">
-                  <span>{locale === 'sl' ? 'Krito z ugodnostjo' : 'Covered by entitlement'}</span>
-                  <strong>- {currency(detailGross)}</strong>
-                </div>
-              )}
-              <div className="billing-bill-modal-summary-divider" />
-              <div className="billing-bill-modal-total-line">
-                <span>{activeEntitlementSettlement ? (locale === 'sl' ? 'Za plačilo' : 'Amount due') : (locale === 'sl' ? 'Skupaj' : 'Grand total')}</span>
-                <strong>{currency(activeEntitlementSettlement ? 0 : detailGross)}</strong>
+  const renderPosOpenSelectedItems = (ob: OpenBill) => {
+    const showButtonStyle = resolveOpenBillEffectiveType(ob) !== 'ADVANCE'
+
+    const items = getOpenBillItems(ob)
+    const draft = getOpenBillDiscountDraft(ob)
+    const lineStates = calculateDiscountedLineStates(items, draft)
+    const consultantLabel = ob.consultant ? fullName(ob.consultant) : ''
+    return (
+      <div className="billing-pos-selected-box">
+        {items.length > 0 ? items.map((item, index) => {
+          const persistedService = ob.items.find((serverItem) => Number(serverItem.id) === Number(item.openBillItemId))?.transactionService
+          const service = services.find((entry) => entry.id === item.transactionServiceId) || persistedService
+          const lineDraft = getLineItemDiscount(draft, index)
+          const lineDiscountActive = discountValueNumber(lineDraft) > 0
+          const lineDiscountOpen = openOpenBillItemDiscount?.openBillId === ob.id && openOpenBillItemDiscount.index === index
+          const lineTotal = lineStates[index]?.finalGross ?? lineGrossTotal(item)
+          return (
+            <div key={item.openBillItemId || item.clientRowKey || index} className="billing-pos-selected-row">
+              <div className="billing-pos-selected-copy"><strong>{service ? serviceOptionLabel(service) : `#${item.transactionServiceId}`}</strong>{(posServiceSecondaryText(service) || consultantLabel) && <small>{[posServiceSecondaryText(service), consultantLabel].filter(Boolean).join(' · ')}</small>}</div>
+              <span className="billing-pos-unit-price">{currency(Number(item.grossPrice || 0))}</span>
+              <div className="billing-pos-qty">
+                <button type="button" onClick={() => { const next = [...items]; next[index] = { ...next[index], quantity: Math.max(1, Number(next[index].quantity || 1) - 1) }; setOpenBillItems(ob, next) }}>−</button>
+                <span>{item.quantity}</span>
+                <button type="button" onClick={() => { const next = [...items]; next[index] = { ...next[index], quantity: Number(next[index].quantity || 0) + 1 }; setOpenBillItems(ob, next) }}>+</button>
               </div>
-            </section>
-          </div>
+              <strong className="billing-pos-line-total">{currency(lineTotal)}</strong>
+              <div className="billing-pos-line-discount">
+                <button type="button" className={`${showButtonStyle ? 'billing-pos-inline-discount-btn ' : ''}${lineDiscountActive ? 'is-active' : ''}`.trim()} onClick={(event) => { event.stopPropagation(); setOpenOpenBillItemDiscount(lineDiscountOpen ? null : { openBillId: ob.id, index }) }}>
+                  {locale === 'sl' ? 'Popust' : 'Discount'} <span aria-hidden>⌄</span>
+                </button>
+                {lineDiscountOpen && renderItemDiscountPopover(lineDraft, (patch) => setOpenBillItemDiscountDraft(ob, index, patch), () => setOpenOpenBillItemDiscount(null))}
+              </div>
+              <button type="button" className="billing-pos-row-remove" aria-label={locale === 'sl' ? 'Odstrani postavko' : 'Remove item'} onClick={() => {
+                const nextItems = items.filter((_, rowIndex) => rowIndex !== index)
+                setOpenBillItems(ob, nextItems)
+                setOpenBillDiscountDraft(ob, { itemDiscounts: shiftedItemDiscountsAfterRemoval(draft.itemDiscounts, index, nextItems.length) })
+                if (openOpenBillItemDiscount?.openBillId === ob.id) setOpenOpenBillItemDiscount(null)
+              }}>×</button>
+            </div>
+          )
+        }) : <div className="billing-pos-selected-empty">{locale === 'sl' ? 'Izberite storitev, ugodnost ali bon na levi.' : 'Choose a service, benefit or gift card on the left.'}</div>}
+      </div>
+    )
+  }
+
+  const renderPosCreateEditor = (isAdvance: boolean) => {
+    const subtotalGross = estimateGross(billForm.items)
+    const totalGross = payableGrossAfterDiscount(subtotalGross, createBillDiscountDraft, billForm.items)
+    const discountGross = calculateDiscountGross(subtotalGross, createBillDiscountDraft, billForm.items)
+    const addService = (service: BillingService) => {
+      setBillForm((prev) => {
+        const existingIndex = prev.items.findIndex((item) => item.transactionServiceId === service.id)
+        if (existingIndex >= 0) {
+          return { ...prev, items: prev.items.map((item, index) => index === existingIndex ? { ...item, quantity: Number(item.quantity || 0) + 1 } : item) }
+        }
+        return { ...prev, items: [...prev.items, { transactionServiceId: service.id, quantity: 1, netPrice: String(service.netPrice), grossPrice: grossStringFromService(service), sourceSessionBookingId: prev.sessionId ?? undefined }] }
+      })
+    }
+    return (
+      <div className="billing-pos-layout">
+        <section className="billing-pos-catalog-pane">
+          <label className="billing-pos-payee-label">{locale === 'sl' ? 'Plačnik' : 'Payee'}</label>
+          <button type="button" className="billing-pos-payee-field" onClick={() => setEditingCreateBillPayee(true)}>{posCreatePayeeLabel()}</button>
+          {renderPosCatalog(availableBillServices, addService, isAdvance ? 'ADVANCE' : 'INVOICE')}
         </section>
+        <section className="billing-pos-checkout-pane">
+          <h3 className="billing-pos-selected-title">{locale === 'sl' ? 'Izbrano' : 'Selected'}</h3>
+          {renderPosCreateSelectedItems(!isAdvance)}
+          <div className="billing-pos-subtotal"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(subtotalGross)}</strong></div>
+          {renderPosWholeBillDiscount(createBillDiscountDraft, subtotalGross, billForm.items, (value) => { setOpenCreateItemDiscountIndex(null); setBillForm((prev) => ({ ...prev, wholeBillDiscountPercent: value, discountType: 'PERCENT', discountValue: value, discountItemIndex: undefined })) })}
+          <div className="billing-pos-grand-total"><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(totalGross)}</strong></div>
+          {discountGross > 0.005 && <span className="billing-pos-discount-summary">{locale === 'sl' ? 'Prihranek' : 'Savings'} {currency(discountGross)}</span>}
+          {renderPosCreatePaymentMethods(totalGross, billForm.items, createBillDiscountDraft, discountGross)}
+        </section>
+      </div>
+    )
+  }
 
-        <section className="billing-invoice-compact-summary" aria-label={locale === 'sl' ? 'Povzetek vseh računov' : 'All bills summary'}>
-          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--blue">▣</span><span>{locale === 'sl' ? 'Povezani računi' : 'Linked bills'}</span><strong>{totalOpenBills} {locale === 'sl' ? (totalOpenBills === 1 ? 'račun' : totalOpenBills === 2 ? 'računa' : totalOpenBills === 3 || totalOpenBills === 4 ? 'računi' : 'računov') : (totalOpenBills === 1 ? 'bill' : 'bills')}</strong></div>
-          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--green">☷</span><span>{locale === 'sl' ? 'Postavke' : 'Line items'}</span><strong>{totalLineItems}</strong></div>
-          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--purple">€</span><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(totalAcrossBills)}</strong></div>
-          <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--red">▤</span><span>{locale === 'sl' ? 'Neplačano' : 'Unpaid'}</span><strong>{currency(totalUnpaidAcrossBills)}</strong></div>
+  const renderModernOpenBillEditor = (ob: OpenBill) => {
+    const items = getOpenBillItems(ob)
+    const discountDraft = getOpenBillDiscountDraft(ob)
+    const subtotalGross = estimateGross(items)
+    const totalGross = payableGrossAfterDiscount(subtotalGross, discountDraft, items)
+    const discountGross = calculateDiscountGross(subtotalGross, discountDraft, items)
+    const catalogServices = selectableServicesForOpenBill(ob)
+    const addService = (service: BillingService) => {
+      const currentItems = getOpenBillItems(ob)
+      const existingIndex = currentItems.findIndex((item) => item.transactionServiceId === service.id && item.sourceAdvanceBillId == null)
+      if (existingIndex >= 0) {
+        const next = [...currentItems]
+        next[existingIndex] = { ...next[existingIndex], quantity: Number(next[existingIndex].quantity || 0) + 1 }
+        setOpenBillItems(ob, next)
+        return
+      }
+      setOpenBillItems(ob, [...currentItems, { clientRowKey: createOpenBillClientRowKey(), transactionServiceId: service.id, quantity: 1, netPrice: String(service.netPrice), grossPrice: grossStringFromService(service), sourceSessionBookingId: createManualOpenBillLineSourceId() }])
+    }
+    return (
+      <div className="billing-pos-layout">
+        <section className="billing-pos-catalog-pane">
+          <label className="billing-pos-payee-label">{locale === 'sl' ? 'Plačnik' : 'Payee'}</label>
+          <button type="button" className="billing-pos-payee-field" onClick={() => openOpenBillPayeeEditor(ob)}>{posOpenBillPayeeLabel(ob)}</button>
+          {renderPosCatalog(catalogServices, addService, ob.billType || 'INVOICE')}
+        </section>
+        <section className="billing-pos-checkout-pane">
+          <h3 className="billing-pos-selected-title">{locale === 'sl' ? 'Izbrano' : 'Selected'}</h3>
+          {renderPosOpenSelectedItems(ob)}
+          <div className="billing-pos-subtotal"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(subtotalGross)}</strong></div>
+          {renderPosWholeBillDiscount(discountDraft, subtotalGross, items, (value) => { setOpenOpenBillItemDiscount(null); setOpenBillDiscountDraft(ob, { wholeBillPercent: value }) })}
+          <div className="billing-pos-grand-total"><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(totalGross)}</strong></div>
+          {discountGross > 0.005 && <span className="billing-pos-discount-summary">{locale === 'sl' ? 'Prihranek' : 'Savings'} {currency(discountGross)}</span>}
+          {renderPosOpenPaymentMethods(ob, totalGross, items, discountDraft, discountGross)}
         </section>
       </div>
     )
@@ -10311,7 +9817,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         const detailRootOpenBill = getOpenBillEditorRoot(detailOpenBill)
         const detailBaseRelatedOpenBills = getRelatedOpenBillsForEditor(detailRootOpenBill)
         const detailTemporaryOpenBills = getTemporaryOpenBillTabsForRoot(detailRootOpenBill)
-        const detailRelatedOpenBills = getEditorOpenBillsWithTemporaryTabs(detailRootOpenBill)
         const detailOnePayeeForAll = detailTemporaryOpenBills.length === 0
           && isOnePayeeActiveForOpenBill(detailRootOpenBill, detailBaseRelatedOpenBills)
           && !hasIssuedBillForOpenBillGroup(detailRootOpenBill)
@@ -10319,210 +9824,95 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         const detailActionItems = detailOnePayeeForAll
           ? detailBaseRelatedOpenBills.flatMap((entry) => getOpenBillItems(entry))
           : getOpenBillItems(detailActionOpenBill)
-        const detailSubtotalGross = estimateGross(detailActionItems)
-        const detailDiscountDraft = getOpenBillDiscountDraft(detailActionOpenBill)
-        const detailDiscountedItems = applyDiscountToItemsForVat(detailActionItems, detailDiscountDraft)
-        const detailVatRows = vatBreakdownRowsForItems(detailDiscountedItems)
-        const detailDiscountGross = calculateDiscountGross(detailSubtotalGross, detailDiscountDraft, detailActionItems)
-        const detailGross = payableGrossAfterDiscount(detailSubtotalGross, detailDiscountDraft, detailActionItems)
         const detailActionGross = detailOnePayeeForAll
           ? Number(detailBaseRelatedOpenBills.reduce((sum, entry) => sum + openBillPayableGross(entry), 0).toFixed(2))
           : openBillPayableGross(detailActionOpenBill)
-        const detailPaymentSplits = getOpenBillPaymentSplits(detailActionOpenBill, detailActionGross || detailGross)
+        const detailPaymentSplits = getOpenBillPaymentSplits(detailActionOpenBill, detailActionGross)
         const detailEntitlementSettlement = detailOnePayeeForAll
           ? null
-          : openBillEntitlementSettlementSelection(detailActionOpenBill, detailActionGross || detailGross)
+          : openBillEntitlementSettlementSelection(detailActionOpenBill, detailActionGross)
         const detailCloseCandidateBills = detailOnePayeeForAll ? detailBaseRelatedOpenBills : [detailActionOpenBill]
         const detailSessionsBillableForClose = openBillSessionsAreBillableForClose(detailCloseCandidateBills)
-        const detailPaymentsMatchCloseTotal = paymentSplitsMatchInvoiceTotal(detailPaymentSplits, detailActionGross || detailGross)
+        const detailPaymentsMatchCloseTotal = paymentSplitsMatchInvoiceTotal(detailPaymentSplits, detailActionGross)
         const detailCanIssueOpenBill = canIssueOpenBillType(detailActionOpenBill)
         const detailIssuePermissionTooltip = issueOpenBillPermissionTooltip(detailActionOpenBill)
         const detailCloseDisabledReason = !detailEntitlementSettlement && !detailCanIssueOpenBill
           ? detailIssuePermissionTooltip
           : !detailSessionsBillableForClose
-          ? (locale === 'sl'
+            ? (locale === 'sl'
               ? 'Termin mora biti v statusu RESERVED, ONGOING, CHECKED OUT ali NO SHOW.'
               : 'Session must be in RESERVED, ONGOING, CHECKED OUT or NO SHOW status.')
-          : !detailPaymentsMatchCloseTotal
-            ? (locale === 'sl' ? 'Vsota plačil mora biti enaka znesku računa.' : 'Payment method amounts must match the invoice total.')
-            : !detailPaymentSelectionValid
-              ? (locale === 'sl' ? 'Izbrano plačilo ali ugodnost ni veljavna.' : 'The selected payment or entitlement is not valid.')
-            : undefined
-        const hasUnsavedOpenBillChanges = Object.prototype.hasOwnProperty.call(openBillEdits, detailOpenBill.id)
-          || Object.prototype.hasOwnProperty.call(openBillDetailsEdits, detailOpenBill.id)
-          || Object.prototype.hasOwnProperty.call(openBillPaymentEdits, detailOpenBill.id)
-          || detailRelatedOpenBills.some((entry) => Object.prototype.hasOwnProperty.call(openBillEdits, entry.id)
-            || Object.prototype.hasOwnProperty.call(openBillDetailsEdits, entry.id)
-            || Object.prototype.hasOwnProperty.call(openBillPaymentEdits, entry.id))
+            : !detailPaymentsMatchCloseTotal
+              ? (locale === 'sl' ? 'Vsota plačil mora biti enaka znesku računa.' : 'Payment method amounts must match the invoice total.')
+              : !detailPaymentSelectionValid
+                ? (locale === 'sl' ? 'Izbrano plačilo ali ugodnost ni veljavna.' : 'The selected payment or entitlement is not valid.')
+                : undefined
+        const detailCloseDisabled = creatingFromOpenId === detailActionOpenBill.id
+          || detailActionItems.length === 0
+          || !detailPaymentsMatchCloseTotal
+          || !detailSessionsBillableForClose
+          || !detailPaymentSelectionValid
+          || (!detailEntitlementSettlement && !detailCanIssueOpenBill)
         return (
           <>
-          <SidePanel
-            open
-            onClose={closeDetailOpenBill}
-            ariaLabel={locale === 'sl' ? 'Uredi neizdan račun' : 'Edit unissued invoice'}
-            size="xl"
-            closeOnScrimClick={false}
-            className="billing-open-detail-panel billing-open-detail-panel--invoice-editor"
-          >
+            <SidePanel
+              open
+              onClose={closeDetailOpenBill}
+              ariaLabel={locale === 'sl' ? 'Uredi neizdan račun' : 'Edit unissued invoice'}
+              size="xl"
+              closeOnScrimClick={false}
+              className="billing-pos-panel billing-pos-panel--edit"
+            >
               <PanelHeader
                 title={locale === 'sl' ? 'Uredi neizdan račun' : 'Edit unissued invoice'}
                 onClose={closeDetailOpenBill}
                 closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
-                overflow={
-                  <PanelOverflowMenu label={locale === 'sl' ? 'Več dejanj' : 'More actions'}>
-                    {(closeMenu) => (
-                      <>
-                        <PanelMenuItem
-                          disabled={Boolean(detailEntitlementSettlement) || previewingOpenBillId === detailActionOpenBill.id || emailingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
-                          onClick={() => {
-                            closeMenu()
-                            openOpenBillPreviewChoice(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)
-                          }}
-                        >
-                          {locale === 'sl' ? 'Predogled računa' : 'Invoice preview'}
-                        </PanelMenuItem>
-                        <PanelMenuItem
-                          disabled={!hasUnsavedOpenBillChanges && !detailOnePayeeForAll}
-                          onClick={() => {
-                            closeMenu()
-                            void saveOpenBillEditorSet(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : detailRelatedOpenBills, detailOnePayeeForAll)
-                          }}
-                        >
-                          {locale === 'sl' ? 'Shrani spremembe' : 'Save changes'}
-                        </PanelMenuItem>
-                        <PanelMenuItem
-                          danger
-                          disabled={deletingOpenId === detailOpenBill.id}
-                          onClick={() => {
-                            closeMenu()
-                            void deleteOpenBill(detailOpenBill)
-                          }}
-                        >
-                          {deletingOpenId === detailOpenBill.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
-                        </PanelMenuItem>
-                      </>
-                    )}
-                  </PanelOverflowMenu>
-                }
               />
-              <PanelBody>
-              {renderModernOpenBillEditor(detailOpenBill)}
+              <PanelBody flush className="billing-pos-panel-body">
+                {renderModernOpenBillEditor(detailActionOpenBill)}
               </PanelBody>
-
-              <div className="billing-bill-modal-footer billing-bill-modal-footer--open-edit">
-                <section className="billing-invoice-totals-card billing-invoice-totals-card--open-footer billing-invoice-totals-card--edit-footer" aria-label={locale === 'sl' ? 'Povzetek odprtega računa' : 'Open bill summary'}>
-                  <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(detailSubtotalGross)}</strong></div>
-                  {detailVatRows.map((row) => (
-                    <div key={row.key} className="billing-bill-modal-summary-line">
-                      <span>{row.label}</span>
-                      <strong>{currency(row.taxTotal)}</strong>
-                    </div>
-                  ))}
-                  {detailDiscountGross > 0.005 && (
-                    <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'}</span><strong>- {currency(detailDiscountGross)}</strong></div>
-                  )}
-                  {detailEntitlementSettlement && (
-                    <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--entitlement">
-                      <span>{locale === 'sl' ? 'Krito z ugodnostjo' : 'Covered by entitlement'}</span>
-                      <strong>- {currency(detailActionGross || detailGross)}</strong>
-                    </div>
-                  )}
-                  <div className="billing-bill-modal-summary-divider" />
-                  <div className="billing-bill-modal-total-line">
-                    <span>{detailEntitlementSettlement ? (locale === 'sl' ? 'Za plačilo' : 'Amount due') : (locale === 'sl' ? 'Skupaj' : 'Grand total')}</span>
-                    <strong>{currency(detailEntitlementSettlement ? 0 : detailGross)}</strong>
-                  </div>
-                </section>
-                <button type="button" className="billing-bill-modal-delete" onClick={() => deleteOpenBill(detailOpenBill)} disabled={deletingOpenId === detailOpenBill.id}>
-                  🗑 {deletingOpenId === detailOpenBill.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
-                </button>
-                <div className="billing-preview-choice-anchor">
+              <div className="billing-pos-footer">
+                <div className="billing-pos-footer-left billing-preview-choice-anchor">
                   <button
                     type="button"
-                    className="billing-bill-modal-preview-btn"
+                    className="billing-pos-footer-btn billing-pos-footer-btn--preview"
                     onClick={() => openOpenBillPreviewChoice(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
                     disabled={Boolean(detailEntitlementSettlement) || previewingOpenBillId === detailActionOpenBill.id || emailingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
                   >
-                    <span className="billing-bill-modal-preview-btn__icon" aria-hidden>{renderEyeActionIcon()}</span>
-                    <span>{previewingOpenBillId === detailActionOpenBill.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : emailingOpenBillPreviewId === detailActionOpenBill.id ? (locale === 'sl' ? 'Pošiljam…' : 'Sending…') : (locale === 'sl' ? 'Predogled računa' : 'Invoice preview')}</span>
+                    {previewingOpenBillId === detailActionOpenBill.id
+                      ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…')
+                      : (locale === 'sl' ? 'Predogled računa' : 'Invoice preview')}
                   </button>
                   {renderOpenBillPreviewChoicePopover(detailActionOpenBill)}
                 </div>
-                <div className="billing-bill-modal-footer-actions billing-bill-modal-footer-actions--desktop-open-edit">
-                  {!detailEntitlementSettlement && (
-                    <button
-                      type="button"
-                      className="billing-bill-modal-save-btn"
-                      onClick={() => createBillFromOpen(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined, 'print')}
-                      disabled={creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || (!detailEntitlementSettlement && !detailCanIssueOpenBill)}
-                      title={detailCloseDisabledReason}
-                    >
-                      {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (
-                        <>
-                          <span className="billing-bill-modal-save-btn__icon" aria-hidden>{renderPrintActionIcon()}</span>
-                          <span>{locale === 'sl' ? 'Zaključi in natisni' : 'Close and print'}</span>
-                        </>
-                      )}
-                    </button>
-                  )}
+                <div className="billing-pos-footer-actions">
                   <button
                     type="button"
-                    className="billing-bill-modal-primary-action"
-                    onClick={() => createBillFromOpen(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
-                    disabled={creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || (!detailEntitlementSettlement && !detailCanIssueOpenBill)}
-                    title={detailCloseDisabledReason}
-                  >
-                    {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (
-                      <>
-                        <span className="billing-bill-modal-primary-icon" aria-hidden>{detailEntitlementSettlement ? '✓' : renderPlainFolioPdfIcon()}</span>
-                        {detailEntitlementSettlement
-                          ? (locale === 'sl' ? 'Zaključi z ugodnostjo' : 'Settle with entitlement')
-                          : (locale === 'sl' ? 'Zaključi račun' : 'Close invoice')}
-                      </>
-                    )}
-                  </button>
-                </div>
-                <div className="billing-bill-modal-footer-actions billing-bill-modal-footer-actions--mobile-open-edit">
-                  {!detailEntitlementSettlement && (
-                    <button
-                      type="button"
-                      className="billing-bill-modal-save-btn"
-                      onClick={() => void createBillFromOpen(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined, 'print')}
-                      disabled={creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || !detailCanIssueOpenBill}
-                      title={detailCloseDisabledReason}
-                    >
-                      {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (
-                        <>
-                          <span className="billing-bill-modal-save-btn__icon" aria-hidden>{renderPrintActionIcon()}</span>
-                          <span>{locale === 'sl' ? 'Zaključi in natisni' : 'Close and print'}</span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="billing-bill-modal-primary-action"
+                    className="billing-pos-footer-btn billing-pos-footer-btn--secondary"
                     onClick={() => void createBillFromOpen(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
-                    disabled={creatingFromOpenId === detailActionOpenBill.id || detailActionItems.length === 0 || !detailPaymentsMatchCloseTotal || !detailSessionsBillableForClose || !detailPaymentSelectionValid || (!detailEntitlementSettlement && !detailCanIssueOpenBill)}
+                    disabled={detailCloseDisabled}
                     title={detailCloseDisabledReason}
                   >
-                    {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (
-                      <>
-                        <span className="billing-bill-modal-primary-icon" aria-hidden>{detailEntitlementSettlement ? '✓' : renderPlainFolioPdfIcon()}</span>
-                        <span>{detailEntitlementSettlement
-                          ? (locale === 'sl' ? 'Zaključi z ugodnostjo' : 'Settle with entitlement')
-                          : (locale === 'sl' ? 'Zaključi račun' : 'Close invoice')}</span>
-                      </>
-                    )}
+                    {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (locale === 'sl' ? 'Zaključi račun' : 'Close invoice')}
+                  </button>
+                  <button
+                    type="button"
+                    className="billing-pos-footer-btn billing-pos-footer-btn--primary"
+                    onClick={() => void createBillFromOpen(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined, 'print')}
+                    disabled={detailCloseDisabled || Boolean(detailEntitlementSettlement)}
+                    title={detailCloseDisabledReason}
+                  >
+                    {creatingFromOpenId === detailActionOpenBill.id ? billingCopy.creating : (locale === 'sl' ? 'Zaključi in natisni' : 'Close and print')}
                   </button>
                 </div>
               </div>
-          </SidePanel>
-          {renderOpenBillPayeeEditorDialog()}
-          {renderAddOpenBillDialog()}
+            </SidePanel>
+            {renderOpenBillPayeeEditorDialog()}
+            {renderAddOpenBillDialog()}
           </>
         )
       })()}
+
 
       {workspaceBillsPanelOpen && (
         <SidePanel
@@ -10583,14 +9973,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       )}
 
       {createBillPanelOpen && (() => {
-        const createSubtotalGross = estimateGross(billForm.items)
-        const createDiscountedItems = applyDiscountToItemsForVat(billForm.items, createBillDiscountDraft)
-        const createVatRows = vatBreakdownRowsForItems(createDiscountedItems)
-        const createGross = createBillPayableGross
-        const createRecipientLabel = billForm.billingTarget === 'COMPANY'
-          ? (selectedRecipientCompany?.name || billingCopy.targetCompany)
-          : (selectedClient ? fullName(selectedClient) : billingCopy.targetPerson)
-        const createTargetLabel = billForm.billingTarget === 'COMPANY' ? billingCopy.targetCompany : billingCopy.targetPerson
         const isCreateAdvanceBill = billForm.billType === 'ADVANCE'
         const canIssueCreateBillType = isCreateAdvanceBill ? canIssueAdvanceInvoice : canIssueOpenInvoice
         const createPermissionTooltip = !canIssueCreateBillType
@@ -10608,254 +9990,62 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 : !billForm.legalEntityId || !billForm.invoiceSeriesId || !billForm.locationId
                   ? (locale === 'sl' ? 'Izberite izdajatelja, številčno serijo in lokacijo.' : 'Select an issuer, invoice series and location.')
                   : !billItemsAllowedByType
-                  ? (isCreateAdvanceBill
-                    ? (locale === 'sl' ? 'Za predplačilo lahko izberete samo storitve s Predplačilo ON.' : 'Advance bills only accept services marked as Advance.')
-                    : (locale === 'sl' ? 'Storitve s Predplačilo ON lahko uporabite samo na Novo predplačilo.' : 'Services marked as Advance can only be used on New advance.'))
-                  : !createPaymentsMatchTotal
-                    ? (locale === 'sl' ? 'Vsota plačil mora biti enaka znesku računa.' : 'Payment amounts must match the total.')
-                    : !createAdvanceSelectionValid
-                      ? (locale === 'sl' ? 'Izbrana predplačila niso veljavna.' : 'The selected advances are not valid.')
-                      : undefined)
+                    ? (isCreateAdvanceBill
+                      ? (locale === 'sl' ? 'Za predplačilo lahko izberete samo storitve s Predplačilo ON.' : 'Advance bills only accept services marked as Advance.')
+                      : (locale === 'sl' ? 'Storitve s Predplačilo ON lahko uporabite samo na Novo predplačilo.' : 'Services marked as Advance can only be used on New advance.'))
+                    : !createPaymentsMatchTotal
+                      ? (locale === 'sl' ? 'Vsota plačil mora biti enaka znesku računa.' : 'Payment amounts must match the total.')
+                      : !createAdvanceSelectionValid
+                        ? (locale === 'sl' ? 'Izbrana predplačila niso veljavna.' : 'The selected advances are not valid.')
+                        : undefined)
+        const createDisabled = creatingBill || creatingManualOpenBill || !billCanSubmit || !canIssueCreateBillType
         return (
           <>
-          <SidePanel
-            open
-            onClose={closeCreateBillModal}
-            ariaLabel={isCreateAdvanceBill ? (locale === 'sl' ? 'Novo predplačilo' : 'New advance') : (locale === 'sl' ? 'Nov neizdan račun' : 'New unissued invoice')}
-            size="xl"
-            closeOnScrimClick={false}
-            className={isCreateAdvanceBill ? 'billing-create-panel billing-create-panel--advance' : 'billing-create-panel billing-create-panel--open'}
-          >
+            <SidePanel
+              open
+              onClose={closeCreateBillModal}
+              ariaLabel={isCreateAdvanceBill ? (locale === 'sl' ? 'Novo predplačilo' : 'New advance') : (locale === 'sl' ? 'Nov neizdan račun' : 'New unissued invoice')}
+              size="xl"
+              closeOnScrimClick={false}
+              className={`billing-pos-panel billing-pos-panel--create${isCreateAdvanceBill ? ' billing-pos-panel--advance' : ''}`}
+            >
               <PanelHeader
-                title={(
-                  <span className="billing-create-panel-title">
-                    <span className="billing-create-panel-title__icon" aria-hidden>{renderPlainFolioPdfIcon()}</span>
-                    <span>{isCreateAdvanceBill ? (locale === 'sl' ? 'Novo predplačilo' : 'New advance') : (locale === 'sl' ? 'Nov neizdan račun' : 'New unissued invoice')}</span>
-                  </span>
-                )}
+                title={isCreateAdvanceBill ? (locale === 'sl' ? 'Novo predplačilo' : 'New advance') : (locale === 'sl' ? 'Nov neizdan račun' : 'New unissued invoice')}
                 onClose={closeCreateBillModal}
                 closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
               />
-              <PanelBody>
-
-              <div className={`billing-invoice-modern-body billing-invoice-modern-body--create billing-invoice-modern-body--advance-create${isCreateAdvanceBill ? '' : ' billing-invoice-modern-body--open-create'}`}>
-                <section className={`billing-invoice-management-card${!isCreateAdvanceBill ? ' billing-invoice-management-card--open-create-compact' : ''}`}>
-                  <div className={`billing-invoice-tabs-row billing-invoice-tabs-row--create${!isCreateAdvanceBill ? ' billing-invoice-tabs-row--create-open-compact' : ''}`}>
-                    {isCreateAdvanceBill && createAdvanceTabs.length > 1 ? (
-                      createAdvanceTabs.map((tab) => {
-                        const active = Number(billForm.clientId ?? 0) === tab.clientId
-                        return (
-                          <button
-                            key={tab.clientId}
-                            type="button"
-                            className={`billing-invoice-bill-tab billing-invoice-bill-tab--client${active ? ' is-active' : ''}`}
-                            onClick={() => {
-                              setBillForm((prev) => ({
-                                ...prev,
-                                clientId: tab.clientId,
-                                billingTarget: 'PERSON',
-                                recipientCompanyId: undefined,
-                              }))
-                              if (active) setEditingCreateBillPayee(true)
-                            }}
-                          >
-                            <span className="billing-invoice-tab-icon" aria-hidden>♙</span>
-                            <span className="billing-invoice-tab-copy">
-                              <strong>{tab.label}</strong>
-                              <small>{tab.typeLabel}</small>
-                            </span>
-                            {active && <span className="billing-invoice-tab-edit" aria-hidden>✎</span>}
-                          </button>
-                        )
-                      })
-                    ) : (
-                      <button
-                        type="button"
-                        className={`billing-invoice-bill-tab billing-invoice-bill-tab--${billForm.billingTarget === 'COMPANY' ? 'company' : 'client'} is-active`}
-                        onClick={() => setEditingCreateBillPayee(true)}
-                      >
-                        <span className="billing-invoice-tab-icon" aria-hidden>{billForm.billingTarget === 'COMPANY' ? '▦' : '♙'}</span>
-                        <span className="billing-invoice-tab-copy">
-                          <strong>{createRecipientLabel}</strong>
-                          <small>{createTargetLabel}</small>
-                        </span>
-                        <span className="billing-invoice-tab-edit" aria-hidden>✎</span>
-                      </button>
-                    )}
-                  </div>
-                </section>
-
-                <section className="billing-invoice-workspace-card">
-                  <div className="billing-invoice-items-panel">
-                    <div className="billing-invoice-section-title-row">
-                      <h3>{isCreateAdvanceBill ? (locale === 'sl' ? 'Postavke predplačila' : 'Advance items') : (locale === 'sl' ? 'Postavke računa' : 'Bill items')}</h3>
-                      <span>{billForm.items.length} {billForm.items.length === 1 ? (locale === 'sl' ? 'postavka' : 'item') : (locale === 'sl' ? 'postavk' : 'items')}</span>
-                    </div>
-                    <div className={`billing-invoice-table-head billing-invoice-table-head--compact-create${isCreateAdvanceBill ? ' billing-invoice-table-head--advance' : ''}`} aria-hidden>
-                      <span />
-                      <span>{locale === 'sl' ? 'Storitev' : 'Service'}</span>
-                      <span>{locale === 'sl' ? 'Kol.' : 'Qty'}</span>
-                      <span>{locale === 'sl' ? 'Cena' : 'Price'}</span>
-                      <span>{locale === 'sl' ? 'Skupaj' : 'Amount'}</span>
-                      <span>{locale === 'sl' ? 'Popust' : 'Discount'}</span>
-                      <span>{locale === 'sl' ? 'Akcije' : 'Actions'}</span>
-                    </div>
-                    <div className="billing-invoice-item-list">
-                      {billForm.items.map((item, index) => renderModernBillFormLineEditor(item, index))}
-                      <button
-                        type="button"
-                        className="billing-invoice-add-dashed billing-invoice-add-dashed--line"
-                        disabled={availableBillServices.length === 0}
-                        onClick={() => {
-                          const firstService = availableBillServices[0]
-                          if (!firstService) return
-                          setBillForm({
-                            ...billForm,
-                            items: [
-                              ...billForm.items,
-                              {
-                                transactionServiceId: firstService.id,
-                                quantity: 1,
-                                netPrice: String(firstService.netPrice),
-                                grossPrice: grossStringFromService(firstService),
-                                sourceSessionBookingId: billForm.sessionId ?? undefined,
-                              },
-                            ],
-                          })
-                        }}
-                      >
-                        <strong>+ {billingCopy.addLine}</strong>
-                        <small>{locale === 'sl' ? 'Dodajte eno ali več transakcijskih storitev' : 'Add one or more transaction services'}</small>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="billing-invoice-payment-panel">
-                    {renderCreateBillPaymentMethods(createGross)}
-                    {!isCreateAdvanceBill && renderDiscountCard(
-                      createBillDiscountDraft,
-                      createSubtotalGross,
-                      (value) => {
-                        setOpenCreateItemDiscountIndex(null)
-                        setBillForm((prev) => ({ ...prev, wholeBillDiscountPercent: value, discountType: 'PERCENT', discountValue: value, discountItemIndex: undefined }))
-                      },
-                      billForm.items,
-                    )}
-                    {!isCreateAdvanceBill && (
-                      <section className="billing-invoice-totals-card">
-                        <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(createSubtotalGross)}</strong></div>
-                        {createVatRows.map((row) => (
-                          <div key={row.key} className="billing-bill-modal-summary-line">
-                            <span>{row.label}</span>
-                            <strong>{currency(row.taxTotal)}</strong>
-                          </div>
-                        ))}
-                        {createBillDiscountGross > 0.005 && (
-                          <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'} <span className="billing-invoice-info-dot">i</span></span><strong>- {currency(createBillDiscountGross)}</strong></div>
-                        )}
-                        <div className="billing-bill-modal-summary-divider" />
-                        <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(createGross)}</strong></div>
-                      </section>
-                    )}
-                  </div>
-                </section>
-
-                <section className="billing-invoice-compact-summary" aria-label={locale === 'sl' ? 'Povzetek računa' : 'Bill summary'}>
-                  <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--blue">▣</span><span>{isCreateAdvanceBill ? billingCopy.billTypeAdvance : (locale === 'sl' ? 'Računi' : 'Bills')}</span><strong>1 {isCreateAdvanceBill ? billingCopy.billTypeAdvance.toLowerCase() : (locale === 'sl' ? 'račun' : 'bill')}</strong></div>
-                  <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--green">☷</span><span>{locale === 'sl' ? 'Postavke' : 'Line items'}</span><strong>{billForm.items.length}</strong></div>
-                  <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--purple">€</span><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(createGross)}</strong></div>
-                  <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--red">▤</span><span>{locale === 'sl' ? 'Neplačano' : 'Unpaid'}</span><strong>{currency(createGross)}</strong></div>
-                </section>
-              </div>
+              <PanelBody flush className="billing-pos-panel-body">
+                {renderPosCreateEditor(isCreateAdvanceBill)}
               </PanelBody>
-
-              <div className={`billing-bill-modal-footer${mobileKeyboardOpen ? ' billing-bill-modal-footer--keyboard-hidden' : ''}`}>
-
-                {!isCreateAdvanceBill && (
+              <div className={`billing-pos-footer${mobileKeyboardOpen ? ' billing-pos-footer--keyboard-hidden' : ''}`}>
+                <div className="billing-pos-footer-spacer" />
+                <div className="billing-pos-footer-actions">
                   <button
                     type="button"
-                    className="billing-bill-modal-save-btn billing-bill-modal-save-btn--create-open-anchor"
-                    onClick={() => void createManualOpenBillFromCreateBillForm()}
-                    disabled={creatingManualOpenBill || creatingBill || !billCanSubmit || !canIssueOpenInvoice}
-                    title={createCloseTooltip}
-                  >
-                    <span className="billing-bill-modal-save-btn__icon" aria-hidden>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
-                        <path d="M17 21v-8H7v8" />
-                        <path d="M7 3v5h8" />
-                      </svg>
-                    </span>
-                    <span>{creatingManualOpenBill ? billingCopy.creating : billingCopy.createOpenBill}</span>
-                  </button>
-                )}
-                <div className={`billing-bill-modal-footer-actions billing-bill-modal-footer-actions--desktop-create${!isCreateAdvanceBill ? ' billing-bill-modal-footer-actions--desktop-create-open' : ''}`}>
-                  <button
-                    type="button"
-                    className="billing-bill-modal-save-btn"
-                    onClick={() => void (isCreateAdvanceBill ? createBill('print') : createAndCloseManualOpenBill('print'))}
-                    disabled={creatingBill || creatingManualOpenBill || !billCanSubmit || !canIssueCreateBillType}
-                    title={createCloseTooltip}
-                  >
-                    {creatingBill ? billingCopy.creating : (
-                      <>
-                        <span className="billing-bill-modal-save-btn__icon" aria-hidden>{renderPrintActionIcon()}</span>
-                        <span>{isCreateAdvanceBill
-                          ? (locale === 'sl' ? 'Ustvari in natisni' : 'Create and print')
-                          : (locale === 'sl' ? 'Ustvari in natisni' : 'Create and print')}</span>
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    className="billing-bill-modal-primary-action"
+                    className="billing-pos-footer-btn billing-pos-footer-btn--secondary"
                     onClick={() => void (isCreateAdvanceBill ? createBill() : createAndCloseManualOpenBill())}
-                    disabled={creatingBill || creatingManualOpenBill || !billCanSubmit || !canIssueCreateBillType}
+                    disabled={createDisabled}
                     title={createCloseTooltip}
                   >
-                    {creatingBill ? billingCopy.creating : (
-                      <>
-                        <span className="billing-bill-modal-primary-icon" aria-hidden>{renderPlainFolioPdfIcon()}</span>
-                        {isCreateAdvanceBill ? (locale === 'sl' ? 'Ustvari predplačilo' : 'Create advance') : (locale === 'sl' ? 'Ustvari račun' : 'Create invoice')}
-                      </>
-                    )}
+                    {creatingBill || creatingManualOpenBill
+                      ? billingCopy.creating
+                      : isCreateAdvanceBill
+                        ? (locale === 'sl' ? 'Ustvari predplačilo' : 'Create advance')
+                        : (locale === 'sl' ? 'Ustvari račun' : 'Create invoice')}
+                  </button>
+                  <button
+                    type="button"
+                    className="billing-pos-footer-btn billing-pos-footer-btn--primary"
+                    onClick={() => void (isCreateAdvanceBill ? createBill('print') : createAndCloseManualOpenBill('print'))}
+                    disabled={createDisabled}
+                    title={createCloseTooltip}
+                  >
+                    {creatingBill || creatingManualOpenBill ? billingCopy.creating : (locale === 'sl' ? 'Ustvari in natisni' : 'Create and print')}
                   </button>
                 </div>
-                {!isCreateAdvanceBill && (
-                  <div className="billing-bill-modal-footer-actions billing-bill-modal-footer-actions--mobile-open-create">
-                    <button
-                      type="button"
-                      className="billing-bill-modal-save-btn"
-                      onClick={() => void createAndCloseManualOpenBill('print')}
-                      disabled={creatingBill || creatingManualOpenBill || !billCanSubmit || !canIssueOpenInvoice}
-                      title={createCloseTooltip}
-                    >
-                      {creatingBill ? billingCopy.creating : (
-                        <>
-                          <span className="billing-bill-modal-save-btn__icon" aria-hidden>{renderPrintActionIcon()}</span>
-                          <span>{locale === 'sl' ? 'Zaključi in natisni' : 'Close and print'}</span>
-                        </>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      className="billing-bill-modal-primary-action"
-                      onClick={() => void createAndCloseManualOpenBill()}
-                      disabled={creatingManualOpenBill || creatingBill || !billCanSubmit || !canIssueOpenInvoice}
-                      title={createCloseTooltip}
-                    >
-                      {creatingBill ? billingCopy.creating : (
-                        <>
-                          <span className="billing-bill-modal-primary-icon" aria-hidden>{renderPlainFolioPdfIcon()}</span>
-                          <span>{locale === 'sl' ? 'Zaključi račun' : 'Close invoice'}</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
               </div>
-          </SidePanel>
-          {renderCreateBillPayeeDialog()}
+            </SidePanel>
+            {renderCreateBillPayeeDialog()}
           </>
         )
       })()}
