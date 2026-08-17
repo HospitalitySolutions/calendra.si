@@ -654,6 +654,11 @@ export function CalendarServiceChainEditor({
   }
 
   const consumablesCountLabel = `${consumablePreview.length} ${copy.defaultItems}`
+  const consumablesSectionClassName = sectionClassName?.includes('calendar-approved-booking')
+    ? 'calendar-approved-booking__section calendar-approved-booking__consumables'
+    : sectionClassName?.includes('calendar-standardized')
+      ? 'calendar-standardized__section calendar-standardized__consumables'
+      : 'calendar-consumables-section'
   const consumablesBody = consumablesLoading ? (
     <div className="calendar-consumables-summary__empty">{copy.loading}</div>
   ) : consumablePreview.length > 0 ? (
@@ -864,6 +869,7 @@ export function CalendarServiceChainEditor({
       {consumablesEnabled && primaryTypeId ? (
         <PanelSection
           title={copy.consumables}
+          className={consumablesSectionClassName}
           icon={<CalendarSectionIcon name="consumables" />}
           badge={consumablesCountLabel}
           defaultOpen={false}
@@ -884,28 +890,37 @@ export function CalendarServiceChainEditor({
           onClose={() => setConsumablesOpen(false)}
           ariaLabel={locale === 'sl' ? 'Uredi porabni material' : 'Edit consumables'}
           size="lg"
+          className="calendar-consumables-editor-panel"
         >
           <PanelHeader
-            title={locale === 'sl' ? 'Uredi porabni material' : locale === 'sr' ? 'Uredi potrošni materijal' : 'Edit consumables'}
+            title={
+              <span className="calendar-aux-panel-title">
+                <span className="calendar-aux-panel-title__icon calendar-aux-panel-title__icon--consumables"><CalendarSectionIcon name="consumables" /></span>
+                <span>{locale === 'sl' ? 'Uredi porabni material' : locale === 'sr' ? 'Uredi potrošni materijal' : 'Edit consumables'}</span>
+              </span>
+            }
             subtitle={locale === 'sl' ? 'Prilagodite porabni material za ta termin.' : 'Adjust consumables for this appointment.'}
             onClose={() => setConsumablesOpen(false)}
             closeLabel={copy.close}
           />
-          <PanelBody>
+          <PanelBody className="calendar-consumables-editor-panel__body">
             <div className="calendar-consumables-editor__toolbar">
               <div className="calendar-consumables-editor__add">
-                <DesktopSelect value={consumableToAdd} onChange={(event) => setConsumableToAdd(event.target.value)}>
-                  <option value="">{locale === 'sl' ? 'Dodaj artikel …' : 'Add item…'}</option>
-                  {consumableCatalog.filter((item) => !workingConsumables.some((row) => row.consumableId === item.id)).map((item) => (
-                    <option key={item.id} value={item.id}>{item.name}</option>
-                  ))}
-                </DesktopSelect>
-                <button type="button" className="secondary slim-btn" disabled={!consumableToAdd} onClick={() => {
+                <div className="calendar-consumables-editor__select-wrap">
+                  <span className="calendar-consumables-editor__select-icon" aria-hidden><SearchIcon /></span>
+                  <DesktopSelect value={consumableToAdd} onChange={(event) => setConsumableToAdd(event.target.value)}>
+                    <option value="">{locale === 'sl' ? 'Dodaj artikel …' : 'Add item…'}</option>
+                    {consumableCatalog.filter((item) => !workingConsumables.some((row) => row.consumableId === item.id)).map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </DesktopSelect>
+                </div>
+                <button type="button" className="secondary slim-btn calendar-consumables-editor__add-button" disabled={!consumableToAdd} onClick={() => {
                   const item = consumableCatalog.find((entry) => String(entry.id) === consumableToAdd)
                   if (!item) return
                   mutateWorkingConsumables([...workingConsumables, { consumableId: item.id, itemName: item.name, unit: item.unit || 'kos', quantity: 1, quantityMode: 'PER_SESSION', billable: item.billable === true, salePriceSnapshot: item.salePrice ?? null, vatRateSnapshot: item.vatRate ?? 'NO_VAT', notes: null }])
                   setConsumableToAdd('')
-                }}>{locale === 'sl' ? 'Dodaj artikel' : 'Add item'}</button>
+                }}><PlusIcon /> <span>{locale === 'sl' ? 'Dodaj artikel' : 'Add item'}</span></button>
               </div>
               <button type="button" className="calendar-consumables-editor__reset" onClick={resetWorkingConsumables}>↻ {locale === 'sl' ? 'Ponastavi na privzeto' : 'Reset to defaults'}</button>
             </div>
@@ -927,7 +942,14 @@ export function CalendarServiceChainEditor({
                 </div>
               ))}
             </div>
-            <div className="calendar-consumables-editor__note">ⓘ {locale === 'sl' ? 'Spremembe veljajo samo za ta termin in ne spremenijo privzetih nastavitev storitve.' : 'Changes apply only to this appointment and do not change the service defaults.'}</div>
+            {workingConsumables.length === 0 ? (
+              <div className="calendar-consumables-editor__empty">
+                <span className="calendar-consumables-editor__empty-icon" aria-hidden><CalendarSectionIcon name="consumables" /></span>
+                <strong>{locale === 'sl' ? 'Ni dodanega porabnega materiala' : 'No consumables added'}</strong>
+                <span>{locale === 'sl' ? 'Dodajte artikel, da ga uporabite za ta termin.' : 'Add an item to use it for this appointment.'}</span>
+              </div>
+            ) : null}
+            <div className="calendar-consumables-editor__note"><span aria-hidden>ⓘ</span> {locale === 'sl' ? 'Spremembe veljajo samo za ta termin in ne spremenijo privzetih nastavitev storitve.' : 'Changes apply only to this appointment and do not change the service defaults.'}</div>
           </PanelBody>
           <PanelFooter>
             <PanelButton variant="ghost" onClick={() => setConsumablesOpen(false)}>
@@ -941,16 +963,22 @@ export function CalendarServiceChainEditor({
       ) : null}
 
       {pickerOpen ? (
-        <SidePanel open onClose={closePicker} ariaLabel={copy.pickerTitle} size="sm">
+        <SidePanel open onClose={closePicker} ariaLabel={copy.pickerTitle} size="sm" className="calendar-service-picker-panel">
           <PanelHeader
-            title={pickerReplaceIndex != null ? copy.change : copy.pickerTitle}
+            title={
+              <span className="calendar-aux-panel-title">
+                <span className="calendar-aux-panel-title__icon calendar-aux-panel-title__icon--service-add"><PlusIcon /></span>
+                <span>{pickerReplaceIndex != null ? copy.change : copy.pickerTitle}</span>
+              </span>
+            }
             subtitle={copy.pickerDescription}
             onClose={closePicker}
             closeLabel={copy.close}
           />
-          <PanelBody>
-            <label className="cp-field">
+          <PanelBody className="calendar-service-picker-panel__body">
+            <label className="cp-field calendar-service-picker-panel__search">
               <span className="cp-sr-only">{copy.searchPlaceholder}</span>
+              <span className="calendar-service-picker-panel__search-icon" aria-hidden><SearchIcon /></span>
               <input
                 type="search"
                 value={pickerQuery}
@@ -961,7 +989,8 @@ export function CalendarServiceChainEditor({
               />
             </label>
 
-            <div className="cp-stack cp-stack--tight">
+            <div className="calendar-service-picker-panel__available-label">{locale === 'sl' ? 'Razpoložljive storitve' : locale === 'sr' ? 'Dostupne usluge' : 'Available services'}</div>
+            <div className="cp-stack cp-stack--tight calendar-service-picker-panel__list">
               {filteredSessionTypes.length === 0 ? (
                 <PanelEmpty>{copy.pickerEmpty}</PanelEmpty>
               ) : filteredSessionTypes.map((entry) => (
@@ -970,11 +999,12 @@ export function CalendarServiceChainEditor({
                   title={serviceName(entry, locale)}
                   meta={
                     <>
-                      {formatMinutes(Number(entry?.durationMinutes ?? 0), locale)}
-                      {Number.isFinite(Number(entry?.priceGross)) ? ` • ${currency(Number(entry.priceGross))}` : ''}
+                      <ClockIcon /> {formatMinutes(Number(entry?.durationMinutes ?? 0), locale)}
+                      {Number.isFinite(Number(entry?.priceGross)) ? <span className="calendar-service-picker-panel__price-meta"> • {currency(Number(entry.priceGross))}</span> : null}
                     </>
                   }
-                  leading={<ClockIcon />}
+                  leading={<span className="calendar-service-picker-panel__row-icon" aria-hidden><CalendarSectionIcon name="service" /></span>}
+                  trailing={<span className="calendar-service-picker-panel__row-chevron" aria-hidden>›</span>}
                   onClick={() => addOrReplaceService(Number(entry.id))}
                 />
               ))}
@@ -984,9 +1014,19 @@ export function CalendarServiceChainEditor({
       ) : null}
 
       {editingServiceIndex != null ? (
-        <SidePanel open onClose={closeEditService} ariaLabel={copy.editServiceTitle} size="sm">
-          <PanelHeader title={copy.editServiceTitle} onClose={closeEditService} closeLabel={copy.close} />
-          <PanelBody>
+        <SidePanel open onClose={closeEditService} ariaLabel={copy.editServiceTitle} size="sm" className="calendar-service-edit-panel">
+          <PanelHeader
+            title={
+              <span className="calendar-aux-panel-title">
+                <span className="calendar-aux-panel-title__icon calendar-aux-panel-title__icon--service-edit"><PencilIcon /></span>
+                <span>{copy.editServiceTitle}</span>
+              </span>
+            }
+            onClose={closeEditService}
+            closeLabel={copy.close}
+          />
+          <PanelBody className="calendar-service-edit-panel__body">
+            <div className="calendar-service-edit-panel__section-title"><span aria-hidden>ⓘ</span><strong>{locale === 'sl' ? 'Osnovni podatki' : locale === 'sr' ? 'Osnovni podaci' : 'Basic information'}</strong></div>
             <PanelField label={copy.serviceName}>
               <input
                 type="text"

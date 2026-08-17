@@ -118,6 +118,15 @@ function PeopleIcon() {
   )
 }
 
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="16" rx="2.5" />
+      <path d="M8 3v4M16 3v4M3 10h18" />
+    </svg>
+  )
+}
+
 function CheckIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -409,30 +418,39 @@ export function CalendarGroupGuestsPanel({
       open
       onClose={onClose}
       ariaLabel={`${titleName} – ${copy.guests}`}
-      size="lg"
+      size="xl"
+      className="cp-panel--calendar-standardized calendar-group-guests-side-panel"
       closeOnScrimClick={busyClientId == null}
       closeOnEscape={busyClientId == null}
     >
         <PanelHeader
-          title={`${titleName} – ${copy.details}`}
-          subtitle={`${serviceLabel(session)} • ${sessionDateTime(session, locale)}`}
+          title={
+            <span className="calendar-group-guests-standard-title">
+              <span className="calendar-group-guests-standard-title-icon" aria-hidden><PeopleIcon /></span>
+              <span>{copy.details}</span>
+            </span>
+          }
+          subtitle={`${titleName} · ${sessionDateTime(session, locale)}`}
           onClose={onClose}
           closeLabel={copy.close}
         />
 
-        <PanelBody>
+        <PanelBody className="calendar-standardized-body calendar-group-guests-body">
           <div className="calendar-group-guests-summary">
             <div className="calendar-group-guests-stat">
               <span className="calendar-group-guests-stat-icon calendar-group-guests-stat-icon--blue"><PeopleIcon /></span>
-              <div><strong>{capacity == null ? registeredCount : `${registeredCount} / ${capacity}`}</strong><span>{copy.registered}</span></div>
+              <div><strong>{registeredCount}</strong><span>{copy.registered}</span></div>
             </div>
             <div className="calendar-group-guests-stat">
               <span className="calendar-group-guests-stat-icon calendar-group-guests-stat-icon--green"><CheckIcon /></span>
               <div><strong>{freeSpots == null ? '∞' : freeSpots}</strong><span>{freeSpots == null ? copy.unlimited : copy.free}</span></div>
             </div>
             <div className="calendar-group-guests-session-meta">
-              <strong>{serviceLabel(session)}</strong>
-              <span>{sessionDateTime(session, locale)}</span>
+              <span className="calendar-group-guests-stat-icon calendar-group-guests-stat-icon--purple"><CalendarIcon /></span>
+              <div>
+                <strong>{serviceLabel(session)}</strong>
+                <span>{sessionDateTime(session, locale)}</span>
+              </div>
             </div>
           </div>
 
@@ -468,8 +486,7 @@ export function CalendarGroupGuestsPanel({
             <div className="calendar-group-guests-table-head">
               <span>{copy.guest}</span>
               <span>{copy.contact}</span>
-              {mode === 'current' && <span>{copy.status}</span>}
-              <span>{copy.actions}</span>
+              <span>{mode === 'current' ? `${copy.status} / ${copy.actions}` : copy.actions}</span>
             </div>
             <div className="calendar-group-guests-rows">
               {displayedRows.length === 0 ? (
@@ -497,44 +514,44 @@ export function CalendarGroupGuestsPanel({
                       <span>{client?.email || '—'}</span>
                       <span>{client?.phone || ''}</span>
                     </div>
-                    {mode === 'current' && (
-                      <div className="calendar-group-guests-status">
-                        {canSetStatus ? (
-                          <select
-                            className={`calendar-group-guests-status-select calendar-group-guests-status-select--${participantTone(lifecycleStatus)}`}
-                            value={lifecycleStatus}
-                            onChange={(event) => {
-                              const target = String(event.target.value).toUpperCase()
-                              if (target === 'CANCELLED' || target === 'NO_SHOW') {
-                                void setParticipantStatus(client, target)
-                              }
-                            }}
-                            disabled={busyClientId != null}
-                            aria-label={`${copy.status}: ${clientName(client)}`}
-                          >
-                            <option value={lifecycleStatus}>{bookingStatusDisplayLabel(lifecycleStatus, locale)}</option>
-                            <option value="CANCELLED">{bookingStatusDisplayLabel('CANCELLED', locale)}</option>
-                            {noShowModuleEnabled && <option value="NO_SHOW">{bookingStatusDisplayLabel('NO_SHOW', locale)}</option>}
-                          </select>
-                        ) : (
-                          <span className={`calendar-group-guests-status-pill calendar-group-guests-status-pill--${participantTone(lifecycleStatus)}`}>
-                            {bookingStatusDisplayLabel(lifecycleStatus, locale)}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    <div className="calendar-group-guests-actions">
+                    <div className={`calendar-group-guests-actions${mode === 'current' ? ' calendar-group-guests-actions--current' : ''}`}>
                       {mode === 'current' ? (
-                        <button
-                          type="button"
-                          className="calendar-group-guests-row-action calendar-group-guests-row-action--remove"
-                          onClick={() => void removeClient(client)}
-                          disabled={busyClientId != null || terminalStatus}
-                          aria-label={`${copy.remove}: ${clientName(client)}`}
-                          title={copy.remove}
-                        >
-                          {loading ? <span className="calendar-group-guests-spinner" /> : <XIcon />}
-                        </button>
+                        <>
+                          <div className="calendar-group-guests-status">
+                            {canSetStatus ? (
+                              <select
+                                className={`calendar-group-guests-status-select calendar-group-guests-status-select--${participantTone(lifecycleStatus)}`}
+                                value={lifecycleStatus}
+                                onChange={(event) => {
+                                  const target = String(event.target.value).toUpperCase()
+                                  if (target === 'CANCELLED' || target === 'NO_SHOW') {
+                                    void setParticipantStatus(client, target)
+                                  }
+                                }}
+                                disabled={busyClientId != null}
+                                aria-label={`${copy.status}: ${clientName(client)}`}
+                              >
+                                <option value={lifecycleStatus}>{bookingStatusDisplayLabel(lifecycleStatus, locale)}</option>
+                                <option value="CANCELLED">{bookingStatusDisplayLabel('CANCELLED', locale)}</option>
+                                {noShowModuleEnabled && <option value="NO_SHOW">{bookingStatusDisplayLabel('NO_SHOW', locale)}</option>}
+                              </select>
+                            ) : (
+                              <span className={`calendar-group-guests-status-pill calendar-group-guests-status-pill--${participantTone(lifecycleStatus)}`}>
+                                {bookingStatusDisplayLabel(lifecycleStatus, locale)}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            className="calendar-group-guests-row-action calendar-group-guests-row-action--remove"
+                            onClick={() => void removeClient(client)}
+                            disabled={busyClientId != null || terminalStatus}
+                            aria-label={`${copy.remove}: ${clientName(client)}`}
+                            title={copy.remove}
+                          >
+                            {loading ? <span className="calendar-group-guests-spinner" /> : <XIcon />}
+                          </button>
+                        </>
                       ) : (
                         <button
                           type="button"

@@ -37,6 +37,17 @@ function CalendarWarningIcon() {
   )
 }
 
+function CalendarGroupFormIcon() {
+  return (
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  )
+}
+
 function CalendarClientProfileSectionIcon({ name }: { name: 'person' | 'email' | 'phone' }) {
   const common = {
     width: 20,
@@ -3362,8 +3373,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 title={sectionLabels.notes}
                 className="calendar-standardized__section calendar-standardized__notes"
                 icon={<CalendarSectionIcon name="notes" />}
-                defaultOpen={!isCalendarCreateMobile}
-                collapsible={isCalendarCreateMobile}
+                defaultOpen={false}
+                collapsible
                 summary={bookedNotesSummary}
               >
               {(selectedBookedSession.meetingLink || (selectedBookedSession.notes || '').includes('Zoom meeting:')) && (
@@ -3561,20 +3572,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     <span className="calendar-standardized__billing-label">{locale === 'sl' ? 'Predplačilo' : 'Advance'}</span>
                   </button>
                 )}
-                <button
-                  type="button"
-                  className="cp-action calendar-standardized__scanner-action"
-                  title={bookingServiceScanTitle}
-                  aria-label={bookingServiceScanTitle}
-                  disabled={bookingServiceScanDisabled}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    if (bookingServiceScanDisabled) return
-                    openBookedEntitlementPaymentModal(bookingServiceEntitlementStatus, bookingServiceEntitlementClient)
-                  }}
-                >
-                  <BookedEntitlementScanIcon />
-                </button>
               </PanelActionBar>
             )}
             {showBookedSessionFooter && (
@@ -5916,8 +5913,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   title={sectionLabels.notes}
                   className="calendar-approved-booking__section calendar-approved-booking__notes"
                   icon={<CalendarSectionIcon name="notes" />}
-                  defaultOpen={!compactSelectionHeader}
-                  collapsible={compactSelectionHeader}
+                  defaultOpen={false}
+                  collapsible
                   summary={newFormNotesSummary}
                 >
                   <div className="form-row form-row-infield stretch">
@@ -5984,6 +5981,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         onClose={closeCalendarAddGroupModal}
         ariaLabel={locale === 'sl' ? 'Nova skupina' : 'New group'}
         size="lg"
+        className="clients-standard-entity-panel clients-standard-group-panel clients-standard-entity-panel--create"
       >
         {isCalendarCreateMobile ? (
           <form
@@ -6043,7 +6041,12 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         ) : (
           <>
             <PanelHeader
-              title={locale === 'sl' ? 'Nova skupina' : 'New group'}
+              title={
+                <span className="clients-standard-entity-header-title">
+                  <CalendarGroupFormIcon />
+                  <span>{locale === 'sl' ? 'Nova skupina' : 'New group'}</span>
+                </span>
+              }
               onClose={closeCalendarAddGroupModal}
               closeLabel={t('mobileNavClose')}
             />
@@ -6055,31 +6058,33 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 if (!calendarCreateGroupDisabled) void createGroupFromBooking()
               }}
             >
-              <div className="clients-detail-fields clients-create-fields">
-                <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                  <span>{locale === 'sl' ? 'Ime skupine' : 'Group name'}</span>
-                  <input
-                    required
-                    autoFocus
-                    placeholder={locale === 'sl' ? 'Ime skupine' : 'Group name'}
-                    value={newGroupForm.name}
-                    onChange={(e) => setNewGroupForm((current: any) => ({ ...current, name: e.target.value }))}
-                  />
-                </label>
-                <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                  <span>{locale === 'sl' ? 'E-pošta skupine' : 'Group email'}</span>
-                  <input
-                    type="email"
-                    placeholder={locale === 'sl' ? 'E-pošta skupine' : 'Group email'}
-                    value={newGroupForm.email}
-                    onChange={(e) => setNewGroupForm((current: any) => ({ ...current, email: e.target.value }))}
-                  />
-                </label>
-              </div>
+              <section className="clients-standard-entity-profile clients-standard-group-profile">
+                <h3><CalendarGroupFormIcon /><span>{locale === 'sl' ? 'Podatki o skupini' : 'Group details'}</span></h3>
+                <div className="clients-standard-entity-grid clients-standard-group-grid">
+                  <label className="clients-standard-entity-field clients-standard-entity-field--wide">
+                    <span>{locale === 'sl' ? 'Ime skupine' : 'Group name'} *</span>
+                    <input
+                      required
+                      autoFocus
+                      placeholder={locale === 'sl' ? 'Ime skupine' : 'Group name'}
+                      value={newGroupForm.name}
+                      onChange={(e) => setNewGroupForm((current: any) => ({ ...current, name: e.target.value }))}
+                    />
+                  </label>
+                  <label className="clients-standard-entity-field clients-standard-entity-field--wide">
+                    <span>{locale === 'sl' ? 'E-pošta skupine' : 'Group email'}</span>
+                    <input
+                      type="email"
+                      placeholder={locale === 'sl' ? 'E-pošta skupine' : 'Group email'}
+                      value={newGroupForm.email}
+                      onChange={(e) => setNewGroupForm((current: any) => ({ ...current, email: e.target.value }))}
+                    />
+                  </label>
+                </div>
+              </section>
               {groupModalError && <div className="error">{groupModalError}</div>}
             </PanelBody>
             <PanelFooter>
-              <PanelButton onClick={closeCalendarAddGroupModal}>{t('formCancel')}</PanelButton>
               <PanelButton
                 type="submit"
                 form="calendar-new-group-form"

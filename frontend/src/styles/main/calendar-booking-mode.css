@@ -5775,3 +5775,810 @@
         font-size: 0.9rem;
     }
 }
+
+/* ========================================================================== */
+/* Appointment panel finishing pass — consumables, client add, date, notes,   */
+/* and booked-session action visibility. Desktop only.                         */
+/* ========================================================================== */
+@media (min-width: 1025px) {
+    /* Consumables use the same flat orange-icon section language as the rest
+       of the approved appointment drawer instead of looking like a nested card. */
+    .cp-panel--calendar-new-booking .calendar-approved-booking__consumables,
+    .cp-panel--calendar-standardized .calendar-standardized__consumables {
+        padding: 20px 0 22px;
+        border: 0 !important;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__consumables .cp-section__head,
+    .cp-panel--calendar-standardized .calendar-standardized__consumables .cp-section__head {
+        min-height: 30px;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__consumables .cp-section__toggle,
+    .cp-panel--calendar-standardized .calendar-standardized__consumables .cp-section__toggle {
+        gap: 14px;
+        min-width: 0;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__consumables .cp-section__icon,
+    .cp-panel--calendar-standardized .calendar-standardized__consumables .cp-section__icon {
+        width: 24px;
+        height: 24px;
+        color: #ff5a00;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__consumables .cp-section__icon svg,
+    .cp-panel--calendar-standardized .calendar-standardized__consumables .cp-section__icon svg {
+        width: 24px;
+        height: 24px;
+        stroke-width: 1.8;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__consumables .cp-section__title,
+    .cp-panel--calendar-standardized .calendar-standardized__consumables .cp-section__title {
+        color: #111827;
+        font-size: 1.125rem;
+        font-weight: 700;
+        line-height: 1.3;
+        letter-spacing: -0.012em;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__consumables .cp-section__badge,
+    .cp-panel--calendar-standardized .calendar-standardized__consumables .cp-section__badge {
+        margin-left: 2px;
+        padding: 3px 8px;
+        border: 0;
+        border-radius: 999px;
+        background: #edf4ff;
+        color: #1672f3;
+        font-size: 0.72rem;
+        font-weight: 700;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__consumables .slim-btn,
+    .cp-panel--calendar-standardized .calendar-standardized__consumables .slim-btn {
+        height: 40px;
+        min-height: 40px;
+        padding: 0 15px;
+        border: 1px solid #d8dee8;
+        border-radius: 9px;
+        background: #ffffff;
+        color: #111827;
+        font-size: 0.8125rem;
+        font-weight: 650;
+        box-shadow: none;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__consumables .cp-section__collapse,
+    .cp-panel--calendar-standardized .calendar-standardized__consumables .cp-section__collapse,
+    .cp-panel--calendar-new-booking .calendar-approved-booking__notes .cp-section__collapse,
+    .cp-panel--calendar-standardized .calendar-standardized__notes .cp-section__collapse {
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        min-height: 40px;
+        margin-left: 0;
+        border: 1px solid #d8dee8;
+        border-radius: 9px;
+        background: #fff;
+        color: #344054;
+        font-size: 1.25rem;
+        font-weight: 500;
+        line-height: 1;
+        box-shadow: none;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__consumables .cp-section__body,
+    .cp-panel--calendar-standardized .calendar-standardized__consumables .cp-section__body {
+        padding-top: 14px;
+        gap: 9px;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__consumables .calendar-consumables-summary__empty,
+    .cp-panel--calendar-standardized .calendar-standardized__consumables .calendar-consumables-summary__empty {
+        min-height: 42px;
+        display: flex;
+        align-items: center;
+        padding: 0 13px;
+        border: 1px solid #dfe6ef;
+        border-radius: 9px;
+        background: #fbfcfe;
+        color: #7b8799;
+        font-size: 0.75rem;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__consumables .calendar-consumables-summary__list,
+    .cp-panel--calendar-standardized .calendar-standardized__consumables .calendar-consumables-summary__list {
+        border-color: #dfe6ef;
+        border-radius: 9px;
+        box-shadow: none;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__consumables .calendar-consumables-summary__hint,
+    .cp-panel--calendar-standardized .calendar-standardized__consumables .calendar-consumables-summary__hint {
+        color: #7b8799;
+        font-size: 0.72rem;
+        line-height: 1.45;
+    }
+
+    /* Dodaj termin: keep the + client action visible before the search field has
+       focus. Wait-list stays secondary and expands only while working in picker. */
+    .cp-panel--calendar-new-booking .calendar-approved-booking__clients .calendar-client-picker__actions {
+        max-width: 50px;
+        gap: 0;
+        overflow: visible;
+        opacity: 1;
+        flex: 0 0 auto;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__clients .calendar-client-picker__actions .calendar-client-picker__waitlist-btn {
+        display: none;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__clients .calendar-client-picker:focus-within .calendar-client-picker__actions {
+        max-width: 110px;
+        gap: 8px;
+        opacity: 1;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__clients .calendar-client-picker:focus-within .calendar-client-picker__actions .calendar-client-picker__waitlist-btn {
+        display: inline-flex;
+    }
+
+    /* Make the full local date readable. The date gets a guaranteed 190px while
+       time controls remain comfortably usable inside the 560px drawer. */
+    .cp-panel--calendar-new-booking .calendar-approved-booking__schedule .calendar-timespan-row,
+    .cp-panel--calendar-edit-booking .calendar-standardized__schedule .calendar-timespan-row {
+        grid-template-columns: minmax(128px, 1fr) minmax(128px, 1fr) minmax(190px, 1.35fr);
+        gap: 12px;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__schedule .calendar-timespan-input-inner input[type='date'],
+    .cp-panel--calendar-edit-booking .calendar-standardized__schedule .calendar-timespan-input-inner input[type='date'] {
+        min-width: 190px;
+        padding-left: 40px;
+        padding-right: 6px;
+        font-size: 0.88rem;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__schedule .calendar-timespan-input-inner input[type='date']::-webkit-calendar-picker-indicator,
+    .cp-panel--calendar-edit-booking .calendar-standardized__schedule .calendar-timespan-input-inner input[type='date']::-webkit-calendar-picker-indicator {
+        width: 18px;
+        min-width: 18px;
+        margin: 0;
+        padding: 0;
+    }
+
+    /* Notes are now optional disclosure sections: + when collapsed, − when open. */
+    .cp-panel--calendar-new-booking .calendar-approved-booking__notes.is-collapsed,
+    .cp-panel--calendar-standardized .calendar-standardized__notes.is-collapsed {
+        padding-bottom: 20px;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__notes .cp-section__summary,
+    .cp-panel--calendar-standardized .calendar-standardized__notes .cp-section__summary {
+        display: none;
+    }
+
+    /* Uredi termin: stronger secondary action row, matching the importance of
+       Status / Vir / Račun / Predplačilo without competing with Shrani. */
+    .cp-panel--calendar-edit-booking .cp-panel-actionbar {
+        gap: 10px;
+        padding: 12px 32px 14px;
+    }
+
+    .cp-panel--calendar-edit-booking .cp-panel-actionbar .cp-action--labelled,
+    .cp-panel--calendar-edit-booking .calendar-standardized__source-tag,
+    .cp-panel--calendar-edit-booking .calendar-standardized__billing-action {
+        height: 42px;
+        min-height: 42px;
+        padding: 0 14px;
+        border-color: #cdd7e5;
+        background: #f8fafc;
+        color: #344054;
+        font-size: 0.8125rem;
+        font-weight: 650;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+
+    .cp-panel--calendar-edit-booking .calendar-standardized__source-tag {
+        background: #f8fafc;
+        color: #475467;
+        border-color: #d4dce8;
+    }
+
+    .cp-panel--calendar-edit-booking .calendar-standardized__billing-action {
+        border-color: #b9d2fb;
+        background: #f4f8ff;
+        color: #175cd3;
+    }
+
+    .cp-panel--calendar-edit-booking .calendar-standardized__scanner-action {
+        display: none !important;
+    }
+}
+
+/* Auxiliary appointment drawers: keep mobile/tablet presentation unchanged by default. */
+.calendar-aux-panel-title__icon,
+.calendar-service-picker-panel__available-label,
+.calendar-service-picker-panel__search-icon,
+.calendar-service-edit-panel__section-title,
+.calendar-consumables-editor__empty,
+.calendar-consumables-editor__select-icon {
+    display: none;
+}
+
+@media (min-width: 1025px) {
+    /* Shared header language for add/edit service and appointment consumables. */
+    .calendar-service-picker-panel,
+    .calendar-service-edit-panel,
+    .calendar-consumables-editor-panel {
+        background: #ffffff;
+        color: #0f172a;
+        box-shadow: -18px 0 42px rgba(15, 23, 42, 0.12);
+    }
+
+    .calendar-service-picker-panel,
+    .calendar-service-edit-panel {
+        width: 430px !important;
+        max-width: 430px !important;
+    }
+
+    .calendar-consumables-editor-panel {
+        width: 620px !important;
+        max-width: min(620px, 96vw) !important;
+    }
+
+    .calendar-service-picker-panel .cp-panel-header,
+    .calendar-service-edit-panel .cp-panel-header,
+    .calendar-consumables-editor-panel .cp-panel-header {
+        min-height: 104px;
+        padding: 22px 24px 20px;
+        border-bottom: 1px solid #e8edf4;
+        background: #ffffff;
+    }
+
+    .calendar-service-edit-panel .cp-panel-header {
+        min-height: 90px;
+    }
+
+    .calendar-service-picker-panel .cp-panel-header__title,
+    .calendar-service-edit-panel .cp-panel-header__title,
+    .calendar-consumables-editor-panel .cp-panel-header__title {
+        margin: 0;
+        color: #0f172a;
+        font-size: 20px;
+        font-weight: 800;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+    }
+
+    .calendar-service-picker-panel .cp-panel-header__subtitle,
+    .calendar-consumables-editor-panel .cp-panel-header__subtitle {
+        margin-top: 4px;
+        margin-left: 54px;
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.4;
+    }
+
+    .calendar-service-picker-panel .cp-panel-header .cp-icon-btn,
+    .calendar-service-edit-panel .cp-panel-header .cp-icon-btn,
+    .calendar-consumables-editor-panel .cp-panel-header .cp-icon-btn {
+        width: 38px;
+        height: 38px;
+        min-width: 38px;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #334155;
+        box-shadow: none;
+    }
+
+    .calendar-aux-panel-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .calendar-aux-panel-title__icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        min-width: 42px;
+        border-radius: 12px;
+        background: #fff3eb;
+        color: #ff6200;
+    }
+
+    .calendar-aux-panel-title__icon svg {
+        width: 21px;
+        height: 21px;
+        stroke-width: 1.9;
+    }
+
+    /* Dodaj storitev */
+    .calendar-service-picker-panel__body {
+        padding: 28px 24px 30px;
+        background: #ffffff;
+    }
+
+    .calendar-service-picker-panel__search {
+        position: relative;
+        margin: 0 0 24px;
+    }
+
+    .calendar-service-picker-panel__search-icon {
+        position: absolute;
+        z-index: 1;
+        top: 50%;
+        left: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transform: translateY(-50%);
+        color: #64748b;
+        pointer-events: none;
+    }
+
+    .calendar-service-picker-panel__search-icon svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .calendar-service-picker-panel__search input[type='search'] {
+        width: 100%;
+        height: 48px;
+        min-height: 48px;
+        padding: 0 14px 0 44px;
+        border: 1px solid #d4deea;
+        border-radius: 12px;
+        background: #ffffff;
+        color: #0f172a;
+        font-size: 14px;
+        font-weight: 500;
+        box-shadow: none;
+        outline: none;
+    }
+
+    .calendar-service-picker-panel__search input[type='search']::placeholder {
+        color: #7b8aa2;
+    }
+
+    .calendar-service-picker-panel__search input[type='search']:focus {
+        border-color: #78a9fa;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+    }
+
+    .calendar-service-picker-panel__available-label {
+        display: block;
+        margin: 0 0 12px;
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .calendar-service-picker-panel__list {
+        gap: 10px;
+    }
+
+    .calendar-service-picker-panel__list .cp-row {
+        width: 100%;
+        min-height: 72px;
+        padding: 12px 14px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid #dce5f0;
+        border-radius: 12px;
+        background: #ffffff;
+        color: #0f172a;
+        box-shadow: none;
+        text-align: left;
+    }
+
+    .calendar-service-picker-panel__list button.cp-row:hover,
+    .calendar-service-picker-panel__list button.cp-row:focus-visible {
+        border-color: #8ab8ff;
+        background: #fbfdff;
+        box-shadow: 0 0 0 2px rgba(11, 111, 245, 0.05);
+        outline: none;
+    }
+
+    .calendar-service-picker-panel__row-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        min-width: 42px;
+        border-radius: 999px;
+        background: #edf4ff;
+        color: #0b6ff5;
+    }
+
+    .calendar-service-picker-panel__row-icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .calendar-service-picker-panel__list .cp-row__main {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .calendar-service-picker-panel__list .cp-row__title {
+        color: #0f172a;
+        font-size: 14px;
+        font-weight: 750;
+        line-height: 1.3;
+    }
+
+    .calendar-service-picker-panel__list .cp-row__meta {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 550;
+    }
+
+    .calendar-service-picker-panel__list .cp-row__meta svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .calendar-service-picker-panel__price-meta {
+        display: none;
+    }
+
+    .calendar-service-picker-panel__row-chevron {
+        flex: 0 0 auto;
+        color: #0b6ff5;
+        font-size: 26px;
+        font-weight: 400;
+        line-height: 1;
+    }
+
+    /* Uredi storitev */
+    .calendar-service-edit-panel__body {
+        padding: 28px 24px 34px;
+        background: #ffffff;
+    }
+
+    .calendar-service-edit-panel__section-title {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin: 0 0 22px;
+        color: #334155;
+        font-size: 14px;
+        line-height: 1.3;
+    }
+
+    .calendar-service-edit-panel__section-title > span {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #ff6200;
+        font-size: 17px;
+    }
+
+    .calendar-service-edit-panel__section-title strong {
+        font-weight: 750;
+    }
+
+    .calendar-service-edit-panel .cp-field {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin: 0 0 22px;
+    }
+
+    .calendar-service-edit-panel .cp-field__label {
+        color: #475569;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.3;
+    }
+
+    .calendar-service-edit-panel .cp-field > input,
+    .calendar-service-edit-panel .cp-field select.app-desktop-select:not([multiple]),
+    .calendar-service-edit-panel .calendar-service-edit-modal__price-wrap {
+        width: 100%;
+        height: 50px;
+        min-height: 50px;
+        border: 1px solid #d4deea;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #0f172a;
+        box-shadow: none;
+    }
+
+    .calendar-service-edit-panel .cp-field > input {
+        padding: 0 14px;
+        font-size: 15px;
+        font-weight: 500;
+    }
+
+    .calendar-service-edit-panel .cp-field > input[readonly] {
+        background: #ffffff;
+        color: #0f172a;
+        opacity: 1;
+    }
+
+    .calendar-service-edit-panel .cp-field select.app-desktop-select:not([multiple]) {
+        padding-left: 14px;
+        font-size: 15px;
+        font-weight: 500;
+    }
+
+    .calendar-service-edit-panel .calendar-service-edit-modal__duration-stepper {
+        display: none;
+    }
+
+    .calendar-service-edit-panel .calendar-service-edit-modal__price-wrap {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 44px;
+        overflow: hidden;
+    }
+
+    .calendar-service-edit-panel .calendar-service-edit-modal__price-wrap input {
+        min-width: 0;
+        height: 48px;
+        padding: 0 14px;
+        border: 0;
+        background: transparent;
+        color: #0f172a;
+        font-size: 15px;
+        font-weight: 500;
+        outline: none;
+    }
+
+    .calendar-service-edit-panel .calendar-service-edit-modal__price-wrap span {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-left: 1px solid #e4eaf1;
+        color: #475569;
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .calendar-service-edit-panel .cp-panel-footer,
+    .calendar-consumables-editor-panel .cp-panel-footer {
+        min-height: 78px;
+        padding: 14px 24px;
+        border-top: 1px solid #e8edf4;
+        background: #ffffff;
+    }
+
+    .calendar-service-edit-panel .cp-panel-footer__actions,
+    .calendar-consumables-editor-panel .cp-panel-footer__actions {
+        width: 100%;
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .calendar-service-edit-panel .cp-panel-footer .cp-btn--ghost,
+    .calendar-consumables-editor-panel .cp-panel-footer .cp-btn--ghost {
+        display: none;
+    }
+
+    .calendar-service-edit-panel .cp-panel-footer .cp-btn--primary,
+    .calendar-consumables-editor-panel .cp-panel-footer .cp-btn--primary {
+        min-height: 48px;
+        min-width: 154px;
+        padding: 0 20px;
+        border-radius: 10px;
+        border-color: #0b6ff5;
+        background: #0b6ff5;
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 700;
+        box-shadow: none;
+    }
+
+    /* Uredi porabni material */
+    .calendar-consumables-editor-panel__body {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        padding: 28px 24px 30px;
+        background: #ffffff;
+    }
+
+    .calendar-consumables-editor-panel .calendar-consumables-editor__toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        margin: 0 0 24px;
+    }
+
+    .calendar-consumables-editor-panel .calendar-consumables-editor__add {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .calendar-consumables-editor__select-wrap {
+        position: relative;
+        flex: 1;
+        min-width: 190px;
+    }
+
+    .calendar-consumables-editor__select-icon {
+        position: absolute;
+        z-index: 2;
+        top: 50%;
+        left: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transform: translateY(-50%);
+        color: #64748b;
+        pointer-events: none;
+    }
+
+    .calendar-consumables-editor__select-icon svg {
+        width: 17px;
+        height: 17px;
+    }
+
+    .calendar-consumables-editor-panel .calendar-consumables-editor__select-wrap select.app-desktop-select:not([multiple]) {
+        width: 100%;
+        height: 46px;
+        min-height: 46px;
+        padding-left: 38px;
+        border: 1px solid #d4deea;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #334155;
+        box-shadow: none;
+        font-size: 13px;
+        font-weight: 550;
+    }
+
+    .calendar-consumables-editor-panel .calendar-consumables-editor__add-button {
+        min-height: 46px;
+        padding: 0 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        border: 1px solid #d4deea;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #334155;
+        font-size: 13px;
+        font-weight: 700;
+        box-shadow: none;
+    }
+
+    .calendar-consumables-editor-panel .calendar-consumables-editor__add-button svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .calendar-consumables-editor-panel .calendar-consumables-editor__reset {
+        min-height: 40px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: #0b6ff5;
+        font-size: 13px;
+        font-weight: 700;
+        white-space: nowrap;
+        box-shadow: none;
+    }
+
+    .calendar-consumables-editor-panel .calendar-consumables-editor__head {
+        min-height: 40px;
+        padding: 0 8px;
+        display: grid;
+        grid-template-columns: minmax(120px, 1.6fr) minmax(80px, .9fr) minmax(86px, 1fr) 72px 72px 32px;
+        align-items: center;
+        gap: 10px;
+        border: 0;
+        border-bottom: 1px solid #e8edf4;
+        background: transparent;
+        color: #64748b;
+        font-size: 11px;
+        font-weight: 750;
+        letter-spacing: .02em;
+        text-transform: none;
+    }
+
+    .calendar-consumables-editor-panel .calendar-consumables-editor__rows {
+        margin: 0;
+    }
+
+    .calendar-consumables-editor-panel .calendar-consumables-editor__row {
+        min-height: 58px;
+        padding: 8px;
+        grid-template-columns: minmax(120px, 1.6fr) minmax(80px, .9fr) minmax(86px, 1fr) 72px 72px 32px;
+        gap: 10px;
+        border-bottom: 1px solid #edf1f5;
+        background: #ffffff;
+    }
+
+    .calendar-consumables-editor__empty {
+        flex: 1 1 auto;
+        min-height: 300px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 38px 20px;
+        text-align: center;
+    }
+
+    .calendar-consumables-editor__empty-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 86px;
+        height: 86px;
+        margin-bottom: 6px;
+        border-radius: 999px;
+        background: #edf4ff;
+        color: #75a9ff;
+    }
+
+    .calendar-consumables-editor__empty-icon svg {
+        width: 44px;
+        height: 44px;
+        stroke-width: 1.6;
+    }
+
+    .calendar-consumables-editor__empty strong {
+        color: #0f172a;
+        font-size: 16px;
+        font-weight: 800;
+        line-height: 1.3;
+    }
+
+    .calendar-consumables-editor__empty > span:last-child {
+        color: #64748b;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .calendar-consumables-editor-panel .calendar-consumables-editor__note {
+        margin-top: auto;
+        min-height: 64px;
+        padding: 14px 16px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        border: 1px solid #cfe0ff;
+        border-radius: 10px;
+        background: #f7faff;
+        color: #64748b;
+        font-size: 12px;
+        line-height: 1.45;
+        box-shadow: none;
+    }
+
+    .calendar-consumables-editor-panel .calendar-consumables-editor__note > span {
+        color: #0b6ff5;
+        font-size: 15px;
+    }
+}
