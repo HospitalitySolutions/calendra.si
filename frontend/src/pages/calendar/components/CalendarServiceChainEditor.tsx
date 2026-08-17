@@ -872,7 +872,8 @@ export function CalendarServiceChainEditor({
           className={consumablesSectionClassName}
           icon={<CalendarSectionIcon name="consumables" />}
           badge={consumablesCountLabel}
-          defaultOpen={false}
+          defaultOpen
+          collapsible={false}
           action={canEditConsumables ? (
             <button type="button" className="secondary slim-btn" onClick={openConsumablesEditor}>
               {copy.editConsumables}
