@@ -8036,17 +8036,19 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <button type="button" onClick={() => setBillForm((prev) => ({ ...prev, items: prev.items.map((row, rowIndex) => rowIndex === index ? { ...row, quantity: Number(row.quantity || 0) + 1 } : row) }))}>+</button>
               </div>
               <strong className="billing-pos-line-total">{currency(lineTotal)}</strong>
-              <div className="billing-pos-line-discount">
-                <button type="button" className={`${showButtonStyle ? 'billing-pos-inline-discount-btn ' : ''}${lineDiscountActive ? 'is-active' : ''}`.trim()} onClick={(event) => { event.stopPropagation(); setOpenCreateItemDiscountIndex(lineDiscountOpen ? null : index) }}>
-                  {lineDiscountButtonContent(lineDraft)}
-                </button>
-                {lineDiscountOpen && renderItemDiscountPopover(lineDraft, patchLineDiscount, () => setOpenCreateItemDiscountIndex(null))}
+              <div className="billing-pos-line-actions">
+                <div className="billing-pos-line-discount">
+                  <button type="button" className={`${showButtonStyle ? 'billing-pos-inline-discount-btn ' : ''}${lineDiscountActive ? 'is-active' : ''}`.trim()} onClick={(event) => { event.stopPropagation(); setOpenCreateItemDiscountIndex(lineDiscountOpen ? null : index) }}>
+                    {lineDiscountButtonContent(lineDraft)}
+                  </button>
+                  {lineDiscountOpen && renderItemDiscountPopover(lineDraft, patchLineDiscount, () => setOpenCreateItemDiscountIndex(null))}
+                </div>
+                <button type="button" className="billing-pos-row-remove" aria-label={locale === 'sl' ? 'Odstrani postavko' : 'Remove item'} onClick={() => {
+                  const nextItems = billForm.items.filter((_, rowIndex) => rowIndex !== index)
+                  setBillForm((prev) => ({ ...prev, items: nextItems, itemDiscounts: shiftedItemDiscountsAfterRemoval(normalizeItemDiscountMap(prev.itemDiscounts, { keepZero: true }), index, nextItems.length), discountItemIndex: clampDiscountIndexAfterRemoval(prev.discountItemIndex, index, nextItems.length) }))
+                  if (openCreateItemDiscountIndex === index) setOpenCreateItemDiscountIndex(null)
+                }}>×</button>
               </div>
-              <button type="button" className="billing-pos-row-remove" aria-label={locale === 'sl' ? 'Odstrani postavko' : 'Remove item'} onClick={() => {
-                const nextItems = billForm.items.filter((_, rowIndex) => rowIndex !== index)
-                setBillForm((prev) => ({ ...prev, items: nextItems, itemDiscounts: shiftedItemDiscountsAfterRemoval(normalizeItemDiscountMap(prev.itemDiscounts, { keepZero: true }), index, nextItems.length), discountItemIndex: clampDiscountIndexAfterRemoval(prev.discountItemIndex, index, nextItems.length) }))
-                if (openCreateItemDiscountIndex === index) setOpenCreateItemDiscountIndex(null)
-              }}>×</button>
             </div>
           )
         }) : <div className="billing-pos-selected-empty">{locale === 'sl' ? 'Izberite storitev, ugodnost ali bon na levi.' : 'Choose a service, benefit or gift card on the left.'}</div>}
@@ -8094,18 +8096,20 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <button type="button" onClick={() => { const next = [...items]; next[index] = { ...next[index], quantity: Number(next[index].quantity || 0) + 1 }; setOpenBillItems(ob, next) }}>+</button>
               </div>
               <strong className="billing-pos-line-total">{currency(lineTotal)}</strong>
-              <div className="billing-pos-line-discount">
-                <button type="button" className={`${showButtonStyle ? 'billing-pos-inline-discount-btn ' : ''}${lineDiscountActive ? 'is-active' : ''}`.trim()} onClick={(event) => { event.stopPropagation(); setOpenOpenBillItemDiscount(lineDiscountOpen ? null : { openBillId: ob.id, index }) }}>
-                  {lineDiscountButtonContent(lineDraft)}
-                </button>
-                {lineDiscountOpen && renderItemDiscountPopover(lineDraft, (patch) => setOpenBillItemDiscountDraft(ob, index, patch), () => setOpenOpenBillItemDiscount(null))}
+              <div className="billing-pos-line-actions">
+                <div className="billing-pos-line-discount">
+                  <button type="button" className={`${showButtonStyle ? 'billing-pos-inline-discount-btn ' : ''}${lineDiscountActive ? 'is-active' : ''}`.trim()} onClick={(event) => { event.stopPropagation(); setOpenOpenBillItemDiscount(lineDiscountOpen ? null : { openBillId: ob.id, index }) }}>
+                    {lineDiscountButtonContent(lineDraft)}
+                  </button>
+                  {lineDiscountOpen && renderItemDiscountPopover(lineDraft, (patch) => setOpenBillItemDiscountDraft(ob, index, patch), () => setOpenOpenBillItemDiscount(null))}
+                </div>
+                <button type="button" className="billing-pos-row-remove" aria-label={locale === 'sl' ? 'Odstrani postavko' : 'Remove item'} onClick={() => {
+                  const nextItems = items.filter((_, rowIndex) => rowIndex !== index)
+                  setOpenBillItems(ob, nextItems)
+                  setOpenBillDiscountDraft(ob, { itemDiscounts: shiftedItemDiscountsAfterRemoval(draft.itemDiscounts, index, nextItems.length) })
+                  if (openOpenBillItemDiscount?.openBillId === ob.id) setOpenOpenBillItemDiscount(null)
+                }}>×</button>
               </div>
-              <button type="button" className="billing-pos-row-remove" aria-label={locale === 'sl' ? 'Odstrani postavko' : 'Remove item'} onClick={() => {
-                const nextItems = items.filter((_, rowIndex) => rowIndex !== index)
-                setOpenBillItems(ob, nextItems)
-                setOpenBillDiscountDraft(ob, { itemDiscounts: shiftedItemDiscountsAfterRemoval(draft.itemDiscounts, index, nextItems.length) })
-                if (openOpenBillItemDiscount?.openBillId === ob.id) setOpenOpenBillItemDiscount(null)
-              }}>×</button>
             </div>
           )
         }) : <div className="billing-pos-selected-empty">{locale === 'sl' ? 'Izberite storitev, ugodnost ali bon na levi.' : 'Choose a service, benefit or gift card on the left.'}</div>}
@@ -8162,7 +8166,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <div className="billing-pos-subtotal"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(subtotalGross)}</strong></div>
           {renderPosWholeBillDiscount(createBillDiscountDraft, subtotalGross, billForm.items, (value) => { setOpenCreateItemDiscountIndex(null); setBillForm((prev) => ({ ...prev, wholeBillDiscountPercent: value, discountType: 'PERCENT', discountValue: value, discountItemIndex: undefined })) })}
           <div className="billing-pos-grand-total"><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(totalGross)}</strong></div>
-          {discountGross > 0.005 && <span className="billing-pos-discount-summary">{locale === 'sl' ? 'Prihranek' : 'Savings'} {currency(discountGross)}</span>}
           {renderPosCreatePaymentMethods(totalGross, billForm.items, createBillDiscountDraft, discountGross)}
         </section>
       </div>
@@ -8222,7 +8225,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <div className="billing-pos-subtotal"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(subtotalGross)}</strong></div>
           {renderPosWholeBillDiscount(discountDraft, subtotalGross, items, (value) => { setOpenOpenBillItemDiscount(null); setOpenBillDiscountDraft(ob, { wholeBillPercent: value }) })}
           <div className="billing-pos-grand-total"><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(totalGross)}</strong></div>
-          {discountGross > 0.005 && <span className="billing-pos-discount-summary">{locale === 'sl' ? 'Prihranek' : 'Savings'} {currency(discountGross)}</span>}
           {renderPosOpenPaymentMethods(ob, totalGross, items, discountDraft, discountGross)}
         </section>
       </div>

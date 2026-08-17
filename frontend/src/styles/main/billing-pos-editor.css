@@ -319,7 +319,7 @@
 .billing-pos-selected-row {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) 116px 104px 92px 110px 24px;
+  grid-template-columns: minmax(150px, 1fr) 116px 104px 92px 146px;
   align-items: center;
   gap: 12px;
   min-height: 63px;
@@ -360,10 +360,10 @@
 }
 
 .billing-pos-qty {
-  display: grid;
-  grid-template-columns: 34px 42px 34px;
+  display: flex;
   align-items: stretch;
-  justify-items: stretch;
+  justify-content: center;
+  width: 104px;
   height: 36px;
   border: 1px solid var(--billing-pos-border);
   border-radius: 7px;
@@ -373,17 +373,22 @@
 
 .billing-pos-qty button,
 .billing-pos-qty span {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   height: 100%;
+  flex: 0 0 auto;
 }
 
 .billing-pos-qty-value {
   align-self: stretch;
+  min-width: 36px;
 }
 
 .billing-pos-qty button {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
   border: 0;
   background: #fff;
   color: #596273;
@@ -399,12 +404,14 @@
 }
 
 .billing-pos-qty span {
-  width: 100%;
+  width: 36px;
+  min-width: 36px;
   border-inline: 1px solid var(--billing-pos-border-soft);
   color: var(--billing-pos-text);
   font-size: 0.83rem;
   font-weight: 650;
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .billing-pos-line-total {
@@ -486,13 +493,20 @@
   box-shadow: 0 14px 36px rgba(15, 23, 42, 0.16);
 }
 
+.billing-pos-line-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .billing-pos-row-remove,
 .billing-pos-remove-payment {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 30px;
+  width: 20px;
+  height: 32px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -975,7 +989,7 @@
   }
 
   .billing-pos-selected-row {
-    grid-template-columns: minmax(120px, 1fr) 106px 98px 80px 98px 22px;
+    grid-template-columns: minmax(120px, 1fr) 106px 98px 80px 126px;
     gap: 8px;
   }
 
@@ -1030,9 +1044,9 @@
     text-align: left;
   }
 
-  .billing-pos-row-remove {
-    grid-column: 3;
-    grid-row: 2;
+  .billing-pos-line-actions {
+    grid-column: 2 / 4;
+    justify-content: flex-start;
   }
 
   .billing-pos-discount-row {

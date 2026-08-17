@@ -997,6 +997,8 @@ export function SessionTypesPage() {
     internalDescription: "",
     billingGrossPrice: "0.00",
     billingTaxRate: "VAT_22",
+    advanceDeduction: false,
+    noShow: false,
     color: SERVICE_TYPE_DEFAULT_COLOR,
     durationMinutes: 60,
     breakMinutes: 0,
@@ -1977,7 +1979,7 @@ export function SessionTypesPage() {
         ? await api.put(`/types/${editingType.id}`, payload)
         : await api.post("/types", payload);
       const savedTypeId = Number(savedResponse.data?.id ?? editingType?.id);
-      const savedLinkedServiceIds = Array.isArray(savedResponse.data?.linkedServices)
+      const savedLinkedServiceIds: number[] = Array.isArray(savedResponse.data?.linkedServices)
         ? savedResponse.data.linkedServices
             .map((link: any) => Number(link?.transactionServiceId))
             .filter((id: number) => Number.isInteger(id) && id > 0)
