@@ -662,6 +662,23 @@ public class SessionBookingController {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "This space is already booked at that time.");
         }
 
+        var now = timeService.localDateTime();
+        boolean aMovesPastToFuture = shouldReopenPastSessionGroupInFuture(aGroup, bStart, now);
+        boolean bMovesPastToFuture = shouldReopenPastSessionGroupInFuture(bGroup, aStart, now);
+        if ((aMovesPastToFuture || bMovesPastToFuture)
+                && (hasIssuedInvoiceForSessionGroup(companyId, aGroup) || hasIssuedInvoiceForSessionGroup(companyId, bGroup))) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "These sessions cannot be swapped across the current time because an invoice has already been issued."
+            );
+        }
+        if (aMovesPastToFuture) {
+            aGroup.forEach(row -> row.setBookingStatus(SessionBookingStatus.RESERVED));
+        }
+        if (bMovesPastToFuture) {
+            bGroup.forEach(row -> row.setBookingStatus(SessionBookingStatus.RESERVED));
+        }
+
         for (var row : aGroup) {
             bookingCreationService.applyExistingBookingTime(row, bStart, bEnd);
         }
@@ -670,6 +687,19 @@ public class SessionBookingController {
         }
         repo.saveAll(aGroup);
         repo.saveAll(bGroup);
+        repo.flush();
+        if (aMovesPastToFuture) {
+            openBillSyncService.removeSessionRowsFromOpenBills(
+                    companyId,
+                    aGroup.stream().map(SessionBooking::getId).filter(Objects::nonNull).distinct().toList()
+            );
+        }
+        if (bMovesPastToFuture) {
+            openBillSyncService.removeSessionRowsFromOpenBills(
+                    companyId,
+                    bGroup.stream().map(SessionBooking::getId).filter(Objects::nonNull).distinct().toList()
+            );
+        }
         if (!aRep.getStartTime().equals(aStart) || !aRep.getEndTime().equals(aEnd)) {
             for (var row : aGroup) {
                 reminderService.sendSessionRescheduled(row, aStart, aEnd);
@@ -834,6 +864,42 @@ public class SessionBookingController {
                 .filter(bill -> !BillType.ADVANCE.equals(bill.getBillType()))
                 .filter(bill -> !BillPaymentStatus.CANCELLED.equals(bill.getPaymentStatus()))
                 .anyMatch(bill -> linkedBillAmountForSession(bill, sessionBookingId) != null);
+    }
+
+    private boolean hasIssuedInvoiceForSessionGroup(Long companyId, List<SessionBooking> rows) {
+        if (companyId == null || rows == null || rows.isEmpty()) {
+            return false;
+        }
+        return rows.stream()
+                .filter(Objects::nonNull)
+                .map(SessionBooking::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .anyMatch(sessionId -> hasClosedInvoiceForSession(companyId, sessionId));
+    }
+
+    private static boolean shouldReopenPastSessionGroupInFuture(
+            List<SessionBooking> rows,
+            LocalDateTime newStart,
+            LocalDateTime now
+    ) {
+        if (rows == null || rows.isEmpty() || newStart == null || now == null || !newStart.isAfter(now)) {
+            return false;
+        }
+        boolean sourceAlreadyStarted = rows.stream()
+                .filter(Objects::nonNull)
+                .map(SessionBooking::getStartTime)
+                .filter(Objects::nonNull)
+                .anyMatch(sourceStart -> !sourceStart.isAfter(now));
+        if (!sourceAlreadyStarted) {
+            return false;
+        }
+        return rows.stream()
+                .filter(Objects::nonNull)
+                .map(SessionBooking::getBookingStatus)
+                .map(SessionBookingStatus::normalizeStored)
+                .allMatch(status -> SessionBookingStatus.RESERVED.equals(status)
+                        || SessionBookingStatus.CHECKED_OUT.equals(status));
     }
 
     @DeleteMapping("/{id}")

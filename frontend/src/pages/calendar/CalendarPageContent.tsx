@@ -11067,6 +11067,37 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     })
   }
 
+  const bookingHasIssuedInvoice = useCallback((booking: any): boolean => {
+    const statuses = Array.isArray(booking?.paymentStatuses) ? booking.paymentStatuses : []
+    return statuses.some((status: BookingPaymentStatus) =>
+      (Array.isArray(status?.allocations) ? status.allocations : []).some((allocation: BookingPaymentAllocation) => {
+        const source = String(allocation?.source ?? '').trim().toUpperCase()
+        const billId = Number(allocation?.billId ?? 0)
+        const paymentStatus = String(allocation?.paymentStatus ?? '').trim().toLowerCase()
+        return source === 'INVOICE' && Number.isInteger(billId) && billId > 0 && paymentStatus !== 'cancelled'
+      }),
+    )
+  }, [])
+
+  const isPastToFutureCalendarMove = useCallback((booking: any, newStartStr: string): boolean => {
+    const originalStartMs = new Date(String(booking?.startTime ?? '')).getTime()
+    const nextStartMs = new Date(String(newStartStr ?? '')).getTime()
+    const currentMs = nowMs()
+    return Number.isFinite(originalStartMs)
+      && Number.isFinite(nextStartMs)
+      && originalStartMs <= currentMs
+      && nextStartMs > currentMs
+  }, [])
+
+  const storedStatusForCalendarMove = useCallback((booking: any, newStartStr: string): StoredBookingStatus => {
+    const currentStoredStatus = normalizeStoredBookingStatus(booking?.bookingStatus)
+    if (isPastToFutureCalendarMove(booking, newStartStr)
+      && (currentStoredStatus === 'RESERVED' || currentStoredStatus === 'CHECKED_OUT')) {
+      return 'RESERVED'
+    }
+    return currentStoredStatus
+  }, [isPastToFutureCalendarMove])
+
   const buildOptimisticMovedBooking = (
     booking: any,
     newStartStr: string,
@@ -11091,6 +11122,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       ...booking,
       startTime: newStartStr,
       endTime: newEndStr,
+      bookingStatus: storedStatusForCalendarMove(booking, newStartStr),
       services: Array.isArray(booking?.services)
         ? booking.services.map((service: any) => ({
             ...service,
@@ -11156,14 +11188,29 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     consultantIdOverride?: number | null,
   ) => {
     const currentStoredStatus = normalizeStoredBookingStatus(booking?.bookingStatus)
+    const movingPastSessionIntoFuture = isPastToFutureCalendarMove(booking, newStartStr)
+    const reopeningPastSessionInFuture = movingPastSessionIntoFuture
+      && (currentStoredStatus === 'RESERVED' || currentStoredStatus === 'CHECKED_OUT')
+    if (reopeningPastSessionInFuture && bookingHasIssuedInvoice(booking)) {
+      showToast(
+        'error',
+        locale === 'sl'
+          ? 'Termina ni mogoče prestaviti v prihodnost, ker je zanj že izdan račun.'
+          : 'This session cannot be moved into the future because an invoice has already been issued.',
+      )
+      const blockedError: any = new Error('BOOKING_MOVE_INVOICED')
+      blockedError.localStatusValidation = true
+      throw blockedError
+    }
+    const targetStoredStatus = storedStatusForCalendarMove(booking, newStartStr)
     const moveStatusValidation = getStatusTransitionValidation(
       newStartStr,
       newEndStr,
       booking?.bookingStatus,
-      currentStoredStatus,
+      targetStoredStatus,
     )
-    if (!moveStatusValidation.allowed) {
-      showToast('error', formatInvalidStatusTransitionMessage(moveStatusValidation.reason, currentStoredStatus))
+    if (!moveStatusValidation.allowed && !reopeningPastSessionInFuture) {
+      showToast('error', formatInvalidStatusTransitionMessage(moveStatusValidation.reason, targetStoredStatus))
       const blockedError: any = new Error('BOOKING_STATUS_TRANSITION_BLOCKED')
       blockedError.localStatusValidation = true
       throw blockedError
@@ -11188,6 +11235,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       meetingLink: online ? (booking.meetingLink ?? null) : null,
       online,
       meetingProvider: online ? (booking.meetingProvider || 'zoom') : null,
+      bookingStatus: targetStoredStatus,
       groupEmailOverride: null,
       groupBillingCompanyIdOverride: null,
       ...(allowPersonalBlockOverlap ? { allowPersonalBlockOverlap: true } : {}),
@@ -11531,6 +11579,24 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
   const confirmSwapSessions = async () => {
     if (!confirmSwap) return
     const { dragged, target } = confirmSwap
+    const currentMs = nowMs()
+    const draggedStartMs = new Date(String(dragged?.startTime ?? '')).getTime()
+    const targetStartMs = new Date(String(target?.startTime ?? '')).getTime()
+    const crossesCurrentTime = Number.isFinite(draggedStartMs)
+      && Number.isFinite(targetStartMs)
+      && ((draggedStartMs <= currentMs && targetStartMs > currentMs)
+        || (targetStartMs <= currentMs && draggedStartMs > currentMs))
+    if (crossesCurrentTime && (bookingHasIssuedInvoice(dragged) || bookingHasIssuedInvoice(target))) {
+      showToast(
+        'error',
+        locale === 'sl'
+          ? 'Terminov ni mogoče zamenjati čez trenutni čas, ker je za enega od njiju že izdan račun.'
+          : 'These sessions cannot be swapped across the current time because an invoice has already been issued for one of them.',
+      )
+      confirmSwap.revert()
+      setConfirmSwap(null)
+      return
+    }
     try {
       await api.post('/bookings/swap', { firstId: dragged.id, secondId: target.id })
       setConfirmSwap(null)

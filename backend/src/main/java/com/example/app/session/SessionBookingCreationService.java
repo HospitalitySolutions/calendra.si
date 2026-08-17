@@ -8,6 +8,9 @@ import com.example.app.client.Client;
 import com.example.app.common.TimeService;
 import com.example.app.consumables.ConsumableService;
 import com.example.app.client.ClientRepository;
+import com.example.app.billing.BillPaymentStatus;
+import com.example.app.billing.BillRepository;
+import com.example.app.billing.BillType;
 import com.example.app.billing.OpenBillSyncService;
 import com.example.app.company.ClientCompany;
 import com.example.app.company.ClientCompanyRepository;
@@ -105,6 +108,7 @@ public class SessionBookingCreationService {
     private final GoogleMeetService googleMeetService;
     private final BookingChangePublisher bookingChangePublisher;
     private final OpenBillSyncService openBillSyncService;
+    private final BillRepository bills;
     private final GuestEntitlementService guestEntitlementService;
     private final ConsumableService consumableService;
     private final TimeService timeService;
@@ -153,6 +157,7 @@ public class SessionBookingCreationService {
             GoogleMeetService googleMeetService,
             BookingChangePublisher bookingChangePublisher,
             OpenBillSyncService openBillSyncService,
+            BillRepository bills,
             GuestEntitlementService guestEntitlementService,
             ConsumableService consumableService,
             TimeService timeService,
@@ -174,6 +179,7 @@ public class SessionBookingCreationService {
         this.googleMeetService = googleMeetService;
         this.bookingChangePublisher = bookingChangePublisher;
         this.openBillSyncService = openBillSyncService;
+        this.bills = bills;
         this.guestEntitlementService = guestEntitlementService;
         this.consumableService = consumableService;
         this.timeService = timeService;
@@ -203,7 +209,7 @@ public class SessionBookingCreationService {
         this(repo, personalBlocks, clients, users, spaces, types,
                 new SessionServicePlanService(types, spaces), null,
                 companies, settings, groupRepository, clientCompanies,
-                reminderService, zoomService, googleMeetService, bookingChangePublisher, openBillSyncService, null, null,
+                reminderService, zoomService, googleMeetService, bookingChangePublisher, openBillSyncService, null, null, null,
                 new TimeService(new com.example.app.common.SimulatedTimeService(null, null, null, new com.fasterxml.jackson.databind.ObjectMapper())),
                 "Europe/Ljubljana");
     }
@@ -498,7 +504,19 @@ public class SessionBookingCreationService {
                 requestedEnd
         );
         LocalDateTime end = servicePlan.endTime();
-        String targetStoredStatus = resolveRequestedStoredStatusForUpdate(companyId, req.bookingStatus(), representative, start, end);
+        LocalDateTime now = timeService.localDateTime(bookingZone);
+        String requestedStoredStatus = SessionBookingStatus.normalizeRequestedStored(req.bookingStatus());
+        boolean reopenPastSessionInFuture = shouldReopenPastSessionInFuture(
+                existingRows, start, now, requestedStoredStatus);
+        if (reopenPastSessionInFuture && hasIssuedInvoice(companyId, existingRows)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "This session already has an issued invoice and cannot be moved to a future time."
+            );
+        }
+        String targetStoredStatus = reopenPastSessionInFuture
+                ? SessionBookingStatus.RESERVED
+                : resolveRequestedStoredStatusForUpdate(companyId, req.bookingStatus(), representative, start, end);
         if (!SecurityUtils.isAdmin(me)
                 && (representative.getConsultant() == null || !representative.getConsultant().getId().equals(me.getId()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
@@ -675,6 +693,20 @@ public class SessionBookingCreationService {
                 .toList();
         if (!cancelledUnbilledSessionIds.isEmpty()) {
             openBillSyncService.removeSessionRowsFromOpenBills(companyId, cancelledUnbilledSessionIds);
+        }
+        if (reopenPastSessionInFuture) {
+            // A draft/open bill is not an issued invoice, so it must not block a reschedule.
+            // Remove the moved session from any open bill; the normal sync will recreate it
+            // later when the rescheduled session becomes billable again.
+            var reopenedSessionIds = saved.stream()
+                    .filter(Objects::nonNull)
+                    .map(SessionBooking::getId)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .toList();
+            if (!reopenedSessionIds.isEmpty()) {
+                openBillSyncService.removeSessionRowsFromOpenBills(companyId, reopenedSessionIds);
+            }
         }
         if (consumableService != null) {
             applyRequestedConsumables(me, req, saved, companyId);
@@ -2874,6 +2906,71 @@ public class SessionBookingCreationService {
         openBillSyncService.syncSessionGroup(companyId, groupKey);
         openBillSyncService.enqueueBookingsSync(companyId, java.util.List.of(keep));
         return response;
+    }
+
+    /**
+     * Moving a session that has already started back into the future is a reschedule, not a
+     * completed-attendance edit. Re-open RESERVED/CHECKED_OUT sessions so the lifecycle status
+     * derives from the new time window (RESERVED before the new start). Explicit cancellation or
+     * no-show requests keep using the normal transition rules.
+     */
+    private boolean shouldReopenPastSessionInFuture(
+            List<SessionBooking> existingRows,
+            LocalDateTime newStart,
+            LocalDateTime now,
+            String requestedStoredStatus
+    ) {
+        if (existingRows == null || existingRows.isEmpty() || newStart == null || now == null || !newStart.isAfter(now)) {
+            return false;
+        }
+        boolean sourceAlreadyStarted = existingRows.stream()
+                .filter(Objects::nonNull)
+                .map(SessionBooking::getStartTime)
+                .filter(Objects::nonNull)
+                .anyMatch(sourceStart -> !sourceStart.isAfter(now));
+        if (!sourceAlreadyStarted) {
+            return false;
+        }
+        boolean statusesCanBeReopened = existingRows.stream()
+                .filter(Objects::nonNull)
+                .map(SessionBooking::getBookingStatus)
+                .map(SessionBookingStatus::normalizeStored)
+                .allMatch(status -> SessionBookingStatus.RESERVED.equals(status)
+                        || SessionBookingStatus.CHECKED_OUT.equals(status));
+        if (!statusesCanBeReopened) {
+            return false;
+        }
+        return requestedStoredStatus == null
+                || SessionBookingStatus.RESERVED.equals(requestedStoredStatus)
+                || SessionBookingStatus.CHECKED_OUT.equals(requestedStoredStatus);
+    }
+
+    /**
+     * Draft/open bills are intentionally not considered issued invoices. A cancelled invoice no
+     * longer locks the appointment, matching the rest of the billing UI's closed-invoice rules.
+     */
+    private boolean hasIssuedInvoice(Long companyId, List<SessionBooking> existingRows) {
+        if (existingRows == null || existingRows.isEmpty()) {
+            return false;
+        }
+        List<Long> sessionIds = existingRows.stream()
+                .filter(Objects::nonNull)
+                .map(SessionBooking::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (sessionIds.isEmpty()) {
+            return false;
+        }
+        if (bills == null) {
+            // Focused unit tests construct this service without the billing repository. In normal
+            // runtime BillRepository is injected; billedAt is a conservative fallback only.
+            return existingRows.stream().anyMatch(row -> row != null && row.getBilledAt() != null);
+        }
+        return bills.findAllLinkedToSessionIds(companyId, sessionIds).stream()
+                .filter(Objects::nonNull)
+                .filter(bill -> bill.getBillType() == null || BillType.INVOICE.equals(bill.getBillType()))
+                .anyMatch(bill -> !BillPaymentStatus.CANCELLED.equalsIgnoreCase(Objects.toString(bill.getPaymentStatus(), "")));
     }
 
     private String resolveRequestedStoredStatusForCreate(Long companyId, String requestedStatus) {
