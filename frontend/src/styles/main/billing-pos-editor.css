@@ -1192,3 +1192,211 @@
   background: var(--billing-pos-blue);
   color: #fff;
 }
+
+/* --------------------------------------------------------------------------
+   Mobile/tablet POS checkout refinements (approved 2026-08-17)
+   - line discount is an icon-only % button on the quantity/total row
+   - payment method, amount, equalize icon and remove action stay on one row
+   Desktop keeps the existing text-button treatment.
+   -------------------------------------------------------------------------- */
+.billing-pos-equalize-icon {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .billing-pos-selected-row {
+    grid-template-columns: minmax(58px, 1fr) 96px minmax(58px, auto) 72px !important;
+    grid-template-rows: minmax(52px, auto) !important;
+    gap: 5px !important;
+    min-width: 0 !important;
+    padding: 9px 10px !important;
+  }
+
+  .billing-pos-selected-copy {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .billing-pos-selected-copy strong,
+  .billing-pos-selected-copy small {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .billing-pos-qty {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    width: 96px !important;
+    min-width: 96px !important;
+  }
+
+  .billing-pos-qty button {
+    width: 30px !important;
+    min-width: 30px !important;
+  }
+
+  .billing-pos-qty span {
+    width: 36px !important;
+    min-width: 36px !important;
+  }
+
+  .billing-pos-line-total {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    min-width: 0 !important;
+    text-align: right !important;
+    white-space: nowrap !important;
+  }
+
+  .billing-pos-line-actions,
+  .billing-pos-line-actions--remove-only {
+    grid-column: 4 !important;
+    grid-row: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 4px !important;
+    min-width: 0 !important;
+  }
+
+  .billing-pos-line-discount {
+    grid-column: auto !important;
+    min-width: 40px !important;
+    text-align: right !important;
+  }
+
+  .billing-pos-line-discount > button.billing-pos-inline-discount-btn {
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    border-radius: 8px !important;
+  }
+
+  .billing-pos-line-discount > button.billing-pos-inline-discount-btn span,
+  .billing-pos-line-discount > button.billing-pos-inline-discount-btn em {
+    display: none !important;
+  }
+
+  .billing-pos-line-discount > button.billing-pos-inline-discount-btn svg {
+    width: 17px !important;
+    height: 17px !important;
+    flex: 0 0 17px !important;
+  }
+
+  .billing-pos-row-remove {
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 36px !important;
+    margin-left: 0 !important;
+  }
+
+  .billing-pos-payment-row {
+    grid-template-columns: minmax(104px, 1.15fr) minmax(92px, 1fr) 40px 28px !important;
+    grid-template-rows: 40px !important;
+    gap: 6px !important;
+    min-width: 0 !important;
+    min-height: 58px !important;
+    padding: 9px 10px !important;
+  }
+
+  .billing-pos-payment-row > select,
+  .billing-pos-payment-row > .billing-pos-entitlement-label {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .billing-pos-payment-amount-wrap {
+    display: contents !important;
+  }
+
+  .billing-pos-payment-row .billing-pos-money-input {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .billing-pos-equalize-btn {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    padding: 0 !important;
+    border-radius: 7px !important;
+  }
+
+  .billing-pos-equalize-text {
+    display: none !important;
+  }
+
+  .billing-pos-equalize-icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .billing-pos-equalize-icon svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .billing-pos-remove-payment {
+    grid-column: 4 !important;
+    grid-row: 1 !important;
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 36px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .billing-pos-selected-row {
+    grid-template-columns: minmax(50px, 1fr) 90px minmax(54px, auto) 68px !important;
+    gap: 4px !important;
+    padding-inline: 8px !important;
+  }
+
+  .billing-pos-qty {
+    width: 90px !important;
+    min-width: 90px !important;
+  }
+
+  .billing-pos-qty button {
+    width: 28px !important;
+    min-width: 28px !important;
+  }
+
+  .billing-pos-qty span {
+    width: 34px !important;
+    min-width: 34px !important;
+  }
+
+  .billing-pos-payment-row {
+    grid-template-columns: minmax(98px, 1.1fr) minmax(84px, 1fr) 38px 26px !important;
+    gap: 4px !important;
+    padding-inline: 8px !important;
+  }
+
+  .billing-pos-equalize-btn {
+    width: 38px !important;
+    min-width: 38px !important;
+  }
+
+  .billing-pos-remove-payment {
+    width: 26px !important;
+    min-width: 26px !important;
+  }
+}

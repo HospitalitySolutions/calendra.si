@@ -472,6 +472,16 @@ const matchRemainingIcon = (): ReactNode => (
   </svg>
 )
 
+const equalizeToZeroIcon = (): ReactNode => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M12 3v18" />
+    <path d="M3 7h18" />
+    <path d="m5 7-3 8a5 5 0 0 0 6 0L5 7Z" />
+    <path d="m19 7-3 8a5 5 0 0 0 6 0l-3-8Z" />
+    <path d="M7 21h10" />
+  </svg>
+)
+
 const entitlementPaymentIcon = (): ReactNode => (
   <span className="billing-payicon billing-payicon--entitlement" aria-hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -7863,8 +7873,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     onChange={(event) => { if (!isAdvanceSplit) updateCreateBillPaymentSplit(split.key, { amountGross: event.target.value.replace(/[^0-9.,-]/g, '').replace(',', '.') }) }}
                     onBlur={() => { if (!isAdvanceSplit) updateCreateBillPaymentSplit(split.key, { amountGross: formatPaymentAmountInput(Number(split.amountGross || 0)) }) }}
                   /></label>
-                  <button type="button" className="billing-pos-equalize-btn" onClick={() => equalizeRemaining(split.key)} disabled={isAdvanceSplit || Math.abs(remaining) <= 0.01}>
-                    {locale === 'sl' ? 'Poravnaj do 0' : 'Equalize to 0'}
+                  <button
+                    type="button"
+                    className="billing-pos-equalize-btn"
+                    onClick={() => equalizeRemaining(split.key)}
+                    disabled={isAdvanceSplit || Math.abs(remaining) <= 0.01}
+                    aria-label={locale === 'sl' ? 'Poravnaj do 0' : 'Equalize to 0'}
+                    title={locale === 'sl' ? 'Poravnaj do 0' : 'Equalize to 0'}
+                  >
+                    <span className="billing-pos-equalize-icon">{equalizeToZeroIcon()}</span>
+                    <span className="billing-pos-equalize-text">{locale === 'sl' ? 'Poravnaj do 0' : 'Equalize to 0'}</span>
                   </button>
                 </div>
                 <button type="button" className="billing-pos-remove-payment" onClick={() => removeCreateBillPaymentSplit(split.key)} aria-label={locale === 'sl' ? 'Odstrani način plačila' : 'Remove payment method'}>×</button>
@@ -7967,8 +7985,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     onChange={(event) => { if (!isEntitlement && !isAdvanceSplit) updateOpenBillPaymentSplit(ob, split.key, { amountGross: event.target.value.replace(/[^0-9.,-]/g, '').replace(',', '.') }) }}
                     onBlur={() => { if (!isEntitlement && !isAdvanceSplit) updateOpenBillPaymentSplit(ob, split.key, { amountGross: formatPaymentAmountInput(Number(split.amountGross || 0)) }) }}
                   /></label>
-                  <button type="button" className="billing-pos-equalize-btn" onClick={() => equalizeRemaining(split.key)} disabled={isEntitlement || isAdvanceSplit || Math.abs(remaining) <= 0.01}>
-                    {locale === 'sl' ? 'Poravnaj do 0' : 'Equalize to 0'}
+                  <button
+                    type="button"
+                    className="billing-pos-equalize-btn"
+                    onClick={() => equalizeRemaining(split.key)}
+                    disabled={isEntitlement || isAdvanceSplit || Math.abs(remaining) <= 0.01}
+                    aria-label={locale === 'sl' ? 'Poravnaj do 0' : 'Equalize to 0'}
+                    title={locale === 'sl' ? 'Poravnaj do 0' : 'Equalize to 0'}
+                  >
+                    <span className="billing-pos-equalize-icon">{equalizeToZeroIcon()}</span>
+                    <span className="billing-pos-equalize-text">{locale === 'sl' ? 'Poravnaj do 0' : 'Equalize to 0'}</span>
                   </button>
                 </div>
                 <button type="button" className="billing-pos-remove-payment" disabled={isEntitlement} onClick={() => removeOpenBillPaymentSplit(ob, split.key)} aria-label={locale === 'sl' ? 'Odstrani način plačila' : 'Remove payment method'}>×</button>
@@ -8039,7 +8065,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               <div className={`billing-pos-line-actions${showButtonStyle ? '' : ' billing-pos-line-actions--remove-only'}`}>
                 {showButtonStyle && (
                   <div className="billing-pos-line-discount">
-                    <button type="button" className={`billing-pos-inline-discount-btn${lineDiscountActive ? ' is-active' : ''}`} onClick={(event) => { event.stopPropagation(); setOpenCreateItemDiscountIndex(lineDiscountOpen ? null : index) }}>
+                    <button
+                      type="button"
+                      className={`billing-pos-inline-discount-btn${lineDiscountActive ? ' is-active' : ''}`}
+                      aria-label={locale === 'sl' ? 'Popust postavke' : 'Line-item discount'}
+                      title={locale === 'sl' ? 'Popust postavke' : 'Line-item discount'}
+                      onClick={(event) => { event.stopPropagation(); setOpenCreateItemDiscountIndex(lineDiscountOpen ? null : index) }}
+                    >
                       {lineDiscountButtonContent(lineDraft)}
                     </button>
                     {lineDiscountOpen && renderItemDiscountPopover(lineDraft, patchLineDiscount, () => setOpenCreateItemDiscountIndex(null))}
@@ -8100,7 +8132,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               <strong className="billing-pos-line-total">{currency(lineTotal)}</strong>
               <div className="billing-pos-line-actions">
                 <div className="billing-pos-line-discount">
-                  <button type="button" className={`${showButtonStyle ? 'billing-pos-inline-discount-btn ' : ''}${lineDiscountActive ? 'is-active' : ''}`.trim()} onClick={(event) => { event.stopPropagation(); setOpenOpenBillItemDiscount(lineDiscountOpen ? null : { openBillId: ob.id, index }) }}>
+                  <button
+                    type="button"
+                    className={`${showButtonStyle ? 'billing-pos-inline-discount-btn ' : ''}${lineDiscountActive ? 'is-active' : ''}`.trim()}
+                    aria-label={locale === 'sl' ? 'Popust postavke' : 'Line-item discount'}
+                    title={locale === 'sl' ? 'Popust postavke' : 'Line-item discount'}
+                    onClick={(event) => { event.stopPropagation(); setOpenOpenBillItemDiscount(lineDiscountOpen ? null : { openBillId: ob.id, index }) }}
+                  >
                     {lineDiscountButtonContent(lineDraft)}
                   </button>
                   {lineDiscountOpen && renderItemDiscountPopover(lineDraft, (patch) => setOpenBillItemDiscountDraft(ob, index, patch), () => setOpenOpenBillItemDiscount(null))}
