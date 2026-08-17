@@ -2804,50 +2804,6 @@
 
 
 /* Client wallet entitlement purchase flow (Client details > Denarnica). */
-.clients-client-detail-modal.modal.large-modal:has(.clients-detail-wallet-card--drawer-open) {
-    width: min(1180px, calc(100vw - 44px));
-    max-width: min(1180px, calc(100vw - 44px));
-}
-
-.clients-client-detail-modal .clients-action-workspace-body:has(.clients-detail-wallet-card--drawer-open) {
-    position: relative;
-    padding-right: 430px;
-    overflow: auto;
-}
-
-.clients-client-detail-modal .clients-action-workspace-body:has(.clients-detail-wallet-card--drawer-open) .clients-action-workspace-shell {
-    min-width: 0;
-}
-
-.clients-client-detail-modal .clients-detail-wallet-card--drawer-open .clients-wallet-purchase-layout {
-    display: block;
-    position: static;
-    min-height: 0;
-}
-
-.clients-client-detail-modal .clients-detail-wallet-card--drawer-open .clients-wallet-main-pane {
-    padding: 0;
-}
-
-.clients-client-detail-modal .clients-detail-wallet-card--drawer-open .clients-wallet-purchase-drawer {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 402px;
-    min-width: 402px;
-    height: auto;
-    border-top: 0;
-    border-left: 1px solid #dbe4f0;
-    box-shadow: -18px 0 36px rgba(15, 23, 42, 0.08);
-    z-index: 3;
-    overflow: auto;
-}
-
-.clients-detail-wallet-card--drawer-open {
-    padding: 0;
-}
-
 .clients-wallet-purchase-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -2856,17 +2812,9 @@
     min-height: 420px;
 }
 
-.clients-detail-wallet-card--drawer-open .clients-wallet-purchase-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
-}
-
 .clients-wallet-main-pane {
     min-width: 0;
     padding: 0;
-}
-
-.clients-detail-wallet-card--drawer-open .clients-wallet-main-pane {
-    padding: 20px;
 }
 
 .clients-wallet-action-bar {
@@ -2968,53 +2916,6 @@
     border: 1px solid currentColor;
     font-size: 0.75rem;
     font-weight: 900;
-}
-
-.clients-wallet-purchase-drawer {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-    padding: 22px 24px;
-    border-left: 1px solid #dbe4f0;
-    background: #ffffff;
-    box-shadow: -18px 0 36px rgba(15, 23, 42, 0.06);
-}
-
-.clients-wallet-purchase-drawer-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.clients-wallet-purchase-drawer-header h3 {
-    margin: 0;
-    color: #0f172a;
-    font-size: 1.2rem;
-    font-weight: 950;
-}
-
-.clients-wallet-drawer-close {
-    width: 34px;
-    height: 34px;
-    min-width: 34px;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    color: #475569;
-    font-size: 1.65rem;
-    line-height: 1;
-    cursor: pointer;
-}
-
-.clients-wallet-drawer-close:hover {
-    background: #f1f5f9;
-    color: #0f172a;
 }
 
 .clients-wallet-stepper {
@@ -3240,60 +3141,18 @@
     line-height: 1.45;
 }
 
-.clients-wallet-drawer-footer {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 12px;
-}
-
-.clients-wallet-drawer-footer .secondary {
-    min-height: 44px;
-    min-width: 86px;
-    border-radius: 12px;
-    font-weight: 900;
-}
-
 .clients-wallet-purchase-error {
     margin: -4px 0 0;
 }
 
 @media (max-width: 1024px) {
-    .clients-client-detail-modal.modal.large-modal:has(.clients-detail-wallet-card--drawer-open) {
-        width: min(760px, calc(100vw - 24px));
-        max-width: min(760px, calc(100vw - 24px));
-    }
-
-    .clients-client-detail-modal .clients-action-workspace-body:has(.clients-detail-wallet-card--drawer-open) {
-        padding-right: 28px;
-    }
-
-    .clients-detail-wallet-card--drawer-open .clients-wallet-purchase-layout {
-        display: grid;
-        grid-template-columns: 1fr;
-    }
-
-    .clients-client-detail-modal .clients-detail-wallet-card--drawer-open .clients-wallet-purchase-drawer,
-    .clients-wallet-purchase-drawer {
-        position: static;
-        width: auto;
-        min-width: 0;
-        border-left: 0;
-        border-top: 1px solid #dbe4f0;
-        box-shadow: 0 -12px 30px rgba(15, 23, 42, 0.06);
-    }
-}
-
-@media (max-width: 1024px) {
-    .clients-wallet-action-bar,
-    .clients-wallet-drawer-footer {
+    .clients-wallet-action-bar {
         flex-direction: column;
         align-items: stretch;
     }
 
     .clients-wallet-buy-button,
-.clients-wallet-open-bill-button,
-.clients-wallet-drawer-footer .secondary{
+    .clients-wallet-open-bill-button {
         width: 100%;
     }
 
@@ -3315,16 +3174,6 @@
 
 /* Mobile refinements for client detail wallet/files from issue list. */
 @media (max-width: 1024px) {
-    .clients-client-detail-modal .clients-wallet-drawer-footer .secondary,
-    .clients-wallet-drawer-footer .secondary {
-        display: none;
-    }
-
-    .clients-client-detail-modal .clients-wallet-drawer-footer,
-    .clients-wallet-drawer-footer {
-        display: block;
-    }
-
     .clients-client-detail-modal .clients-file-upload-dropzone strong,
     .clients-file-upload-dropzone strong {
         display: none;
@@ -3335,51 +3184,6 @@
         gap: 10px;
         min-height: 132px;
     }
-}
-
-.clients-wallet-gift-card-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 1200;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 22px;
-    background: rgba(15, 23, 42, 0.36);
-    backdrop-filter: blur(6px);
-}
-
-.clients-wallet-gift-card-modal {
-    width: min(520px, calc(100vw - 28px));
-    display: grid;
-    gap: 16px;
-    padding: 24px;
-    border: 1px solid #dbe4f0;
-    border-radius: 22px;
-    background: #ffffff;
-    box-shadow: 0 28px 70px rgba(15, 23, 42, 0.24);
-}
-
-.clients-wallet-gift-card-modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.clients-wallet-gift-card-modal h3 {
-    margin: 0;
-    color: #0f172a;
-    font-size: 1.25rem;
-    font-weight: 950;
-}
-
-.clients-wallet-gift-card-modal p {
-    margin: 0;
-    color: #64748b;
-    font-size: 0.92rem;
-    line-height: 1.5;
-    font-weight: 650;
 }
 
 .clients-wallet-gift-card-summary {
@@ -3442,27 +3246,6 @@
 .clients-wallet-gift-card-fields textarea:focus {
     border-color: #1672f3;
     box-shadow: 0 0 0 3px rgba(22, 114, 243, 0.1);
-}
-
-.clients-wallet-gift-card-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 12px;
-}
-
-.clients-wallet-gift-card-actions .secondary {
-    min-height: 44px;
-    min-width: 86px;
-    border-radius: 12px;
-    font-weight: 900;
-}
-
-@media (max-width: 620px) {
-    .clients-wallet-gift-card-actions {
-        flex-direction: column-reverse;
-        align-items: stretch;
-    }
 }
 
 .clients-owner-chip--multi .clients-assigned-avatar-stack {
@@ -6424,5 +6207,1677 @@
 
     .clients-modern-card .clients-list-shell {
         margin-top: 0;
+    }
+}
+
+/* ========================================================================== */
+/* Standardized customer side panels (desktop only)                           */
+/* Approved Nova stranka / Uredi stranko design                               */
+/* ========================================================================== */
+@media (min-width: 1025px) {
+    .clients-standard-customer-panel {
+        background: #ffffff;
+        color: #0f172a;
+        box-shadow: -18px 0 42px rgba(15, 23, 42, 0.12);
+    }
+
+    .clients-standard-customer-panel--create {
+        width: 560px !important;
+        max-width: 560px !important;
+    }
+
+    .clients-standard-customer-panel--edit {
+        width: min(980px, 92vw) !important;
+        max-width: min(980px, 92vw) !important;
+    }
+
+    .clients-standard-customer-panel .cp-panel-header {
+        min-height: 104px;
+        padding: 22px 30px 20px;
+        background: #ffffff;
+        border-bottom: 1px solid #e8edf4;
+    }
+
+    .clients-standard-customer-panel .cp-panel-header__title {
+        color: #0f172a;
+        font-size: 24px;
+        font-weight: 800;
+        line-height: 1.2;
+        letter-spacing: -0.025em;
+    }
+
+    .clients-standard-customer-panel .cp-panel-header__subtitle {
+        margin-top: 5px;
+        color: #64748b;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.35;
+    }
+
+    .clients-standard-customer-panel .cp-panel-header .cp-icon-btn {
+        width: 38px;
+        height: 38px;
+        min-width: 38px;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #334155;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel .cp-panel-header .cp-icon-btn:hover {
+        background: #f6f8fb;
+    }
+
+    .clients-standard-customer-panel .cp-panel-body {
+        padding: 30px;
+        background: #ffffff;
+    }
+
+    .clients-standard-customer-panel--edit .cp-panel-body {
+        padding-top: 26px;
+        overflow-x: hidden;
+    }
+
+    .clients-standard-customer-panel .cp-panel-tabs {
+        min-height: 58px;
+        padding: 0 28px;
+        gap: 22px;
+        border-bottom: 1px solid #e8edf4;
+        background: #ffffff;
+    }
+
+    .clients-standard-customer-panel .cp-panel-tab {
+        min-width: 0;
+        min-height: 58px;
+        padding: 0 8px;
+        gap: 8px;
+        border-radius: 0;
+        color: #334155;
+        background: transparent;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .clients-standard-customer-panel .cp-panel-tab.is-active {
+        color: #0868f1;
+        background: transparent;
+        box-shadow: inset 0 -2px 0 #0868f1;
+    }
+
+    .clients-standard-customer-panel .cp-panel-tab svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .clients-standard-customer-profile {
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+        width: 100%;
+        margin: 0;
+    }
+
+    .clients-standard-customer-section {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+    }
+
+    .clients-standard-customer-section h3 {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        margin: 0;
+        color: #111827;
+        font-size: 16px;
+        font-weight: 750;
+        line-height: 1.25;
+    }
+
+    .clients-standard-customer-section h3 svg {
+        flex: 0 0 auto;
+        width: 20px;
+        height: 20px;
+        color: #ff6200;
+        stroke-width: 1.9;
+    }
+
+    .clients-standard-profile-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+        width: 100%;
+    }
+
+    .clients-standard-profile-field,
+    .clients-standard-customer-panel .clients-create-field {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        cursor: default;
+    }
+
+    .clients-standard-profile-field > span,
+    .clients-standard-customer-panel .clients-create-field > span {
+        color: #475569;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.3;
+        letter-spacing: 0;
+        text-transform: none;
+    }
+
+    .clients-standard-customer-section:not(.clients-standard-customer-section--person) .clients-create-field > span {
+        display: none;
+    }
+
+    .clients-standard-profile-field input,
+    .clients-standard-customer-panel .clients-create-field input {
+        width: 100%;
+        height: 50px;
+        min-height: 50px;
+        margin: 0;
+        padding: 0 14px;
+        border: 1px solid #d4deea;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #111827;
+        font: inherit;
+        font-size: 15px;
+        font-weight: 500;
+        line-height: 1;
+        outline: none;
+        box-shadow: none;
+        transition: border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .clients-standard-profile-field input::placeholder,
+    .clients-standard-customer-panel .clients-create-field input::placeholder {
+        color: #7b8aa2;
+        font-weight: 450;
+    }
+
+    .clients-standard-profile-field input:hover,
+    .clients-standard-customer-panel .clients-create-field input:hover {
+        border-color: #bcc9d8;
+    }
+
+    .clients-standard-profile-field input:focus,
+    .clients-standard-customer-panel .clients-create-field input:focus {
+        border-color: #78a9fa;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.09);
+    }
+
+    .clients-standard-profile-field--wide,
+    .clients-standard-customer-panel .clients-detail-field-card--wide {
+        width: 100%;
+    }
+
+    .clients-standard-customer-extra-fields {
+        display: grid;
+        gap: 16px;
+    }
+
+    /* Keep existing custom/assigned-location functionality, but remove legacy cards. */
+    .clients-standard-customer-extra-fields .clients-detail-field-card {
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-action-workspace-shell {
+        display: grid;
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+        align-items: start;
+        gap: 28px;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-customer-profile,
+    .clients-standard-customer-panel--edit .clients-standard-detail-card,
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab,
+    .clients-standard-customer-panel--edit .clients-detail-sessions-card {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .clients-standard-customer-panel--edit .clients-detail-sessions-card.clients-modern-sessions-panel {
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-sessions-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        width: 100%;
+        margin: 0 0 14px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-subtabs.clients-session-tabs {
+        display: inline-flex;
+        width: auto;
+        min-height: 42px;
+        padding: 3px;
+        gap: 2px;
+        border: 1px solid #d9e3ef;
+        border-radius: 999px;
+        background: #f5f8fc;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-subtabs .clients-session-tab {
+        min-height: 34px;
+        padding: 0 17px;
+        border: 0;
+        border-radius: 999px;
+        color: #334155;
+        background: transparent;
+        font-size: 13px;
+        font-weight: 650;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-subtabs .clients-session-tab.active {
+        color: #ffffff;
+        background: #0b6ff5;
+        box-shadow: 0 3px 9px rgba(11, 111, 245, 0.22);
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-sessions-count {
+        min-height: 38px;
+        padding: 0 14px;
+        border-radius: 999px;
+        color: #0868f1;
+        background: #eef5ff;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .clients-standard-customer-panel--edit .clients-detail-empty-card {
+        min-height: 170px;
+        margin: 0;
+        border: 1px solid #dce5f0;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel .cp-panel-footer {
+        min-height: 78px;
+        padding: 14px 30px;
+        border-top: 1px solid #e8edf4;
+        background: #ffffff;
+    }
+
+    .clients-standard-customer-panel--create .cp-panel-footer {
+        justify-content: flex-end;
+    }
+
+    .clients-standard-customer-panel--edit .cp-panel-footer {
+        justify-content: space-between;
+    }
+
+    .clients-standard-customer-panel .cp-panel-footer .cp-btn {
+        min-height: 48px;
+        padding: 0 20px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .clients-standard-customer-panel .cp-panel-footer .cp-btn--primary {
+        min-width: 150px;
+        border-color: #0b6ff5;
+        background: #0b6ff5;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel .cp-panel-footer .cp-btn--danger {
+        border: 1px solid #efb5b5;
+        background: #ffffff;
+        color: #e13232;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel .cp-panel-footer .cp-btn--danger:hover:not(:disabled) {
+        border-color: #ee8f8f;
+        background: #fff7f7;
+    }
+}
+
+@media (min-width: 1025px) {
+    .clients-standard-detail-card {
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-wallet-tab,
+    .clients-standard-customer-panel--edit .clients-standard-files-tab,
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab {
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+    }
+
+    /* Wallet / Denarnica */
+    .clients-standard-wallet-tab .clients-wallet-purchase-layout,
+    .clients-standard-wallet-tab .clients-wallet-main-pane {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-action-bar {
+        margin: 0;
+        display: flex;
+        justify-content: flex-end;
+        flex: 0 0 auto;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-buy-button,
+    .clients-standard-wallet-tab .clients-wallet-open-bill-button {
+        min-height: 46px;
+        padding: 0 18px;
+        border-radius: 12px;
+        border: 1px solid #0b6ff5;
+        background: #0b6ff5;
+        color: #ffffff;
+        box-shadow: none;
+        font-size: 14px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-toolbar--with-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-toolbar-main {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-filters.clients-session-tabs {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 0;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-filters .clients-session-tab {
+        min-height: 36px;
+        padding: 0 15px;
+        border: 1px solid #d9e3ef;
+        border-radius: 10px;
+        background: #f8fafc;
+        color: #475569;
+        font-size: 13px;
+        font-weight: 700;
+        box-shadow: none;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-filters .clients-session-tab.active {
+        border-color: #0b6ff5;
+        background: #0b6ff5;
+        color: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 0;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-summary-pill {
+        min-height: 36px;
+        padding: 0 14px;
+        border: 0;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 700;
+        box-shadow: none;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-summary-pill--active {
+        background: #e7f8ea;
+        color: #15803d;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-summary-pill--expiring {
+        background: #fff3da;
+        color: #b45309;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-empty--purchase,
+    .clients-standard-wallet-tab .clients-detail-empty-card {
+        min-height: 220px;
+        padding: 28px 24px;
+        border: 1px solid #dce5f0;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-empty-icon {
+        width: 78px;
+        height: 78px;
+        border-radius: 999px;
+        background: #edf4ff;
+        color: #0b6ff5;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-empty .empty-state,
+    .clients-standard-files-tab .clients-detail-empty-card .empty-state {
+        gap: 8px;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-empty .empty-state h3,
+    .clients-standard-files-tab .clients-detail-empty-card .empty-state h3 {
+        color: #0f172a;
+        font-size: 18px;
+        font-weight: 800;
+        line-height: 1.25;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-empty .empty-state p,
+    .clients-standard-files-tab .clients-detail-empty-card .empty-state p {
+        max-width: 440px;
+        color: #64748b;
+        font-size: 14px;
+        line-height: 1.55;
+        text-align: center;
+    }
+
+    .clients-standard-wallet-tab .clients-wallet-purchase-note {
+        min-height: 40px;
+        padding: 0 16px;
+        border: 1px solid #cfe0ff;
+        border-radius: 12px;
+        background: #f5f9ff;
+        color: #0b6ff5;
+        font-size: 14px;
+        font-weight: 600;
+        text-align: center;
+    }
+
+    /* Files / Datoteke */
+    .clients-standard-files-tab {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .clients-standard-files-tab .clients-detail-datoteke-sub-tabs {
+        margin: 0;
+    }
+
+    .clients-standard-files-tab .clients-detail-main-tabs-inner.clients-session-tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+        padding: 4px;
+        gap: 4px;
+        border: 1px solid #d9e3ef;
+        border-radius: 12px;
+        background: #f8fafc;
+        box-shadow: none;
+    }
+
+    .clients-standard-files-tab .clients-detail-main-tabs-inner .clients-session-tab {
+        min-height: 42px;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #475569;
+        font-size: 14px;
+        font-weight: 700;
+        box-shadow: none;
+    }
+
+    .clients-standard-files-tab .clients-detail-main-tabs-inner .clients-session-tab.active {
+        background: #0b6ff5;
+        color: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-files-tab .clients-file-manager-toolbar {
+        margin: 0;
+    }
+
+    .clients-standard-files-tab .clients-file-search-field {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 48px;
+        padding: 0 14px;
+        border: 1px solid #d4deea;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-files-tab .clients-file-search-field input {
+        flex: 1;
+        border: 0;
+        outline: none;
+        background: transparent;
+        color: #0f172a;
+        font-size: 14px;
+    }
+
+    .clients-standard-files-tab .clients-file-search-field input::placeholder {
+        color: #8a9ab0;
+    }
+
+    .clients-standard-files-tab .clients-file-upload-dropzone {
+        min-height: 190px;
+        padding: 28px 24px;
+        border: 1px dashed #cbdcf3;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-files-tab .clients-file-browse-button,
+    .clients-standard-files-tab .clients-file-upload-button {
+        min-height: 40px;
+        padding: 0 16px;
+        border-radius: 10px;
+        border: 1px solid #cfe0ff;
+        background: #ffffff;
+        color: #0b6ff5;
+        font-size: 14px;
+        font-weight: 700;
+        box-shadow: none;
+    }
+
+    .clients-standard-files-tab .clients-file-list-header {
+        margin: 2px 0 0;
+        color: #94a3b8;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .clients-standard-files-tab .clients-modern-file-list,
+    .clients-standard-files-tab .clients-company-invoices-panel {
+        border: 1px solid #dce5f0;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: none;
+        padding: 16px;
+    }
+
+    .clients-standard-files-tab .clients-company-invoices-panel {
+        padding: 18px;
+    }
+
+    .clients-standard-files-tab .clients-company-invoices-toolbar {
+        margin-bottom: 12px;
+    }
+
+    /* Settings / Nastavitve */
+    .clients-standard-settings-tab,
+    .clients-standard-settings-list {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .clients-settings-linked-card,
+    .clients-settings-toggle-row,
+    .clients-settings-location-shell {
+        width: 100%;
+        border: 1px solid #dce5f0;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: none;
+        padding: 16px 18px;
+    }
+
+    .clients-settings-linked-card {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .clients-settings-linked-head,
+    .clients-settings-toggle-main,
+    .clients-settings-location-head {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .clients-settings-linked-copy {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .clients-settings-card-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        border-radius: 12px;
+        background: #f5f8fc;
+        color: #334155;
+    }
+
+    .clients-settings-card-icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .clients-settings-linked-label,
+    .clients-settings-toggle-label {
+        color: #334155;
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1.3;
+    }
+
+    .clients-settings-linked-value {
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.45;
+    }
+
+    .clients-settings-linked-value .clients-assigned-multi-summary {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .clients-settings-linked-chevron {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #64748b;
+        font-size: 22px;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .clients-settings-linked-editor {
+        padding-left: 54px;
+    }
+
+    .clients-settings-linked-editor .desktop-select,
+    .clients-settings-linked-editor .desktop-select-trigger,
+    .clients-settings-linked-editor select {
+        width: 100%;
+    }
+
+    .clients-settings-linked-editor .desktop-select-trigger,
+    .clients-settings-linked-editor select,
+    .clients-settings-location-shell details summary {
+        min-height: 48px;
+        border-radius: 12px;
+        border: 1px solid #d4deea;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-settings-location-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .clients-settings-location-shell .clients-location-picker-field {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .clients-settings-location-shell .clients-location-picker-label,
+    .clients-settings-location-shell .clients-location-picker-field > small {
+        color: #64748b;
+        font-size: 13px;
+        line-height: 1.45;
+    }
+
+    .clients-settings-location-shell .clients-location-picker-label {
+        display: none;
+    }
+
+    .clients-settings-location-shell .clients-location-picker {
+        margin: 0;
+    }
+
+    .clients-settings-location-shell .clients-location-picker summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 14px;
+        list-style: none;
+        cursor: pointer;
+    }
+
+    .clients-settings-location-shell .clients-location-picker summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .clients-settings-location-shell .clients-location-picker-menu {
+        margin-top: 10px;
+        padding: 10px;
+        border: 1px solid #dce5f0;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-settings-location-shell .clients-location-picker-menu button {
+        border-radius: 10px;
+    }
+
+    .clients-settings-toggle-row {
+        min-height: 68px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 0 16px 0 18px;
+        border-radius: 14px;
+    }
+
+    .clients-standard-settings-tab .clients-batch-switch {
+        position: relative;
+        width: 50px;
+        min-width: 50px;
+        height: 30px;
+        padding: 0;
+        border: 1px solid #d5dee9;
+        border-radius: 999px;
+        background: #e8edf4;
+        color: transparent;
+        font-size: 0;
+        box-shadow: none;
+        transition: background .16s ease, border-color .16s ease;
+    }
+
+    .clients-standard-settings-tab .clients-batch-switch::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        background: #ffffff;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
+        transition: transform .16s ease;
+    }
+
+    .clients-standard-settings-tab .clients-batch-switch--on {
+        background: #0b6ff5;
+        border-color: #0b6ff5;
+    }
+
+    .clients-standard-settings-tab .clients-batch-switch--on::after {
+        transform: translateX(20px);
+    }
+
+    .clients-standard-settings-tab .clients-assigned-multi-control,
+    .clients-standard-settings-tab .clients-assigned-multi-search,
+    .clients-standard-settings-tab .clients-assigned-option {
+        border-radius: 12px;
+    }
+
+    .clients-standard-settings-tab .clients-assigned-multi-menu {
+        margin-top: 10px;
+        border-radius: 14px;
+        border: 1px solid #dce5f0;
+        box-shadow: none;
+    }
+}
+
+/* ========================================================================== */
+/* Standardized company / group side panels (desktop only)                    */
+/* Approved Novo/Uredi podjetje + Nova/Uredi skupino design                    */
+/* ========================================================================== */
+@media (min-width: 1025px) {
+    .clients-standard-entity-panel {
+        background: #ffffff;
+        color: #0f172a;
+        box-shadow: -18px 0 42px rgba(15, 23, 42, 0.12);
+    }
+
+    .clients-standard-entity-panel--create {
+        width: 560px !important;
+        max-width: 560px !important;
+    }
+
+    .clients-standard-entity-panel--edit {
+        width: min(940px, 92vw) !important;
+        max-width: min(940px, 92vw) !important;
+    }
+
+    .clients-standard-entity-panel .cp-panel-header {
+        min-height: 86px;
+        padding: 20px 28px;
+        border-bottom: 1px solid #e8edf4;
+        background: #ffffff;
+    }
+
+    .clients-standard-entity-panel .cp-panel-header__title {
+        color: #0f172a;
+        font-size: 22px;
+        font-weight: 800;
+        line-height: 1.2;
+        letter-spacing: -0.025em;
+    }
+
+    .clients-standard-entity-panel .cp-panel-header__subtitle {
+        margin-top: 4px;
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    .clients-standard-entity-header-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 11px;
+    }
+
+    .clients-standard-entity-header-title > svg {
+        width: 21px;
+        height: 21px;
+        color: #ff6200;
+        stroke-width: 1.9;
+    }
+
+    .clients-standard-entity-panel .cp-panel-header .cp-icon-btn {
+        width: 38px;
+        height: 38px;
+        min-width: 38px;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #334155;
+        box-shadow: none;
+    }
+
+    .clients-standard-entity-panel .cp-panel-header .cp-icon-btn:hover {
+        background: #f6f8fb;
+    }
+
+    .clients-standard-entity-panel .cp-panel-tabs {
+        min-height: 56px;
+        padding: 0 28px;
+        gap: 28px;
+        border-bottom: 1px solid #e8edf4;
+        background: #ffffff;
+    }
+
+    .clients-standard-entity-panel .cp-panel-tab {
+        min-height: 56px;
+        min-width: 0;
+        padding: 0 8px;
+        border-radius: 0;
+        background: transparent;
+        color: #334155;
+        font-size: 14px;
+        font-weight: 600;
+        box-shadow: none;
+    }
+
+    .clients-standard-entity-panel .cp-panel-tab.is-active {
+        color: #0868f1;
+        background: transparent;
+        box-shadow: inset 0 -2px 0 #0868f1;
+    }
+
+    .clients-standard-entity-panel .cp-panel-tab svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .clients-standard-entity-panel .cp-panel-body {
+        padding: 28px;
+        background: #ffffff;
+    }
+
+    .clients-standard-entity-panel--edit .cp-panel-body {
+        padding: 24px 28px 28px;
+    }
+
+    .clients-standard-entity-panel .clients-action-workspace-shell {
+        width: 100%;
+        margin: 0;
+        gap: 24px;
+    }
+
+    .clients-standard-entity-panel--edit .clients-action-workspace-shell {
+        display: grid;
+        grid-template-columns: minmax(300px, 0.9fr) minmax(360px, 1.1fr);
+        align-items: start;
+        gap: 24px;
+    }
+
+    .clients-standard-entity-profile {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+    }
+
+    .clients-standard-entity-profile > h3 {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        margin: 0;
+        color: #111827;
+        font-size: 16px;
+        font-weight: 750;
+        line-height: 1.25;
+    }
+
+    .clients-standard-entity-profile > h3 svg {
+        width: 20px;
+        height: 20px;
+        flex: 0 0 auto;
+        color: #ff6200;
+        stroke-width: 1.9;
+    }
+
+    .clients-standard-entity-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 15px 16px;
+        width: 100%;
+    }
+
+    .clients-standard-group-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .clients-standard-entity-field {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .clients-standard-entity-field--wide {
+        grid-column: 1 / -1;
+    }
+
+    .clients-standard-entity-field > span {
+        color: #475569;
+        font-size: 12px;
+        font-weight: 650;
+        line-height: 1.3;
+        letter-spacing: 0;
+        text-transform: none;
+    }
+
+    .clients-standard-entity-field input,
+    .clients-standard-entity-field select,
+    .clients-standard-entity-field .desktop-select-trigger {
+        width: 100%;
+        height: 50px;
+        min-height: 50px;
+        margin: 0;
+        padding: 0 14px;
+        border: 1px solid #d4deea;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #111827;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1;
+        outline: none;
+        box-shadow: none;
+        transition: border-color .16s ease, box-shadow .16s ease;
+    }
+
+    .clients-standard-entity-field input::placeholder {
+        color: #7b8aa2;
+        font-weight: 450;
+    }
+
+    .clients-standard-entity-field input:hover,
+    .clients-standard-entity-field select:hover,
+    .clients-standard-entity-field .desktop-select-trigger:hover {
+        border-color: #bcc9d8;
+    }
+
+    .clients-standard-entity-field input:focus,
+    .clients-standard-entity-field select:focus,
+    .clients-standard-entity-field .desktop-select-trigger:focus-visible {
+        border-color: #78a9fa;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.09);
+    }
+
+    .clients-standard-entity-custom-fields {
+        display: grid;
+        gap: 14px;
+        width: 100%;
+    }
+
+    .clients-standard-entity-custom-fields:empty {
+        display: none;
+    }
+
+    .clients-standard-entity-custom-fields .clients-location-picker-field,
+    .clients-standard-entity-custom-fields .clients-detail-field-card {
+        margin: 0;
+    }
+
+    .clients-standard-entity-custom-fields .clients-detail-field-card {
+        border: 1px solid #dce5f0;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    /* Company files uses the same standardized file manager as customer files. */
+    .clients-standard-company-files {
+        min-width: 0;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .clients-standard-company-files .clients-detail-datoteke-sub-tabs {
+        margin: 0 0 14px;
+    }
+
+    .clients-standard-company-files .clients-detail-main-tabs-inner.clients-session-tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+        padding: 4px;
+        gap: 4px;
+        border: 1px solid #d9e3ef;
+        border-radius: 12px;
+        background: #f8fafc;
+        box-shadow: none;
+    }
+
+    .clients-standard-company-files .clients-detail-main-tabs-inner .clients-session-tab {
+        min-height: 40px;
+        border: 0;
+        border-radius: 9px;
+        background: transparent;
+        color: #475569;
+        font-size: 13px;
+        font-weight: 700;
+        box-shadow: none;
+    }
+
+    .clients-standard-company-files .clients-detail-main-tabs-inner .clients-session-tab.active {
+        background: #0b6ff5;
+        color: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-company-files .clients-file-search-field {
+        min-height: 46px;
+        border-radius: 10px;
+        border: 1px solid #d4deea;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-company-files .clients-file-upload-dropzone {
+        min-height: 175px;
+        margin-top: 12px;
+        padding: 24px 20px;
+        border: 1px dashed #cbdcf3;
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-company-files .clients-file-list-header {
+        margin: 14px 0 8px;
+        color: #94a3b8;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+    }
+
+    .clients-standard-company-files .clients-detail-empty-card,
+    .clients-standard-company-files .clients-modern-file-list,
+    .clients-standard-company-files .clients-company-invoices-panel {
+        border: 1px solid #dce5f0;
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    /* Company/group settings: preserve logic, remove legacy gray cards. */
+    .clients-standard-entity-settings {
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+    }
+
+    .clients-standard-entity-settings .clients-action-workspace-settings-grid,
+    .clients-standard-entity-settings .clients-detail-fields {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        width: 100%;
+    }
+
+    .clients-standard-entity-settings .clients-detail-field-card,
+    .clients-standard-entity-settings .clients-location-picker-field {
+        width: 100%;
+        margin: 0;
+        border: 1px solid #dce5f0;
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-entity-settings .clients-detail-field-card {
+        padding: 14px 16px;
+    }
+
+    .clients-standard-entity-settings .clients-standard-entity-field {
+        padding: 0;
+        border: 0;
+    }
+
+    .clients-standard-entity-settings .clients-detail-batch-switch-row {
+        min-height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+    }
+
+    /* Group members */
+    .clients-standard-group-members {
+        min-width: 0;
+        margin: 0;
+        padding: 16px;
+        border: 1px solid #dce5f0;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-members .group-members-tab-header {
+        margin-bottom: 12px;
+    }
+
+    .clients-standard-group-members .group-members-tab-header h3 {
+        margin: 0;
+        color: #0f172a;
+        font-size: 16px;
+        font-weight: 800;
+    }
+
+    .clients-standard-group-members .group-members-tab-header > span {
+        min-height: 34px;
+        display: inline-flex;
+        align-items: center;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: #eef5ff;
+        color: #0b6ff5;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .clients-standard-group-members .group-members-tab-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        margin: 0 0 14px;
+    }
+
+    .clients-standard-group-members .calendar-client-picker__search-wrap {
+        width: 100%;
+        min-height: 46px;
+        border: 1px solid #d4deea;
+        border-radius: 10px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-members .calendar-client-picker__search-wrap input {
+        min-height: 44px;
+    }
+
+    .clients-standard-group-members .group-members-add-button {
+        min-height: 46px;
+        padding: 0 16px;
+        border: 1px solid #0b6ff5;
+        border-radius: 10px;
+        background: #0b6ff5;
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 700;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-members .group-members-empty-state {
+        min-height: 190px;
+        margin: 0;
+        padding: 24px;
+        border: 1px solid #dce5f0;
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-members .group-members-empty-icon {
+        background: #edf4ff;
+        color: #0b6ff5;
+    }
+
+    .clients-standard-group-members .group-members-modern-list {
+        border: 1px solid #dce5f0;
+        border-radius: 14px;
+        background: #ffffff;
+        overflow: hidden;
+    }
+
+    /* Footer actions: no cancel; destructive left, primary right. */
+    .clients-standard-entity-panel .cp-panel-footer {
+        min-height: 76px;
+        padding: 14px 28px;
+        border-top: 1px solid #e8edf4;
+        background: #ffffff;
+    }
+
+    .clients-standard-entity-panel--create .cp-panel-footer {
+        justify-content: flex-end;
+    }
+
+    .clients-standard-entity-panel--edit .cp-panel-footer {
+        justify-content: space-between;
+    }
+
+    .clients-standard-entity-panel .cp-panel-footer .cp-btn {
+        min-height: 46px;
+        padding: 0 18px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .clients-standard-entity-panel .cp-panel-footer .cp-btn--primary {
+        min-width: 150px;
+        border-color: #0b6ff5;
+        background: #0b6ff5;
+        box-shadow: none;
+    }
+
+    .clients-standard-entity-panel .cp-panel-footer .cp-btn--danger {
+        border: 1px solid #efb5b5;
+        background: #ffffff;
+        color: #e13232;
+        box-shadow: none;
+    }
+
+    .clients-standard-entity-panel .cp-panel-footer .cp-btn--danger:hover:not(:disabled) {
+        border-color: #ee8f8f;
+        background: #fff7f7;
+    }
+}
+
+/* ========================================================================== */
+/* Standardized group Termini + Nastavitve tabs (desktop only)                */
+/* Approved group detail follow-up preview                                     */
+/* ========================================================================== */
+@media (min-width: 1025px) {
+    /* Termini: same visual language as Uredi stranko -> Termini. */
+    .clients-standard-group-sessions {
+        min-width: 0;
+        margin: 0;
+        padding: 16px;
+        border: 1px solid #dce5f0;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-sessions .clients-modern-sessions-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        width: 100%;
+        margin: 0 0 16px;
+    }
+
+    .clients-standard-group-sessions .clients-modern-session-subtabs.clients-session-tabs {
+        display: inline-flex;
+        width: auto;
+        min-height: 42px;
+        padding: 3px;
+        gap: 2px;
+        border: 1px solid #d9e3ef;
+        border-radius: 999px;
+        background: #f5f8fc;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-sessions .clients-modern-session-subtabs .clients-session-tab {
+        min-height: 34px;
+        padding: 0 17px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: #334155;
+        font-size: 13px;
+        font-weight: 650;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-sessions .clients-modern-session-subtabs .clients-session-tab.active {
+        background: #0b6ff5;
+        color: #ffffff;
+        box-shadow: 0 3px 9px rgba(11, 111, 245, 0.22);
+    }
+
+    .clients-standard-group-sessions .clients-modern-sessions-count {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 38px;
+        padding: 0 14px;
+        border: 0;
+        border-radius: 999px;
+        background: #eef5ff;
+        color: #0868f1;
+        font-size: 13px;
+        font-weight: 700;
+        box-shadow: none;
+        white-space: nowrap;
+    }
+
+    .clients-standard-group-sessions .clients-modern-sessions-count svg {
+        width: 17px;
+        height: 17px;
+    }
+
+    .clients-standard-group-sessions .clients-standard-group-sessions-empty {
+        min-height: 300px;
+        margin: 0;
+        padding: 34px 24px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        border: 1px solid #dce5f0;
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-sessions-empty-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 68px;
+        height: 68px;
+        border-radius: 999px;
+        background: #edf4ff;
+        color: #0b6ff5;
+    }
+
+    .clients-standard-group-sessions-empty-icon svg {
+        width: 30px;
+        height: 30px;
+        stroke-width: 1.8;
+    }
+
+    .clients-standard-group-sessions .clients-standard-group-sessions-empty .empty-state {
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+        text-align: center;
+    }
+
+    .clients-standard-group-sessions .clients-standard-group-sessions-empty .empty-state h3 {
+        margin: 0 0 8px;
+        color: #0f172a;
+        font-size: 17px;
+        font-weight: 800;
+    }
+
+    .clients-standard-group-sessions .clients-standard-group-sessions-empty .empty-state p {
+        max-width: 360px;
+        margin: 0 auto;
+        color: #64748b;
+        font-size: 14px;
+        line-height: 1.5;
+        text-align: center;
+    }
+
+    .clients-standard-group-sessions .clients-modern-session-list {
+        border: 1px solid #dce5f0;
+        border-radius: 14px;
+        background: #ffffff;
+        overflow: hidden;
+        box-shadow: none;
+    }
+
+    /* Nastavitve: clean fields + switches, matching customer settings density. */
+    .clients-standard-group-settings {
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-settings .clients-standard-group-settings-list {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        width: 100%;
+    }
+
+    .clients-standard-group-settings .clients-standard-entity-field {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        gap: 8px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-settings .clients-standard-entity-field > span {
+        color: #334155;
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.3;
+        text-transform: none;
+        letter-spacing: 0;
+    }
+
+    .clients-standard-group-settings .clients-standard-entity-field .desktop-select-trigger,
+    .clients-standard-group-settings .clients-standard-entity-field select {
+        width: 100%;
+        min-height: 50px;
+        height: 50px;
+        padding: 0 14px;
+        border: 1px solid #d4deea;
+        border-radius: 12px;
+        background: #ffffff;
+        color: #111827;
+        font-size: 14px;
+        font-weight: 500;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-settings .clients-standard-entity-field .desktop-select-trigger:hover,
+    .clients-standard-group-settings .clients-standard-entity-field select:hover {
+        border-color: #bcc9d8;
+    }
+
+    .clients-standard-group-settings .clients-standard-entity-field .desktop-select-trigger:focus-visible,
+    .clients-standard-group-settings .clients-standard-entity-field select:focus {
+        border-color: #78a9fa;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.09);
+    }
+
+    .clients-standard-group-settings .clients-location-picker-field {
+        width: 100%;
+        margin: 0;
+        padding: 16px 18px;
+        border: 1px solid #dce5f0;
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-settings .clients-location-picker-field > small {
+        margin-top: 8px;
+        color: #64748b;
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
+    .clients-standard-group-settings .clients-location-picker summary {
+        min-height: 46px;
+        border-radius: 10px;
+        border: 1px solid #d4deea;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-settings .clients-standard-group-setting-toggle {
+        min-height: 68px;
+        width: 100%;
+        margin: 0;
+        padding: 0 16px 0 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        border: 1px solid #dce5f0;
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-settings .clients-standard-group-setting-toggle > span {
+        color: #334155;
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1.3;
+        letter-spacing: 0;
+        text-transform: none;
+    }
+
+    .clients-standard-group-settings .clients-standard-group-setting-toggle .clients-batch-switch {
+        position: relative;
+        width: 50px;
+        min-width: 50px;
+        height: 30px;
+        min-height: 30px;
+        padding: 0;
+        border: 1px solid #d5dee9;
+        border-radius: 999px;
+        background: #e8edf4;
+        color: transparent;
+        font-size: 0;
+        line-height: 0;
+        box-shadow: none;
+        transition: background .16s ease, border-color .16s ease;
+    }
+
+    .clients-standard-group-settings .clients-standard-group-setting-toggle .clients-batch-switch::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        background: #ffffff;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
+        transition: transform .16s ease;
+    }
+
+    .clients-standard-group-settings .clients-standard-group-setting-toggle .clients-batch-switch--on {
+        border-color: #0b6ff5;
+        background: #0b6ff5;
+    }
+
+    .clients-standard-group-settings .clients-standard-group-setting-toggle .clients-batch-switch--on::after {
+        transform: translateX(20px);
     }
 }

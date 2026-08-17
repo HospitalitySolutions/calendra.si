@@ -9,7 +9,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { getStoredUser } from "../auth";
 import type { BillingService, Location as LocationT, SessionType as SessionTypeT } from "../lib/types";
@@ -27,6 +27,17 @@ import { EmptyState, Field } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { currency } from "../lib/format";
 import { useLocale } from "../locale";
+import {
+  PanelBody,
+  PanelButton,
+  PanelFooter,
+  PanelHeader,
+  PanelSection,
+  PanelSectionIcon,
+  SidePanel,
+  useConfirm,
+} from "../components/panel";
+import { SESSION_TYPES_DRAWERS, useDrawerRoute } from "../lib/drawerRoutes";
 
 const SESSION_TYPES_SUBTAB_TRANSACTION = "transaction-services";
 
@@ -570,26 +581,6 @@ function CardsMembershipNameCell({
   );
 }
 
-function CardsProductModalIcon() {
-  return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M6 3h12l4 6-10 12L2 9l4-6Z" />
-      <path d="M2 9h20" />
-      <path d="m6 3 6 18 6-18" />
-    </svg>
-  );
-}
-
 function CourseSelectionCheckIcon() {
   return (
     <svg
@@ -682,6 +673,7 @@ export type CardsMembershipsSectionProps = {
   typeFilter: "all" | GuestAdminProductType;
   serviceFilter: GuestAdminProductServiceFilter;
   onFilteredCountChange?: (filteredCount: number) => void;
+  listHidden?: boolean;
 };
 
 export const CardsMembershipsSection = forwardRef<
@@ -697,6 +689,7 @@ export const CardsMembershipsSection = forwardRef<
     typeFilter,
     serviceFilter,
     onFilteredCountChange,
+    listHidden = false,
   },
   ref,
 ) {
@@ -704,6 +697,20 @@ export const CardsMembershipsSection = forwardRef<
   const isAdmin = me?.role === "ADMIN" || me?.role === "SUPER_ADMIN";
   const { t, locale } = useLocale();
   const { showToast } = useToast();
+  const confirm = useConfirm();
+  const [searchParams] = useSearchParams();
+  const { match: drawerMatch, isOpen: isDrawerOpen, open: openDrawer, close: closeDrawerRoute } = useDrawerRoute();
+  const pageSearch = useMemo(() => {
+    const subtab = searchParams.get("subtab");
+    return subtab ? `subtab=${encodeURIComponent(subtab)}` : "";
+  }, [searchParams]);
+  const closeDrawer = useCallback(
+    () => closeDrawerRoute({ search: pageSearch }),
+    [closeDrawerRoute, pageSearch],
+  );
+  const cardDrawerOpen =
+    isDrawerOpen(SESSION_TYPES_DRAWERS.newCard) ||
+    isDrawerOpen(SESSION_TYPES_DRAWERS.card);
   const [guestProducts, setGuestProducts] = useState<GuestAdminProduct[]>([]);
   const [transactionServices, setTransactionServices] = useState<
     BillingService[]
@@ -738,7 +745,6 @@ export const CardsMembershipsSection = forwardRef<
     key: null,
     direction: "asc",
   });
-  const [showGuestProductModal, setShowGuestProductModal] = useState(false);
   const [editingGuestProductId, setEditingGuestProductId] = useState<
     number | null
   >(null);
@@ -753,13 +759,13 @@ export const CardsMembershipsSection = forwardRef<
 
   const guestProductHasChanges = useMemo(
     () =>
-      showGuestProductModal &&
+      cardDrawerOpen &&
       JSON.stringify(guestProductForm) !== guestProductInitialSignatureRef.current,
-    [guestProductForm, showGuestProductModal],
+    [guestProductForm, cardDrawerOpen],
   );
 
   useEffect(() => {
-    if (!showGuestProductModal) {
+    if (!cardDrawerOpen) {
       setGuestProductKeyboardOpen(false);
       return;
     }
@@ -813,7 +819,7 @@ export const CardsMembershipsSection = forwardRef<
       viewport.removeEventListener("scroll", updateKeyboardState);
       window.removeEventListener("orientationchange", updateKeyboardState);
     };
-  }, [showGuestProductModal]);
+  }, [cardDrawerOpen]);
 
   const loadGuestProducts = useCallback(async () => {
     if (!isAdmin) return;
@@ -869,14 +875,14 @@ export const CardsMembershipsSection = forwardRef<
   }, [openProductMenuId]);
 
   useEffect(() => {
-    if (!showGuestProductModal) return;
+    if (!cardDrawerOpen) return;
     if (guestProductForm.serviceScope === "SERVICE_GROUP") return;
     if (!guestProductTypeUsesAutoPrice(guestProductForm.productType, guestProductForm.sessionTypeIds.length)) return;
     setGuestProductForm((f) =>
       syncGuestProductPriceFromSessionTypes(f, sessionTypes),
     );
   }, [
-    showGuestProductModal,
+    cardDrawerOpen,
     guestProductForm.productType,
     guestProductForm.serviceScope,
     guestProductForm.sessionTypeId,
@@ -934,8 +940,7 @@ export const CardsMembershipsSection = forwardRef<
     return types;
   }, [coursesEnabled, giftCardsEnabled, guestProductForm.productType]);
 
-  const openNewGuestProductModal = useCallback(() => {
-    setOpenProductMenuId(null);
+  const seedNewGuestProductForm = useCallback(() => {
     setEditingGuestProductId(null);
     const base = defaultGuestProductForm();
     const firstSessionTypeId = sessionTypes[0]
@@ -958,16 +963,18 @@ export const CardsMembershipsSection = forwardRef<
     guestProductInitialSignatureRef.current = JSON.stringify(initialForm);
     setGuestProductForm(initialForm);
     setGuestProductKeyboardOpen(false);
-    setShowGuestProductModal(true);
   }, [sessionTypes, activeTransactionServices]);
+
+  const openNewGuestProductModal = useCallback(() => {
+    setOpenProductMenuId(null);
+    openDrawer(SESSION_TYPES_DRAWERS.newCard, { search: pageSearch });
+  }, [openDrawer, pageSearch]);
 
   useImperativeHandle(ref, () => ({ openNew: openNewGuestProductModal }), [
     openNewGuestProductModal,
   ]);
 
-  const openEditGuestProductModal = (product: GuestAdminProduct) => {
-    if (product.productType === "GIFT_CARD" && !giftCardsEnabled) return;
-    setOpenProductMenuId(null);
+  const hydrateGuestProduct = (product: GuestAdminProduct) => {
     setEditingGuestProductId(product.id);
     const normalizedForm = normalizeGuestProductFormForType(
         {
@@ -1047,7 +1054,15 @@ export const CardsMembershipsSection = forwardRef<
     guestProductInitialSignatureRef.current = JSON.stringify(initialForm);
     setGuestProductForm(initialForm);
     setGuestProductKeyboardOpen(false);
-    setShowGuestProductModal(true);
+  };
+
+  const openEditGuestProductModal = (product: GuestAdminProduct) => {
+    if (product.productType === "GIFT_CARD" && !giftCardsEnabled) return;
+    setOpenProductMenuId(null);
+    openDrawer(SESSION_TYPES_DRAWERS.card, {
+      params: { id: String(product.id) },
+      search: pageSearch,
+    });
   };
 
   const selectedCourses = useMemo(
@@ -1434,7 +1449,7 @@ export const CardsMembershipsSection = forwardRef<
           payload,
         );
       else await api.post("/guest/admin/products", payload);
-      setShowGuestProductModal(false);
+      closeDrawer();
       setEditingGuestProductId(null);
       setGuestProductForm(defaultGuestProductForm());
       await loadGuestProducts();
@@ -1456,18 +1471,18 @@ export const CardsMembershipsSection = forwardRef<
 
   const deleteGuestProduct = async (product: GuestAdminProduct) => {
     if (!isAdmin) return;
-    if (
-      !window.confirm(
-        locale === "sl"
-          ? `Izbrišem ${product.name}? Izbris je mogoč samo, če ugodnost še nikoli ni bila prodana.`
-          : `Delete ${product.name}? This only works if it has never been sold.`,
-      )
-    )
-      return;
+    const confirmed = await confirm({
+      title: locale === "sl" ? `Izbrišem ${product.name}?` : `Delete ${product.name}?`,
+      text: locale === "sl"
+        ? "Izbris je mogoč samo, če ugodnost še nikoli ni bila prodana."
+        : "This only works if it has never been sold.",
+      tone: "danger",
+    });
+    if (!confirmed) return;
     try {
       await api.delete(`/guest/admin/products/${product.id}`);
       if (editingGuestProductId === product.id) {
-        setShowGuestProductModal(false);
+        closeDrawer();
         setEditingGuestProductId(null);
         setGuestProductForm(defaultGuestProductForm());
       }
@@ -1654,6 +1669,41 @@ export const CardsMembershipsSection = forwardRef<
     onFilteredCountChange?.(filteredGuestProducts.length);
   }, [filteredGuestProducts.length, onFilteredCountChange]);
 
+  const seededCardDrawerRef = useRef("");
+  const cardDrawerName = drawerMatch?.descriptor.name ?? "";
+  const cardDrawerId = drawerMatch?.params.id ?? "";
+  const cardDrawerKey =
+    cardDrawerName === SESSION_TYPES_DRAWERS.newCard.name ||
+    cardDrawerName === SESSION_TYPES_DRAWERS.card.name
+      ? `${cardDrawerName}:${cardDrawerId}`
+      : "";
+
+  useEffect(() => {
+    if (!cardDrawerKey) {
+      seededCardDrawerRef.current = "";
+      return;
+    }
+    if (seededCardDrawerRef.current === cardDrawerKey) return;
+    if (cardDrawerName === SESSION_TYPES_DRAWERS.newCard.name) {
+      seedNewGuestProductForm();
+      seededCardDrawerRef.current = cardDrawerKey;
+      return;
+    }
+    const row = guestProducts.find((product) => String(product.id) === cardDrawerId);
+    if (!row) return;
+    if (row.productType === "GIFT_CARD" && !giftCardsEnabled) return;
+    hydrateGuestProduct(row);
+    seededCardDrawerRef.current = cardDrawerKey;
+  }, [
+    cardDrawerId,
+    cardDrawerKey,
+    cardDrawerName,
+    giftCardsEnabled,
+    guestProducts,
+    hydrateGuestProduct,
+    seedNewGuestProductForm,
+  ]);
+
   if (!isAdmin) return null;
 
   const activeStatusLabel = locale === "sl" ? "Aktivna" : "Active";
@@ -1661,7 +1711,7 @@ export const CardsMembershipsSection = forwardRef<
 
   return (
     <>
-      {guestProducts.length === 0 ? (
+      {!listHidden && (guestProducts.length === 0 ? (
         <EmptyState
           title={locale === "sl" ? "Ni še ugodnosti" : "No entitlements yet"}
           text={
@@ -1903,71 +1953,44 @@ export const CardsMembershipsSection = forwardRef<
               : `Showing ${filteredGuestProducts.length} of ${guestProducts.length} entitlements`}
           />
         </div>
-      )}
+      ))}
 
-      {showGuestProductModal && (
-        <div
-          className="modal-backdrop booking-side-panel-backdrop cards-product-modal-backdrop cards-product-modal-backdrop--entitlement"
-          onClick={() => {
-            if (!savingGuestProduct) {
-              setShowGuestProductModal(false);
-              setEditingGuestProductId(null);
-            }
+      <SidePanel
+        open={cardDrawerOpen}
+        onClose={() => {
+          if (!savingGuestProduct) closeDrawer();
+        }}
+        ariaLabel={
+          editingGuestProductId
+            ? (locale === "sl" ? "Uredi ugodnost" : "Edit entitlement")
+            : (locale === "sl" ? "Nova ugodnost" : "New entitlement")
+        }
+        size="xl"
+      >
+        <PanelHeader
+          title={
+            editingGuestProductId
+              ? (locale === "sl" ? "Uredi ugodnost" : "Edit entitlement")
+              : (locale === "sl" ? "Nova ugodnost" : "New entitlement")
+          }
+          subtitle={
+            editingGuestProductId
+              ? (locale === "sl"
+                  ? "Posodobite podrobnosti ugodnosti."
+                  : "Update the details of this entitlement.")
+              : undefined
+          }
+          onClose={() => {
+            if (!savingGuestProduct) closeDrawer();
           }}
-          role="presentation"
-        >
-          <div
-            className="modal large-modal booking-side-panel cards-product-modal cards-product-modal--entitlement"
-            onClick={(e) => e.stopPropagation()}
+          closeLabel={locale === "sl" ? "Zapri" : "Close"}
+        />
+        <PanelBody as="form" id="guest-product-edit-form" onSubmit={submitGuestProduct} sectioned>
+          <PanelSection
+            title={locale === "sl" ? "Osnovni podatki" : "Basic information"}
+            icon={<PanelSectionIcon name="cards" />}
+            summary={guestProductForm.name.trim() || "—"}
           >
-            <div className="cards-product-modal-header">
-              <div className="cards-product-modal-heading">
-                <span className="cards-product-modal-icon">
-                  <CardsProductModalIcon />
-                </span>
-                <div className="cards-product-modal-title">
-                  <h2>
-                    {editingGuestProductId
-                      ? locale === "sl"
-                        ? "Uredi ugodnost"
-                        : "Edit entitlement"
-                      : locale === "sl"
-                        ? "Nova ugodnost"
-                        : "New entitlement"}
-                  </h2>
-                  {editingGuestProductId && (
-                    <p>
-                      {locale === "sl"
-                        ? "Posodobite podrobnosti ugodnosti."
-                        : "Update the details of this entitlement."}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <button
-                type="button"
-                className="secondary booking-side-panel-close cards-product-modal-close"
-                onClick={() => {
-                  if (!savingGuestProduct) {
-                    setShowGuestProductModal(false);
-                    setEditingGuestProductId(null);
-                  }
-                }}
-                aria-label={locale === "sl" ? "Zapri" : "Close"}
-              >
-                ×
-              </button>
-            </div>
-
-            <form
-              className={`form-grid booking-side-panel-body cards-product-modal-body${
-                guestProductHasChanges && !guestProductKeyboardOpen
-                  ? " has-mobile-action"
-                  : ""
-              }`}
-              onSubmit={submitGuestProduct}
-            >
-              <div className="cards-product-responsive-section cards-product-responsive-section--basics">
               <Field label={locale === "sl" ? "Naziv *" : "Name *"}>
                 <input
                   required
@@ -2296,10 +2319,19 @@ export const CardsMembershipsSection = forwardRef<
                   />
                 </Field>
               )}
-              </div>
+          </PanelSection>
 
               {guestProductForm.productType !== "GIFT_CARD" && (
-                <div className="cards-product-responsive-section cards-product-responsive-section--scope">
+          <PanelSection
+            title={locale === "sl" ? "Velja za" : "Valid for"}
+            icon={<PanelSectionIcon name="service" />}
+            defaultOpen={false}
+            summary={
+              guestProductForm.serviceScope === "SERVICE_GROUP"
+                ? (locale === "sl" ? "Skupina" : "Group")
+                : (locale === "sl" ? "Storitve" : "Services")
+            }
+          >
                   <div className="field full-span cards-product-scope-field">
                     <span className="field-label">{locale === "sl" ? "Velja za *" : "Valid for *"}</span>
                     <span className="field-hint">
@@ -2372,10 +2404,15 @@ export const CardsMembershipsSection = forwardRef<
                       </span>
                     )}
                   </div>
-                </div>
+          </PanelSection>
               )}
 
-              <div className="cards-product-responsive-section cards-product-responsive-section--services">
+          <PanelSection
+            title={locale === "sl" ? "Storitev in cena" : "Service and price"}
+            icon={<PanelSectionIcon name="pricing" />}
+            defaultOpen={false}
+            summary={guestProductForm.priceGross ? `€${guestProductForm.priceGross}` : "—"}
+          >
                 {guestProductForm.productType !== "GIFT_CARD" && (
                   <>
                   {guestProductForm.serviceScope === "SERVICES" ? (
@@ -2538,9 +2575,18 @@ export const CardsMembershipsSection = forwardRef<
                     .
                   </p>
                 )}
-              </div>
+          </PanelSection>
 
-              <div className="cards-product-responsive-section cards-product-responsive-section--meta">
+          <PanelSection
+            title={locale === "sl" ? "Veljavnost" : "Validity"}
+            icon={<PanelSectionIcon name="schedule" />}
+            defaultOpen={false}
+            summary={
+              guestProductForm.validityDays.trim()
+                ? `${guestProductForm.validityDays} ${locale === "sl" ? "dni" : "days"}`
+                : "—"
+            }
+          >
               <Field label={locale === "sl" ? "Vrstni red" : "Sort order"}>
                 <input
                   type="number"
@@ -2604,9 +2650,14 @@ export const CardsMembershipsSection = forwardRef<
                   />
                 </Field>
               )}
-              </div>
+          </PanelSection>
 
-              <div className="cards-product-responsive-section cards-product-responsive-section--copy">
+          <PanelSection
+            title={locale === "sl" ? "Besedilo" : "Copy"}
+            icon={<PanelSectionIcon name="notes" />}
+            defaultOpen={false}
+            summary={guestProductForm.description.trim() || guestProductForm.promoText.trim() || "—"}
+          >
               <Field
                 label={locale === "sl" ? "Opis" : "Description"}
                 hint={locale === "sl" ? "Prikazano na zaslonu za nakup v mobilni denarnici gosta." : "Shown in the guest mobile wallet buy screen."}
@@ -2640,9 +2691,14 @@ export const CardsMembershipsSection = forwardRef<
                   }
                 />
               </Field>
-              </div>
+          </PanelSection>
 
-              <div className="cards-product-responsive-section cards-product-responsive-section--switches">
+          <PanelSection
+            title={locale === "sl" ? "Vidnost" : "Visibility"}
+            icon={<PanelSectionIcon name="settings" />}
+            defaultOpen={false}
+            summary={guestProductForm.guestVisible ? "ON" : "OFF"}
+          >
               <div className="field cards-product-switch-field">
                 <label
                   className={`cards-product-toggle-card${guestProductForm.guestVisible ? " is-on" : ""}`}
@@ -2706,52 +2762,40 @@ export const CardsMembershipsSection = forwardRef<
                   </label>
                 </div>
               )}
-
-              </div>
+          </PanelSection>
 
               {coursesEnabled &&
                 (guestProductForm.productType === "MEMBERSHIP" ||
                   guestProductForm.productType === "COURSE") && (
-                  <div className="field full-span cards-product-courses-field">
-                    <div className="session-type-config-unified-card session-type-config-unified-card--group cards-product-courses-panel">
-                      <div className="session-type-config-unified-card-header">
-                        <div className="session-type-config-section-title">
-                          <span className="session-type-config-section-icon session-type-config-section-icon--group cards-product-course-section-icon" aria-hidden>
-                            <CourseSectionIcon />
-                          </span>
-                          <div>
-                            <h3>
-                              {locale === "sl" ? "Tečaji" : "Courses"}
-                            </h3>
-                            <p>
-                              {guestProductForm.productType === "COURSE"
-                                ? locale === "sl"
-                                  ? "Izberite tečaje, ki jih gost prejme po nakupu te ugodnosti."
-                                  : "Choose the courses guests receive after buying this entitlement."
-                                : locale === "sl"
-                                  ? "Izberite tečaje, ki so dostopni v sklopu aktivne članarine."
-                                  : "Choose the courses available while the membership is active."}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="session-type-config-unified-actions">
-                          <button
-                            type="button"
-                            className="secondary small-btn"
-                            onClick={openCoursePicker}
-                          >
-                            + {locale === "sl" ? "Dodaj obstoječi" : "Add existing"}
-                          </button>
-                          <button
-                            type="button"
-                            className="secondary small-btn"
-                            onClick={openNewCourseModal}
-                          >
-                            + {locale === "sl" ? "Ustvari novo" : "Create new"}
-                          </button>
-                        </div>
-                      </div>
-
+          <PanelSection
+            title={locale === "sl" ? "Tečaji" : "Courses"}
+            icon={<PanelSectionIcon name="course" />}
+            description={
+              guestProductForm.productType === "COURSE"
+                ? (locale === "sl"
+                    ? "Izberite tečaje, ki jih gost prejme po nakupu te ugodnosti."
+                    : "Choose the courses guests receive after buying this entitlement.")
+                : (locale === "sl"
+                    ? "Izberite tečaje, ki so dostopni v sklopu aktivne članarine."
+                    : "Choose the courses available while the membership is active.")
+            }
+            defaultOpen={false}
+            summary={
+              locale === "sl"
+                ? `${guestProductForm.includedCourseIds.length} tečajev`
+                : `${guestProductForm.includedCourseIds.length} courses`
+            }
+            action={
+              <span className="session-type-config-unified-actions">
+                <PanelButton size="sm" onClick={openCoursePicker}>
+                  {locale === "sl" ? "Dodaj obstoječi" : "Add existing"}
+                </PanelButton>
+                <PanelButton size="sm" onClick={openNewCourseModal}>
+                  {locale === "sl" ? "Ustvari novo" : "Create new"}
+                </PanelButton>
+              </span>
+            }
+          >
                       {selectedCourses.length > 0 ? (
                         <div className="cards-product-linked-courses-list">
                           {selectedCourses.map((course) => (
@@ -2819,74 +2863,47 @@ export const CardsMembershipsSection = forwardRef<
                             ? "Članarina omogoča dostop do izbranih tečajev, dokler je aktivna."
                             : "Guests with this membership can access selected courses while the membership is active."}
                       </span>
-                    </div>
-                  </div>
+          </PanelSection>
                 )}
-              <div
-                className={`form-actions full-span booking-side-panel-footer cards-product-modal-footer${
-                  guestProductHasChanges ? " is-dirty" : ""
-                }${guestProductKeyboardOpen ? " is-keyboard-open" : ""}`}
-              >
-                <div className="cards-product-modal-footer-actions">
-                  <button
-                    type="submit"
-                    className="gapp-primary-button"
-                    disabled={savingGuestProduct}
-                  >
-                    <GuestConfigSaveIcon />
-                    {savingGuestProduct
-                      ? t("formSaving")
-                      : editingGuestProductId
-                        ? t("formSaveChanges")
-                        : locale === "sl"
-                          ? "Ustvari ugodnost"
-                          : "Create entitlement"}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-      {showCoursePickerModal && (
-        <div
-          className="modal-backdrop booking-side-panel-backdrop cards-product-modal-backdrop cards-product-nested-modal-backdrop"
-          role="presentation"
-          onMouseDown={() => setShowCoursePickerModal(false)}
-        >
-          <div
-            className="modal large-modal booking-side-panel cards-product-modal cards-product-course-picker-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="cards-course-picker-title"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div className="cards-product-modal-header">
-              <div className="cards-product-modal-heading">
-                <span className="cards-product-modal-icon" aria-hidden>
-                  <CourseSectionIcon />
-                </span>
-                <div className="cards-product-modal-title">
-                  <h2 id="cards-course-picker-title">
-                    {locale === "sl" ? "Dodaj obstoječi tečaj" : "Add existing course"}
-                  </h2>
-                  <p>
-                    {locale === "sl"
-                      ? "Izberite enega ali več že ustvarjenih tečajev."
-                      : "Choose one or more courses that already exist."}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="secondary booking-side-panel-close cards-product-modal-close"
-                onClick={() => setShowCoursePickerModal(false)}
-                aria-label={locale === "sl" ? "Zapri" : "Close"}
-              >
-                ×
-              </button>
-            </div>
-            <div className="form-grid booking-side-panel-body cards-product-modal-body cards-product-course-picker-body">
+        </PanelBody>
+        {(!guestProductKeyboardOpen || guestProductHasChanges) ? (
+          <PanelFooter>
+            <PanelButton onClick={() => { if (!savingGuestProduct) closeDrawer(); }}>
+              {locale === "sl" ? "Prekliči" : "Cancel"}
+            </PanelButton>
+            <PanelButton
+              type="submit"
+              form="guest-product-edit-form"
+              variant="primary"
+              icon={<GuestConfigSaveIcon />}
+              disabled={savingGuestProduct || !guestProductHasChanges}
+            >
+              {savingGuestProduct
+                ? t("formSaving")
+                : editingGuestProductId
+                  ? t("formSaveChanges")
+                  : (locale === "sl" ? "Ustvari ugodnost" : "Create entitlement")}
+            </PanelButton>
+          </PanelFooter>
+        ) : null}
+      </SidePanel>
+      <SidePanel
+        open={showCoursePickerModal}
+        onClose={() => setShowCoursePickerModal(false)}
+        ariaLabel={locale === "sl" ? "Dodaj obstoječi tečaj" : "Add existing course"}
+        size="lg"
+      >
+        <PanelHeader
+          title={locale === "sl" ? "Dodaj obstoječi tečaj" : "Add existing course"}
+          subtitle={
+            locale === "sl"
+              ? "Izberite enega ali več že ustvarjenih tečajev."
+              : "Choose one or more courses that already exist."
+          }
+          onClose={() => setShowCoursePickerModal(false)}
+          closeLabel={locale === "sl" ? "Zapri" : "Close"}
+        />
+        <PanelBody>
               <div className="field full-span">
                 <input
                   value={coursePickerQuery}
@@ -2948,89 +2965,60 @@ export const CardsMembershipsSection = forwardRef<
                   </div>
                 )}
               </div>
-            </div>
-            <div className="booking-side-panel-footer cards-product-modal-footer">
-              <div className="cards-product-modal-footer-actions">
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setShowCoursePickerModal(false)}
-                >
-                  {locale === "sl" ? "Prekliči" : "Cancel"}
-                </button>
-                <button
-                  type="button"
-                  className="gapp-primary-button"
-                  onClick={() => {
-                    setGuestProductForm((current) => ({
-                      ...current,
-                      includedCourseIds: pendingCourseIds,
-                    }));
-                    setShowCoursePickerModal(false);
-                  }}
-                >
-                  <GuestConfigSaveIcon />
-                  {locale === "sl" ? "Dodaj izbrane" : "Add selected"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={() => setShowCoursePickerModal(false)}>
+            {locale === "sl" ? "Prekliči" : "Cancel"}
+          </PanelButton>
+          <PanelButton
+            variant="primary"
+            icon={<GuestConfigSaveIcon />}
+            onClick={() => {
+              setGuestProductForm((current) => ({
+                ...current,
+                includedCourseIds: pendingCourseIds,
+              }));
+              setShowCoursePickerModal(false);
+            }}
+          >
+            {locale === "sl" ? "Dodaj izbrane" : "Add selected"}
+          </PanelButton>
+        </PanelFooter>
+      </SidePanel>
 
-      {showCourseModal && (
-        <div
-          className="modal-backdrop booking-side-panel-backdrop session-type-config-modal-backdrop course-edit-modal-backdrop cards-product-nested-modal-backdrop"
-          role="presentation"
-          onMouseDown={() => {
+      <SidePanel
+        open={showCourseModal}
+        onClose={() => {
+          if (!savingCourse && uploadingCourseId == null) {
+            setShowCourseModal(false);
+          }
+        }}
+        ariaLabel={
+          editingCourseId
+            ? (locale === "sl" ? "Uredi tečaj" : "Edit course")
+            : (locale === "sl" ? "Nov tečaj" : "New course")
+        }
+        size="lg"
+      >
+        <PanelHeader
+          title={
+            editingCourseId
+              ? (locale === "sl" ? "Uredi tečaj" : "Edit course")
+              : (locale === "sl" ? "Nov tečaj" : "New course")
+          }
+          onClose={() => {
             if (!savingCourse && uploadingCourseId == null) {
               setShowCourseModal(false);
             }
           }}
-        >
-          <div
-            className="modal large-modal booking-side-panel session-type-config-modal course-edit-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="cards-course-edit-modal-title"
-            onMouseDown={(e) => e.stopPropagation()}
+          closeLabel={locale === "sl" ? "Zapri" : "Close"}
+        />
+        <PanelBody as="form" id="cards-product-course-form" onSubmit={submitCourse} sectioned>
+          <PanelSection
+            title={locale === "sl" ? "Tečaj" : "Course"}
+            icon={<PanelSectionIcon name="course" />}
+            collapsible={false}
           >
-            <div className="session-type-config-modal-header course-edit-modal-header">
-              <div className="session-type-config-modal-heading course-edit-modal-heading">
-                <span className="session-type-config-modal-icon course-edit-modal-icon" aria-hidden>
-                  <CourseSectionIcon />
-                </span>
-                <div>
-                  <h2 id="cards-course-edit-modal-title">
-                    {editingCourseId
-                      ? locale === "sl"
-                        ? "Uredi tečaj"
-                        : "Edit course"
-                      : locale === "sl"
-                        ? "Nov tečaj"
-                        : "New course"}
-                  </h2>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="secondary session-type-config-modal-close course-edit-modal-close"
-                aria-label={locale === "sl" ? "Zapri" : "Close"}
-                onClick={() => {
-                  if (!savingCourse && uploadingCourseId == null) {
-                    setShowCourseModal(false);
-                  }
-                }}
-              >
-                ×
-              </button>
-            </div>
-            <form
-              id="cards-product-course-form"
-              className="booking-side-panel-body config-type-panel-form session-type-config-modal-body course-edit-modal-body"
-              onSubmit={submitCourse}
-            >
-              <section className="session-type-config-section course-edit-card">
                 <div className="form-grid two course-edit-grid course-edit-grid--two">
                   <Field label={locale === "sl" ? "Naslov tečaja *" : "Course title *"}>
                     <input
@@ -3212,34 +3200,41 @@ export const CardsMembershipsSection = forwardRef<
                     </span>
                   </span>
                 </Field>
-              </section>
-            </form>
-            <div className="booking-side-panel-footer session-type-config-modal-footer course-edit-modal-footer">
-              <button
-                form="cards-product-course-form"
-                type="submit"
-                className="gapp-primary-button course-edit-save-button"
-                disabled={savingCourse || uploadingCourseId != null}
-              >
-                <GuestConfigSaveIcon />
-                {savingCourse || uploadingCourseId != null
-                  ? courseUploadProgress != null
-                    ? `${locale === "sl" ? "Nalaganje" : "Uploading"} ${courseUploadProgress.toFixed(0)}%`
-                    : locale === "sl"
-                      ? "Shranjevanje…"
-                      : "Saving…"
-                  : editingCourseId
-                    ? locale === "sl"
-                      ? "Shrani spremembe"
-                      : "Save changes"
-                    : locale === "sl"
-                      ? "Ustvari tečaj"
-                      : "Create course"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </PanelSection>
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton
+            onClick={() => {
+              if (!savingCourse && uploadingCourseId == null) {
+                setShowCourseModal(false);
+              }
+            }}
+          >
+            {locale === "sl" ? "Prekliči" : "Cancel"}
+          </PanelButton>
+          <PanelButton
+            type="submit"
+            form="cards-product-course-form"
+            variant="primary"
+            icon={<GuestConfigSaveIcon />}
+            disabled={savingCourse || uploadingCourseId != null}
+          >
+            {savingCourse || uploadingCourseId != null
+              ? courseUploadProgress != null
+                ? `${locale === "sl" ? "Nalaganje" : "Uploading"} ${courseUploadProgress.toFixed(0)}%`
+                : locale === "sl"
+                  ? "Shranjevanje…"
+                  : "Saving…"
+              : editingCourseId
+                ? locale === "sl"
+                  ? "Shrani spremembe"
+                  : "Save changes"
+                : locale === "sl"
+                  ? "Ustvari tečaj"
+                  : "Create course"}
+          </PanelButton>
+        </PanelFooter>
+      </SidePanel>
     </>
   );
 });

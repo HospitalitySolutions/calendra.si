@@ -1,18 +1,5 @@
 /* Booking side panel */
 
-
-
-
-
-
-
-
-@media (max-width: 560px) {
-    
-
-    
-}
-
 .booking-side-panel-backdrop {
     padding: 0;
     align-items: stretch;
@@ -148,10 +135,6 @@
     cursor: not-allowed;
 }
 
-
-
-
-
 .booking-side-panel-header .header-actions .booking-side-panel-submit-check {
     margin-inline-end: 10px;
 }
@@ -224,75 +207,7 @@
     align-self: center;
 }
 
-.calendar-edit-session-panel .booking-side-panel-header,
-.calendar-edit-session-panel .booking-side-panel-footer {
-    background: var(--color-surface);
-    border-color: var(--border);
-}
-
-.calendar-edit-session-panel .booking-side-panel-header .page-header h1 {
-    color: var(--color-text);
-}
-
-.calendar-edit-session-panel .booking-side-panel-header .page-header p {
-    color: var(--color-text-muted);
-}
-
-.calendar-edit-session-panel .booking-side-panel-close {
-    background: var(--color-surface);
-    color: var(--color-text);
-    border-color: var(--border);
-}
-
-[data-theme="dark"] .calendar-edit-session-panel .booking-side-panel-close {
-    background: rgba(255, 255, 255, 0.08);
-    color: #f8fafc;
-    border-color: rgba(148, 163, 184, 0.35);
-}
-
-.calendar-edit-session-panel .booking-side-panel-body {
-    background: linear-gradient(135deg, #f9f8f5 0%, #f3f1ed 50%, #fdfdfc 100%);
-}
-
-.calendar-edit-session-panel .form-row-layout {
-    display: grid;
-    gap: 10px;
-}
-
-.calendar-edit-session-panel .form-row {
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    background: var(--color-surface);
-    padding: 10px 12px;
-}
-
 /* Narrow phones: more width for values (start/end date) + slightly tighter chrome */
-@media (max-width: 560px) {
-    .calendar-edit-session-panel .booking-side-panel-body {
-        padding-left: 12px;
-        padding-right: 12px;
-    }
-
-    .calendar-edit-session-panel .form-row {
-        grid-template-columns: minmax(0, 30%) minmax(0, 1fr);
-        gap: 8px;
-        padding: 8px 10px;
-    }
-
-    
-
-    
-
-    
-
-    
-
-    
-}
-
-[data-theme="dark"] .calendar-edit-session-panel .booking-side-panel-body {
-    background: linear-gradient(135deg, #0f172a 0%, #102a56 40%, #0c2348 100%);
-}
 
 [data-theme="dark"] .booking-side-panel-header,
 [data-theme="dark"] .booking-side-panel-footer {
@@ -449,33 +364,12 @@
     box-shadow: 0 0 0 3px var(--booking-type-ring);
 }
 
-
-
-
-
-
-
 [data-theme="dark"] .booking-type-btn.active {
     background: var(--booking-type-bg-active);
     color: var(--booking-type-accent);
 }
 
 /* Type + Live/Online inline toggle */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /* Responsive */
 @media (max-width: 1024px) {
@@ -498,11 +392,6 @@
         width: auto;
     }
 
-    
-
-    
-
-    
 }
 
 @media (max-width: 1024px) {
@@ -528,92 +417,12 @@
         display: block;
     }
 
-    
-
-    
-
-    
-
-    
-
     .analytics-select-filters select {
         flex: 1;
         min-width: 0;
     }
 
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-@media (max-width: 1024px) {
-    
-
-    
-
-    
-}
-
 
 .billing-history-row {
     cursor: pointer;
@@ -627,24 +436,6 @@
 .config-type-panel-form {
     gap: 18px;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /* Session type modal — description grows from one line with content */
 .session-type-description-autogrow {
@@ -801,74 +592,19 @@
     background: rgba(96, 165, 250, 0.12);
 }
 
-
-
-
-
-
-
-
-
-
-
-@media (max-width: 640px) {
-    
-}
-
 @media (max-width: 640px) {
     .config-type-panel-form {
         gap: 14px;
     }
 
-    
-
-    
-
-    
-
-    
-}
-
-@media (max-width: 1180px) {
-    
-
-    
-
-    
-
-    
-
-    
-}
-
-@media (max-width: 1024px) {
-    
-
-    
-
-    
-
-    
-
-    
 }
 
 @media (max-width: 640px) {
-    
-
-    
 
     .analytics-inbox-thread {
         padding: 12px 14px;
     }
 
-    
-}
-
-@media (max-width: 1180px) {
-    
-
-    
 }
 
 @media (max-width: 1024px) {
@@ -876,8 +612,6 @@
         flex-direction: column;
         align-items: stretch;
     }
-
-    
 
     .analytics-select-filters {
         width: 100%;
@@ -888,7 +622,6 @@
         min-width: 0;
     }
 
-    
 }
 
 @media (max-width: 560px) {
@@ -906,7 +639,6 @@
         border-radius: 18px;
     }
 
-    
 }
 
 .calendar-multi-client-chips {
@@ -931,7 +663,6 @@
 .calendar-multi-client-chip:hover {
   background: rgba(59, 130, 246, 0.14);
 }
-
 
 /* Beats `.client-picker` (row) from components.css when both classes are on the same element. */
 .client-picker.calendar-client-picker {
@@ -1037,8 +768,6 @@
 .calendar-client-picker__add-btn svg{
   pointer-events: none;
 }
-
-
 
 .calendar-client-picker__clear-btn span {
   font-size: 1.35rem;
@@ -1158,57 +887,6 @@
   }
 }
 
-/* Service type create/edit modal - centered popup design */
-.session-type-config-modal-backdrop.booking-side-panel-backdrop {
-    padding: 28px;
-    align-items: center;
-    justify-content: center;
-    overflow-y: auto;
-    background: rgba(15, 23, 42, 0.54);
-    backdrop-filter: blur(8px);
-}
-
-.session-type-config-modal.modal.large-modal.booking-side-panel {
-    width: min(880px, calc(100vw - 56px));
-    max-width: min(880px, calc(100vw - 56px));
-    height: auto;
-    max-height: calc(100vh - 56px);
-    margin: auto;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    border-radius: 24px;
-    overflow: hidden;
-    background: var(--color-surface);
-    border: 1px solid rgba(15, 23, 42, 0.1);
-    box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28);
-}
-
-@supports (height: 100dvh) {
-    .session-type-config-modal.modal.large-modal.booking-side-panel {
-        max-height: calc(100dvh - 56px);
-    }
-}
-
-.session-type-config-modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-    padding: 28px 32px 24px;
-    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.92) 100%);
-    flex-shrink: 0;
-}
-
-.session-type-config-modal-heading {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    min-width: 0;
-}
-
-.session-type-config-modal-icon,
 .session-type-config-section-icon,
 .session-type-config-group-icon {
     display: inline-flex;
@@ -1220,82 +898,6 @@
     border: 1px solid rgba(22, 114, 243, 0.14);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
 }
-
-.session-type-config-modal-icon {
-    width: 46px;
-    height: 46px;
-    border-radius: 16px;
-}
-
-.session-type-config-modal-icon svg {
-    width: 22px;
-    height: 22px;
-}
-
-.session-type-config-modal-heading h2 {
-    margin: 0;
-    color: #111827;
-    font-size: 1.55rem;
-    line-height: 1.15;
-    font-weight: 850;
-    letter-spacing: -0.03em;
-}
-
-.session-type-config-modal-heading p {
-    margin: 6px 0 0;
-    color: var(--color-text-muted);
-    font-size: 0.94rem;
-}
-
-.session-type-config-modal-close,
-button.session-type-config-modal-close {
-    width: 42px;
-    height: 42px;
-    min-width: 42px;
-    padding: 0;
-    border-radius: 999px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    background: #f8fafc;
-    color: #0f172a;
-    font-size: 1.2rem;
-    line-height: 1;
-    box-shadow: none;
-}
-
-.session-type-config-modal-close:hover {
-    background: #eef2f7;
-    box-shadow: none;
-}
-
-.session-type-config-modal-body.booking-side-panel-body {
-    flex: 1 1 auto;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    padding: 0;
-    overflow-y: auto;
-    background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 .session-type-config-section {
     padding: 16px;
@@ -1313,10 +915,6 @@ button.session-type-config-modal-close {
     box-shadow: none;
     min-height: 360px;
 }
-
-
-
-
 
 @keyframes session-type-tab-in {
     from {
@@ -1336,8 +934,6 @@ button.session-type-config-modal-close {
     gap: 12px;
     margin-bottom: 16px;
 }
-
-
 
 .session-type-config-section-icon,
 .session-type-config-group-icon {
@@ -1463,15 +1059,9 @@ button.session-type-color-swatch span {
     font-size: 1.05rem;
 }
 
-
-
 .session-type-config-section--tab-panel .session-type-config-group-card{
     margin-top: 0;
 }
-
-
-
-
 
 .session-type-config-booking-section {
     display: grid;
@@ -1484,28 +1074,6 @@ button.session-type-color-swatch span {
 
 .session-type-config-booking-section .field {
     margin: 0;
-}
-
-
-.session-type-config-modal .field-label {
-    font-size: 0.86rem;
-    font-weight: 760;
-    color: #111827;
-}
-
-.session-type-config-modal input,
-.session-type-config-modal select,
-.session-type-config-modal textarea,
-.session-type-config-modal .guest-booking-select-trigger {
-    min-height: 46px;
-    border-radius: 12px;
-    border-color: rgba(15, 23, 42, 0.11);
-    background: #fff;
-    box-shadow: none;
-}
-
-.session-type-config-modal textarea {
-    resize: vertical;
 }
 
 .session-type-config-group-card {
@@ -1624,59 +1192,10 @@ button.session-type-color-swatch span {
     min-height: 78px;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-.session-type-config-modal .danger.secondary.slim-btn {
-    border: 1px solid rgba(239, 68, 68, 0.2);
-    box-shadow: none;
-}
-
-.session-type-config-modal-footer.booking-side-panel-footer {
-    flex-shrink: 0;
-    display: flex;
-    gap: 12px;
-    justify-content: flex-end;
-    padding: 18px 24px 20px;
-    background: #fff;
-    border-top: 1px solid rgba(15, 23, 42, 0.08);
-    box-shadow: none;
-}
-
-.session-type-config-modal-footer button {
-    min-width: 118px;
-}
-
-[data-theme="dark"] .session-type-config-modal.modal.large-modal.booking-side-panel,
-[data-theme="dark"] .session-type-config-modal-header,
-[data-theme="dark"] .session-type-config-modal-body.booking-side-panel-body,
-[data-theme="dark"] .session-type-config-modal-footer.booking-side-panel-footer{
-    background: #0f172a;
-    border-color: rgba(148, 163, 184, 0.22);
-}
-
-
-
-
-
 [data-theme="dark"] .session-type-config-section{
     background: rgba(15, 23, 42, 0.76);
     border-color: rgba(148, 163, 184, 0.22);
 }
-
-
 
 [data-theme="dark"] .session-type-config-group-card {
     background: rgba(30, 41, 59, 0.72);
@@ -1688,39 +1207,13 @@ button.session-type-color-swatch span {
     border-color: rgba(96, 165, 250, 0.28);
 }
 
-[data-theme="dark"] .session-type-config-modal-heading h2,
 [data-theme="dark"] .session-type-config-section-title h3,
 [data-theme="dark"] .session-type-config-group-copy strong,
-[data-theme="dark"] .session-type-config-modal .field-label,
 [data-theme="dark"] .session-type-color-picker__label {
     color: #f8fafc;
 }
 
 @media (max-width: 1024px) {
-    
-
-    
-
-    @supports (height: 100dvh) {
-        .session-type-config-modal.modal.large-modal.booking-side-panel {
-            min-height: 100dvh;
-            max-height: 100dvh;
-        }
-    }
-
-    .session-type-config-modal-header {
-        padding: 20px 18px 16px;
-    }
-
-    .session-type-config-modal-body.booking-side-panel-body {
-        padding: 0;
-    }
-
-    
-
-    
-
-    
 
     .session-type-config-section--tab-panel {
         padding: 18px 16px 20px;
@@ -1732,24 +1225,9 @@ button.session-type-color-swatch span {
         grid-template-columns: 1fr;
     }
 
-    
-
-    
-
-    
-
-    .session-type-config-modal-footer.booking-side-panel-footer {
-        padding: 14px 16px max(18px, calc(14px + env(safe-area-inset-bottom, 0px)));
-    }
-
-    .session-type-config-modal-footer button {
-        flex: 1 1 0;
-        min-width: 0;
-    }
 }
 
 /* Service type modal — guest-app client picker for "Limit to users" */
-
 
 .guest-limit-client-picker {
     position: relative;
@@ -1854,24 +1332,6 @@ button.session-type-color-swatch span {
     flex: 1 1 190px;
     min-width: 180px;
     color: var(--color-text-muted);
-}
-
-.session-type-config-modal .guest-limit-client-search-wrap input {
-    flex: 1 1 auto;
-    width: 100%;
-    min-width: 120px;
-    min-height: 28px;
-    height: 28px;
-    padding: 0;
-    border: none;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-    outline: none;
-}
-
-.session-type-config-modal .guest-limit-client-search-wrap input:focus {
-    box-shadow: none;
 }
 
 .guest-limit-client-chevron {
@@ -2034,57 +1494,6 @@ button.session-type-color-swatch span {
     }
 }
 
-/* Transaction service create/edit modal - modern centered popup */
-.transaction-service-modal-backdrop.booking-side-panel-backdrop {
-    padding: 28px;
-    align-items: center;
-    justify-content: center;
-    overflow-y: auto;
-    background: rgba(15, 23, 42, 0.54);
-    backdrop-filter: blur(8px);
-}
-
-.transaction-service-modal.modal.large-modal.booking-side-panel {
-    width: min(860px, calc(100vw - 56px));
-    max-width: min(860px, calc(100vw - 56px));
-    height: auto;
-    max-height: calc(100vh - 56px);
-    margin: auto;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    border-radius: 24px;
-    overflow: hidden;
-    background: #fff;
-    border: 1px solid rgba(15, 23, 42, 0.1);
-    box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28);
-}
-
-@supports (height: 100dvh) {
-    .transaction-service-modal.modal.large-modal.booking-side-panel {
-        max-height: calc(100dvh - 56px);
-    }
-}
-
-.transaction-service-modal-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 20px;
-    padding: 34px 42px 28px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.94) 100%);
-    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-    flex-shrink: 0;
-}
-
-.transaction-service-modal-heading {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    min-width: 0;
-}
-
-.transaction-service-modal-icon,
 .transaction-service-switch-icon {
     display: inline-flex;
     align-items: center;
@@ -2096,64 +1505,6 @@ button.session-type-color-swatch span {
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
 }
 
-.transaction-service-modal-icon {
-    width: 52px;
-    height: 52px;
-    border-radius: 18px;
-}
-
-.transaction-service-modal-icon svg {
-    width: 25px;
-    height: 25px;
-}
-
-.transaction-service-modal-heading h2 {
-    margin: 0;
-    color: #111827;
-    font-size: clamp(1.62rem, 2.35vw, 2.05rem);
-    line-height: 1.12;
-    font-weight: 850;
-    letter-spacing: -0.035em;
-}
-
-.transaction-service-modal-heading p {
-    margin: 8px 0 0;
-    color: var(--color-text-muted);
-    font-size: 1rem;
-    line-height: 1.35;
-}
-
-.transaction-service-modal-close,
-button.transaction-service-modal-close {
-    width: 48px;
-    height: 48px;
-    min-width: 48px;
-    padding: 0;
-    border-radius: 999px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    background: #f8fafc;
-    color: #0f172a;
-    font-size: 1.45rem;
-    line-height: 1;
-    box-shadow: none;
-}
-
-.transaction-service-modal-close:hover {
-    background: #eef2f7;
-    box-shadow: none;
-}
-
-.transaction-service-modal-body {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    padding: 32px 42px 34px;
-    background: #fff;
-}
-
 .transaction-service-modal-grid {
     display: grid;
     gap: 28px 28px;
@@ -2161,60 +1512,6 @@ button.transaction-service-modal-close {
 
 .transaction-service-modal-grid--two {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.transaction-service-modal .field {
-    margin: 0;
-    align-self: start;
-}
-
-.transaction-service-modal .field-label {
-    margin-bottom: 10px;
-    color: #111827;
-    font-size: 1rem;
-    font-weight: 800;
-    letter-spacing: -0.01em;
-}
-
-.transaction-service-modal input,
-.transaction-service-modal select,
-.transaction-service-modal textarea,
-.transaction-service-modal .guest-booking-select-trigger {
-    min-height: 62px;
-    border-radius: 14px;
-    border: 1px solid rgba(15, 23, 42, 0.12);
-    background: #fff;
-    color: #111827;
-    font-size: 1.08rem;
-    box-shadow: none;
-}
-
-.transaction-service-modal input:focus,
-.transaction-service-modal textarea:focus,
-.transaction-service-modal .guest-booking-select.is-open .guest-booking-select-trigger {
-    border-color: rgba(37, 99, 235, 0.52);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.transaction-service-modal .guest-booking-select-trigger {
-    height: auto;
-    padding: 12px 18px;
-}
-
-.transaction-service-modal .guest-booking-select-value {
-    font-size: 1.18rem;
-    line-height: 1.2;
-    font-weight: 850;
-}
-
-.transaction-service-modal .guest-booking-select-line {
-    margin-top: 6px;
-    font-size: 0.98rem;
-}
-
-.transaction-service-modal .guest-booking-select-menu {
-    border-radius: 14px;
-    box-shadow: 0 22px 48px rgba(15, 23, 42, 0.16);
 }
 
 .transaction-service-switch-list {
@@ -2292,55 +1589,8 @@ button.transaction-service-modal-close {
     color: #667085;
 }
 
-.transaction-service-modal-footer.booking-side-panel-footer {
-    flex-shrink: 0;
-    display: flex;
-    gap: 16px;
-    justify-content: flex-end;
-    padding: 20px 42px 24px;
-    border-top: 1px solid rgba(15, 23, 42, 0.08);
-    background: #fff;
-    box-shadow: none;
-    position: static;
-}
-
-.transaction-service-modal-footer button:not(.gapp-primary-button) {
-    min-width: 138px;
-    min-height: 54px;
-    border-radius: 12px;
-    font-size: 1rem;
-    font-weight: 750;
-}
-
-.transaction-service-modal-footer .gapp-primary-button {
-    min-width: min(100%, 240px);
-}
-
-.transaction-service-modal-footer button.gapp-primary-button:disabled {
-    box-shadow: none;
-}
-
-[data-theme="dark"] .transaction-service-modal.modal.large-modal.booking-side-panel,
-[data-theme="dark"] .transaction-service-modal-header,
-[data-theme="dark"] .transaction-service-modal-body,
-[data-theme="dark"] .transaction-service-modal-footer.booking-side-panel-footer {
-    background: #0f172a;
-    border-color: rgba(148, 163, 184, 0.22);
-}
-
-[data-theme="dark"] .transaction-service-modal-heading h2,
-[data-theme="dark"] .transaction-service-modal .field-label,
 [data-theme="dark"] .transaction-service-switch-copy strong {
     color: #f8fafc;
-}
-
-[data-theme="dark"] .transaction-service-modal input,
-[data-theme="dark"] .transaction-service-modal select,
-[data-theme="dark"] .transaction-service-modal textarea,
-[data-theme="dark"] .transaction-service-modal .guest-booking-select-trigger {
-    background: #111827;
-    color: #f8fafc;
-    border-color: rgba(148, 163, 184, 0.22);
 }
 
 [data-theme="dark"] .transaction-service-switch-list,
@@ -2365,34 +1615,6 @@ button.transaction-service-modal-close {
 }
 
 @media (max-width: 1024px) {
-    .transaction-service-modal-backdrop.booking-side-panel-backdrop {
-        padding: 0;
-        align-items: stretch;
-    }
-
-    .transaction-service-modal.modal.large-modal.booking-side-panel {
-        width: 100vw;
-        max-width: 100vw;
-        min-height: 100vh;
-        max-height: 100vh;
-        border-radius: 0;
-        margin: 0;
-    }
-
-    @supports (height: 100dvh) {
-        .transaction-service-modal.modal.large-modal.booking-side-panel {
-            min-height: 100dvh;
-            max-height: 100dvh;
-        }
-    }
-
-    .transaction-service-modal-header {
-        padding: 22px 18px 18px;
-    }
-
-    .transaction-service-modal-body {
-        padding: 20px 18px 22px;
-    }
 
     .transaction-service-modal-grid--two,
     .transaction-service-switch-row {
@@ -2408,14 +1630,6 @@ button.transaction-service-modal-close {
         justify-self: flex-start;
     }
 
-    .transaction-service-modal-footer.booking-side-panel-footer {
-        padding: 14px 18px max(18px, calc(14px + env(safe-area-inset-bottom, 0px)));
-    }
-
-    .transaction-service-modal-footer button {
-        flex: 1 1 0;
-        min-width: 0;
-    }
 }
 
 /* Modern calendar popup design: implementation-ready visual refresh without changing available fields. */
@@ -2425,441 +1639,8 @@ button.transaction-service-modal-close {
     -webkit-backdrop-filter: blur(3px);
 }
 
-.calendar-session-popup.modal.large-modal.calendar-edit-session-panel {
-    width: min(780px, calc(100vw - 48px));
-    max-width: min(780px, calc(100vw - 48px));
-    max-height: min(88vh, 860px) !important;
-    border-radius: 18px;
-    border: 1px solid rgba(226, 232, 240, 0.96);
-    background: #fff;
-    box-shadow: 0 28px 90px rgba(15, 23, 42, 0.28), 0 12px 32px rgba(15, 23, 42, 0.14);
-}
-
-.calendar-edit-session-panel.booking-side-panel {
-    background: #fff;
-}
-
-.calendar-edit-session-panel .booking-side-panel-header {
-    padding: 24px 32px 20px;
-    background: #fff;
-    border-bottom: 1px solid rgba(226, 232, 240, 0.96);
-}
-
-.calendar-edit-session-panel .booking-side-panel-header .page-header {
-    align-items: center;
-}
-
-.calendar-edit-session-panel .booking-side-panel-header .page-header h1{
-    font-size: clamp(1.45rem, 1.1rem + 1vw, 1.9rem);
-    line-height: 1.15;
-    font-weight: 800;
-    letter-spacing: -0.035em;
-    color: #0f172a;
-}
-
-
-
-
-
-.calendar-edit-session-panel .booking-side-panel-close {
-    width: 38px;
-    height: 38px;
-    min-width: 38px;
-    border: 0;
-    background: transparent;
-    color: #334155;
-    font-size: 1.55rem;
-    font-weight: 400;
-    box-shadow: none;
-}
-
-.calendar-edit-session-panel .booking-side-panel-close:hover {
-    background: #f8fafc;
-    color: #0f172a;
-}
-
-.calendar-edit-session-panel .booking-side-panel-body {
-    padding: 22px 32px 18px;
-    background: linear-gradient(180deg, #fff 0%, #fff 64%, #fbfcfe 100%);
-}
-
-.calendar-edit-session-panel .form-row-layout {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px 18px;
-}
-
-.calendar-edit-session-panel .form-row-layout > .form-row,
-.calendar-edit-session-panel .form-row-layout > .form-row-repeats-section {
-    min-width: 0;
-}
-
-.calendar-edit-session-panel .form-row-layout > .form-row:first-child,
-.calendar-edit-session-panel .form-row-layout > .form-row-timespan,
-.calendar-edit-session-panel .form-row-layout > .form-row.stretch,
-.calendar-edit-session-panel .form-row-layout > .form-row-repeats-section,
-.calendar-edit-session-panel .form-row-layout > .book-session-flags-row,
-.calendar-edit-session-panel .form-row-layout > .book-session-notes-android,
-.calendar-edit-session-panel--availability .form-row--bare,
-.calendar-edit-session-panel--todo .form-row-timespan,
-.calendar-edit-session-panel--todo .form-row.stretch,
-.calendar-edit-session-panel--personal .form-row-timespan,
-.calendar-edit-session-panel--personal .form-row.stretch {
-    grid-column: 1 / -1;
-}
-
-
-
-.calendar-edit-session-panel .form-row {
-    border: 1px solid #e5e7eb;
-    border-radius: 16px;
-    background: #fff;
-    padding: 14px 16px;
-    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
-}
-
-.calendar-edit-session-panel .form-row--bare {
-    background: transparent;
-    box-shadow: none;
-}
-
-.calendar-edit-session-panel .form-field-inline-label,
-.calendar-edit-session-panel .calendar-timespan-label,
-.calendar-edit-session-panel .calendar-timespan-all-day-caption,
-.calendar-edit-session-panel .form-repeats-label {
-    font-size: 0.88rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    color: #334155;
-}
-
-.calendar-edit-session-panel .form-field-inline-control {
-    width: 100%;
-}
-
-.calendar-edit-session-panel .form-row input,
-.calendar-edit-session-panel .form-row select,
-.calendar-edit-session-panel .form-row textarea,
-.calendar-edit-session-panel .client-search-wrap,
-.calendar-edit-session-panel .client-selected-display,
-.calendar-edit-session-panel .meeting-provider-summary {
-    border-radius: 13px;
-    border-color: #e2e8f0;
-    background: #fff;
-    color: #0f172a;
-    box-shadow: inset 0 1px 0 rgba(15, 23, 42, 0.02);
-}
-
-.calendar-edit-session-panel .form-row input,
-.calendar-edit-session-panel .form-row select,
-.calendar-edit-session-panel .form-row textarea {
-    min-height: 46px;
-    padding: 10px 12px;
-    font-size: 0.98rem;
-}
-
-.calendar-edit-session-panel .form-row textarea,
-.calendar-edit-session-panel textarea {
-    min-height: 86px;
-    resize: vertical;
-}
-
-.calendar-edit-session-panel .client-search-wrap {
-    min-height: 46px;
-    padding-inline: 12px;
-}
-
-.calendar-edit-session-panel .calendar-client-picker {
-    width: 100%;
-}
-
-.calendar-edit-session-panel .calendar-client-picker__search-row {
-    gap: 12px;
-}
-
-.calendar-edit-session-panel .calendar-client-picker__actions button,
-.calendar-edit-session-panel .client-add-btn {
-    width: 50px;
-    min-width: 50px;
-    height: 46px;
-    border-radius: 13px;
-    background: #f8fafc;
-    border-color: #e2e8f0;
-    color: #0f172a;
-    font-size: 1.1rem;
-    box-shadow: none;
-}
-
-.calendar-edit-session-panel .calendar-client-picker__details-btn:disabled,
-.calendar-edit-session-panel .calendar-client-picker__invoice-btn:disabled,
-.calendar-edit-session-panel .calendar-client-picker__clear-btn:disabled {
-    opacity: 0.45;
-}
-
-.calendar-edit-session-panel .calendar-timespan-row {
-    display: grid;
-    grid-template-columns: minmax(112px, 0.8fr) minmax(112px, 0.8fr) minmax(180px, 1.15fr);
-    gap: 14px;
-    align-items: stretch;
-}
-
-.calendar-edit-session-panel .calendar-timespan-row--two {
-    grid-template-columns: minmax(130px, 0.8fr) minmax(180px, 1.2fr);
-}
-
-.calendar-edit-session-panel .calendar-timespan-field,
-.calendar-edit-session-panel .calendar-timespan-field:not(.calendar-timespan-field--date),
-.calendar-edit-session-panel .calendar-timespan-field--date,
-.calendar-edit-session-panel .calendar-timespan-row--two .calendar-timespan-field--date {
-    flex: none;
-    min-width: 0;
-}
-
-.calendar-edit-session-panel .calendar-timespan-input-inner {
-    min-height: 0;
-    padding: 0;
-    gap: 4px;
-}
-
-.calendar-edit-session-panel .calendar-timespan-input-inner input {
-    min-height: 46px;
-    padding: 10px 12px;
-    font-size: 1rem;
-    font-weight: 600;
-}
-
-.calendar-edit-session-panel .calendar-timespan-input-inner input[type="time"] {
-    padding-right: 14px;
-}
-
-.calendar-edit-session-panel .calendar-timespan-row--all-day {
-    grid-template-columns: minmax(0, 1fr);
-}
-
-.calendar-edit-session-panel .calendar-timespan-all-day-line {
-    gap: 8px;
-}
-
-.calendar-edit-session-panel .calendar-timespan-all-day-switch.repeats-toggle-switch,
-.calendar-edit-session-panel .online-live-repeats-switch.repeats-toggle-switch {
-    width: 44px;
-    height: 24px;
-}
-
-.calendar-edit-session-panel .calendar-timespan-all-day-switch .repeats-toggle-slider::before,
-.calendar-edit-session-panel .online-live-repeats-switch .repeats-toggle-slider::before {
-    width: 18px;
-    height: 18px;
-    left: 3px;
-    top: 3px;
-}
-
-.calendar-edit-session-panel .calendar-timespan-all-day-switch.repeats-toggle-switch input:checked + .repeats-toggle-slider::before,
-.calendar-edit-session-panel .online-live-repeats-switch.repeats-toggle-switch input:checked + .repeats-toggle-slider::before {
-    transform: translateX(20px);
-}
-
-
-
-.calendar-edit-session-panel .form-repeats-config {
-    margin-top: 12px;
-    border-radius: 14px;
-    border: 1px solid #e2e8f0;
-    background: #f8fafc;
-    padding: 12px;
-}
-
-.calendar-edit-session-panel .booking-type-switcher {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-    margin: 0 0 20px;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-}
-
-.calendar-edit-session-panel .booking-type-btn {
-    min-height: 50px;
-    border-radius: 14px;
-    font-size: 0.98rem;
-    font-weight: 800;
-    background: #fff;
-    box-shadow: none;
-}
-
-.calendar-edit-session-panel .booking-type-btn-label {
-    gap: 9px;
-}
-
-.calendar-edit-session-panel .booking-type-btn-label::before {
-    content: '' !important;
-    width: 18px;
-    height: 18px;
-    display: inline-block;
-    flex: 0 0 18px;
-    background: currentColor;
-    -webkit-mask-position: center;
-    mask-position: center;
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-size: contain;
-    mask-size: contain;
-}
-
-.calendar-edit-session-panel .booking-type-btn--booking .booking-type-btn-label::before {
-    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4'/%3E%3C/svg%3E");
-    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4'/%3E%3C/svg%3E");
-}
-
-.calendar-edit-session-panel .booking-type-btn--personal .booking-type-btn-label::before {
-    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21a8 8 0 0 0-16 0'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E");
-    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21a8 8 0 0 0-16 0'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E");
-}
-
-.calendar-edit-session-panel .booking-type-btn--todo .booking-type-btn-label::before {
-    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E");
-    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E");
-}
-
-.calendar-edit-session-panel .booking-type-btn--availability .booking-type-btn-label::before {
-    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E");
-    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E");
-}
-
-.calendar-edit-session-panel .booking-type-btn.active {
-    color: #fff;
-    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.14);
-}
-
-.calendar-edit-session-panel .booking-type-btn--booking.active {
-    background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
-    border-color: #16a34a;
-}
-
-.calendar-edit-session-panel .booking-type-btn--personal.active {
-    background: linear-gradient(180deg, #fb923c 0%, #f97316 100%);
-    border-color: #f97316;
-}
-
-.calendar-edit-session-panel .booking-type-btn--todo.active {
-    background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-    border-color: #2563eb;
-}
-
-.calendar-edit-session-panel .booking-type-btn--availability.active {
-    background: linear-gradient(180deg, #14b8a6 0%, #0d9488 100%);
-    border-color: #0d9488;
-}
-
-.calendar-edit-session-panel .booking-type-btn:not(.active).booking-type-btn--booking { color: #16a34a; border-color: #86efac; background: #f0fdf4; }
-.calendar-edit-session-panel .booking-type-btn:not(.active).booking-type-btn--personal { color: #f97316; border-color: #fdba74; background: #fff7ed; }
-.calendar-edit-session-panel .booking-type-btn:not(.active).booking-type-btn--todo { color: #2563eb; border-color: #93c5fd; background: #eff6ff; }
-.calendar-edit-session-panel .booking-type-btn:not(.active).booking-type-btn--availability { color: #0d9488; border-color: #5eead4; background: #f0fdfa; }
-
-.calendar-edit-session-panel .booking-side-panel-footer {
-    padding: 16px 32px 24px;
-    border-top: 1px solid rgba(226, 232, 240, 0.96);
-    background: #fff;
-    box-shadow: 0 -12px 28px rgba(15, 23, 42, 0.04);
-}
-
-.calendar-edit-session-panel .booking-side-panel-footer.row.gap {
-    justify-content: space-between !important;
-}
-
-.calendar-edit-session-panel .calendar-form-footer-btn {
-    min-height: 52px;
-    border-radius: 14px;
-    padding: 0 24px;
-    font-size: 1rem;
-    font-weight: 800;
-}
-
-.calendar-edit-session-panel .calendar-form-footer-btn--save {
-    color: #fff;
-    border: 0;
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
-}
-
-
-.calendar-edit-session-panel--personal .calendar-form-footer-btn--save { background: linear-gradient(180deg, #fb923c 0%, #f97316 100%); }
-.calendar-edit-session-panel--todo .calendar-form-footer-btn--save { background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%); }
-.calendar-edit-session-panel--availability .calendar-form-footer-btn--save { background: linear-gradient(180deg, #14b8a6 0%, #0d9488 100%); }
-
-.calendar-edit-session-panel .calendar-form-footer-btn--delete {
-    background: #fff;
-    color: #dc2626;
-    border: 1px solid #fecaca;
-    box-shadow: none;
-}
-
-.calendar-edit-session-panel .calendar-form-footer-btn__icon,
-.calendar-edit-session-panel .calendar-form-footer-btn__save-mark {
-    width: 18px;
-    height: 18px;
-}
-
-.calendar-edit-session-panel .online-live-switch-row--inline {
-    min-height: 46px;
-    border-radius: 14px;
-    border: 1px solid #e2e8f0;
-    background: #f8fafc;
-    padding: 10px 14px;
-    width: 100%;
-    justify-content: space-between;
-}
-
-.calendar-edit-session-panel--availability .online-live-switch-row--inline {
-    border-color: #99f6e4;
-    background: #f0fdfa;
-}
-
-
-
-
-
-
-
-.calendar-edit-session-panel .calendar-booking-service-infield-head {
-    align-items: center;
-}
-
-.calendar-edit-session-panel .calendar-booking-service-online-line {
-    gap: 8px;
-}
-
-.calendar-edit-session-panel .calendar-booking-service-online-caption {
-    font-weight: 700;
-    color: #64748b;
-}
-
 [data-theme="dark"] .calendar-session-popup-layer {
     background: rgba(2, 6, 23, 0.66);
-}
-
-[data-theme="dark"] .calendar-session-popup.modal.large-modal.calendar-edit-session-panel,
-[data-theme="dark"] .calendar-edit-session-panel.booking-side-panel,
-[data-theme="dark"] .calendar-edit-session-panel .booking-side-panel-header,
-[data-theme="dark"] .calendar-edit-session-panel .booking-side-panel-body,
-[data-theme="dark"] .calendar-edit-session-panel .booking-side-panel-footer,
-[data-theme="dark"] .calendar-edit-session-panel .form-row,
-[data-theme="dark"] .calendar-edit-session-panel .form-row input,
-[data-theme="dark"] .calendar-edit-session-panel .form-row select,
-[data-theme="dark"] .calendar-edit-session-panel .form-row textarea,
-[data-theme="dark"] .calendar-edit-session-panel .client-search-wrap {
-    background: #0f172a;
-    border-color: rgba(148, 163, 184, 0.28);
-    color: #f8fafc;
-}
-
-[data-theme="dark"] .calendar-edit-session-panel .booking-side-panel-header .page-header h1,
-[data-theme="dark"] .calendar-edit-session-panel .form-field-inline-label,
-[data-theme="dark"] .calendar-edit-session-panel .calendar-timespan-label,
-[data-theme="dark"] .calendar-edit-session-panel .calendar-timespan-all-day-caption,
-[data-theme="dark"] .calendar-edit-session-panel .form-repeats-label{
-    color: #e2e8f0;
 }
 
 @media (max-width: 1024px) {
@@ -2870,216 +1651,13 @@ button.transaction-service-modal-close {
         backdrop-filter: blur(3px);
         -webkit-backdrop-filter: blur(3px);
     }
-
-    .booking-side-panel.modal.large-modal.calendar-edit-session-panel {
-        width: 100vw;
-        max-width: 100vw;
-        min-height: 100vh;
-        height: 100vh;
-        max-height: 100vh;
-        margin: 0;
-        border-radius: 0;
-        border: 0;
-        box-shadow: none;
-    }
-
-    @supports (height: 100dvh) {
-        .booking-side-panel.modal.large-modal.calendar-edit-session-panel {
-            min-height: 100dvh;
-            height: 100dvh;
-            max-height: 100dvh;
-        }
-    }
-
-    .calendar-edit-session-panel .booking-side-panel-header {
-        position: relative;
-        padding: 56px 22px 22px;
-    }
-
-    .calendar-edit-session-panel .booking-side-panel-header::before {
-        content: '';
-        position: absolute;
-        top: 18px;
-        left: 50%;
-        width: 72px;
-        height: 6px;
-        border-radius: 999px;
-        background: #d1d5db;
-        transform: translateX(-50%);
-    }
-
-    .calendar-edit-session-panel .booking-side-panel-body {
-        padding: 20px 20px 16px;
-    }
-
-    .calendar-edit-session-panel .booking-type-switcher {
-        display: flex;
-        gap: 10px;
-        overflow-x: auto;
-        scrollbar-width: none;
-        margin-bottom: 18px;
-        padding-bottom: 2px;
-    }
-
-    .calendar-edit-session-panel .booking-type-switcher::-webkit-scrollbar {
-        display: none;
-    }
-
-    .calendar-edit-session-panel .booking-type-btn {
-        flex: 0 0 auto;
-        min-width: 148px;
-        min-height: 52px;
-    }
-
-    .calendar-edit-session-panel .form-row-layout {
-        grid-template-columns: 1fr;
-        gap: 14px;
-    }
-
-    .calendar-edit-session-panel .form-row-layout > .form-row,
-.calendar-edit-session-panel .form-row-layout > .form-row-repeats-section{
-        grid-column: 1 / -1;
-    }
-
-    .calendar-edit-session-panel .form-row {
-        padding: 16px;
-        border-radius: 18px;
-    }
-
-    .calendar-edit-session-panel .calendar-timespan-row,
-    .calendar-edit-session-panel .calendar-timespan-row--two {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-    }
-
-    .calendar-edit-session-panel .calendar-timespan-field--date {
-        grid-column: 1 / -1;
-    }
-
-    .calendar-edit-session-panel .calendar-timespan-row--all-day {
-        grid-template-columns: 1fr;
-    }
-
-    .calendar-edit-session-panel .booking-side-panel-footer {
-        padding: 14px 20px max(18px, calc(14px + env(safe-area-inset-bottom, 0px)));
-        gap: 12px !important;
-    }
-
-    .calendar-edit-session-panel .booking-side-panel-footer.row.gap {
-        justify-content: space-between !important;
-        flex-wrap: nowrap !important;
-    }
-
-    .calendar-edit-session-panel .booking-side-panel-footer .calendar-form-footer-btn--delete,
-    .calendar-edit-session-panel .booking-side-panel-footer .calendar-form-footer-btn--save {
-        flex: 1 1 0;
-        justify-content: center;
-        min-width: 0;
-    }
-
-    .calendar-edit-session-panel .booking-side-panel-footer .calendar-form-footer-btn--save:only-child {
-        flex-basis: 100%;
-    }
-}
-
-@media (max-width: 560px) {
-    .calendar-edit-session-panel .booking-side-panel-header .page-header h1{
-        font-size: 1.55rem;
-    }
-
-    .calendar-edit-session-panel .booking-side-panel-header {
-        padding-left: 18px;
-        padding-right: 18px;
-    }
-
-    .calendar-edit-session-panel .booking-side-panel-body {
-        padding-left: 16px;
-        padding-right: 16px;
-    }
-
-    .calendar-edit-session-panel .booking-side-panel-footer {
-        padding-left: 16px;
-        padding-right: 16px;
-    }
-
-    .calendar-edit-session-panel .calendar-timespan-row,
-    .calendar-edit-session-panel .calendar-timespan-row--two {
-        grid-template-columns: 1fr;
-    }
-
-    .calendar-edit-session-panel .calendar-form-footer-btn {
-        padding-left: 14px;
-        padding-right: 14px;
-    }
 }
 
 /* Footer alignment: create forms keep the primary action on the right; edit forms split delete/save. */
-.calendar-edit-session-panel .booking-side-panel-footer.row.gap {
-    justify-content: flex-end !important;
-}
-
-.calendar-edit-session-panel .booking-side-panel-footer.row.gap:has(.calendar-form-footer-btn--delete) {
-    justify-content: space-between !important;
-}
 
 /* Availability: single primary CTA (Odpri flow vs Blokiraj) — never use split delete/save footer layout */
-.calendar-edit-session-panel--availability .booking-side-panel-footer.row.gap,
-.calendar-edit-session-panel--availability .booking-side-panel-footer.row.gap:has(.calendar-form-footer-btn--delete) {
-    justify-content: flex-end !important;
-}
-
-@media (max-width: 1024px) {
-    .calendar-edit-session-panel .booking-side-panel-footer.row.gap {
-        justify-content: flex-end !important;
-    }
-
-    .calendar-edit-session-panel .booking-side-panel-footer.row.gap:has(.calendar-form-footer-btn--delete) {
-        justify-content: space-between !important;
-    }
-
-    .calendar-edit-session-panel--availability .booking-side-panel-footer.row.gap,
-    .calendar-edit-session-panel--availability .booking-side-panel-footer.row.gap:has(.calendar-form-footer-btn--delete) {
-        justify-content: flex-end !important;
-    }
-}
-
 
 /* Calendar popup refinement: time/date rows are fields only, without an outer block. */
-.calendar-edit-session-panel .form-row.form-row-timespan {
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-    padding: 0;
-}
-
-.calendar-edit-session-panel .form-row.form-row-timespan .calendar-timespan-row {
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-    padding: 0;
-}
-
-.calendar-session-popup.calendar-edit-session-panel .booking-side-panel-header {
-    cursor: grab;
-    user-select: none;
-    touch-action: none;
-}
-
-.calendar-session-popup.calendar-edit-session-panel .booking-side-panel-header:active {
-    cursor: grabbing;
-}
-
-.calendar-session-popup.calendar-edit-session-panel .booking-side-panel-header button,
-.calendar-session-popup.calendar-edit-session-panel .booking-side-panel-header a {
-    cursor: pointer;
-}
-
-@media (max-width: 1024px) {
-    .calendar-edit-session-panel .form-row.form-row-timespan {
-        padding: 0;
-    }
-}
 
 .calendar-session-footer-tags {
   display: flex;
@@ -3087,8 +1665,6 @@ button.transaction-service-modal-close {
   flex-wrap: wrap;
   gap: 8px;
 }
-
-
 
 .calendar-session-payment-tag {
   min-height: 44px;
@@ -3135,32 +1711,6 @@ button.transaction-service-modal-close {
   color: #b91c1c;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 .calendar-payment-inline-badge {
   display: inline-flex;
   align-items: center;
@@ -3191,51 +1741,6 @@ button.transaction-service-modal-close {
   background: #fee2e2;
   color: #b91c1c;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-@media (max-width: 640px) {
-  
-
-  
-}
-
 
 .calendar-payment-manager-backdrop {
   position: fixed;
@@ -3334,11 +1839,6 @@ button.transaction-service-modal-close {
   overflow: hidden;
 }
 
-
-
-
-
-
 .calendar-payment-manager-sidebar-head{
   display: flex;
   align-items: center;
@@ -3346,29 +1846,11 @@ button.transaction-service-modal-close {
   gap: 12px;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 .calendar-payment-manager-sidebar-count{
   color: #64748b;
   font-size: 0.78rem;
   font-weight: 700;
 }
-
-
-
-
 
 .calendar-payment-manager-sidebar-count {
   white-space: nowrap;
@@ -3469,16 +1951,6 @@ button.transaction-service-modal-close {
   color: #dc2626;
   background: #fee2e2;
 }
-
-
-
-
-
-
-
-
-
-
 
 .calendar-payment-manager-client-name {
   min-width: 0;
@@ -3865,24 +2337,10 @@ button.transaction-service-modal-close {
   color: #334155;
 }
 
-
-
-
-
 .calendar-payment-manager-no-action {
   color: #94a3b8;
   font-weight: 800;
 }
-
-
-
-
-
-
-
-
-
-
 
 .calendar-payment-manager-footer {
   display: flex;
@@ -3908,7 +2366,6 @@ button.transaction-service-modal-close {
   font-size: 14px;
 }
 
-
 .calendar-payment-manager-main--client-workspace {
   grid-template-rows: auto minmax(0, 1fr);
 }
@@ -3932,9 +2389,6 @@ button.transaction-service-modal-close {
   cursor: pointer;
   white-space: nowrap;
 }
-
-
-
 
 .calendar-payment-manager-shared-invoice {
   margin-top: 4px;
@@ -4078,14 +2532,6 @@ button.transaction-service-modal-close {
   background: #dbeafe;
   color: #2563eb;
 }
-
-
-
-
-
-
-
-
 
 .calendar-payment-manager-add-client-search {
   display: flex;
@@ -4311,56 +2757,6 @@ button.transaction-service-modal-close {
   cursor: default;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 @media (max-width: 1120px) {
   .calendar-payment-manager-add-client-card-head {
     grid-template-columns: 1fr;
@@ -4406,12 +2802,6 @@ button.transaction-service-modal-close {
   .calendar-payment-manager-overview{
     grid-template-columns: 1fr;
   }
-
-  
-
-  
-
-  
 
   .calendar-payment-manager-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4495,15 +2885,6 @@ button.transaction-service-modal-close {
     grid-column: auto;
   }
 
-  
-}
-
-@media (max-width: 1024px) {
-  
-
-  
-
-  
 }
 
 /* Client & payee modal tab/radio design refresh */
@@ -4550,52 +2931,6 @@ button.transaction-service-modal-close {
 
 .calendar-payment-manager-tabs--client .calendar-payment-manager-tab.is-active::after {
   display: none;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-@media (max-width: 1024px) {
-  
-
-  
-
-  
 }
 
 .calendar-payment-manager-row-action--scan {
@@ -5181,71 +3516,6 @@ button.transaction-service-modal-close {
   }
 }
 
-/* Course create/edit modal — modern Tečaji popup */
-.course-edit-modal-backdrop.booking-side-panel-backdrop {
-    padding: 28px;
-    align-items: center;
-    justify-content: center;
-    background: rgba(15, 23, 42, 0.50);
-    backdrop-filter: blur(10px);
-}
-
-.course-edit-modal.modal.large-modal.booking-side-panel {
-    width: min(1040px, calc(100vw - 56px));
-    max-width: min(1040px, calc(100vw - 56px));
-    border-radius: 22px;
-    border: 1px solid rgba(148, 163, 184, 0.22);
-    background: #ffffff;
-    box-shadow: 0 30px 90px rgba(15, 23, 42, 0.30);
-}
-
-.course-edit-modal-header.session-type-config-modal-header {
-    padding: 28px 32px 26px;
-    background: rgba(255, 255, 255, 0.98);
-}
-
-.course-edit-modal-heading.session-type-config-modal-heading {
-    gap: 18px;
-}
-
-.course-edit-modal-icon.session-type-config-modal-icon {
-    width: 52px;
-    height: 52px;
-    border-radius: 16px;
-    color: #1672f3;
-    background: linear-gradient(135deg, rgba(22, 114, 243, 0.10) 0%, rgba(22, 114, 243, 0.04) 100%);
-    border-color: rgba(22, 114, 243, 0.20);
-}
-
-.course-edit-modal-heading h2 {
-    font-size: 1.75rem;
-    letter-spacing: -0.04em;
-}
-
-.course-edit-modal-close.session-type-config-modal-close,
-button.course-edit-modal-close.session-type-config-modal-close {
-    width: 48px;
-    height: 48px;
-    min-width: 48px;
-    border-radius: 16px;
-    font-size: 1.4rem;
-    color: #111827;
-    background: #f8fafc;
-    border-color: rgba(15, 23, 42, 0.08);
-}
-
-.course-edit-modal-close.session-type-config-modal-close:hover,
-button.course-edit-modal-close.session-type-config-modal-close:hover {
-    background: #eef4ff;
-    color: #1672f3;
-}
-
-.course-edit-modal-body.session-type-config-modal-body.booking-side-panel-body {
-    padding: 26px 32px 16px;
-    gap: 18px;
-    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
-}
-
 .course-edit-card.session-type-config-section {
     padding: 0;
     border: 0;
@@ -5256,39 +3526,6 @@ button.course-edit-modal-close.session-type-config-modal-close:hover {
 
 .course-edit-grid.course-edit-grid--two {
     gap: 28px;
-}
-
-.course-edit-modal .field {
-    min-width: 0;
-}
-
-.course-edit-modal .field-label {
-    margin-bottom: 2px;
-    color: #111827;
-    font-size: 0.93rem;
-    font-weight: 780;
-}
-
-.course-edit-modal input:not([type='checkbox']):not([type='file']),
-.course-edit-modal select,
-.course-edit-modal textarea {
-    width: 100%;
-    min-height: 58px;
-    padding: 0 18px;
-    border-radius: 14px;
-    border: 1px solid rgba(148, 163, 184, 0.36);
-    background: #ffffff;
-    color: #0f172a;
-    font-size: 1rem;
-    outline: none;
-    transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
-}
-
-.course-edit-modal input:not([type='checkbox']):not([type='file']):focus,
-.course-edit-modal select:focus,
-.course-edit-modal textarea:focus {
-    border-color: rgba(22, 114, 243, 0.55);
-    box-shadow: 0 0 0 4px rgba(22, 114, 243, 0.10);
 }
 
 .course-edit-select-wrap {
@@ -5460,13 +3697,6 @@ button.course-edit-modal-close.session-type-config-modal-close:hover {
     display: block;
 }
 
-.course-edit-modal textarea {
-    min-height: 124px;
-    padding: 16px 18px 34px;
-    line-height: 1.5;
-    resize: vertical;
-}
-
 .course-edit-character-count {
     position: absolute;
     right: 14px;
@@ -5477,54 +3707,6 @@ button.course-edit-modal-close.session-type-config-modal-close:hover {
     pointer-events: none;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-.course-edit-modal-footer.session-type-config-modal-footer.booking-side-panel-footer {
-    justify-content: flex-end;
-    align-items: center;
-    padding: 18px 32px 20px;
-    background: rgba(255, 255, 255, 0.98);
-}
-
-.course-edit-save-button.gapp-primary-button,
-button.course-edit-save-button.gapp-primary-button {
-    min-width: 250px;
-    height: 50px;
-    border-radius: 12px;
-    box-shadow: 0 16px 32px rgba(22, 114, 243, 0.24);
-}
-
-[data-theme="dark"] .course-edit-modal.modal.large-modal.booking-side-panel,
-[data-theme="dark"] .course-edit-modal-header.session-type-config-modal-header,
-[data-theme="dark"] .course-edit-modal-body.session-type-config-modal-body.booking-side-panel-body,
-[data-theme="dark"] .course-edit-modal-footer.session-type-config-modal-footer.booking-side-panel-footer {
-    background: #0f172a;
-    border-color: rgba(148, 163, 184, 0.22);
-}
-
-[data-theme="dark"] .course-edit-modal input:not([type='checkbox']):not([type='file']),
-[data-theme="dark"] .course-edit-modal select,
-[data-theme="dark"] .course-edit-modal textarea,
 [data-theme="dark"] .course-edit-upload-dropzone,
 [data-theme="dark"] .course-edit-upload-button{
     background: #111c31;
@@ -5537,8 +3719,6 @@ button.course-edit-save-button.gapp-primary-button {
     background: rgba(30, 64, 175, 0.20);
 }
 
-[data-theme="dark"] .course-edit-modal .field-label,
-[data-theme="dark"] .course-edit-modal-heading h2,
 [data-theme="dark"] .course-edit-upload-copy strong,
 [data-theme="dark"] .course-edit-upload-note strong{
     color: #f8fafc;
@@ -5551,34 +3731,6 @@ button.course-edit-save-button.gapp-primary-button {
 }
 
 @media (max-width: 1024px) {
-    .course-edit-modal-backdrop.booking-side-panel-backdrop {
-        padding: 0;
-        align-items: stretch;
-    }
-
-    .course-edit-modal.modal.large-modal.booking-side-panel {
-        width: 100vw;
-        max-width: 100vw;
-        max-height: 100vh;
-        min-height: 100vh;
-        border-radius: 0;
-        margin: 0;
-    }
-
-    @supports (height: 100dvh) {
-        .course-edit-modal.modal.large-modal.booking-side-panel {
-            min-height: 100dvh;
-            max-height: 100dvh;
-        }
-    }
-
-    .course-edit-modal-header.session-type-config-modal-header {
-        padding: 20px 18px 16px;
-    }
-
-    .course-edit-modal-body.session-type-config-modal-body.booking-side-panel-body {
-        padding: 18px 16px 12px;
-    }
 
     .course-edit-grid.course-edit-grid--two{
         grid-template-columns: 1fr;
@@ -5592,18 +3744,6 @@ button.course-edit-save-button.gapp-primary-button {
 
     .course-edit-upload-copy strong {
         white-space: normal;
-    }
-
-    
-
-    .course-edit-modal-footer.session-type-config-modal-footer.booking-side-panel-footer {
-        padding: 14px 16px max(18px, calc(14px + env(safe-area-inset-bottom, 0px)));
-        gap: 10px;
-    }
-
-    .course-edit-save-button.gapp-primary-button {
-        flex: 1 1 0;
-        min-width: 0;
     }
 }
 
@@ -5657,141 +3797,6 @@ button.course-edit-save-button.gapp-primary-button {
   align-items: center;
   gap: 10px;
 }
-
-
-
-
-
-
-
-.service-config-filter-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 4100;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(15, 23, 42, 0.46);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-}
-
-.service-config-filter-modal {
-  width: min(660px, calc(100vw - 32px));
-  overflow: hidden;
-  border-radius: 22px;
-  background: #fff;
-  box-shadow: 0 28px 64px rgba(15, 23, 42, 0.22);
-}
-
-.service-config-filter-modal__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 18px 20px;
-  border-bottom: 1px solid #e7edf4;
-}
-
-.service-config-filter-modal__header h3 {
-  margin: 0;
-  color: #172033;
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.service-config-filter-modal__close {
-  width: 40px;
-  height: 40px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: #667085;
-  font-size: 28px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.service-config-filter-modal__close:hover {
-  background: #f3f6fb;
-}
-
-.service-config-filter-modal__body {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px 18px;
-  padding: 20px;
-}
-
-.service-config-filter-modal__body label {
-  display: grid;
-  gap: 7px;
-}
-
-.service-config-filter-modal__body label span {
-  color: #475467;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.service-config-filter-modal__body select,
-.service-config-filter-modal__body input {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 14px;
-  border: 1px solid #d7e0ea;
-  border-radius: 12px;
-  background: #fff;
-  color: #172033;
-  font: inherit;
-  box-sizing: border-box;
-}
-
-.service-config-filter-modal__body select:focus,
-.service-config-filter-modal__body input:focus {
-  outline: none;
-  border-color: #5e9af2;
-  box-shadow: 0 0 0 3px rgba(23, 105, 232, 0.12);
-}
-
-.service-config-filter-modal__field--wide {
-  grid-column: 1 / -1;
-}
-
-.service-config-filter-modal__footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  border-top: 1px solid #e7edf4;
-}
-
-.service-config-filter-modal__footer .secondary,
-.service-config-filter-modal__footer .primary {
-  min-width: 120px;
-  min-height: 42px;
-  padding: 0 18px;
-  border-radius: 14px;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.service-config-filter-modal__footer .secondary {
-  border: 1px solid #d7e0ea;
-  background: #f3f4f6;
-  color: #374151;
-}
-
-.service-config-filter-modal__footer .primary {
-  border: 1px solid #1769e8;
-  background: #1769e8;
-  color: #fff;
-  box-shadow: 0 10px 22px rgba(23, 105, 232, 0.2);
-}
-
-
 
 .service-config-name-with-group {
   display: flex;
@@ -5848,25 +3853,6 @@ button.course-edit-save-button.gapp-primary-button {
   background: #f3f8ff;
 }
 
-
-
-.service-group-config-modal.modal.booking-side-panel {
-  width: min(600px, calc(100vw - 32px));
-  max-width: 600px;
-}
-
-.service-group-config-form {
-  display: grid;
-  gap: 18px;
-  padding: 24px;
-  overflow: auto;
-}
-
-.service-group-config-form textarea {
-  width: 100%;
-  resize: vertical;
-}
-
 .service-group-active-switch {
   margin-top: 4px;
   border: 1px solid var(--border, #e2e7ee);
@@ -5879,43 +3865,12 @@ button.course-edit-save-button.gapp-primary-button {
 }
 
 @media (max-width: 1024px) {
-  
-
-  
 
   .service-config-toolbar-trailing {
     width: 100%;
     justify-content: space-between;
   }
 
-  
-
-  .service-config-filter-modal-backdrop {
-    padding: 12px;
-  }
-
-  .service-config-filter-modal__body {
-    grid-template-columns: 1fr;
-  }
-
-  .service-config-filter-modal__field--wide {
-    grid-column: auto;
-  }
-
-  .service-config-filter-modal__footer {
-    flex-direction: column-reverse;
-    align-items: stretch;
-  }
-
-  .service-config-filter-modal__footer .secondary,
-  .service-config-filter-modal__footer .primary {
-    width: 100%;
-  }
-}
-
-/* Unified Services editor: service groups and billing services are managed inside Storitve. */
-.session-type-config-modal.modal.large-modal.booking-side-panel {
-    width: min(1180px, calc(100vw - 48px));
 }
 
 .session-type-config-unified {
@@ -6103,61 +4058,6 @@ button.course-edit-save-button.gapp-primary-button {
     height: 42px;
 }
 
-.linked-entity-modal-backdrop {
-    /* These dialogs can be opened from inside the Uredi storitev dialog.
-       Keep their complete backdrop above the parent modal stacking layer. */
-    z-index: 11000;
-    background: rgba(15, 23, 42, 0.48);
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
-}
-
-.linked-entity-modal,
-.transaction-service-modal.linked-entity-modal {
-    z-index: 11001;
-    box-shadow: 0 28px 76px rgba(15, 23, 42, 0.25);
-}
-
-.service-group-config-modal.linked-entity-modal {
-    width: min(760px, calc(100vw - 40px));
-    max-height: min(820px, calc(100vh - 40px));
-}
-
-.linked-entity-modal-icon--group {
-    color: #16a34a;
-    background: rgba(34, 197, 94, 0.1);
-    border-color: rgba(34, 197, 94, 0.2);
-}
-
-.linked-entity-modal-tabs {
-    flex: 0 0 auto;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    margin: 18px 24px 0;
-    padding: 3px;
-    border: 1px solid rgba(148, 163, 184, 0.25);
-    border-radius: 12px;
-    background: #f8fafc;
-}
-
-.linked-entity-modal-tabs button {
-    min-height: 42px;
-    padding: 9px 14px;
-    border: 1px solid transparent;
-    border-radius: 9px;
-    color: #66738a;
-    background: transparent;
-    font-weight: 750;
-    box-shadow: none;
-}
-
-.linked-entity-modal-tabs button.is-active {
-    color: #126ff3;
-    border-color: rgba(22, 114, 243, 0.24);
-    background: #fff;
-    box-shadow: 0 3px 12px rgba(15, 23, 42, 0.06);
-}
-
 .linked-entity-picker-body {
     display: grid;
     gap: 16px;
@@ -6306,24 +4206,14 @@ button.course-edit-save-button.gapp-primary-button {
     white-space: nowrap;
 }
 
-.linked-entity-modal-footer {
-    justify-content: space-between !important;
-}
-
-.linked-entity-modal-footer > .secondary {
-    min-width: 96px;
-}
-
 [data-theme="dark"] .session-type-config-unified-card,
 [data-theme="dark"] .session-type-linked-service-row,
 [data-theme="dark"] .linked-entity-option,
-[data-theme="dark"] .linked-entity-search input,
-[data-theme="dark"] .linked-entity-modal-tabs button.is-active {
+[data-theme="dark"] .linked-entity-search input{
     background: #111c2f;
     border-color: rgba(148, 163, 184, 0.22);
 }
 
-[data-theme="dark"] .linked-entity-modal-tabs,
 [data-theme="dark"] .session-type-linked-empty {
     background: rgba(15, 23, 42, 0.78);
     border-color: rgba(148, 163, 184, 0.2);
@@ -6341,13 +4231,10 @@ button.course-edit-save-button.gapp-primary-button {
 }
 
 @media (max-width: 1024px) {
-    
 
     .session-type-config-unified-actions {
         justify-content: flex-start;
     }
-
-    
 
     .session-type-linked-service-row {
         grid-template-columns: auto minmax(0, 1fr) auto;
@@ -6394,10 +4281,6 @@ button.course-edit-save-button.gapp-primary-button {
         justify-content: flex-end;
     }
 
-    .linked-entity-modal-tabs {
-        margin: 12px 16px 0;
-    }
-
     .linked-entity-option {
         grid-template-columns: auto auto minmax(0, 1fr);
     }
@@ -6409,58 +4292,9 @@ button.course-edit-save-button.gapp-primary-button {
         text-align: left;
     }
 
-    .service-group-config-modal.linked-entity-modal {
-        width: 100vw;
-        max-width: 100vw;
-        min-height: 100vh;
-        max-height: 100vh;
-        border-radius: 0;
-    }
 }
 
 /* Uredi storitev — responsive unified editor redesign (desktop, tablet and mobile). */
-.session-type-config-modal-backdrop.booking-side-panel-backdrop {
-    padding: 24px;
-    background: rgba(15, 23, 42, 0.48);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-}
-
-.session-type-config-modal.modal.large-modal.booking-side-panel {
-    width: min(1160px, calc(100vw - 48px));
-    max-width: min(1160px, calc(100vw - 48px));
-    max-height: calc(100dvh - 48px);
-    border-radius: 24px;
-    border: 1px solid rgba(148, 163, 184, 0.24);
-    background: #f8fafc;
-    box-shadow: 0 30px 90px rgba(15, 23, 42, 0.28);
-}
-
-.session-type-config-modal-header {
-    padding: 22px 26px;
-    background: rgba(255, 255, 255, 0.96);
-    border-bottom-color: rgba(148, 163, 184, 0.2);
-}
-
-.session-type-config-modal-heading {
-    gap: 14px;
-}
-
-.session-type-config-modal-icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 13px;
-}
-
-.session-type-config-modal-heading h2 {
-    font-size: 1.38rem;
-    letter-spacing: -0.025em;
-}
-
-.session-type-config-modal-body.booking-side-panel-body {
-    background: #f8fafc;
-    scrollbar-gutter: stable;
-}
 
 .session-type-config-unified {
     gap: 14px;
@@ -6513,30 +4347,6 @@ button.course-edit-save-button.gapp-primary-button {
 
 .session-type-config-duration-grid {
     margin-top: 0;
-}
-
-.session-type-config-modal .field-label {
-    margin-bottom: 7px;
-    font-size: 0.82rem;
-    font-weight: 760;
-}
-
-.session-type-config-modal input,
-.session-type-config-modal select,
-.session-type-config-modal textarea,
-.session-type-config-modal .guest-booking-select-trigger {
-    min-height: 46px;
-    border-radius: 11px;
-    border-color: rgba(148, 163, 184, 0.34);
-    background: #fff;
-}
-
-.session-type-config-modal input:focus,
-.session-type-config-modal select:focus,
-.session-type-config-modal textarea:focus,
-.session-type-config-modal .guest-booking-select.is-open .guest-booking-select-trigger {
-    border-color: rgba(22, 114, 243, 0.62);
-    box-shadow: 0 0 0 3px rgba(22, 114, 243, 0.11);
 }
 
 .session-type-break-control {
@@ -6660,44 +4470,7 @@ button.session-type-color-swatch span {
     min-width: 0;
 }
 
-.session-type-config-modal-footer.booking-side-panel-footer {
-    position: sticky;
-    bottom: 0;
-    z-index: 5;
-    min-height: 72px;
-    padding: 12px 22px;
-    border-top: 1px solid rgba(148, 163, 184, 0.22);
-    background: rgba(255, 255, 255, 0.94);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-}
-
-.session-type-config-modal-footer .gapp-primary-button {
-    min-width: 190px;
-    min-height: 44px;
-    border-radius: 11px;
-}
-
-[data-theme="dark"] .session-type-config-modal.modal.large-modal.booking-side-panel,
-[data-theme="dark"] .session-type-config-modal-body.booking-side-panel-body {
-    background: #0b1322;
-}
-
 @media (max-width: 1024px) {
-    .session-type-config-modal-backdrop.booking-side-panel-backdrop {
-        padding: 16px;
-    }
-
-    .session-type-config-modal.modal.large-modal.booking-side-panel {
-        width: calc(100vw - 32px);
-        max-width: calc(100vw - 32px);
-        max-height: calc(100dvh - 32px);
-        border-radius: 22px;
-    }
-
-    .session-type-config-modal-header {
-        padding: 19px 20px;
-    }
 
     .session-type-config-unified {
         padding: 15px 16px 20px;
@@ -6726,57 +4499,6 @@ button.session-type-color-swatch span {
 }
 
 @media (max-width: 1024px) {
-    .session-type-config-modal-backdrop.booking-side-panel-backdrop {
-        padding: 0;
-        align-items: stretch;
-        background: #f8fafc;
-        backdrop-filter: none;
-        -webkit-backdrop-filter: none;
-    }
-
-    .session-type-config-modal.modal.large-modal.booking-side-panel {
-        width: 100vw;
-        max-width: 100vw;
-        height: 100vh;
-        max-height: 100vh;
-        min-height: 100vh;
-        height: 100dvh;
-        max-height: 100dvh;
-        min-height: 100dvh;
-        margin: 0;
-        border: 0;
-        border-radius: 0;
-        box-shadow: none;
-    }
-
-    .session-type-config-modal-header {
-        position: sticky;
-        top: 0;
-        z-index: 6;
-        padding: max(13px, env(safe-area-inset-top)) 14px 13px;
-        gap: 12px;
-    }
-
-    .session-type-config-modal-icon {
-        width: 36px;
-        height: 36px;
-        border-radius: 11px;
-    }
-
-    .session-type-config-modal-heading {
-        gap: 10px;
-    }
-
-    .session-type-config-modal-heading h2 {
-        font-size: 1.08rem;
-    }
-
-    .session-type-config-modal-close,
-    button.session-type-config-modal-close {
-        width: 36px;
-        height: 36px;
-        min-width: 36px;
-    }
 
     .session-type-config-unified {
         gap: 10px;
@@ -6818,14 +4540,6 @@ button.session-type-color-swatch span {
 
     .session-type-config-duration-grid {
         gap: 12px;
-    }
-
-    .session-type-config-modal input,
-    .session-type-config-modal select,
-    .session-type-config-modal textarea,
-    .session-type-config-modal .guest-booking-select-trigger {
-        min-height: 44px;
-        border-radius: 10px;
     }
 
     .session-type-config-unified-card-header {
@@ -6918,16 +4632,6 @@ button.session-type-color-swatch span {
         font-size: 11.5px;
     }
 
-    .session-type-config-modal-footer.booking-side-panel-footer {
-        min-height: 66px;
-        padding: 9px 10px max(9px, env(safe-area-inset-bottom));
-    }
-
-    .session-type-config-modal-footer .gapp-primary-button {
-        width: 100%;
-        min-height: 46px;
-        border-radius: 11px;
-    }
 }
 
 @media (max-width: 430px) {
@@ -6956,9 +4660,6 @@ button.session-type-color-swatch span {
 }
 
 /* The modal no longer has a Back button, so keep the single primary action right-aligned. */
-.linked-entity-modal-footer {
-    justify-content: flex-end !important;
-}
 
 /* Local price editing for billing services linked to a calendar service. */
 .linked-entity-option--service-picker {

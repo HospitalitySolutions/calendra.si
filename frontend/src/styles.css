@@ -16,3 +16,7 @@
 
 /* Shared desktop dropdown/select visual standard. Keep last so it can normalize page-local select rules. */
 @import './styles/components/desktop-select.css';
+
+/* Standardized side panel / dialog system (cp- namespace).
+   Loaded last so panel styling wins over the page-local rules it replaces. */
+@import './styles/panel.css';

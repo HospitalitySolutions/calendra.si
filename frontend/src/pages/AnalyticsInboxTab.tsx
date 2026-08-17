@@ -6,10 +6,12 @@ import { api } from '../api'
 import { getStoredUser } from '../auth'
 import { useToast } from '../components/Toast'
 import { EmptyState, Pill } from '../components/ui'
+import { PanelBody, PanelButton, PanelEmpty, PanelFooter, PanelHeader, SidePanel, useConfirm } from '../components/panel'
 import { RichTextEditor } from '../components/RichTextEditor'
 import { ModernTimePicker } from '../components/ModernTimePicker'
 import type { Client, ClientGroup, ClientMessage, InboxChannel, InboxStatus, InboxThread } from '../lib/types'
 import { formatDateTime } from '../lib/format'
+import { INBOX_DRAWERS, useDrawerRoute } from '../lib/drawerRoutes'
 import { useLocale } from '../locale'
 import { clientOptionsQueryOptions, settingsQueryOptions, usersQueryOptions } from '../queries/sharedQueryOptions'
 import { queryKeys } from '../queries/queryKeys'
@@ -512,6 +514,10 @@ export function AnalyticsInboxTab() {
   const queryClient = useQueryClient()
   const { showToast } = useToast()
   const { locale } = useLocale()
+  const confirm = useConfirm()
+  const { match: drawerMatch, isOpen: isDrawerOpen, open: openDrawer, close: closeDrawer } = useDrawerRoute()
+  const inboxPageDrawers = drawerMatch == null || drawerMatch.descriptor.page === '/inbox'
+  const scheduledOpen = inboxPageDrawers && isDrawerOpen(INBOX_DRAWERS.scheduled)
   const copy = locale === 'sl' ? {
     clientLabel: 'Stranka',
     ready: 'Pripravljeno',
@@ -618,6 +624,7 @@ export function AnalyticsInboxTab() {
     submitSchedule: 'Načrtuj',
     closeSchedule: 'Zapri',
     removeScheduled: 'Odstrani',
+    confirmRemoveScheduled: 'Odstranim to načrtovano sporočilo?',
     scheduledForLabel: 'Pošlje se',
     scheduleCountLabel: (count: number) => `${count} ${count === 1 ? 'načrtovano sporočilo' : count === 2 ? 'načrtovani sporočili' : count >= 3 && count <= 4 ? 'načrtovana sporočila' : 'načrtovanih sporočil'}`,
   } : {
@@ -726,11 +733,15 @@ export function AnalyticsInboxTab() {
     submitSchedule: 'Schedule',
     closeSchedule: 'Close',
     removeScheduled: 'Remove',
+    confirmRemoveScheduled: 'Remove this scheduled message?',
     scheduledForLabel: 'Sends',
     scheduleCountLabel: (count: number) => `${count} scheduled message${count === 1 ? '' : 's'}`,
   }
   const [search, setSearch] = useState('')
-  const [clientIdFilter, setClientIdFilter] = useState('')
+  const [clientIdFilter, setClientIdFilter] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    return new URLSearchParams(window.location.search).get('clientId') || ''
+  })
   const [channelFilter, setChannelFilter] = useState<'' | InboxChannel>('')
   const [statusFilter, setStatusFilter] = useState<'' | InboxStatus>('')
   const [from, setFrom] = useState('')
@@ -769,7 +780,6 @@ export function AnalyticsInboxTab() {
   const [threadPage, setThreadPage] = useState(1)
   const [savingStar, setSavingStar] = useState(false)
   const [savingStatus, setSavingStatus] = useState(false)
-  const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
   const [, setScheduleView] = useState<ScheduleView>('list')
   const [scheduleDraftClientId, setScheduleDraftClientId] = useState<number | null>(null)
   const [scheduleDraftChannel, setScheduleDraftChannel] = useState<InboxChannel>('EMAIL')
@@ -1388,12 +1398,12 @@ export function AnalyticsInboxTab() {
 
   const openScheduleModal = () => {
     setScheduleView('list')
-    setScheduleModalOpen(true)
+    openDrawer(INBOX_DRAWERS.scheduled)
   }
 
   const closeScheduleModal = () => {
-    setScheduleModalOpen(false)
     setScheduleView('list')
+    closeDrawer()
   }
 
 
@@ -1489,6 +1499,7 @@ export function AnalyticsInboxTab() {
   }
 
   const removeScheduledItem = async (id: number) => {
+    if (!(await confirm({ title: copy.confirmRemoveScheduled, tone: 'danger' }))) return
     try {
       await api.delete(`/inbox/scheduled/${id}`)
       await queryClient.invalidateQueries({ queryKey: ['inbox-scheduled'] })
@@ -2055,13 +2066,19 @@ export function AnalyticsInboxTab() {
             </button>
 
             {mobileNewMenuOpen ? (
-              <div className="analytics-inbox-mobile-sheet-backdrop" onClick={() => setMobileNewMenuOpen(false)}>
-                <div className="analytics-inbox-mobile-new-sheet" role="dialog" aria-modal="true" aria-label={mobileCopy.newMessage} onClick={(event) => event.stopPropagation()}>
-                  <span className="analytics-inbox-mobile-sheet-handle" aria-hidden />
-                  <div className="analytics-inbox-mobile-sheet-heading">
-                    <div><h2>{mobileCopy.newMessage}</h2><p>{mobileCopy.chooseChannel}</p></div>
-                    <button type="button" onClick={() => setMobileNewMenuOpen(false)} aria-label={mobileCopy.closeFilters}><InboxMobileIcon name="close" size={20} /></button>
-                  </div>
+              <SidePanel
+                open
+                onClose={() => setMobileNewMenuOpen(false)}
+                ariaLabel={mobileCopy.newMessage}
+                size="sm"
+              >
+                <PanelHeader
+                  title={mobileCopy.newMessage}
+                  subtitle={mobileCopy.chooseChannel}
+                  onClose={() => setMobileNewMenuOpen(false)}
+                  closeLabel={mobileCopy.closeFilters}
+                />
+                <PanelBody>
                   <div className="analytics-inbox-mobile-channel-options">
                     {([
                       { channel: 'EMAIL' as InboxChannel, description: mobileCopy.emailDescription },
@@ -2081,8 +2098,8 @@ export function AnalyticsInboxTab() {
                       )
                     })}
                   </div>
-                </div>
-              </div>
+                </PanelBody>
+              </SidePanel>
             ) : null}
           </>
         ) : (
@@ -2680,37 +2697,43 @@ export function AnalyticsInboxTab() {
         </aside>
       </section>
 
-      {scheduleModalOpen && (
-        <div className="modal-backdrop" onClick={closeScheduleModal} role="dialog" aria-modal="true">
-          <div className="modal large-modal analytics-inbox-schedule-modal analytics-inbox-b-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="analytics-inbox-schedule-modal__header">
-              <div>
-                <strong>{copy.scheduleModalTitle}</strong>
-                <p className="muted">{copy.scheduleCountLabel(scheduledItems.length)} · {copy.scheduleModalSubtitle}</p>
+      <SidePanel
+        open={scheduledOpen}
+        onClose={closeScheduleModal}
+        ariaLabel={copy.scheduleModalTitle}
+        size="lg"
+      >
+        <PanelHeader
+          title={copy.scheduleModalTitle}
+          subtitle={`${copy.scheduleCountLabel(scheduledItems.length)} · ${copy.scheduleModalSubtitle}`}
+          onClose={closeScheduleModal}
+          closeLabel={copy.closeSchedule}
+        />
+        <PanelBody>
+          {scheduledItems.length === 0 ? (
+            <PanelEmpty>
+              <EmptyState title={copy.noScheduledMessages} text={copy.noScheduledMessagesText} />
+            </PanelEmpty>
+          ) : scheduledItems.map((item) => (
+            <div key={item.id} className="analytics-inbox-schedule-modal__row">
+              <div className="analytics-inbox-schedule-modal__row-meta">
+                <strong>{scheduledClientName(item)}</strong>
+                <Pill tone={channelTone(item.channel)}>{channelLabel(item.channel)}</Pill>
+                <Pill tone="default">{recurrenceLabel(item.recurrence)}</Pill>
+                <span className="muted">{copy.scheduledForLabel} {formatDateTime(item.scheduledFor)}</span>
               </div>
-              <button type="button" onClick={closeScheduleModal}>×</button>
+              {item.subject ? <div className="analytics-inbox-schedule-modal__row-subject">{item.subject}</div> : null}
+              <div className="analytics-inbox-schedule-modal__row-body">{scheduledBodyPreview(item.body)}</div>
+              <div className="analytics-inbox-schedule-modal__row-actions">
+                <button type="button" className="secondary" onClick={() => void removeScheduledItem(item.id)}>{copy.removeScheduled}</button>
+              </div>
             </div>
-            <div className="analytics-inbox-schedule-modal__list">
-              {scheduledItems.length === 0 ? (
-                <EmptyState title={copy.noScheduledMessages} text={copy.noScheduledMessagesText} />
-              ) : scheduledItems.map((item) => (
-                <div key={item.id} className="analytics-inbox-schedule-modal__row">
-                  <div className="analytics-inbox-schedule-modal__row-meta">
-                    <strong>{scheduledClientName(item)}</strong>
-                    <Pill tone={channelTone(item.channel)}>{channelLabel(item.channel)}</Pill>
-                    <Pill tone="default">{recurrenceLabel(item.recurrence)}</Pill>
-                    <span className="muted">{copy.scheduledForLabel} {formatDateTime(item.scheduledFor)}</span>
-                  </div>
-                  {item.subject ? <div className="analytics-inbox-schedule-modal__row-subject">{item.subject}</div> : null}
-                  <div className="analytics-inbox-schedule-modal__row-body">{scheduledBodyPreview(item.body)}</div>
-                  <div className="analytics-inbox-schedule-modal__row-actions"><button type="button" className="secondary" onClick={() => removeScheduledItem(item.id)}>{copy.removeScheduled}</button></div>
-                </div>
-              ))}
-            </div>
-            <div className="form-actions"><button type="button" className="secondary" onClick={closeScheduleModal}>{copy.closeSchedule}</button></div>
-          </div>
-        </div>
-      )}
+          ))}
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={closeScheduleModal}>{copy.closeSchedule}</PanelButton>
+        </PanelFooter>
+      </SidePanel>
 
       {clientDetailModalId != null && (
         <Suspense fallback={null}>

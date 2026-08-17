@@ -7,7 +7,16 @@ import type {
   SessionType,
   WorkspaceServiceTemplate,
 } from '../lib/types'
-import './WorkspaceServiceManager.css'
+import {
+  PanelBody,
+  PanelButton,
+  PanelFooter,
+  PanelHeader,
+  PanelSection,
+  PanelSectionIcon,
+  PanelTabs,
+  SidePanel,
+} from './panel'
 
 type UnitOption = { id: number; name: string; current: boolean }
 type CopyHistoryItem = {
@@ -250,21 +259,29 @@ export function WorkspaceServiceManager({
   }
 
   return (
-    <div className="workspace-services-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="workspace-services-modal" role="dialog" aria-modal="true" aria-label={sl ? 'Skupne storitve' : 'Workspace services'}>
-        <header className="workspace-services-header">
-          <div>
-            <h2>{sl ? 'Skupne storitve in kopiranje nastavitev' : 'Workspace services and configuration copy'}</h2>
-            <p>{sl ? 'Povežite enake storitve med enotami brez združevanja lokalnih cen in pravil.' : 'Link equivalent services across units without merging local pricing and rules.'}</p>
-          </div>
-          <button type="button" className="workspace-services-close" onClick={onClose} aria-label={sl ? 'Zapri' : 'Close'}>×</button>
-        </header>
-
-        <div className="workspace-services-tabs">
-          <button type="button" className={tab === 'catalog' ? 'active' : ''} onClick={() => setTab('catalog')}>{sl ? 'Skupni katalog' : 'Workspace catalog'}</button>
-          <button type="button" className={tab === 'copy' ? 'active' : ''} onClick={() => setTab('copy')}>{sl ? 'Kopiraj nastavitve' : 'Copy configuration'}</button>
-        </div>
-
+    <>
+      <SidePanel
+        open
+        onClose={onClose}
+        ariaLabel={sl ? 'Skupne storitve' : 'Workspace services'}
+        size="xl"
+      >
+        <PanelHeader
+          title={sl ? 'Skupne storitve in kopiranje nastavitev' : 'Workspace services and configuration copy'}
+          subtitle={sl ? 'Povežite enake storitve med enotami brez združevanja lokalnih cen in pravil.' : 'Link equivalent services across units without merging local pricing and rules.'}
+          onClose={onClose}
+          closeLabel={sl ? 'Zapri' : 'Close'}
+        />
+        <PanelTabs
+          label={sl ? 'Skupne storitve' : 'Workspace services'}
+          activeId={tab}
+          onSelect={(id) => setTab(id as 'catalog' | 'copy')}
+          tabs={[
+            { id: 'catalog', label: sl ? 'Skupni katalog' : 'Workspace catalog' },
+            { id: 'copy', label: sl ? 'Kopiraj nastavitve' : 'Copy configuration' },
+          ]}
+        />
+        <PanelBody>
         {error && <div className="workspace-services-error">{error}</div>}
         {loading && <div className="workspace-services-loading">{sl ? 'Obdelava ...' : 'Working ...'}</div>}
 
@@ -402,10 +419,27 @@ export function WorkspaceServiceManager({
           </div>
         )}
 
-        {draft && (
-          <div className="workspace-services-submodal">
-            <div className="workspace-services-submodal-card">
-              <h3>{draft.id ? (sl ? 'Uredi skupno storitev' : 'Edit workspace service') : (sl ? 'Nova skupna storitev' : 'New workspace service')}</h3>
+        </PanelBody>
+      </SidePanel>
+
+      <SidePanel
+        open={Boolean(draft)}
+        onClose={() => setDraft(null)}
+        ariaLabel={draft?.id ? (sl ? 'Uredi skupno storitev' : 'Edit workspace service') : (sl ? 'Nova skupna storitev' : 'New workspace service')}
+        size="md"
+      >
+        <PanelHeader
+          title={draft?.id ? (sl ? 'Uredi skupno storitev' : 'Edit workspace service') : (sl ? 'Nova skupna storitev' : 'New workspace service')}
+          onClose={() => setDraft(null)}
+          closeLabel={sl ? 'Zapri' : 'Close'}
+        />
+        {draft ? (
+          <PanelBody sectioned>
+            <PanelSection
+              title={sl ? 'Podatki' : 'Details'}
+              icon={<PanelSectionIcon name="service" />}
+              collapsible={false}
+            >
               <label>{sl ? 'Ime' : 'Name'}<input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
               <label>{sl ? 'Opis' : 'Description'}<textarea value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
               <div className="workspace-copy-grid">
@@ -415,27 +449,42 @@ export function WorkspaceServiceManager({
               <label>{sl ? 'Ikona (neobvezno)' : 'Icon (optional)'}<input value={draft.icon} onChange={(e) => setDraft({ ...draft, icon: e.target.value })} placeholder={sl ? 'npr. scissors' : 'e.g. scissors'} /></label>
               <label>{sl ? 'Navodila za rezervacijo' : 'Booking instructions'}<textarea value={draft.bookingInstructions} onChange={(e) => setDraft({ ...draft, bookingInstructions: e.target.value })} /></label>
               <label className="workspace-copy-overwrite"><input type="checkbox" checked={draft.active} onChange={(e) => setDraft({ ...draft, active: e.target.checked })} /><span>{sl ? 'Aktivna' : 'Active'}</span></label>
-              <div className="workspace-copy-actions"><button type="button" onClick={() => setDraft(null)}>{sl ? 'Prekliči' : 'Cancel'}</button><button type="button" className="primary" onClick={saveTemplate}>{sl ? 'Shrani' : 'Save'}</button></div>
-            </div>
-          </div>
-        )}
+            </PanelSection>
+          </PanelBody>
+        ) : null}
+        <PanelFooter>
+          <PanelButton onClick={() => setDraft(null)}>{sl ? 'Prekliči' : 'Cancel'}</PanelButton>
+          <PanelButton variant="primary" onClick={() => void saveTemplate()}>{sl ? 'Shrani' : 'Save'}</PanelButton>
+        </PanelFooter>
+      </SidePanel>
 
-        {linkTemplateId != null && (
-          <div className="workspace-services-submodal">
-            <div className="workspace-services-submodal-card">
-              <h3>{sl ? 'Poveži storitev trenutne enote' : 'Link current-unit service'}</h3>
-              <label>{sl ? 'Lokalna storitev' : 'Unit service'}
-                <DesktopSelect value={linkSessionTypeId} onChange={(e) => setLinkSessionTypeId(e.target.value)}>
-                  <option value="">—</option>
-                  {linkableTypes.map((type) => <option key={type.id} value={type.id}>{type.description || type.name}</option>)}
-                </DesktopSelect>
-              </label>
-              <label className="workspace-copy-overwrite"><input type="checkbox" checked={applyDefaults} onChange={(e) => setApplyDefaults(e.target.checked)} /><span>{sl ? 'Uporabi skupno ime, trajanje in barvo' : 'Apply shared name, duration and color'}</span></label>
-              <div className="workspace-copy-actions"><button type="button" onClick={() => setLinkTemplateId(null)}>{sl ? 'Prekliči' : 'Cancel'}</button><button type="button" className="primary" onClick={linkOffering}>{sl ? 'Poveži' : 'Link'}</button></div>
-            </div>
-          </div>
-        )}
-      </section>
-    </div>
+      <SidePanel
+        open={linkTemplateId != null}
+        onClose={() => setLinkTemplateId(null)}
+        ariaLabel={sl ? 'Poveži storitev trenutne enote' : 'Link current-unit service'}
+        size="sm"
+      >
+        <PanelHeader
+          title={sl ? 'Poveži storitev trenutne enote' : 'Link current-unit service'}
+          onClose={() => setLinkTemplateId(null)}
+          closeLabel={sl ? 'Zapri' : 'Close'}
+        />
+        <PanelBody sectioned>
+          <PanelSection title={sl ? 'Povezava' : 'Link'} icon={<PanelSectionIcon name="service" />} collapsible={false}>
+            <label>{sl ? 'Lokalna storitev' : 'Unit service'}
+              <DesktopSelect value={linkSessionTypeId} onChange={(e) => setLinkSessionTypeId(e.target.value)}>
+                <option value="">—</option>
+                {linkableTypes.map((type) => <option key={type.id} value={type.id}>{type.description || type.name}</option>)}
+              </DesktopSelect>
+            </label>
+            <label className="workspace-copy-overwrite"><input type="checkbox" checked={applyDefaults} onChange={(e) => setApplyDefaults(e.target.checked)} /><span>{sl ? 'Uporabi skupno ime, trajanje in barvo' : 'Apply shared name, duration and color'}</span></label>
+          </PanelSection>
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={() => setLinkTemplateId(null)}>{sl ? 'Prekliči' : 'Cancel'}</PanelButton>
+          <PanelButton variant="primary" onClick={() => void linkOffering()}>{sl ? 'Poveži' : 'Link'}</PanelButton>
+        </PanelFooter>
+      </SidePanel>
+    </>
   )
 }

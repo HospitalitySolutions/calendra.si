@@ -21,6 +21,7 @@ import { PublicWaitlistOfferPage } from './pages/PublicWaitlistOfferPage'
 import { ReceivedInvoiceDownloadPage, ReceivedInvoicesRedirectPage } from './pages/ReceivedInvoiceDownloadPage'
 import { Shell } from './components/Shell'
 import { useLocale } from './locale'
+import { useConfirm } from './components/panel'
 import { getDefaultAllowedRoute } from './lib/packageAccess'
 import { hasAnyEmployeePermission, hasEmployeePermission } from './lib/employeePermissions'
 import { storeAuthenticatedSession } from './lib/session'
@@ -126,6 +127,7 @@ export default function App() {
   const navigate = useNavigate()
   const { showToast, clearToasts } = useToast()
   const { locale } = useLocale()
+  const confirm = useConfirm()
   const copy = locale === 'sl' ? {
     googleSignInFailed: 'Google prijava ni uspela: ',
     zoomConnected: 'Zoom je uspešno povezan. Zdaj lahko ustvarjate spletne termine.',
@@ -347,7 +349,7 @@ export default function App() {
     if (!user || user.role === 'SUPER_ADMIN') return
     let cancelled = false
     api.get('/settings/sms-quota')
-      .then((res) => {
+      .then(async (res) => {
         if (cancelled) return
         const warning = res.data?.warning === true
         const exhausted = res.data?.exhausted === true
@@ -364,8 +366,11 @@ export default function App() {
               ? `Bližate se mesečni omejitvi SMS sporočil. Preostanek: ${remaining}. Limit lahko povečate v Upravljanje računa → Naročnina.`
               : `You are approaching the monthly SMS limit. Remaining: ${remaining}. You can increase the limit in Account management → Subscription.`)
           showToast('info', message)
-          const shouldOpenSubscription = window.confirm(`${message}\n\n${locale === 'sl' ? 'Želite odpreti Naročnino?' : 'Open Subscription settings?'}`)
-          if (shouldOpenSubscription) {
+          const shouldOpenSubscription = await confirm({
+            title: locale === 'sl' ? 'Želite odpreti Naročnino?' : 'Open Subscription settings?',
+            text: message,
+          })
+          if (!cancelled && shouldOpenSubscription) {
             navigate('/configuration?tab=company&subtab=subscription')
           }
         }
@@ -374,7 +379,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [locale, navigate, showToast, user])
+  }, [confirm, locale, navigate, showToast, user])
 
   useEffect(() => {
     let cancelled = false
@@ -603,35 +608,34 @@ export default function App() {
           <Route path="/sessions" element={<Navigate to={canViewCalendar ? '/calendar' : fallbackRoute} replace />} />
           <Route path="/sessions/booked" element={<Navigate to={canViewCalendar ? '/calendar' : fallbackRoute} replace />} />
           <Route path="/sessions/bookable" element={<Navigate to={canViewCalendar ? '/calendar' : fallbackRoute} replace />} />
-          <Route path="/clients" element={canViewClients ? <ClientsPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/appointments" element={appointmentsAllowed ? <AppointmentsPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/clients/*" element={canViewClients ? <ClientsPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/appointments/*" element={appointmentsAllowed ? <AppointmentsPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route
             path="/scanner"
             element={canScanWalletEntitlements ? <WalletScannerPage /> : <Navigate to={fallbackRoute} replace />}
           />
           <Route
-            path="/consultants"
+            path="/consultants/*"
             element={canViewEmployees ? <ConsultantsPage /> : <Navigate to={fallbackRoute} replace />}
           />
           <Route
             path="/my-profile"
             element={user.role === 'CONSULTANT' ? <ConsultantsPage selfService /> : <Navigate to={fallbackRoute} replace />}
           />
-          <Route path="/billing" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/billing/*" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/open-bills/:openBillId/edit" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/billing/open-bills/:openBillId/edit" element={billingAllowed ? <BillingPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/consumables" element={consumablesAllowed ? <ConsumablesPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/consumables/*" element={consumablesAllowed ? <ConsumablesPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/analytics" element={canViewReports ? <AnalyticsPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/analytics/workspace" element={canViewReports && hasWorkspaceAnalyticsFeature ? <WorkspaceAnalyticsPage /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/inbox" element={inboxAllowed ? <InboxPage inboxModuleEnabled={inboxModuleEnabled} /> : <Navigate to={fallbackRoute} replace />} />
-          <Route path="/configuration" element={canViewConfiguration ? <ConfigurationPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/inbox/*" element={inboxAllowed ? <InboxPage inboxModuleEnabled={inboxModuleEnabled} /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/configuration/*" element={canViewConfiguration ? <ConfigurationPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route
-            path="/session-types"
+            path="/session-types/*"
             element={canViewServices ? <SessionTypesPage /> : <Navigate to={fallbackRoute} replace />}
           />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/help" element={<HelpPage />} />
-          <Route path="/platform-admin" element={isPlatformAdmin ? <PlatformAdminPage /> : <Navigate to={fallbackRoute} replace />} />
+          <Route path="/platform-admin/*" element={isPlatformAdmin ? <PlatformAdminPage /> : <Navigate to={fallbackRoute} replace />} />
           <Route path="/zoom/install" element={<ZoomInstallPage />} />
           <Route
             path="/security"

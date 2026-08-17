@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { api, getApiErrorMessage } from '../api'
 import { useLocale } from '../locale'
+import { PanelBody, PanelHeader, SidePanel } from './panel'
 import { useToast } from './Toast'
 
 type MyReferralLink = {
@@ -125,19 +125,6 @@ export function ReferAFriendModal({ onClose }: ReferAFriendModalProps) {
     }
   }, [t])
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [onClose])
-
   const shareUrl = useMemo(() => {
     if (!data) return ''
     if (typeof window !== 'undefined' && data.code) {
@@ -208,30 +195,15 @@ export function ReferAFriendModal({ onClose }: ReferAFriendModalProps) {
 
   const shareDisabled = loading || Boolean(error) || !shareUrl
 
-  return createPortal(
-    <div className="referral-modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <section
-        className="referral-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="referral-modal-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="referral-modal-header">
-          <div className="referral-modal-heading">
-            <ReferralHeaderIcon />
-            <div>
-              <h2 id="referral-modal-title">{t('referTitle')}</h2>
-              <p>{t('referModalSubtitle')}</p>
-            </div>
-          </div>
-          <button type="button" className="referral-modal-close" onClick={onClose} aria-label={t('referClose')}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
+  return (
+    <SidePanel open onClose={onClose} placement="center" size="md" ariaLabel={t('referTitle')}>
+      <PanelHeader
+        title={<span className="referral-modal-heading"><ReferralHeaderIcon />{t('referTitle')}</span>}
+        subtitle={t('referModalSubtitle')}
+        onClose={onClose}
+        closeLabel={t('referClose')}
+      />
+      <PanelBody>
         <div className="referral-modal-section">
           <label className="referral-modal-section-title" htmlFor="referral-modal-link">
             {t('referCopyLink')}
@@ -290,8 +262,7 @@ export function ReferAFriendModal({ onClose }: ReferAFriendModalProps) {
           </span>
           <p>{t('referHowItWorks')}</p>
         </div>
-      </section>
-    </div>,
-    document.body,
+      </PanelBody>
+    </SidePanel>
   )
 }

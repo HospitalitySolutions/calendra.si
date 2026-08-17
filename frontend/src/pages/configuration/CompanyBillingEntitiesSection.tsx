@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../api";
 import { useAuthenticatedUser } from "../../authUserContext";
 import { useToast } from "../../components/Toast";
+import { useConfirm } from "../../components/panel";
 
 type LegalEntity = {
   id: number;
@@ -136,6 +137,7 @@ export function CompanyBillingEntitiesSection({
 }: CompanyBillingEntitiesSectionProps) {
   const sl = locale === "sl";
   const { showToast } = useToast();
+  const confirm = useConfirm();
   const me = useAuthenticatedUser();
   const currentUnitId = me.activeUnitId ?? me.companyId ?? null;
   const [companies, setCompanies] = useState<LegalEntity[]>([]);
@@ -299,11 +301,13 @@ export function CompanyBillingEntitiesSection({
   };
 
   const deleteCompany = async (company: LegalEntity) => {
-    const confirmed = window.confirm(
-      sl
-        ? `Ali želite izbrisati podjetje »${company.name}«? Podjetja, povezanega z lokacijo ali računom, ni mogoče izbrisati.`
-        : `Delete “${company.name}”? A company linked to a location or invoice cannot be deleted.`,
-    );
+    const confirmed = await confirm({
+      title: sl ? `Ali želite izbrisati podjetje »${company.name}«?` : `Delete “${company.name}”?`,
+      text: sl
+        ? "Podjetja, povezanega z lokacijo ali računom, ni mogoče izbrisati."
+        : "A company linked to a location or invoice cannot be deleted.",
+      tone: "danger",
+    });
     if (!confirmed) return;
     setBusy(true);
     try {

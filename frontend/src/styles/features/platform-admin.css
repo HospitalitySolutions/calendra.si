@@ -139,39 +139,6 @@
   color: var(--color-primary);
 }
 
-.platform-admin-manual-tenant-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  display: grid;
-  place-items: start center;
-  overflow: auto;
-  padding: 28px 18px;
-  background: rgba(15, 23, 42, .42);
-}
-
-.platform-admin-manual-tenant-modal {
-  width: min(980px, 100%);
-  background: var(--color-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
-  display: grid;
-  gap: 18px;
-  padding: 24px;
-}
-
-.platform-admin-manual-tenant-header,
-.platform-admin-manual-actions {
-  align-items: flex-start;
-  display: flex;
-  gap: 14px;
-  justify-content: space-between;
-}
-
-.platform-admin-manual-tenant-title { display: grid; gap: 8px; }
-.platform-admin-manual-tenant-title h2 { margin: 0; font-size: 1.7rem; letter-spacing: -.045em; }
-.platform-admin-manual-tenant-title p { margin: 0; color: var(--color-text-muted); font-weight: 750; line-height: 1.5; }
 .platform-admin-manual-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .platform-admin-manual-section { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--color-surface) 92%, var(--color-bg)); }
 .platform-admin-manual-section h3 { margin: 0; font-size: 1.08rem; letter-spacing: -.03em; }
@@ -216,7 +183,7 @@
     .platform-admin-audit-log-wrap{overflow-x:auto;border-radius:18px;border:1px solid #e6edf9;background:rgba(255,255,255,.65)}.platform-admin-audit-log-table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:520px}.platform-admin-audit-log-table th{text-align:left;font-weight:950;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:12px 14px;border-bottom:1px solid #e6edf9;background:rgba(247,250,255,.9)}.platform-admin-audit-log-table td{padding:12px 14px;border-bottom:1px solid #eef3fb;vertical-align:top;word-break:break-word}.platform-admin-audit-log-table tr:last-child td{border-bottom:0}.platform-admin-audit-log-cat{display:inline-block;padding:4px 10px;border-radius:999px;font-size:.78rem;font-weight:950;text-transform:uppercase;letter-spacing:.04em}.platform-admin-audit-log-cat--setting{background:var(--primary-soft);color:var(--primary)}.platform-admin-audit-log-cat--bill{background:var(--success-soft);color:var(--success-text)}.platform-admin-audit-log-cat--suspend{background:var(--danger-soft);color:var(--danger-text)}.platform-admin-audit-detail-cell{color:var(--muted);font-weight:700;font-size:.84rem;line-height:1.45;max-width:40rem}.platform-admin-audit-actor-cell{font-size:.84rem;font-weight:800;color:#40506c;word-break:break-all;max-width:14rem}
     .platform-admin-plan-history-wrap{overflow-x:auto;border-radius:18px;border:1px solid #e6edf9;background:rgba(255,255,255,.65)}.platform-admin-plan-history-table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:680px}.platform-admin-plan-history-table th{text-align:left;font-weight:950;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:12px 14px;border-bottom:1px solid #e6edf9;background:rgba(247,250,255,.9)}.platform-admin-plan-history-table td{padding:12px 14px;border-bottom:1px solid #eef3fb;vertical-align:top}.platform-admin-plan-history-table tr:last-child td{border-bottom:0}.platform-admin-plan-status-pill{display:inline-flex;padding:4px 10px;border-radius:999px;font-size:.78rem;font-weight:950}.platform-admin-plan-status-pill--applied{background:var(--success-soft);color:var(--success-text)}.platform-admin-plan-status-pill--scheduled{background:var(--warning-soft);color:var(--warning-text)}
     .platform-admin-monitoring-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.platform-admin-monitoring-card{padding:16px;border-radius:20px;border:1px solid #e6edf9;background:rgba(255,255,255,.9);display:grid;gap:8px}.platform-admin-monitoring-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.platform-admin-monitoring-card strong{font-size:1rem;letter-spacing:-.03em}.platform-admin-monitoring-card .platform-admin-value{font-size:1.45rem;font-weight:950;letter-spacing:-.04em}.platform-admin-monitoring-detail{color:var(--muted);font-weight:750;font-size:.88rem;line-height:1.45}.platform-admin-monitoring-note{padding:14px;border-radius:18px;background:rgba(255,244,215,.65);border:1px solid #f2dda0;color:var(--warning-text);font-weight:800;line-height:1.45}.platform-admin-monitoring-jobs-wrap{overflow:auto;border:1px solid #e6edf9;border-radius:18px;background:#fff}.platform-admin-monitoring-jobs-table{width:100%;border-collapse:collapse;min-width:980px}.platform-admin-monitoring-jobs-table th{font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;text-align:left;color:var(--muted);padding:12px 14px;border-bottom:1px solid #e6edf9;background:rgba(247,250,255,.9)}.platform-admin-monitoring-jobs-table td{padding:12px 14px;border-bottom:1px solid #eef3fb;vertical-align:top}.platform-admin-monitoring-jobs-table tr:last-child td{border-bottom:0}.platform-admin-monitoring-job-name{display:grid;gap:3px}.platform-admin-monitoring-job-name strong{font-size:.95rem;letter-spacing:-.02em}.platform-admin-monitoring-job-name span{font-size:.78rem;color:var(--muted);font-weight:800}.platform-admin-monitoring-job-summary{display:grid;gap:5px}.platform-admin-monitoring-job-summary span{font-size:.84rem;color:var(--muted);font-weight:750;line-height:1.4}.platform-admin-monitoring-job-small{font-size:.84rem;color:var(--muted);font-weight:800;line-height:1.4}
-    .platform-admin-modal-backdrop{position:fixed;inset:0;background:rgba(23,37,61,.38);display:none;place-items:center;padding:20px;z-index:10}.platform-admin-modal-backdrop.platform-admin-visible{display:grid}.platform-admin-modal{max-width:560px;width:100%;border-radius:26px;background:#fff;border:1px solid #dfe7f5;box-shadow:0 28px 80px rgba(23,37,61,.28);padding:22px;display:grid;gap:16px}.platform-admin-modal h3{margin:0;font-size:1.55rem;letter-spacing:-.045em}.platform-admin-modal p{margin:0;color:var(--muted);line-height:1.5}.platform-admin-modal-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}.platform-admin-select-row{display:grid;gap:8px}.platform-admin-select-row label{font-weight:900;color:#2a3a56}.platform-admin-select-row select,.platform-admin-select-row textarea,.platform-admin-select-row input[type=number],.platform-admin-select-row input[type=text]{width:100%;border:1px solid var(--border);border-radius:15px;background:#fff;color:var(--text);padding:12px 14px;font:inherit;outline:none}.platform-admin-select-row textarea{min-height:90px;resize:vertical}.platform-admin-plan-change-extras{display:grid;gap:8px;padding:12px;border-radius:14px;border:1px solid #dce7fb;background:rgba(237,244,255,.6)}.platform-admin-price-override-extras{display:grid;gap:14px}.platform-admin-price-override-panel{display:grid;gap:10px}.platform-admin-price-current-pill{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;background:var(--primary-soft);border:1px solid #cddcff;font-weight:850;font-size:.92rem;color:var(--text)}.platform-admin-price-current-pill strong{font-weight:950}.platform-admin-checkbox-row{display:flex;align-items:flex-start;gap:10px;font-weight:800;font-size:.9rem;color:#40506c;line-height:1.35}.platform-admin-checkbox-row input[type=checkbox]{width:18px;height:18px;margin-top:2px;accent-color:var(--primary)}.platform-admin-price-preview{font-size:.88rem;font-weight:800;color:var(--muted)}
+    .platform-admin-select-row{display:grid;gap:8px}.platform-admin-select-row label{font-weight:900;color:#2a3a56}.platform-admin-select-row select,.platform-admin-select-row textarea,.platform-admin-select-row input[type=number],.platform-admin-select-row input[type=text]{width:100%;border:1px solid var(--border);border-radius:15px;background:#fff;color:var(--text);padding:12px 14px;font:inherit;outline:none}.platform-admin-select-row textarea{min-height:90px;resize:vertical}.platform-admin-plan-change-extras{display:grid;gap:8px;padding:12px;border-radius:14px;border:1px solid #dce7fb;background:rgba(237,244,255,.6)}.platform-admin-price-override-extras{display:grid;gap:14px}.platform-admin-price-override-panel{display:grid;gap:10px}.platform-admin-price-current-pill{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;background:var(--primary-soft);border:1px solid #cddcff;font-weight:850;font-size:.92rem;color:var(--text)}.platform-admin-price-current-pill strong{font-weight:950}.platform-admin-checkbox-row{display:flex;align-items:flex-start;gap:10px;font-weight:800;font-size:.9rem;color:#40506c;line-height:1.35}.platform-admin-checkbox-row input[type=checkbox]{width:18px;height:18px;margin-top:2px;accent-color:var(--primary)}.platform-admin-price-preview{font-size:.88rem;font-weight:800;color:var(--muted)}
     @media(max-width:1180px){.platform-admin-admin-workspace{flex-direction:column}.platform-admin-admin-sidebar{width:100%;flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid rgba(223,231,245,.85);padding:12px 10px 14px}.platform-admin-admin-sidebar-title{width:100%}.platform-admin-hero{grid-template-columns:1fr}.platform-admin-tenant-card{position:static}.platform-admin-kpi-row{grid-template-columns:repeat(2,minmax(0,1fr))}.platform-admin-field-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width: 1024px){.platform-admin-topbar{padding-left:16px;padding-right:16px}.platform-admin-admin-main{padding-left:16px;padding-right:16px;padding-top:16px}.platform-admin-page-head{display:grid}.platform-admin-search-input{min-width:0;width:100%}.platform-admin-kpi-row,.platform-admin-field-grid,.platform-admin-status-grid{grid-template-columns:1fr}.platform-admin-panel{border-radius:24px}}
 .platform-admin-email-sender-grid{
@@ -342,10 +309,6 @@
 .platform-admin-follow-up-button {
   border-color: color-mix(in srgb, var(--color-primary) 30%, var(--border)) !important;
   color: var(--color-primary) !important;
-}
-
-.platform-admin-follow-up-modal {
-  width: min(590px, 100%);
 }
 
 .platform-admin-follow-up-summary {

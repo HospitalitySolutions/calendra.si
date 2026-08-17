@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ToastProvider } from './components/Toast'
+import { ConfirmProvider } from './components/panel'
 import { LocaleProvider } from './locale'
 import App from './App'
 import { initTheme } from './theme'
@@ -33,7 +34,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <BrowserRouter>
         <LocaleProvider>
           <ToastProvider>
-            <App />
+            <ConfirmProvider>
+              <App />
+            </ConfirmProvider>
           </ToastProvider>
         </LocaleProvider>
       </BrowserRouter>

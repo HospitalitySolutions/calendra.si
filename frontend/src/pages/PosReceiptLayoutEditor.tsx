@@ -2,6 +2,7 @@ import { DesktopSelect } from '../components/DesktopSelect'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api } from '../api'
 import { useLocale } from '../locale'
+import { useConfirm } from '../components/panel'
 import '../styles/pos-receipt-layout-editor.css'
 
 type PosReceiptFontSize = 'COMPACT' | 'STANDARD' | 'LARGE'
@@ -140,6 +141,7 @@ function ReceiptToggle({ checked, onChange, label, hint }: { checked: boolean; o
 
 export function PosReceiptLayoutEditor({ hidePreview = false, onSaved }: { hidePreview?: boolean; onSaved?: () => void } = {}) {
   const { locale } = useLocale()
+  const confirm = useConfirm()
   const [layout, setLayout] = useState<PosReceiptLayout>(DEFAULT_LAYOUT)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -272,7 +274,8 @@ export function PosReceiptLayoutEditor({ hidePreview = false, onSaved }: { hideP
   }
 
   const reset = async () => {
-    if (!window.confirm(locale === 'sl' ? 'Ponastavim postavitev POS računa?' : locale === 'sr' ? 'Vratiti podrazumevani izgled POS računa?' : 'Reset the POS receipt layout?')) return
+    const title = locale === 'sl' ? 'Ponastavim postavitev POS računa?' : locale === 'sr' ? 'Vratiti podrazumevani izgled POS računa?' : 'Reset the POS receipt layout?'
+    if (!(await confirm({ title, tone: 'danger' }))) return
     setSaving(true)
     try {
       const { data } = await api.delete('/billing/folio-layout-pos58')

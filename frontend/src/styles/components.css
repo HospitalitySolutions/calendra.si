@@ -629,60 +629,20 @@ tr:hover td { background: rgba(22, 114, 243, 0.03); }
     white-space: nowrap;
 }
 
-/* --- Language modal --- */
+/* --- Language modal (rows come from cp-row) --- */
 .language-modal-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    margin-top: 4px;
-}
-
-.language-modal-option {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    padding: 12px 14px;
-    text-align: left;
-    border: 1px solid var(--color-border, #e2e8f0);
-    border-radius: var(--radius-md);
-    background: var(--color-surface);
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
-}
-
-.language-modal-option:hover {
-    background: #f8fafc;
-}
-
-.language-modal-option-active {
-    border-color: var(--color-primary, #1672f3);
-    background: rgba(22, 114, 243, 0.06);
 }
 
 .language-modal-flag {
-    font-size: 1.5rem;
+    flex: 0 0 auto;
     line-height: 1;
 }
 
 .language-modal-flag svg {
     display: block;
-}
-
-.language-modal-text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-}
-
-.language-modal-title {
-    font-weight: 600;
-    color: var(--color-text-muted);
-}
-
-.language-modal-desc {
-    font-size: 0.8125rem;
 }
 
 /* --- Modals --- */
@@ -822,14 +782,12 @@ tr:hover td { background: rgba(22, 114, 243, 0.03); }
     font-weight: 400;
 }
 
-.confirm-modal { width: min(520px, 100%); }
-
 /* --- Toasts --- */
 .toast-container {
     position: fixed;
     bottom: 24px;
     right: 24px;
-    z-index: 20050;
+    z-index: var(--z-toast);
     display: flex;
     flex-direction: column;
     gap: 12px;

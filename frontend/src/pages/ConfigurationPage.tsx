@@ -102,6 +102,8 @@ import { GuestConfigSaveIcon as GuestSaveIcon } from "../components/GuestConfigS
 import { ModernTimePicker } from "../components/ModernTimePicker";
 import { ReferAFriendCard } from "../components/ReferAFriendCard";
 import { useLocale, type AppLocale } from "../locale";
+import { ConfirmDialog, PanelBody, PanelHeader, SidePanel, useConfirm } from "../components/panel";
+import { CONFIGURATION_DRAWERS, useDrawerRoute } from "../lib/drawerRoutes";
 import { getCalendraLegalLinks } from "../lib/legalLinks";
 import {
   getDefaultAllowedRoute,
@@ -1268,8 +1270,16 @@ export function ConfigurationPage() {
     'INTEGRATIONS_VIEW',
   ]);
   const navigate = useNavigate();
+  const location = useLocation();
   const query = useQuery();
+  const { match: drawerMatch, isOpen: isDrawerOpen } = useDrawerRoute();
+  const configurationPageDrawers =
+    drawerMatch == null || drawerMatch.descriptor.page === "/configuration";
+  const notificationTemplateDrawerOpen =
+    configurationPageDrawers &&
+    isDrawerOpen(CONFIGURATION_DRAWERS.notificationTemplate);
   const { t, locale, setLocale } = useLocale();
+  const confirm = useConfirm();
   const { showToast } = useToast();
 
   const [tab, setTab] = useState<Tab>("company");
@@ -3140,6 +3150,23 @@ export function ConfigurationPage() {
   ]);
 
   useEffect(() => {
+    if (!notificationTemplateDrawerOpen) return;
+    setTab("notifications");
+    const params = new URLSearchParams(location.search);
+    if (params.get("tab") === "notifications") return;
+    params.set("tab", "notifications");
+    const search = params.toString();
+    navigate(search ? `${location.pathname}?${search}` : location.pathname, {
+      replace: true,
+    });
+  }, [
+    notificationTemplateDrawerOpen,
+    location.pathname,
+    location.search,
+    navigate,
+  ]);
+
+  useEffect(() => {
     const prev = prevTabRef.current;
     if (tab === "modules" && prev !== "modules") {
       setModulesDraft(
@@ -4778,7 +4805,7 @@ export function ConfigurationPage() {
   };
 
   const removeLocation = async (location: OperatingLocation) => {
-    if (!window.confirm(`Izbrišem lokacijo ${location.name}?`)) return;
+    if (!(await confirm({ title: t("confirmDeleteLocation").replace("{name}", location.name), tone: "danger" }))) return;
     await api.delete(`/locations/${location.id}`);
     await load();
     window.dispatchEvent(new Event('locations-updated'));
@@ -4811,7 +4838,7 @@ export function ConfigurationPage() {
 
   const removeSpace = async (id: number) => {
     if (!canViewConfiguration) return;
-    if (!window.confirm("Delete this space?")) return;
+    if (!(await confirm({ title: t("confirmDeleteSpace"), tone: "danger" }))) return;
     await api.delete(`/spaces/${id}`);
     load();
   };
@@ -4954,7 +4981,7 @@ export function ConfigurationPage() {
   };
 
   const removeCertificate = async () => {
-    if (!window.confirm("Remove uploaded fiscal certificate?")) return;
+    if (!(await confirm({ title: t("confirmRemoveFiscalCertificate"), tone: "danger" }))) return;
     await api.delete("/fiscal/certificate");
     setCertificateMeta({ uploaded: false });
   };
@@ -7968,72 +7995,6 @@ export function ConfigurationPage() {
               font-size: 14px;
               line-height: 1.45;
             }
-            .account-modal-overlay {
-              position: fixed;
-              inset: 0;
-              background: rgba(7, 23, 59, 0.45);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              padding: 20px;
-              z-index: 1000;
-            }
-            .account-modal-card {
-              width: min(100%, 460px);
-              background: #fff;
-              border-radius: 18px;
-              padding: 24px;
-              box-shadow: 0 24px 60px rgba(7, 23, 59, 0.28);
-            }
-            .account-modal-card h3 {
-              margin: 0 0 12px;
-              font-size: 18px;
-              color: var(--account-ink);
-            }
-            .account-modal-card p {
-              margin: 0;
-              color: var(--account-muted);
-              font-size: 14px;
-              line-height: 1.55;
-            }
-            .account-modal-actions {
-              display: flex;
-              justify-content: flex-end;
-              gap: 12px;
-              margin-top: 22px;
-            }
-            .account-plan-details-modal {
-              width: min(100%, 860px);
-              max-height: min(88vh, 920px);
-              overflow: auto;
-              border-radius: 28px;
-              padding: 28px;
-            }
-            .account-plan-details-header {
-              display: flex;
-              align-items: flex-start;
-              justify-content: space-between;
-              gap: 16px;
-              margin-bottom: 16px;
-            }
-            .account-plan-details-header h3 {
-              margin: 0;
-              font-size: clamp(22px, 2vw, 30px);
-              letter-spacing: -0.04em;
-            }
-            .account-plan-details-close {
-              width: 38px;
-              height: 38px;
-              border-radius: 14px;
-              border: 1px solid #d7e2f4;
-              background: #fff;
-              color: var(--account-muted);
-              display: inline-flex;
-              align-items: center;
-              justify-content: center;
-              cursor: pointer;
-              font-weight: 800;
-            }
             .account-plan-preview-selected {
               display: flex;
               align-items: center;
@@ -8115,7 +8076,6 @@ export function ConfigurationPage() {
               line-height: 1.4;
             }
             @media (max-width: 640px) {
-              .account-plan-details-modal { padding: 22px; border-radius: 22px; }
               .account-plan-preview-selected { flex-direction: column; align-items: flex-start; }
               .account-plan-preview-price { text-align: left; }
             }
@@ -10320,29 +10280,19 @@ export function ConfigurationPage() {
                       </div>
 
                       {accountPlanDetailsOpen && (
-                        <div
-                          className="account-modal-overlay"
-                          role="presentation"
-                          onClick={() => setAccountPlanDetailsOpen(false)}
+                        <SidePanel
+                          open
+                          placement="center"
+                          size="xl"
+                          onClose={() => setAccountPlanDetailsOpen(false)}
+                          ariaLabel="Podrobnosti paketa"
                         >
-                          <div
-                            className="account-modal-card account-plan-details-modal"
-                            role="dialog"
-                            aria-modal="true"
-                            aria-label="Podrobnosti paketa"
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            <div className="account-plan-details-header">
-                              <h3>Kaj vključuje ta paket</h3>
-                              <button
-                                type="button"
-                                className="account-plan-details-close"
-                                aria-label="Zapri podrobnosti paketa"
-                                onClick={() => setAccountPlanDetailsOpen(false)}
-                              >
-                                ×
-                              </button>
-                            </div>
+                          <PanelHeader
+                            title="Kaj vključuje ta paket"
+                            onClose={() => setAccountPlanDetailsOpen(false)}
+                            closeLabel={locale === "sl" ? "Zapri" : "Close"}
+                          />
+                          <PanelBody>
                             <div className="account-plan-preview-selected">
                               <div>
                                 <strong>
@@ -10405,28 +10355,27 @@ export function ConfigurationPage() {
                                     );
                                   })}
                             </ul>
-                          </div>
-                        </div>
+                          </PanelBody>
+                        </SidePanel>
                       )}
 
-                      {packageChangeTarget && packageChangePreview && (
-                        <div
-                          className="account-modal-overlay"
-                          role="presentation"
-                          onClick={() => {
-                            if (!savingPackageChange)
-                              setPackageChangeTarget(null);
-                          }}
-                        >
-                          <div
-                            className="account-modal-card"
-                            role="dialog"
-                            aria-modal="true"
-                            aria-label="Sprememba paketa"
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            <h3>Sprememba paketa</h3>
-                            {packageChangePreview.trialActivation ? (
+                      <ConfirmDialog
+                        open={Boolean(packageChangeTarget && packageChangePreview)}
+                        onClose={() => {
+                          if (!savingPackageChange) setPackageChangeTarget(null);
+                        }}
+                        title="Sprememba paketa"
+                        onConfirm={confirmPackageChange}
+                        busy={savingPackageChange}
+                        confirmLabel={savingPackageChange
+                          ? "Shranjujem…"
+                          : packageChangePreview?.trialActivation
+                            ? "Potrdi spremembe"
+                            : "Potrdi spremembo"}
+                        cancelLabel="Prekliči"
+                      >
+                        {packageChangePreview && (
+                          packageChangePreview.trialActivation ? (
                               <p>
                                 Izbrali ste paket{" "}
                                 <strong>
@@ -10501,32 +10450,9 @@ export function ConfigurationPage() {
                                   : "mesečno"}
                                 ) z nižjo ceno in funkcionalnostmi.
                               </p>
-                            )}
-                            <div className="account-modal-actions">
-                              <button
-                                type="button"
-                                className="account-button-secondary"
-                                onClick={() => setPackageChangeTarget(null)}
-                                disabled={savingPackageChange}
-                              >
-                                Prekliči
-                              </button>
-                              <button
-                                type="button"
-                                className="account-button"
-                                onClick={confirmPackageChange}
-                                disabled={savingPackageChange}
-                              >
-                                {savingPackageChange
-                                  ? "Shranjujem…"
-                                  : packageChangePreview.trialActivation
-                                    ? "Potrdi spremembe"
-                                    : "Potrdi spremembo"}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                            )
+                        )}
+                      </ConfirmDialog>
                     </>
                   ) : accountSubtab === "referrals" ? (
                     <ReferAFriendCard />
@@ -14665,7 +14591,7 @@ export function ConfigurationPage() {
                   </div>
                 </Card>
                 </>
-              ) : tab === "notifications" ? (
+              ) : tab === "notifications" || notificationTemplateDrawerOpen ? (
                 <ConfigurationNotificationsSection
                   settings={settings}
                   setSettings={setSettings}
@@ -14674,6 +14600,7 @@ export function ConfigurationPage() {
                   t={t}
                   locale={locale}
                   waitlistEnabled={waitlistEnabledCommitted}
+                  settingsLoaded={settingsLoaded}
                 />
               ) : tab === "integrations" ? (
                 <div className="integrations-modern-shell">

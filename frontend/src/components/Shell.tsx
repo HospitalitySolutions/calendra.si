@@ -1,6 +1,6 @@
 import { DesktopSelect } from './DesktopSelect'
 import { isNativeAndroid } from '../lib/platform'
-import { PropsWithChildren, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { PropsWithChildren, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createPortal } from 'react-dom'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
@@ -13,7 +13,9 @@ import { useCalendarFiltersBottomBar, useCalendarMobileHeaderNav } from '../hook
 import { OnboardingTour } from './OnboardingTour'
 import { NotificationCenter } from './NotificationCenter'
 import { ReferAFriendModal } from './ReferAFriendModal'
+import { PanelBody, PanelHeader, SidePanel, useDismissable } from './panel'
 import { hasAnyEmployeePermission, hasEmployeePermission } from '../lib/employeePermissions'
+import { urlForEditForm } from '../pages/calendarFormRoutes'
 import { setActiveUnitId } from '../lib/unitContext'
 import { useSelectedLocationId } from '../lib/locationContext'
 import type { User } from '../lib/types'
@@ -181,19 +183,6 @@ function SupportEmailModal({ locale, onClose }: { locale: string; onClose: () =>
   const outlookHref = `https://outlook.office.com/mail/deeplink/compose?to=${encodedEmail}&subject=${encodedSubject}`
   const mailtoHref = `mailto:${SUPPORT_EMAIL}?subject=${encodedSubject}`
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [onClose])
-
   const copyEmail = async () => {
     try {
       await navigator.clipboard.writeText(SUPPORT_EMAIL)
@@ -211,27 +200,10 @@ function SupportEmailModal({ locale, onClose }: { locale: string; onClose: () =>
     window.setTimeout(() => setCopied(false), 1800)
   }
 
-  return createPortal(
-    <div className="support-email-modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <div
-        className="support-email-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="support-email-modal-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="support-email-modal-header">
-          <div>
-            <h2 id="support-email-modal-title">{title}</h2>
-            <p>{description}</p>
-          </div>
-          <button type="button" className="support-email-modal-close" onClick={onClose} aria-label={closeLabel}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
+  return (
+    <SidePanel open onClose={onClose} placement="center" size="sm" ariaLabel={title}>
+      <PanelHeader title={title} subtitle={description} onClose={onClose} closeLabel={closeLabel} />
+      <PanelBody>
         <div className="support-email-address">
           <span>{SUPPORT_EMAIL}</span>
         </div>
@@ -293,9 +265,8 @@ function SupportEmailModal({ locale, onClose }: { locale: string; onClose: () =>
             ) : null}
           </button>
         </div>
-      </div>
-    </div>,
-    document.body,
+      </PanelBody>
+    </SidePanel>
   )
 }
 
@@ -369,6 +340,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const [unitSwitching, setUnitSwitching] = useState(false)
   const businessLocations = locationsQuery.data ?? []
   const accountRef = useRef<HTMLDivElement>(null)
+  const closeAccount = useCallback(() => setAccountOpen(false), [])
   const profileAvatarInputRef = useRef<HTMLInputElement>(null)
   const mainAreaRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLElement>(null)
@@ -514,13 +486,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
     }
   }, [])
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (accountRef.current && !accountRef.current.contains(e.target as Node)) setAccountOpen(false)
-    }
-    if (accountOpen) document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [accountOpen])
+  useDismissable(accountRef, accountOpen, closeAccount)
 
   useLayoutEffect(() => {
     setMobileNavOpen(false)
@@ -607,10 +573,10 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
     }
     if (calendarFormUsesRoutes) {
       if (isCalendarRoute) {
-        navigate(`/calendar/todo/${id}`)
+        navigate(urlForEditForm('todo', id))
       } else {
         navigate('/calendar')
-        window.setTimeout(() => navigate(`/calendar/todo/${id}`), 0)
+        window.setTimeout(() => navigate(urlForEditForm('todo', id)), 0)
       }
       return
     }
@@ -900,7 +866,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
             {appointmentsAllowed && (
               <NavLink
                 to="/appointments"
-                className={() => `mobile-nav-overlay-link${location.pathname === '/appointments' ? ' active' : ''}`}
+                className={() => `mobile-nav-overlay-link${isWaitlistRoute ? ' active' : ''}`}
                 onClick={() => closeMobileNavIfAlreadyOn('/appointments')}
               >
                 <span className="mobile-nav-overlay-link-icon">
@@ -1404,7 +1370,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
             )}
             {appointmentsAllowed && (
               <NavLink
-                className={() => `sidebar-rail-link${location.pathname === '/appointments' ? ' active' : ''}`}
+                className={() => `sidebar-rail-link${isWaitlistRoute ? ' active' : ''}`}
                 to="/appointments"
                 title={appointmentsNavLabel}
                 aria-label={appointmentsNavLabel}

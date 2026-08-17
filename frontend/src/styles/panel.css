@@ -1,0 +1,1694 @@
+/* =====================================================================
+   cp- : standardized side panel + dialog system
+   Self-contained namespace. Never reuse legacy modal class names here,
+   so old page CSS (with !important and hardcoded hex) cannot leak in.
+   ===================================================================== */
+
+/* --- Layer & scrim --- */
+
+.cp-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-panel);
+    display: flex;
+    align-items: stretch;
+    justify-content: flex-end;
+    background: var(--panel-scrim);
+    animation: cp-fade-in var(--panel-duration) var(--panel-ease);
+}
+
+/* Above every legacy modal, so a confirmation raised from an unmigrated
+   overlay still appears on top of it. */
+.cp-scrim--dialog {
+    z-index: var(--z-dialog);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.cp-scrim--closing {
+    animation: cp-fade-out 150ms var(--panel-ease) forwards;
+}
+
+/* Stacked panels: each level dims a little more and the one below stays put. */
+.cp-scrim[data-depth="1"] { background: rgba(15, 23, 42, 0.28); }
+.cp-scrim[data-depth="2"] { background: rgba(15, 23, 42, 0.22); }
+
+[data-theme="dark"] .cp-scrim[data-depth="1"] { background: rgba(2, 6, 23, 0.42); }
+[data-theme="dark"] .cp-scrim[data-depth="2"] { background: rgba(2, 6, 23, 0.34); }
+
+@keyframes cp-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes cp-fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes cp-slide-in {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+@keyframes cp-slide-out {
+    from { transform: translateX(0); }
+    to { transform: translateX(100%); }
+}
+
+@keyframes cp-dialog-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* --- Panel shell --- */
+
+.cp-panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: var(--panel-width-md);
+    max-width: 100vw;
+    height: 100%;
+    background: var(--panel-surface);
+    color: var(--color-text);
+    box-shadow: var(--panel-shadow);
+    overflow: hidden;
+    animation: cp-slide-in var(--panel-duration) var(--panel-ease);
+    outline: none;
+}
+
+@supports (height: 100dvh) {
+    .cp-panel { height: 100dvh; }
+}
+
+.cp-panel--sm { width: var(--panel-width-sm); }
+.cp-panel--md { width: var(--panel-width-md); }
+.cp-panel--lg { width: var(--panel-width-lg); }
+.cp-panel--xl { width: var(--panel-width-xl); }
+
+.cp-panel--closing {
+    animation: cp-slide-out 150ms var(--panel-ease) forwards;
+}
+
+/* Panels opened on top of another panel are inset so the parent stays visible. */
+.cp-scrim[data-depth="1"] .cp-panel { margin-right: 0; }
+
+/* --- Centered variant ---
+   Same portal, chrome and parts as the drawer; only the alignment and the
+   shrink-to-content height differ. For short self-contained dialogs. */
+
+.cp-scrim--center {
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.cp-panel--center {
+    height: auto;
+    max-height: calc(100vh - 40px);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    animation: cp-dialog-in var(--panel-duration) var(--panel-ease);
+}
+
+@supports (height: 100dvh) {
+    .cp-panel--center {
+        height: auto;
+        max-height: calc(100dvh - 40px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cp-scrim,
+    .cp-panel,
+    .cp-dialog {
+        animation: none !important;
+    }
+}
+
+/* --- Header --- */
+
+.cp-panel-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex-shrink: 0;
+    min-height: var(--panel-header-h);
+    padding: 18px var(--panel-pad);
+    border-bottom: 1px solid var(--panel-border);
+    background: var(--panel-surface);
+}
+
+.cp-panel-header__text {
+    flex: 1;
+    min-width: 0;
+}
+
+.cp-panel-header__title {
+    margin: 0;
+    font-size: var(--fs-title);
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+    color: var(--color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cp-panel-header__subtitle {
+    margin: 3px 0 0;
+    font-size: var(--fs-subtitle);
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--color-text-muted);
+}
+
+.cp-panel-header__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.cp-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+}
+
+.cp-icon-btn:hover:not(:disabled) {
+    background: var(--panel-surface-muted);
+    color: var(--color-text);
+}
+
+.cp-icon-btn:focus-visible {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--field-ring);
+}
+
+.cp-icon-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.cp-icon-btn svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+}
+
+/* --- Overflow menu (destructive + secondary actions) --- */
+
+.cp-menu {
+    position: relative;
+    display: inline-flex;
+}
+
+.cp-menu__list {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 5;
+    min-width: 200px;
+    padding: 6px;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    background: var(--panel-surface);
+    box-shadow: var(--shadow-lg);
+}
+
+.cp-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 10px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+}
+
+.cp-menu__item:hover:not(:disabled) {
+    background: var(--panel-surface-muted);
+}
+
+.cp-menu__item:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.cp-menu__item--danger {
+    color: var(--color-danger);
+}
+
+.cp-menu__item--danger:hover:not(:disabled) {
+    background: var(--color-danger-soft);
+}
+
+.cp-menu__item svg {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+}
+
+/* --- Routed tabs --- */
+
+.cp-panel-tabs {
+    display: flex;
+    align-items: stretch;
+    flex-shrink: 0;
+    gap: 2px;
+    min-height: var(--panel-tabs-h);
+    padding: 0 var(--panel-pad);
+    border-bottom: 1px solid var(--panel-border);
+    background: var(--panel-surface);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.cp-panel-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.cp-panel-tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    flex: 1 0 auto;
+    padding: 0 14px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 150ms ease;
+}
+
+.cp-panel-tab::after {
+    content: '';
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: -1px;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: transparent;
+    transition: background 150ms ease;
+}
+
+.cp-panel-tab:hover {
+    color: var(--color-text);
+}
+
+.cp-panel-tab:focus-visible {
+    outline: none;
+    color: var(--color-text);
+    box-shadow: inset var(--field-ring);
+}
+
+.cp-panel-tab.is-active {
+    color: var(--color-primary);
+}
+
+.cp-panel-tab.is-active::after {
+    background: var(--color-primary);
+}
+
+.cp-panel-tab svg {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+}
+
+/* --- Body & sections --- */
+
+.cp-panel-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--panel-section-gap);
+    padding: var(--panel-pad);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--panel-surface);
+}
+
+.cp-panel-body--flush {
+    padding: 0;
+    gap: 0;
+}
+
+/* Cards need a recessed background to read as cards. */
+.cp-panel-body--sections {
+    gap: var(--section-gap);
+    background: var(--panel-surface-muted);
+}
+
+.cp-section {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+/* Inside a sectioned body each section becomes a card. */
+.cp-panel-body--sections > .cp-section {
+    padding: var(--section-pad);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    background: var(--panel-surface);
+}
+
+.cp-section__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+/* Title area doubles as the disclosure target, so the whole row is clickable. */
+.cp-section__toggle {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.cp-section__toggle--static {
+    cursor: default;
+}
+
+.cp-section__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    color: var(--color-primary);
+}
+
+.cp-section__icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.cp-section__heading {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.cp-section__title {
+    margin: 0;
+    font-size: var(--fs-section);
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--color-text);
+}
+
+.cp-section__desc {
+    margin: 0;
+    font-size: var(--fs-hint);
+    font-weight: 500;
+    line-height: 1.45;
+    color: var(--color-text-muted);
+}
+
+.cp-section__badge {
+    flex-shrink: 0;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+}
+
+/* Collapsed sections report their contents here instead of hiding them entirely. */
+.cp-section__summary {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-size: var(--fs-hint);
+    font-weight: 500;
+    color: var(--color-text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cp-section__collapse {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    background: var(--panel-surface);
+    color: var(--color-text-muted);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
+}
+
+/* The glyph is not focusable, so it follows the header's hover instead. */
+.cp-section__head:hover .cp-section__collapse,
+.cp-section__toggle:focus-visible ~ .cp-section__collapse {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.cp-section__toggle:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 3px;
+    border-radius: 6px;
+}
+
+/* Wrapper for header controls that are not the disclosure, e.g. the online switch. */
+.cp-section__controls {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 10px;
+}
+
+.cp-section__body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+    padding-top: 14px;
+}
+
+/* A section without a header is just a group; it needs no top padding. */
+.cp-section > .cp-section__body:first-child {
+    padding-top: 0;
+}
+
+/* --- Fields --- */
+
+.cp-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.cp-field__label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: var(--fs-label);
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--color-text-muted);
+}
+
+.cp-field__required {
+    color: var(--color-danger);
+}
+
+.cp-field__hint {
+    font-size: var(--fs-hint);
+    line-height: 1.4;
+    color: var(--color-text-muted);
+}
+
+.cp-field__error {
+    font-size: var(--fs-hint);
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--color-danger);
+}
+
+.cp-field-row {
+    display: grid;
+    grid-template-columns: repeat(var(--cp-cols, 2), minmax(0, 1fr));
+    gap: 12px;
+    align-items: start;
+}
+
+@media (max-width: 560px) {
+    .cp-field-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Controls: scoped to the panel so page-level input rules don't apply. */
+.cp-panel input:not([type='checkbox']):not([type='radio']):not([type='range']),
+.cp-panel select,
+.cp-panel textarea,
+.cp-dialog input:not([type='checkbox']):not([type='radio']):not([type='range']),
+.cp-dialog select,
+.cp-dialog textarea,
+.cp-input,
+.cp-select,
+.cp-textarea {
+    width: 100%;
+    min-height: var(--field-h);
+    padding: 10px 12px;
+    border: 1px solid var(--field-border);
+    border-radius: var(--field-radius);
+    background: var(--field-bg);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: var(--fs-body);
+    font-weight: 500;
+    line-height: 1.35;
+    box-shadow: none;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.cp-panel textarea,
+.cp-dialog textarea,
+.cp-textarea {
+    min-height: 88px;
+    resize: vertical;
+}
+
+.cp-panel select,
+.cp-dialog select,
+.cp-select {
+    padding-right: 34px;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2355596d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 11px center;
+}
+
+[data-theme='dark'] .cp-panel select,
+[data-theme='dark'] .cp-dialog select,
+[data-theme='dark'] .cp-select {
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+.cp-panel input:focus,
+.cp-panel select:focus,
+.cp-panel textarea:focus,
+.cp-dialog input:focus,
+.cp-dialog select:focus,
+.cp-dialog textarea:focus,
+.cp-input:focus,
+.cp-select:focus,
+.cp-textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--field-ring);
+}
+
+.cp-panel input:disabled,
+.cp-panel select:disabled,
+.cp-panel textarea:disabled,
+.cp-dialog input:disabled,
+.cp-input:disabled {
+    background: var(--panel-surface-muted);
+    color: var(--color-text-muted);
+    cursor: not-allowed;
+}
+
+.cp-panel input[aria-invalid='true'],
+.cp-panel select[aria-invalid='true'],
+.cp-panel textarea[aria-invalid='true'],
+.cp-input[aria-invalid='true'] {
+    border-color: var(--color-danger);
+}
+
+.cp-panel input[type='checkbox'],
+.cp-panel input[type='radio'],
+.cp-dialog input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+
+/* --- Rows (tappable list entries, e.g. selected service / client) --- */
+
+.cp-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--panel-border);
+    border-radius: var(--field-radius);
+    background: var(--panel-surface);
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    text-align: left;
+}
+
+button.cp-row {
+    cursor: pointer;
+    transition: border-color 150ms ease, background 150ms ease;
+}
+
+button.cp-row:hover:not(:disabled) {
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+button.cp-row:focus-visible {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--field-ring);
+}
+
+.cp-row__main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.cp-row__title {
+    font-weight: 600;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cp-row__meta {
+    font-size: var(--fs-hint);
+    color: var(--color-text-muted);
+    line-height: 1.35;
+}
+
+.cp-row__value {
+    flex-shrink: 0;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.cp-row--accent {
+    border-left: 3px solid var(--color-primary);
+}
+
+.cp-empty {
+    padding: 22px 16px;
+    border: 1px dashed var(--panel-border);
+    border-radius: var(--field-radius);
+    color: var(--color-text-muted);
+    font-size: var(--fs-body);
+    text-align: center;
+}
+
+/* --- Footer --- */
+
+.cp-panel-footer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    min-height: var(--panel-footer-h);
+    padding: 14px var(--panel-pad) max(14px, calc(14px + env(safe-area-inset-bottom, 0px)));
+    border-top: 1px solid var(--panel-border);
+    background: var(--panel-surface);
+}
+
+.cp-panel-footer__summary {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.cp-panel-footer__summary-label {
+    font-size: var(--fs-hint);
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.cp-panel-footer__summary-value {
+    font-size: 1.0625rem;
+    font-weight: 700;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.cp-panel-footer__actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+}
+
+/* Footer with contextual chips on the left and actions on the right. */
+.cp-panel-footer--split {
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+
+.cp-panel-footer--split > :first-child {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+/* --- Action bar (secondary actions, directly above the footer) --- */
+
+.cp-panel-actionbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    padding: 10px var(--panel-pad);
+    border-top: 1px solid var(--panel-border);
+    background: var(--panel-surface-muted);
+}
+
+.cp-panel-actionbar__items {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.cp-panel-actionbar__info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    font-size: var(--fs-hint);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+/* Square icon action, the default shape in this bar. */
+.cp-panel-actionbar .cp-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: var(--field-h-sm);
+    min-width: var(--field-h-sm);
+    height: var(--field-h-sm);
+    padding: 0;
+    border: 1px solid var(--field-border);
+    border-radius: var(--field-radius);
+    background: var(--panel-surface);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
+}
+
+.cp-panel-actionbar .cp-action:hover:not(:disabled),
+.cp-panel-actionbar .cp-action:focus-visible {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    outline: none;
+}
+
+.cp-panel-actionbar .cp-action:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.cp-panel-actionbar .cp-action svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* Status reads as a labelled chip because its value has to be visible, not hovered. */
+.cp-panel-actionbar .cp-action--labelled {
+    width: auto;
+    min-width: 0;
+    padding: 0 12px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+/* The bar sits against the footer, so anchored menus have to open upward. */
+.cp-panel-actionbar .calendar-session-billing-action-menu {
+    top: auto;
+    bottom: calc(100% + 10px);
+}
+
+.cp-panel-actionbar .calendar-session-billing-action-menu::before {
+    top: auto;
+    bottom: -6px;
+    border-left: 0;
+    border-top: 0;
+    border-right: 1px solid rgba(226, 232, 240, 0.96);
+    border-bottom: 1px solid rgba(226, 232, 240, 0.96);
+}
+
+/* --- Buttons --- */
+
+.cp-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: var(--field-h);
+    padding: 0 18px;
+    border: 1px solid transparent;
+    border-radius: var(--field-radius);
+    background: transparent;
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: var(--fs-body);
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.cp-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--field-ring);
+}
+
+.cp-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.cp-btn svg {
+    flex-shrink: 0;
+    width: 17px;
+    height: 17px;
+}
+
+.cp-btn--primary {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff;
+}
+
+.cp-btn--primary:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
+}
+
+.cp-btn--ghost {
+    background: transparent;
+    border-color: var(--field-border);
+    color: var(--color-text);
+}
+
+.cp-btn--ghost:hover:not(:disabled) {
+    background: var(--panel-surface-muted);
+}
+
+.cp-btn--subtle {
+    background: var(--panel-surface-muted);
+    border-color: transparent;
+    color: var(--color-text);
+}
+
+.cp-btn--subtle:hover:not(:disabled) {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+}
+
+.cp-btn--danger {
+    background: var(--color-danger-soft);
+    border-color: transparent;
+    color: var(--color-danger);
+}
+
+.cp-btn--danger:hover:not(:disabled) {
+    background: var(--color-danger);
+    color: #fff;
+}
+
+.cp-btn--success {
+    background: var(--color-success);
+    border-color: var(--color-success);
+    color: #fff;
+}
+
+.cp-btn--success:hover:not(:disabled) {
+    filter: brightness(0.94);
+}
+
+.cp-btn--block {
+    width: 100%;
+}
+
+.cp-btn--sm {
+    min-height: var(--field-h-sm);
+    padding: 0 12px;
+    font-size: 0.875rem;
+}
+
+.cp-btn__spinner {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: currentColor;
+    animation: cp-spin 0.7s linear infinite;
+}
+
+.cp-btn--ghost .cp-btn__spinner,
+.cp-btn--subtle .cp-btn__spinner {
+    border-color: var(--color-primary-soft);
+    border-top-color: var(--color-primary);
+}
+
+@keyframes cp-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* --- Inline banners --- */
+
+.cp-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px 13px;
+    border-radius: var(--field-radius);
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.45;
+}
+
+.cp-banner--error {
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+}
+
+.cp-banner--info {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+}
+
+.cp-banner--success {
+    background: var(--color-success-soft);
+    color: var(--color-success);
+}
+
+.cp-banner--warning {
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
+}
+
+/* --- Confirm dialog --- */
+
+.cp-dialog {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    width: min(460px, calc(100vw - 32px));
+    max-height: calc(100vh - 40px);
+    padding: 26px;
+    border-radius: 18px;
+    background: var(--panel-surface);
+    color: var(--color-text);
+    box-shadow: var(--shadow-lg);
+    overflow-y: auto;
+    outline: none;
+    animation: cp-dialog-in var(--panel-duration) var(--panel-ease);
+}
+
+.cp-dialog--wide {
+    width: min(620px, calc(100vw - 32px));
+}
+
+.cp-dialog__head {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.cp-dialog__icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+}
+
+.cp-dialog__icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+.cp-dialog__icon--danger {
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+}
+
+.cp-dialog__icon--warning {
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
+}
+
+.cp-dialog__title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+}
+
+.cp-dialog__text {
+    margin: 6px 0 0;
+    font-size: var(--fs-body);
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--color-text-muted);
+}
+
+.cp-dialog__body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cp-dialog__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.cp-dialog__actions--stacked {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.cp-dialog__actions--stacked .cp-btn {
+    width: 100%;
+}
+
+/* --- Utilities --- */
+
+.cp-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cp-stack--tight { gap: 8px; }
+.cp-stack--loose { gap: 20px; }
+
+.cp-inline {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.cp-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: var(--fs-body);
+    font-weight: 500;
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.cp-divider {
+    height: 1px;
+    border: none;
+    margin: 0;
+    background: var(--panel-border);
+}
+
+.cp-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Body scroll lock while a panel or dialog is open. */
+body.cp-scroll-locked {
+    overflow: hidden;
+}
+
+/* =====================================================================
+   Bridge for form markup that predates the panel system.
+   Feature pages still render `.form-row` / `.form-field-inline-*`; these
+   rules give that markup the standardized field look when it appears
+   inside a panel, without touching the JSX. Remove a block once the
+   owning feature has been migrated to `PanelField`.
+   ===================================================================== */
+
+.cp-panel .form-row,
+.cp-panel .form-row.form-row-infield,
+.cp-panel .form-row.form-row-timespan {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    grid-template-columns: none;
+    gap: 6px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.cp-panel .form-row.form-row--bare {
+    padding: 0;
+}
+
+.cp-panel .form-row .form-row-label,
+.cp-panel .form-field-inline-label,
+.cp-panel .calendar-timespan-label,
+.cp-panel .calendar-timespan-all-day-caption {
+    padding: 0;
+    font-size: var(--fs-label);
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--color-text-muted);
+}
+
+.cp-panel .form-field-inline-control {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+}
+
+.cp-panel .form-row.stretch,
+.cp-panel .form-row.form-row-infield.stretch {
+    align-items: stretch;
+}
+
+.cp-panel .form-row.form-row-infield.stretch .form-field-inline-control {
+    align-items: stretch;
+}
+
+/* Section heading with a trailing toggle (e.g. "Stranka" + skupina switch). */
+.cp-panel .calendar-booking-service-infield-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+}
+
+.cp-panel .calendar-booking-service-online-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.cp-panel .calendar-booking-service-online-caption {
+    font-size: var(--fs-hint);
+    font-weight: 500;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+/* Time / date row. */
+.cp-panel .calendar-timespan-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+    width: 100%;
+}
+
+.cp-panel .calendar-timespan-input-inner {
+    gap: 6px;
+    padding: 0;
+    border: none;
+    background: transparent;
+}
+
+.cp-panel .calendar-timespan-input-inner input,
+.cp-panel .calendar-timespan-input-inner input[type='time'],
+.cp-panel .calendar-datetime-split-time,
+.cp-panel .calendar-datetime-split-date {
+    width: 100%;
+    min-height: var(--field-h);
+    padding: 10px 12px;
+    border: 1px solid var(--field-border);
+    border-radius: var(--field-radius);
+    background: var(--field-bg);
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    font-weight: 500;
+}
+
+.cp-panel .calendar-timespan-field:not(.calendar-timespan-field--date) {
+    flex: 0 1 8rem;
+    min-width: 7rem;
+}
+
+.cp-panel .calendar-timespan-field--date {
+    flex: 1 1 10rem;
+    min-width: 0;
+}
+
+.cp-panel .calendar-datetime-split-inner {
+    gap: 10px;
+}
+
+.cp-panel .calendar-datetime-split-divider {
+    display: none;
+}
+
+/* Custom time picker trigger has to match the field height. */
+.cp-panel .modern-time-picker__trigger {
+    width: 100%;
+    min-height: var(--field-h);
+    min-width: 0;
+    padding: 10px 12px;
+    border-radius: var(--field-radius);
+    border-color: var(--field-border);
+    background: var(--field-bg);
+    font-size: var(--fs-body);
+    font-weight: 500;
+    box-shadow: none;
+}
+
+.cp-panel .calendar-timespan-input-inner .modern-time-picker__trigger {
+    width: 100%;
+    align-self: stretch;
+}
+
+/* Client / group pickers. */
+.cp-panel .client-picker,
+.cp-panel .client-search-wrap {
+    width: 100%;
+    min-width: 0;
+}
+
+.cp-panel .client-search-wrap input,
+.cp-panel button.client-selected-display {
+    width: 100%;
+    min-height: var(--field-h);
+    padding: 10px 12px;
+    border: 1px solid var(--field-border);
+    border-radius: var(--field-radius);
+    background: var(--field-bg);
+    color: var(--color-text);
+    font-size: var(--fs-body);
+    font-weight: 500;
+    text-align: left;
+    box-shadow: none;
+}
+
+.cp-panel .client-search-wrap input:focus,
+.cp-panel button.client-selected-display:focus-visible {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--field-ring);
+}
+
+/* Legacy button classes used inside migrated panels. */
+.cp-panel button.secondary {
+    min-height: var(--field-h-sm);
+    padding: 0 14px;
+    border: 1px solid var(--field-border);
+    border-radius: var(--field-radius);
+    background: transparent;
+    color: var(--color-text);
+    font-size: 0.875rem;
+    font-weight: 600;
+    box-shadow: none;
+    transform: none;
+}
+
+.cp-panel button.secondary:hover:not(:disabled) {
+    background: var(--panel-surface-muted);
+    transform: none;
+}
+
+.cp-panel .linkish {
+    color: var(--color-primary);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+/* Icon buttons next to the client / payee picker. */
+.cp-panel .calendar-client-picker__actions {
+    gap: 8px;
+}
+
+/* The add button is icon-only here; its wording is carried by title/aria-label. */
+.cp-panel .calendar-client-picker__add-label {
+    display: none;
+}
+
+/* Confirm and clear sit inside the field, not beside it. */
+.cp-panel .calendar-client-picker__search-wrap {
+    position: relative;
+}
+
+.cp-panel .calendar-client-picker__search-wrap--confirmable input,
+.cp-panel .calendar-client-picker__search-wrap.client-search-wrap--compact-client .client-selected-display {
+    padding-right: 42px;
+}
+
+.cp-panel .calendar-client-picker__confirm,
+.cp-panel .calendar-client-picker__single-clear {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    min-height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--field-radius);
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1;
+    box-shadow: none;
+    cursor: pointer;
+    transform: translateY(-50%);
+}
+
+.cp-panel .calendar-client-picker__confirm:hover,
+.cp-panel .calendar-client-picker__confirm:focus-visible,
+.cp-panel .calendar-client-picker__single-clear:hover,
+.cp-panel .calendar-client-picker__single-clear:focus-visible {
+    background: var(--panel-surface-muted);
+    color: var(--color-text);
+    outline: none;
+}
+
+.cp-panel .calendar-client-picker__actions button,
+.cp-panel .client-add-btn {
+    width: var(--field-h);
+    min-width: var(--field-h);
+    height: var(--field-h);
+    padding: 0;
+    border: 1px solid var(--field-border);
+    border-radius: var(--field-radius);
+    background: var(--panel-surface-muted);
+    color: var(--color-text);
+    box-shadow: none;
+    transform: none;
+}
+
+.cp-panel .calendar-client-picker__actions button:hover:not(:disabled),
+.cp-panel .client-add-btn:hover:not(:disabled) {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    transform: none;
+}
+
+.cp-panel .calendar-client-picker__actions button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.cp-panel .calendar-client-picker__actions button svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* Segmented on/off rows (odprto/blokirano, omejeno/nedoločeno). */
+.cp-panel .online-live-switch-row--inline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    min-height: var(--field-h);
+}
+
+.cp-panel .online-live-switch-row--binary {
+    padding: 3px;
+    border: 1px solid var(--field-border);
+    border-radius: var(--field-radius);
+    background: var(--panel-surface-muted);
+}
+
+.cp-panel .online-live-switch-row--binary .online-live-switch-choice {
+    flex: 1;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 12px;
+    border: none;
+    border-radius: calc(var(--field-radius) - 3px);
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    font-weight: 600;
+    box-shadow: none;
+    transform: none;
+}
+
+.cp-panel .online-live-switch-row--binary .online-live-switch-choice--active {
+    background: var(--panel-surface);
+    color: var(--color-text);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+/* Checkbox / toggle lines. */
+.cp-panel .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    font-size: var(--fs-body);
+    color: var(--color-text);
+}
+
+/* Consumables and waitlist forms wrap each control in a bare
+   `<label>Caption<input/></label>` inside their own grid. Those grids keep their
+   column counts; these rules take over the spacing and give the captions the
+   same weight and colour as `.cp-field__label`. */
+.cp-panel .consumables-modal-grid,
+.cp-panel .consumables-inline-form,
+.cp-panel .waitlist-form-grid {
+    padding: 0;
+    border: none;
+    gap: 14px;
+}
+
+.cp-panel .consumables-modal-grid.one-col,
+.cp-panel .waitlist-form-grid.one-col {
+    grid-template-columns: 1fr;
+}
+
+.cp-panel .consumables-modal-grid > label,
+.cp-panel .consumables-inline-form > label,
+.cp-panel .waitlist-form-grid > label,
+.cp-panel .procurement-receive-note {
+    display: grid;
+    gap: 6px;
+    font-size: var(--fs-label);
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--color-text-muted);
+}
+
+.cp-panel .waitlist-form-grid > label > span:first-child {
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+}
+
+.cp-panel .consumables-modal-grid > label small,
+.cp-panel .waitlist-form-grid > label small {
+    font-size: var(--fs-hint);
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
+
+/* Standalone checkbox lines read as body text, not as field captions. */
+.cp-panel .consumables-modal-switches {
+    display: grid;
+    gap: 10px;
+    padding: 0;
+}
+
+.cp-panel .consumables-modal-switches label,
+.cp-panel .consumables-inline-form > label.check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: auto;
+    font-size: var(--fs-body);
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+.cp-panel .consumables-modal-switches input,
+.cp-panel .consumables-inline-form > label.check input {
+    width: 18px;
+    min-width: 18px;
+    height: 18px;
+    margin: 0;
+}
+
+/* Shared `<Field>` from ui.tsx: label above the control, same caption as `.cp-field__label`. */
+.cp-panel .field {
+    display: grid;
+    gap: 6px;
+}
+
+.cp-panel .field-label {
+    font-size: var(--fs-label);
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--color-text-muted);
+}
+
+.cp-panel .field-hint {
+    font-size: var(--fs-hint);
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
+
+/* --- Responsive: full-screen sheet on small viewports --- */
+
+@media (max-width: 640px) {
+    .cp-panel,
+    .cp-panel--sm,
+    .cp-panel--md,
+    .cp-panel--lg,
+    .cp-panel--xl {
+        width: 100vw;
+    }
+
+    /* Centered panels stay cards on phones rather than becoming full-screen sheets. */
+    .cp-panel--center {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .cp-panel-header,
+    .cp-panel-tabs,
+    .cp-panel-body,
+    .cp-panel-footer,
+    .cp-panel-actionbar {
+        padding-left: var(--panel-pad-tight);
+        padding-right: var(--panel-pad-tight);
+    }
+
+    .cp-panel-body--sections > .cp-section {
+        padding: 12px 14px;
+    }
+
+    .cp-panel-footer__actions {
+        flex: 1;
+    }
+
+    .cp-panel-footer__actions .cp-btn {
+        flex: 1;
+    }
+
+    .cp-dialog {
+        padding: 20px;
+    }
+
+    .cp-dialog__actions:not(.cp-dialog__actions--stacked) {
+        flex-direction: column-reverse;
+        align-items: stretch;
+    }
+
+    .cp-dialog__actions .cp-btn {
+        width: 100%;
+    }
+}
+
+/* Billing editors keep their totals footer and payee/advance pickers while chrome
+   moves into SidePanel. Drop these when those inner layouts become PanelField. */
+.cp-panel > .billing-bill-modal-footer {
+    flex-shrink: 0;
+}
+
+.cp-panel .billing-payee-modal,
+.cp-panel .billing-advance-picker-modal,
+.cp-panel .billing-entitlement-modal {
+    width: auto;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    box-shadow: none;
+    border-radius: 0;
+}
+
+.cp-panel .billing-print-format-dialog {
+    box-shadow: none;
+    border: 0;
+    width: auto;
+}
+
+/* Employee form fields keep their 2-column grid while chrome moves into SidePanel. */
+.cp-panel .employees-form-popup-body {
+    padding: 0;
+    overflow: visible;
+    background: transparent;
+    flex: none;
+    min-height: 0;
+}
+
+.cp-panel .employee-roles-members-list {
+    padding: 0;
+    overflow: visible;
+}

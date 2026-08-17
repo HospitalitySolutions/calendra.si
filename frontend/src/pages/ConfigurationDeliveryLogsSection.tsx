@@ -1,6 +1,8 @@
 import { DesktopSelect } from "../components/DesktopSelect";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
+import { PanelBody, PanelEmpty, PanelHeader, SidePanel } from "../components/panel";
+import { INBOX_DRAWERS, useDrawerRoute } from "../lib/drawerRoutes";
 import { useLocale } from "../locale";
 
 type DeliveryChannel =
@@ -118,6 +120,11 @@ export function ConfigurationDeliveryLogsSection({
 }: ConfigurationDeliveryLogsSectionProps) {
   const { locale } = useLocale();
   const sl = locale === "sl";
+  const { match: drawerMatch, isOpen: isDrawerOpen, open: openDrawer, close: closeDrawer } = useDrawerRoute();
+  const inboxPageDrawers = drawerMatch == null || drawerMatch.descriptor.page === "/inbox";
+  const deliveryLogOpen = inboxPageDrawers && isDrawerOpen(INBOX_DRAWERS.deliveryLog);
+  const drawerId = deliveryLogOpen ? Number(drawerMatch?.params.id) : NaN;
+  const seedKeyRef = useRef<string | null>(null);
   const [items, setItems] = useState<DeliveryLogItem[]>([]);
   const [summary, setSummary] = useState<DeliveryLogSummary>({});
   const [total, setTotal] = useState(0);
@@ -131,6 +138,22 @@ export function ConfigurationDeliveryLogsSection({
   const [fromDate, setFromDate] = useState(() => formatDateInput(daysAgo(30)));
   const [toDate, setToDate] = useState(() => formatDateInput(new Date()));
   const [selected, setSelected] = useState<DeliveryLogItem | null>(null);
+
+  const closeDeliveryLog = () => closeDrawer({ search: "tab=deliveryLogs" });
+
+  useEffect(() => {
+    if (!deliveryLogOpen || !Number.isFinite(drawerId)) {
+      seedKeyRef.current = null;
+      setSelected(null);
+      return;
+    }
+    const key = `delivery-log:${drawerId}`;
+    if (seedKeyRef.current === key) return;
+    const found = items.find((item) => item.id === drawerId);
+    if (!found) return;
+    seedKeyRef.current = key;
+    setSelected(found);
+  }, [deliveryLogOpen, drawerId, items]);
 
   const visibleChannels = useMemo(
     () => CHANNELS.filter((entry) => !entry.id || isDeliveryChannelVisible(settings, entry.id, messagingProviders, messagingProvidersLoaded)),
@@ -324,7 +347,16 @@ export function ConfigurationDeliveryLogsSection({
                     </td>
                     <td><StatusBadge status={item.status} sl={sl} /></td>
                     <td>
-                      <button type="button" className="delivery-logs-details-button" onClick={() => setSelected(item)}>
+                      <button
+                        type="button"
+                        className="delivery-logs-details-button"
+                        onClick={() =>
+                          openDrawer(INBOX_DRAWERS.deliveryLog, {
+                            params: { id: item.id },
+                            search: "tab=deliveryLogs",
+                          })
+                        }
+                      >
                         {copy.view}
                       </button>
                     </td>
@@ -345,44 +377,52 @@ export function ConfigurationDeliveryLogsSection({
         </div>
       </div>
 
-      {selected ? (
-        <div className="delivery-logs-modal-backdrop" role="presentation" onClick={() => setSelected(null)}>
-          <section className="delivery-logs-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <div className="delivery-logs-modal-head">
-              <div>
-                <span className="delivery-logs-modal-kicker">{humanizeType(selected.messageType)}</span>
-                <h3>{selected.subject || selected.messagePreview || copy.tableDetails}</h3>
+      <SidePanel
+        open={deliveryLogOpen}
+        onClose={closeDeliveryLog}
+        ariaLabel={selected?.subject || selected?.messagePreview || copy.tableDetails}
+        size="lg"
+      >
+        <PanelHeader
+          title={selected?.subject || selected?.messagePreview || copy.tableDetails}
+          subtitle={selected ? humanizeType(selected.messageType) : undefined}
+          onClose={closeDeliveryLog}
+          closeLabel={copy.close}
+        />
+        <PanelBody>
+          {selected ? (
+            <>
+              <div className="delivery-logs-modal-grid">
+                <Detail label={copy.tableDate} value={formatDateTime(selected.createdAt, locale)} />
+                <Detail label={copy.tableChannel} value={channelLabel(selected.channel, sl)} />
+                <Detail label={copy.tableStatus} value={statusLabel(selected.status, sl)} />
+                <Detail label={copy.tableRecipient} value={selected.recipient || "—"} />
+                <Detail
+                  label={copy.reference}
+                  value={
+                    [referenceTypeLabel(selected.referenceType, sl), selected.referenceId]
+                      .filter(Boolean)
+                      .join(" #") || "—"
+                  }
+                />
+                <Detail label={copy.provider} value={[selected.providerStatusCode, selected.providerMessageId].filter(Boolean).join(" · ") || "—"} />
               </div>
-              <button type="button" onClick={() => setSelected(null)}>{copy.close}</button>
-            </div>
-            <div className="delivery-logs-modal-grid">
-              <Detail label={copy.tableDate} value={formatDateTime(selected.createdAt, locale)} />
-              <Detail label={copy.tableChannel} value={channelLabel(selected.channel, sl)} />
-              <Detail label={copy.tableStatus} value={statusLabel(selected.status, sl)} />
-              <Detail label={copy.tableRecipient} value={selected.recipient || "—"} />
-              <Detail
-                label={copy.reference}
-                value={
-                  [referenceTypeLabel(selected.referenceType, sl), selected.referenceId]
-                    .filter(Boolean)
-                    .join(" #") || "—"
-                }
-              />
-              <Detail label={copy.provider} value={[selected.providerStatusCode, selected.providerMessageId].filter(Boolean).join(" · ") || "—"} />
-            </div>
-            <div className="delivery-logs-preview-block">
-              <strong>{copy.messagePreview}</strong>
-              <p>{selected.messagePreview || "—"}</p>
-            </div>
-            {selected.errorMessage ? (
-              <div className="delivery-logs-preview-block is-error">
-                <strong>{copy.errorReason}</strong>
-                <p>{selected.errorMessage}</p>
+              <div className="delivery-logs-preview-block">
+                <strong>{copy.messagePreview}</strong>
+                <p>{selected.messagePreview || "—"}</p>
               </div>
-            ) : null}
-          </section>
-        </div>
-      ) : null}
+              {selected.errorMessage ? (
+                <div className="delivery-logs-preview-block is-error">
+                  <strong>{copy.errorReason}</strong>
+                  <p>{selected.errorMessage}</p>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <PanelEmpty>{loading ? copy.loading : copy.noItems}</PanelEmpty>
+          )}
+        </PanelBody>
+      </SidePanel>
     </section>
   );
 }
@@ -488,8 +528,8 @@ function metricIcon(icon: "total" | "success" | "failed") {
 const deliveryLogsStyles = `
 .delivery-logs-shell { --dl-blue:#2167ff; --dl-ink:#142655; --dl-muted:#66758f; --dl-line:#dbe5f2; --dl-soft:#f7f9fc; width:min(100%,1600px); color:var(--dl-ink); }
 .delivery-logs-shell button, .delivery-logs-shell input, .delivery-logs-shell select { font-family:inherit; }
-.delivery-logs-refresh, .delivery-logs-details-button, .delivery-logs-pagination button, .delivery-logs-modal-head button { border:1px solid #d7e2f0; background:#fff; color:#1f3f75; border-radius:12px; min-height:38px; padding:0 14px; font-weight:800; cursor:pointer; }
-.delivery-logs-refresh:hover, .delivery-logs-details-button:hover, .delivery-logs-pagination button:hover, .delivery-logs-modal-head button:hover { border-color:#b9c9de; box-shadow:0 8px 24px rgba(15,23,42,.08); }
+.delivery-logs-refresh, .delivery-logs-details-button, .delivery-logs-pagination button { border:1px solid #d7e2f0; background:#fff; color:#1f3f75; border-radius:12px; min-height:38px; padding:0 14px; font-weight:800; cursor:pointer; }
+.delivery-logs-refresh:hover, .delivery-logs-details-button:hover, .delivery-logs-pagination button:hover { border-color:#b9c9de; box-shadow:0 8px 24px rgba(15,23,42,.08); }
 .delivery-logs-refresh:disabled, .delivery-logs-pagination button:disabled { opacity:.55; cursor:not-allowed; box-shadow:none; }
 .delivery-logs-summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-bottom:16px; }
 .delivery-metric-card { border:1px solid var(--dl-line); border-radius:22px; background:#fff; padding:18px; box-shadow:0 18px 50px rgba(15,23,42,.06); display:grid; grid-template-columns:auto 1fr; gap:6px 13px; align-items:center; }
@@ -528,11 +568,6 @@ const deliveryLogsStyles = `
 .delivery-logs-pagination { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px 18px; border-top:1px solid #edf2f7; color:#64748b; font-size:13px; font-weight:800; }
 .delivery-logs-pagination div { display:flex; align-items:center; gap:10px; }
 .delivery-logs-pagination button { min-width:38px; padding:0 10px; }
-.delivery-logs-modal-backdrop { position:fixed; inset:0; z-index:80; background:rgba(15,23,42,.38); display:flex; align-items:center; justify-content:center; padding:24px; }
-.delivery-logs-modal { width:min(780px,100%); max-height:calc(100vh - 48px); overflow:auto; border:1px solid #d7e2f0; border-radius:26px; background:#fff; box-shadow:0 30px 100px rgba(15,23,42,.28); padding:22px; }
-.delivery-logs-modal-head { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:18px; }
-.delivery-logs-modal-head h3 { margin:4px 0 0; font-size:24px; letter-spacing:-.035em; }
-.delivery-logs-modal-kicker { color:#2563eb; font-size:13px; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
 .delivery-logs-modal-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-bottom:16px; }
 .delivery-detail { border:1px solid #e2e8f0; border-radius:16px; padding:12px; background:#f8fafc; }
 .delivery-detail span { display:block; color:#64748b; font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }

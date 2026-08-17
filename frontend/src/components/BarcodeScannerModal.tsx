@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { PanelBody, PanelButton, PanelFooter, PanelHeader, SidePanel } from './panel'
 
 export type BarcodeScanResult = {
   accepted: boolean
@@ -23,6 +24,8 @@ function normalizeCode(value: string) {
 
 export function BarcodeScannerModal({ open, title, subtitle, continuous = false, onClose, onScan }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  // A physical scanner types like a keyboard, so the code field must hold focus on open.
+  const manualInputRef = useRef<HTMLInputElement | null>(null)
   const controlsRef = useRef<ScannerControls | null>(null)
   const scanHandlerRef = useRef(onScan)
   const lastCameraScanRef = useRef<{ code: string; at: number } | null>(null)
@@ -136,12 +139,21 @@ export function BarcodeScannerModal({ open, title, subtitle, continuous = false,
   }
 
   return (
-    <div className="consumables-barcode-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <section className="consumables-barcode-modal" role="dialog" aria-modal="true" aria-label={title}>
-        <header>
-          <div><h2>{title}</h2><p>{subtitle || 'Postavite črtno kodo znotraj okvirja ali uporabite fizični čitalnik.'}</p></div>
-          <button type="button" onClick={onClose} aria-label="Zapri">×</button>
-        </header>
+    <SidePanel
+      open
+      onClose={onClose}
+      placement="center"
+      size="md"
+      ariaLabel={title}
+      initialFocusRef={manualInputRef}
+    >
+      <PanelHeader
+        title={title}
+        subtitle={subtitle || 'Postavite črtno kodo znotraj okvirja ali uporabite fizični čitalnik.'}
+        onClose={onClose}
+        closeLabel="Zapri"
+      />
+      <PanelBody>
         <div className="consumables-barcode-camera">
           <video ref={videoRef} muted playsInline autoPlay />
           <div className="consumables-barcode-frame" aria-hidden><span /><span /><span /><span /></div>
@@ -150,16 +162,24 @@ export function BarcodeScannerModal({ open, title, subtitle, continuous = false,
         <form className="consumables-barcode-manual" onSubmit={submitManual}>
           <label>
             Črtna koda
-            <div><input autoFocus value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Skenirajte s čitalnikom ali vnesite kodo" autoComplete="off" inputMode="text" /><button type="submit" className="btn primary">Uporabi</button></div>
+            <div><input ref={manualInputRef} value={manualCode} onChange={(event) => setManualCode(event.target.value)} placeholder="Skenirajte s čitalnikom ali vnesite kodo" autoComplete="off" inputMode="text" /><button type="submit" className="btn primary">Uporabi</button></div>
           </label>
           <small>Fizični USB/Bluetooth čitalnik deluje kot tipkovnica: skenirajte kodo, ko je polje aktivno.</small>
         </form>
         {feedback && <div className={`consumables-barcode-feedback ${feedback.ok ? 'success' : 'error'}`} role="status">{feedback.text}</div>}
-        <footer>
-          <span>{continuous ? 'Način večkratnega skeniranja je vklopljen.' : 'Po uspešnem skenu se okno samodejno zapre.'}</span>
-          <div>{cameraState === 'active' ? <button type="button" className="btn secondary" onClick={stopCamera}>Ustavi kamero</button> : <button type="button" className="btn secondary" onClick={() => { setCameraState('idle'); setCameraMessage(''); void startCamera() }}>Zaženi kamero</button>}<button type="button" className="btn secondary" onClick={onClose}>Zapri</button></div>
-        </footer>
-      </section>
-    </div>
+      </PanelBody>
+      <PanelFooter
+        summaryLabel={continuous ? 'Način večkratnega skeniranja je vklopljen.' : 'Po uspešnem skenu se okno samodejno zapre.'}
+      >
+        {cameraState === 'active' ? (
+          <PanelButton onClick={stopCamera}>Ustavi kamero</PanelButton>
+        ) : (
+          <PanelButton onClick={() => { setCameraState('idle'); setCameraMessage(''); void startCamera() }}>
+            Zaženi kamero
+          </PanelButton>
+        )}
+        <PanelButton onClick={onClose}>Zapri</PanelButton>
+      </PanelFooter>
+    </SidePanel>
   )
 }

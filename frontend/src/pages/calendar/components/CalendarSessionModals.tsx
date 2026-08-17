@@ -1,14 +1,89 @@
 // @ts-nocheck
 import { DesktopSelect } from '../../../components/DesktopSelect'
 import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { BrowserQRCodeReader } from '@zxing/browser'
 import { createPortal } from 'react-dom'
 import { api } from '../../../api'
 import { bookingStatusDisplayLabel, deriveBookingStatus } from '../calendarStatus'
-import { CalendarServiceChainEditor } from './CalendarServiceChainEditor'
+import { CalendarServiceChainEditor, serviceDescription } from './CalendarServiceChainEditor'
+import { CalendarSectionIcon } from './CalendarIcons'
 import { useMobileKeyboardOpen } from '../../../hooks/useMobileKeyboardOpen'
 import { SimpleClientCreatePage } from '../../clients/SimpleClientCreatePage'
 import { hasEmployeePermission } from '../../../lib/employeePermissions'
+import { urlForNewForm } from '../../calendarFormRoutes'
+import {
+  ConfirmDialog,
+  PanelActionBar,
+  PanelBanner,
+  PanelBody,
+  PanelButton,
+  PanelFooter,
+  PanelHeader,
+  PanelMenuItem,
+  PanelOverflowMenu,
+  PanelSection,
+  PanelTabs,
+  SidePanel,
+  useConfirm,
+} from '../../../components/panel'
+
+function CalendarWarningIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+      <path d="M12 9v4M12 17h.01" />
+    </svg>
+  )
+}
+
+function CalendarClientProfileSectionIcon({ name }: { name: 'person' | 'email' | 'phone' }) {
+  const common = {
+    width: 20,
+    height: 20,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.9,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  }
+  if (name === 'email') {
+    return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>
+  }
+  if (name === 'phone') {
+    return <svg {...common}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.92Z" /></svg>
+  }
+  return <svg {...common}><circle cx="12" cy="7" r="4" /><path d="M5.5 21a6.5 6.5 0 0 1 13 0" /></svg>
+}
+
+/** "sob., 15. avg. · 10:15 – 11:45" — the date line under a panel title. */
+function formatPanelSlotSubtitle(start?: string | null, end?: string | null, locale?: string): string {
+  if (!start) return ''
+  const startDate = new Date(start)
+  if (Number.isNaN(startDate.getTime())) return ''
+  const tag = locale === 'sl' ? 'sl-SI' : locale === 'sr' ? 'sr-RS' : 'en-GB'
+  const day = startDate.toLocaleDateString(tag, { weekday: 'short', day: 'numeric', month: 'short' })
+  const time = (value: Date) =>
+    value.toLocaleTimeString(tag, { hour: '2-digit', minute: '2-digit', hour12: false })
+  const endDate = end ? new Date(end) : null
+  const range =
+    endDate && !Number.isNaN(endDate.getTime()) ? `${time(startDate)} – ${time(endDate)}` : time(startDate)
+  return `${day} · ${range}`
+}
+
+/** Joins the pieces of a collapsed-section summary, falling back to an em dash. */
+function joinSummary(...parts: Array<string | null | undefined | false>): string {
+  const kept = parts.filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+  return kept.length > 0 ? kept.join(' · ') : '—'
+}
+
+function truncateSummary(value: string | null | undefined, max = 60): string {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim()
+  if (!text) return ''
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text
+}
 
 function bookingFormSignature(session: any, clientIds: any[], services: any[]) {
   if (!session) return ''
@@ -51,6 +126,125 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const canViewConsumables = hasEmployeePermission(user, 'CONSUMABLES_VIEW')
   const canEditConsumables = hasEmployeePermission(user, 'CONSUMABLES_EDIT')
 
+  const confirm = useConfirm()
+  const location = useLocation()
+  /** Which "dodaj termin" tab the form state currently represents. */
+  const activeNewFormPanel = availabilitySelection
+    ? 'availability'
+    : form.todo
+      ? 'todo'
+      : form.personal
+        ? 'personal'
+        : 'booking'
+  const newFormPanelSubtitle = formatPanelSlotSubtitle(
+    form.startTime || selection?.start,
+    form.endTime || selection?.end,
+    locale,
+  )
+  const bookedPanelSubtitle = formatPanelSlotSubtitle(
+    selectedBookedSession?.startTime,
+    selectedBookedSession?.endTime,
+    locale,
+  )
+  const personalPanelSubtitle = formatPanelSlotSubtitle(
+    selectedPersonalBlock?.startTime,
+    selectedPersonalBlock?.endTime,
+    locale,
+  )
+  const todoPanelSubtitle = formatPanelSlotSubtitle(selectedTodo?.startTime, selectedTodo?.endTime, locale)
+
+  // --- Collapsed-section summaries -----------------------------------------
+  // Each collapsed card reports what it holds, so nothing is hidden without a trace.
+  const sectionLabels = {
+    clients: t(multipleClientsPerSessionEnabled ? 'formClients' : 'formClient'),
+    group: t('formGroup'),
+    service: locale === 'sl' ? 'Storitev' : locale === 'sr' ? 'Usluga' : 'Service',
+    consumables: locale === 'sl' ? 'Porabni material' : locale === 'sr' ? 'Potrošni materijal' : 'Consumables',
+    schedule: locale === 'sl' ? 'Čas in datum' : locale === 'sr' ? 'Vreme i datum' : 'Time and date',
+    notes: t('formNotes'),
+    repeats: t('formRepeats'),
+    allDay: t('formAllDay'),
+    online: locale === 'sl' ? 'Online' : 'Online',
+    noneSelected: locale === 'sl' ? 'Ni izbrano' : locale === 'sr' ? 'Nije izabrano' : 'Not selected',
+  }
+
+  const clientNamesSummary = (clients: any[]) => {
+    const names = (clients || []).map((client: any) => fullName(client)).filter(Boolean)
+    if (names.length === 0) return ''
+    if (names.length <= 2) return names.join(', ')
+    return `${names[0]}, ${names[1]} +${names.length - 2}`
+  }
+
+  const servicesSummary = (drafts: any[]) => {
+    const names = (drafts || [])
+      .map((draft: any) => {
+        const type = metaTypes?.find((entry: any) => Number(entry.id) === Number(draft?.typeId))
+        return type ? serviceDescription(type, locale) : ''
+      })
+      .filter(Boolean)
+    if (names.length === 0) return ''
+    return names.length <= 2 ? names.join(', ') : `${names[0]} +${names.length - 1}`
+  }
+
+  const scheduleSummary = (start: any, end: any, opts?: { repeats?: boolean }) =>
+    joinSummary(
+      formatPanelSlotSubtitle(start, end, locale),
+      isLocalBookingAllDay(start, end) ? sectionLabels.allDay : null,
+      opts?.repeats ? sectionLabels.repeats : null,
+    )
+
+  const newFormClientsSummary = bookingGroupMode
+    ? joinSummary(selectedGroup?.name, sectionLabels.group)
+    : joinSummary(clientNamesSummary(bookSessionSelectedClients), form.online ? sectionLabels.online : null)
+  const newFormServiceSummary = joinSummary(servicesSummary(formServiceDrafts))
+  const newFormScheduleSummary = scheduleSummary(
+    form.startTime || selection?.start,
+    form.endTime || selection?.end,
+    { repeats: Boolean(form.repeats) },
+  )
+  const newFormNotesSummary = joinSummary(truncateSummary(form.notes))
+
+  const bookedClientsSummary = bookedSessionIsGroup
+    ? joinSummary(bookedSessionResolvedGroup?.name ?? selectedBookedSession?.groupName, sectionLabels.group)
+    : joinSummary(
+        clientNamesSummary(bookedSessionSelectedClients),
+        selectedBookedSession?.online ? sectionLabels.online : null,
+      )
+  const bookedServiceSummary = joinSummary(servicesSummary(bookedServiceDrafts))
+  const bookedScheduleSummary = scheduleSummary(
+    selectedBookedSession?.startTime,
+    selectedBookedSession?.endTime,
+    { repeats: Boolean(selectedBookedSession?.repeats) },
+  )
+  const bookedNotesSummary = joinSummary(truncateSummary(selectedBookedSession?.notes))
+
+  const closeMeetingProviderPicker = () => {
+    setMeetingProviderPickerOpen(false)
+    setMeetingProviderPickerTarget(null)
+    setMeetingPickerCancelUnchecksOnline(false)
+  }
+
+  /** Dismissing without a choice turns Online back off when the picker was opened by that checkbox. */
+  const dismissMeetingProviderPicker = () => {
+    if (meetingPickerCancelUnchecksOnline) {
+      if (meetingProviderPickerTarget === 'edit') {
+        setSelectedBookedSession((s: any) => (s ? { ...s, online: false } : s))
+      } else {
+        setForm((f: any) => ({ ...f, online: false }))
+      }
+    }
+    closeMeetingProviderPicker()
+  }
+
+  const pickMeetingProvider = (provider: 'zoom' | 'google') => {
+    if (meetingProviderPickerTarget === 'edit') {
+      setSelectedBookedSession((s: any) => (s ? { ...s, meetingProvider: provider, online: true } : s))
+    } else {
+      setForm((f: any) => ({ ...f, meetingProvider: provider, online: true }))
+    }
+    closeMeetingProviderPicker()
+  }
+
   const spacesForLocation = (locationId: unknown) => {
     const normalized = Number(locationId)
     if (!Number.isFinite(normalized) || normalized <= 0) return metaSpaces
@@ -84,6 +278,447 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     selectedBookedSession?.location?.id,
   )
 
+  // Consultant and space live in the Storitev card, which the chain editor owns,
+  // so both panels hand them to the editor as children.
+  const newFormShowSpaceRow =
+    showBookingSpaceRow
+    && (!showBookingTypeRow || formServiceDrafts.filter((service: any) => service.typeId != null).length <= 1)
+  const newFormServiceExtraRows = (showBookingConsultantRow || newFormShowSpaceRow) ? (
+    <>
+      {showBookingConsultantRow && (
+        <div className="form-row form-row-infield calendar-booking-field--consultant">
+          <span className="form-field-inline-label">{t('formConsultant')}</span>
+          <div className="form-field-inline-control">
+            <DesktopSelect
+              disabled={form.todo || form.personal}
+              value={form.consultantId ?? ''}
+              onChange={(e) => setForm({ ...form, consultantId: e.target.value === '' ? null : Number(e.target.value) })}
+            >
+              <option value="">{t('formUnassigned')}</option>
+              {formConsultants.map((c: any) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}
+            </DesktopSelect>
+          </div>
+        </div>
+      )}
+      {newFormShowSpaceRow && (
+        <div className="form-row form-row-infield calendar-booking-field--space">
+          <span className="form-field-inline-label">{t('formCalendarBookingSpace')}</span>
+          <div className="form-field-inline-control">
+            <DesktopSelect
+              value={form.spaceId || ''}
+              onChange={(e) => {
+                const nextSpaceId = Number(e.target.value) || null
+                updateBookingFormServices(formServiceDrafts.map((service: any, index: number) => (
+                  index === 0 ? { ...service, spaceId: nextSpaceId } : service
+                )))
+              }}
+            >
+              <option value="">{t('formNoSpace')}</option>
+              {formSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </DesktopSelect>
+          </div>
+        </div>
+      )}
+    </>
+  ) : null
+
+  const bookedShowSpaceRow =
+    showBookingSpaceRow
+    && (!showBookingTypeRow || bookedServiceDrafts.filter((service: any) => service.typeId != null).length <= 1)
+  const bookedServiceExtraRows = (showBookingConsultantRow || bookedShowSpaceRow) ? (
+    <>
+      {showBookingConsultantRow && (
+        <div className="form-row form-row-infield calendar-booking-field--consultant calendar-standardized-mobile-only">
+          <span className="form-field-inline-label">{t('formConsultant')}</span>
+          <div className="form-field-inline-control">
+            <DesktopSelect
+              value={selectedBookedSession?.consultant?.id ?? ''}
+              onChange={(e) => {
+                const val = e.target.value
+                if (val === '') {
+                  setSelectedBookedSession({ ...selectedBookedSession, consultant: null })
+                } else {
+                  setSelectedBookedSession({ ...selectedBookedSession, consultant: metaUsers.find((u: any) => u.id === Number(val)) })
+                }
+              }}
+            >
+              <option value="">{t('formUnassigned')}</option>
+              {bookedConsultants.map((c: any) => (
+                <option key={c.id} value={c.id}>{fullName(c)}</option>
+              ))}
+            </DesktopSelect>
+          </div>
+        </div>
+      )}
+      {bookedShowSpaceRow && (
+        <div className="form-row form-row-infield calendar-booking-field--space calendar-standardized-mobile-only">
+          <span className="form-field-inline-label">{t('formCalendarBookingSpace')}</span>
+          <div className="form-field-inline-control">
+            <DesktopSelect
+              value={selectedBookedSession?.space?.id ?? ''}
+              onChange={(e) => {
+                const nextSpaceId = Number(e.target.value) || null
+                updateSelectedBookedSessionServices(bookedServiceDrafts.map((service: any, index: number) => (
+                  index === 0 ? { ...service, spaceId: nextSpaceId } : service
+                )))
+              }}
+            >
+              <option value="">{t('formNoSpace')}</option>
+              {bookedSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </DesktopSelect>
+          </div>
+        </div>
+      )}
+    </>
+  ) : null
+
+  const toggleNewBookingAllDay = () => {
+    if (isLocalBookingAllDay(form.startTime, form.endTime)) {
+      const d = splitLocalDateTimeParts(normalizeToLocalDateTime(form.startTime)).date || localTodayYmd()
+      const hm = toCalendarTimeValue(settings.WORKING_HOURS_START, '09:00').slice(0, 5)
+      updateBookingFormStartTime(normalizeToLocalDateTime(`${d}T${hm}:00`))
+      return
+    }
+    const d = splitLocalDateTimeParts(normalizeToLocalDateTime(form.startTime)).date || localTodayYmd()
+    bookingEndEditedManuallyRef.current = true
+    setForm({
+      ...form,
+      startTime: normalizeToLocalDateTime(`${d}T00:00:00`),
+      endTime: normalizeToLocalDateTime(`${d}T23:59:59`),
+    })
+  }
+
+  const renderNewBookingRepeats = (includeToggleRow: boolean) => {
+    const dateLoc = locale === 'sl' ? 'sl-SI' : 'en-GB'
+    const startDate = form.startTime ? new Date(form.startTime) : null
+    const sessionDay = startDate ? REPEAT_WEEKDAY_EN[startDate.getDay()] : 'Monday'
+    const sessionDateStr = startDate
+      ? startDate.toLocaleDateString(dateLoc, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+      : ''
+    const repeatInterval = form.repeatInterval ?? 1
+    const repeatUnit = form.repeatUnit ?? 'weeks'
+    const repeatEndType = form.repeatEndType ?? 'after'
+    const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(form.repeatEndCount) || 2)))
+    const repeatEndDate = form.repeatEndDate ?? ''
+    const summaryTail = repeatEndType === 'after'
+      ? t('formRepeatEndsAfter').replace('{count}', String(repeatEndCount))
+      : repeatEndDate
+        ? t('formRepeatEndsOn').replace(
+            '{date}',
+            new Date(repeatEndDate).toLocaleDateString(dateLoc, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }),
+          )
+        : t('formRepeatNoEndDate')
+    const summaryLine = t('formRepeatSummaryLine').replace('{from}', sessionDateStr).replace('{tail}', summaryTail)
+
+    return (
+      <div className={`form-row-repeats-section calendar-booking-repeats-section${form.repeats ? ' calendar-booking-repeats-section--expanded' : ''}`}>
+        {includeToggleRow && (
+          <div className="form-row form-row-infield form-row--bare">
+            <span className="form-field-inline-label">{t('formRepeats')}</span>
+            <div className="form-field-inline-control">
+              <label className="repeats-toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={!!form.repeats}
+                  onChange={(e) => setForm({ ...form, repeats: e.target.checked, repeatDay: sessionDay })}
+                />
+                <span className="repeats-toggle-slider" />
+              </label>
+            </div>
+          </div>
+        )}
+        {form.repeats && (
+          <div className="form-repeats-config">
+            <div className="form-repeats-row">
+              <span className="form-repeats-label">{t('formRepeatsEvery')}</span>
+              <input
+                type="number"
+                min={1}
+                max={52}
+                className="form-repeats-number"
+                value={repeatInterval}
+                onChange={(e) => setForm({ ...form, repeatInterval: Math.max(1, Number(e.target.value) || 1) })}
+              />
+              <DesktopSelect
+                className="form-repeats-select"
+                value={repeatUnit}
+                onChange={(e) => setForm({ ...form, repeatUnit: e.target.value })}
+              >
+                <option value="days">{t('formRepeatUnitDays')}</option>
+                <option value="weeks">{t('formRepeatUnitWeeks')}</option>
+                <option value="months">{t('formRepeatUnitMonths')}</option>
+              </DesktopSelect>
+            </div>
+            {repeatUnit === 'weeks' && (
+              <div className="form-repeats-row">
+                <span className="form-repeats-label">{t('formRepeatsOnDay')}</span>
+                <DesktopSelect
+                  className="form-repeats-select"
+                  value={form.repeatDay ?? sessionDay}
+                  onChange={(e) => setForm({ ...form, repeatDay: e.target.value })}
+                >
+                  {REPEAT_WEEKDAY_EN.map((d) => (
+                    <option key={d} value={d}>{formatRepeatWeekdayLabel(locale, d)}</option>
+                  ))}
+                </DesktopSelect>
+              </div>
+            )}
+            <div className="form-repeats-row">
+              <span className="form-repeats-label">{t('formRepeatsEnds')}</span>
+              <DesktopSelect
+                className="form-repeats-select"
+                value={repeatEndType}
+                onChange={(e) => setForm({ ...form, repeatEndType: e.target.value })}
+              >
+                <option value="after">{t('formRepeatEndAfter')}</option>
+                <option value="on">{t('formRepeatEndOnDate')}</option>
+              </DesktopSelect>
+              {repeatEndType === 'after' && (
+                <input
+                  type="number"
+                  min={2}
+                  max={100}
+                  className="form-repeats-number"
+                  value={form.repeatEndCount ?? 5}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    setForm({
+                      ...form,
+                      repeatEndCount: raw === '' ? '' : Math.min(100, Math.max(0, Math.floor(Number(raw) || 0))),
+                    })
+                  }}
+                  onBlur={(e) =>
+                    setForm({
+                      ...form,
+                      repeatEndCount: Math.max(2, Math.min(100, Math.floor(Number(e.target.value) || 2))),
+                    })
+                  }
+                />
+              )}
+              {repeatEndType === 'on' && (
+                <input
+                  type="date"
+                  className="form-repeats-date"
+                  value={repeatEndDate}
+                  onChange={(e) => setForm({ ...form, repeatEndDate: e.target.value })}
+                />
+              )}
+            </div>
+            <p className="form-repeats-summary muted">
+              {summaryLine}
+            </p>
+            <p className="form-repeats-note muted">
+              {t('formRepeatsSameDurationNote')}
+            </p>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const toggleBookedSessionAllDay = () => {
+    if (!selectedBookedSession) return
+    if (isLocalBookingAllDay(selectedBookedSession.startTime, selectedBookedSession.endTime)) {
+      const d = splitLocalDateTimeParts(normalizeToLocalDateTime(selectedBookedSession.startTime)).date || localTodayYmd()
+      const hm = toCalendarTimeValue(settings.WORKING_HOURS_START, '09:00').slice(0, 5)
+      updateSelectedBookedSessionStartTime(normalizeToLocalDateTime(`${d}T${hm}:00`))
+      return
+    }
+    const d = splitLocalDateTimeParts(normalizeToLocalDateTime(selectedBookedSession.startTime)).date || localTodayYmd()
+    setSelectedBookedSession({
+      ...selectedBookedSession,
+      startTime: normalizeToLocalDateTime(`${d}T00:00:00`),
+      endTime: normalizeToLocalDateTime(`${d}T23:59:59`),
+    })
+  }
+
+  const toggleSelectedPersonalAllDay = () => {
+    setSelectedPersonalBlock((prev: any) => {
+      if (!prev) return prev
+      if (isLocalBookingAllDay(prev.startTime, prev.endTime)) {
+        const d = splitLocalDateTimeParts(normalizeToLocalDateTime(prev.startTime)).date || localTodayYmd()
+        const hm = toCalendarTimeValue(settings.WORKING_HOURS_START, '09:00').slice(0, 5)
+        const start = normalizeToLocalDateTime(`${d}T${hm}:00`)
+        const end = getBookingEndTimeForStart(start, null)
+        return { ...prev, startTime: start, endTime: end }
+      }
+      const d = splitLocalDateTimeParts(normalizeToLocalDateTime(prev.startTime)).date || localTodayYmd()
+      return {
+        ...prev,
+        startTime: normalizeToLocalDateTime(`${d}T00:00:00`),
+        endTime: normalizeToLocalDateTime(`${d}T23:59:59`),
+      }
+    })
+  }
+
+  const toggleSelectedTodoAllDay = () => {
+    setSelectedTodo((prev: any) => {
+      if (!prev) return prev
+      if (isLocalTodoAllDayStart(prev.startTime)) {
+        const d = splitLocalDateTimeParts(normalizeToLocalDateTime(prev.startTime)).date || localTodayYmd()
+        const hm = toCalendarTimeValue(settings.WORKING_HOURS_START, '09:00').slice(0, 5)
+        return { ...prev, startTime: normalizeToLocalDateTime(`${d}T${hm}:00`) }
+      }
+      const d = splitLocalDateTimeParts(normalizeToLocalDateTime(prev.startTime)).date || localTodayYmd()
+      return { ...prev, startTime: normalizeToLocalDateTime(`${d}T00:00:00`) }
+    })
+  }
+
+  const toggleNewTodoAllDay = () => {
+    setForm((current: any) => {
+      if (isLocalTodoAllDayStart(current.startTime)) {
+        const d = splitLocalDateTimeParts(normalizeToLocalDateTime(current.startTime)).date || localTodayYmd()
+        const hm = toCalendarTimeValue(settings.WORKING_HOURS_START, '09:00').slice(0, 5)
+        return { ...current, startTime: normalizeToLocalDateTime(`${d}T${hm}:00`) }
+      }
+      const d = splitLocalDateTimeParts(normalizeToLocalDateTime(current.startTime)).date || localTodayYmd()
+      return { ...current, startTime: normalizeToLocalDateTime(`${d}T00:00:00`) }
+    })
+  }
+
+  const toggleNewPersonalAllDay = () => {
+    setForm((current: any) => {
+      if (isLocalBookingAllDay(current.startTime, current.endTime)) {
+        const d = splitLocalDateTimeParts(normalizeToLocalDateTime(current.startTime)).date || localTodayYmd()
+        const hm = toCalendarTimeValue(settings.WORKING_HOURS_START, '09:00').slice(0, 5)
+        const start = normalizeToLocalDateTime(`${d}T${hm}:00`)
+        const end = getBookingEndTimeForStart(start, null)
+        return { ...current, startTime: start, endTime: end }
+      }
+      const d = splitLocalDateTimeParts(normalizeToLocalDateTime(current.startTime)).date || localTodayYmd()
+      return {
+        ...current,
+        startTime: normalizeToLocalDateTime(`${d}T00:00:00`),
+        endTime: normalizeToLocalDateTime(`${d}T23:59:59`),
+      }
+    })
+  }
+
+  const renderBookedRepeats = (includeToggleRow: boolean) => {
+    if (!selectedBookedSession) return null
+    const dateLoc = locale === 'sl' ? 'sl-SI' : 'en-GB'
+    const startDate = selectedBookedSession.startTime ? new Date(selectedBookedSession.startTime) : null
+    const sessionDay = startDate ? REPEAT_WEEKDAY_EN[startDate.getDay()] : 'Monday'
+    const sessionDateStr = startDate
+      ? startDate.toLocaleDateString(dateLoc, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+      : ''
+    const repeatInterval = selectedBookedSession.repeatInterval ?? 1
+    const repeatUnit = selectedBookedSession.repeatUnit ?? 'weeks'
+    const repeatEndType = selectedBookedSession.repeatEndType ?? 'after'
+    const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(selectedBookedSession.repeatEndCount) || 2)))
+    const repeatEndDate = selectedBookedSession.repeatEndDate ?? ''
+    const summaryTail = repeatEndType === 'after'
+      ? t('formRepeatEndsAfter').replace('{count}', String(repeatEndCount))
+      : repeatEndDate
+        ? t('formRepeatEndsOn').replace(
+            '{date}',
+            new Date(repeatEndDate).toLocaleDateString(dateLoc, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }),
+          )
+        : t('formRepeatNoEndDate')
+    const summaryLine = t('formRepeatSummaryLine').replace('{from}', sessionDateStr).replace('{tail}', summaryTail)
+
+    return (
+      <div className={`form-row-repeats-section calendar-booking-repeats-section${selectedBookedSession.repeats ? ' calendar-booking-repeats-section--expanded' : ''}`}>
+        {includeToggleRow && (
+          <div className="form-row form-row-infield form-row--bare">
+            <span className="form-field-inline-label">{t('formRepeats')}</span>
+            <div className="form-field-inline-control">
+              <label className="repeats-toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={!!selectedBookedSession.repeats}
+                  onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeats: e.target.checked, repeatDay: sessionDay })}
+                />
+                <span className="repeats-toggle-slider" />
+              </label>
+            </div>
+          </div>
+        )}
+        {selectedBookedSession.repeats && (
+          <div className="form-repeats-config">
+            <div className="form-repeats-row">
+              <span className="form-repeats-label">{t('formRepeatsEvery')}</span>
+              <input
+                type="number"
+                min={1}
+                max={52}
+                className="form-repeats-number"
+                value={repeatInterval}
+                onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatInterval: Math.max(1, Number(e.target.value) || 1) })}
+              />
+              <DesktopSelect
+                className="form-repeats-select"
+                value={repeatUnit}
+                onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatUnit: e.target.value })}
+              >
+                <option value="days">{t('formRepeatUnitDays')}</option>
+                <option value="weeks">{t('formRepeatUnitWeeks')}</option>
+                <option value="months">{t('formRepeatUnitMonths')}</option>
+              </DesktopSelect>
+            </div>
+            {repeatUnit === 'weeks' && (
+              <div className="form-repeats-row">
+                <span className="form-repeats-label">{t('formRepeatsOnDay')}</span>
+                <DesktopSelect
+                  className="form-repeats-select"
+                  value={selectedBookedSession.repeatDay ?? sessionDay}
+                  onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatDay: e.target.value })}
+                >
+                  {REPEAT_WEEKDAY_EN.map((d) => (
+                    <option key={d} value={d}>{formatRepeatWeekdayLabel(locale, d)}</option>
+                  ))}
+                </DesktopSelect>
+              </div>
+            )}
+            <div className="form-repeats-row">
+              <span className="form-repeats-label">{t('formRepeatsEnds')}</span>
+              <DesktopSelect
+                className="form-repeats-select"
+                value={repeatEndType}
+                onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatEndType: e.target.value })}
+              >
+                <option value="after">{t('formRepeatEndAfter')}</option>
+                <option value="on">{t('formRepeatEndOnDate')}</option>
+              </DesktopSelect>
+              {repeatEndType === 'after' && (
+                <input
+                  type="number"
+                  min={2}
+                  max={100}
+                  className="form-repeats-number"
+                  value={selectedBookedSession.repeatEndCount ?? 5}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    setSelectedBookedSession({
+                      ...selectedBookedSession,
+                      repeatEndCount: raw === '' ? '' : Math.min(100, Math.max(0, Math.floor(Number(raw) || 0))),
+                    })
+                  }}
+                  onBlur={(e) =>
+                    setSelectedBookedSession({
+                      ...selectedBookedSession,
+                      repeatEndCount: Math.max(2, Math.min(100, Math.floor(Number(e.target.value) || 2))),
+                    })
+                  }
+                />
+              )}
+              {repeatEndType === 'on' && (
+                <input
+                  type="date"
+                  className="form-repeats-date"
+                  value={repeatEndDate}
+                  onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatEndDate: e.target.value })}
+                />
+              )}
+            </div>
+            <p className="form-repeats-summary muted">{summaryLine}</p>
+            <p className="form-repeats-note muted">{t('formRepeatsSameDurationNote')}</p>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const [bookedBillingActionMenu, setBookedBillingActionMenu] = useState<null | 'advance' | 'invoice'>(null)
   const [bookedBillingView, setBookedBillingView] = useState<null | 'advances' | 'invoices'>(null)
   const [bookedBillingViewSourceSession, setBookedBillingViewSourceSession] = useState<any>(null)
@@ -101,8 +736,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [newSlotWaitlistMatches, setNewSlotWaitlistMatches] = useState<any>(null)
   const [newSlotWaitlistLoading, setNewSlotWaitlistLoading] = useState(false)
   const [newSlotWaitlistOpen, setNewSlotWaitlistOpen] = useState(false)
-  const [mobileBookingDetailsOpen, setMobileBookingDetailsOpen] = useState(false)
-  const [mobileBillingActionsOpen, setMobileBillingActionsOpen] = useState<null | 'advance' | 'invoice'>(null)
   const [mobileBookingStatusDraft, setMobileBookingStatusDraft] = useState<string | null>(null)
   const [isCalendarCreateMobile, setIsCalendarCreateMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 1024px)').matches : false,
@@ -122,9 +755,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const bookedSessionHasChanges = selectedBookedSessionId != null
     && bookedSessionInitialSignatureRef.current.id === selectedBookedSessionId
     && bookedSessionInitialSignatureRef.current.signature !== currentBookedSessionSignature
-  const showBookedSessionFooter = !compactSessionEditHeader
-    || confirmDelete
-    || (bookedSessionHasChanges && !calendarFormKeyboardOpen)
+  // The footer keeps a fixed place in every panel; it only yields to the mobile keyboard.
+  const showBookedSessionFooter = !compactSessionEditHeader || !calendarFormKeyboardOpen
 
   useEffect(() => {
     if (selectedBookedSessionId == null) {
@@ -276,11 +908,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     }
   }, [selection])
 
-  useEffect(() => {
-    setMobileBookingDetailsOpen(false)
-    setMobileBillingActionsOpen(null)
-  }, [selectedBookedSession?.id, compactSessionEditHeader])
-
   const closeNewSlotWaitlist = (event?: {
     stopPropagation?: () => void
     preventDefault?: () => void
@@ -384,15 +1011,20 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     }
   }, [waitlistModuleEnabled, selection, availabilitySelection, form?.todo, form?.personal, bookingGroupMode, newWaitlistSlotKey, selectedFormClientIds.length, form?.waitlistRequestId])
 
-  const pullFirstWaitlistedGuestIntoBooking = (candidate?: any) => {
+  const pullFirstWaitlistedGuestIntoBooking = async (candidate?: any) => {
     if (!waitlistModuleEnabled) return
     const first = candidate || visibleNewSlotWaitlistMatches?.first
     const clientId = Number(first?.clientId)
     const requestId = Number(first?.requestId)
     if (!Number.isInteger(clientId) || clientId <= 0 || !Number.isInteger(requestId) || requestId <= 0) return
-    const confirmed = window.confirm(locale === 'sl'
-      ? `Dodam stranko ${first.clientName} neposredno v ta termin? Rezervacija bo ustvarjena brez čakanja na potrditev ponudbe.`
-      : `Add ${first.clientName} directly to this session? The booking will be created without waiting for offer acceptance.`)
+    const confirmed = await confirm({
+      title: locale === 'sl'
+        ? `Dodam stranko ${first.clientName} neposredno v ta termin?`
+        : `Add ${first.clientName} directly to this session?`,
+      text: locale === 'sl'
+        ? 'Rezervacija bo ustvarjena brez čakanja na potrditev ponudbe.'
+        : 'The booking will be created without waiting for offer acceptance.',
+    })
     if (!confirmed) return
     applyFormClientIds([clientId])
     setForm((current: any) => ({
@@ -691,15 +1323,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     setNewGroupMemberSearch('')
   }
 
-  const calendarNewGroupDisplayName = String(newGroupForm?.name ?? '').trim() || (locale === 'sl' ? 'Nova skupina' : 'New group')
   const calendarCreateGroupLabel = locale === 'sl' ? 'Ustvari skupino' : 'Create group'
   const calendarCreateGroupDisabled = savingNewGroupModal || !String(newGroupForm?.name ?? '').trim()
 
-  const calendarNewClientDisplayName = [newClientForm.firstName, newClientForm.lastName]
-    .filter((value: string) => String(value ?? '').trim())
-    .join(' ')
-    .trim() || (locale === 'sl' ? 'Nova stranka' : 'New client')
-  const calendarNewClientActiveLabel = locale === 'sl' ? 'Aktivna' : 'Active'
   const calendarCreateClientLabel = locale === 'sl' ? 'Ustvari stranko' : 'Create client'
   const calendarCreateClientDisabled = savingClient || !String(newClientForm.firstName ?? '').trim() || !String(newClientForm.lastName ?? '').trim()
 
@@ -1411,12 +2037,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const bookedBillingHasInvoiceViewRows = sessionInvoiceRows.length > 0
   const bookedBillingCanEditInvoice = bookedBillingHasExistingOpenBill || bookedBillingHasUnbilledStatus
   const bookedBillingInvoiceActionCount = (bookedBillingCanEditInvoice ? 1 : 0) + (bookedBillingHasInvoiceViewRows ? 1 : 0)
-  const mobilePrimaryBillingKind: 'advance' | 'invoice' = bookingServiceBillingButtonIsAdvance ? 'advance' : 'invoice'
-  const mobilePrimaryBillingHasMultipleActions = mobilePrimaryBillingKind === 'advance'
-    ? bookedBillingHasExistingAdvance
-    : bookedBillingInvoiceActionCount > 1
-  const mobilePrimaryBillingMenuOpen = mobileBillingActionsOpen === mobilePrimaryBillingKind
-
   const formatSessionDate = (value?: string | null) => formatPaymentDateOnly(value)
   const formatSessionTime = (value?: string | null) => {
     if (!value) return ''
@@ -1506,113 +2126,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             <button type="button" role="menuitem" onClick={() => openBookedBillingView('invoices')}>
               <span aria-hidden>◉</span>
               {locale === 'sl' ? 'Pregled' : 'View'}
-            </button>
-          )}
-        </>
-      )}
-    </div>
-  ) : null
-
-  const renderMobileBillingActionMenu = (kind: 'advance' | 'invoice') => mobileBillingActionsOpen === kind ? (
-    <div
-      className="calendar-mobile-session-more-menu__invoice-submenu"
-      role="menu"
-      aria-label={kind === 'advance'
-        ? (locale === 'sl' ? 'Dejanja predračuna' : 'Proforma invoice actions')
-        : (locale === 'sl' ? 'Dejanja računa' : 'Invoice actions')}
-    >
-      {kind === 'advance' ? (
-        <>
-          <button
-            type="button"
-            role="menuitem"
-            className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action calendar-mobile-session-more-menu__invoice-subitem"
-            onClick={() => {
-              setMobileBillingActionsOpen(null)
-              setMobileBookingDetailsOpen(false)
-              openBookedAdvanceForm()
-            }}
-          >
-            <span className="calendar-mobile-session-more-menu__icon" aria-hidden>
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
-              </svg>
-            </span>
-            <span className="calendar-mobile-session-more-menu__copy">
-              <strong>{locale === 'sl' ? 'Novo' : 'New'}</strong>
-              <small>{locale === 'sl' ? 'Ustvari nov predračun' : 'Create a new proforma invoice'}</small>
-            </span>
-          </button>
-          {bookedBillingHasExistingAdvance && (
-            <button
-              type="button"
-              role="menuitem"
-              className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action calendar-mobile-session-more-menu__invoice-subitem"
-              onClick={() => {
-                setMobileBillingActionsOpen(null)
-                setMobileBookingDetailsOpen(false)
-                openBookedBillingView('advances')
-              }}
-            >
-              <span className="calendar-mobile-session-more-menu__icon" aria-hidden>
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M2.75 12s3.2-5.25 9.25-5.25S21.25 12 21.25 12 18.05 17.25 12 17.25 2.75 12 2.75 12Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-                  <circle cx="12" cy="12" r="2.45" stroke="currentColor" strokeWidth="1.8" />
-                </svg>
-              </span>
-              <span className="calendar-mobile-session-more-menu__copy">
-                <strong>{locale === 'sl' ? 'Pregled' : 'View'}</strong>
-                <small>{locale === 'sl' ? 'Odpri pregled predračunov' : 'Open proforma invoice overview'}</small>
-              </span>
-            </button>
-          )}
-        </>
-      ) : (
-        <>
-          {bookedBillingCanEditInvoice && (
-            <button
-              type="button"
-              role="menuitem"
-              className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action calendar-mobile-session-more-menu__invoice-subitem"
-              onClick={() => {
-                setMobileBillingActionsOpen(null)
-                setMobileBookingDetailsOpen(false)
-                void openBookedInvoiceEditor()
-              }}
-            >
-              <span className="calendar-mobile-session-more-menu__icon" aria-hidden>
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="m4.8 19.2.85-3.9L16.8 4.15a1.9 1.9 0 0 1 2.7 0l.35.35a1.9 1.9 0 0 1 0 2.7L8.7 18.35l-3.9.85Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="m15.4 5.55 3.05 3.05" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
-              </span>
-              <span className="calendar-mobile-session-more-menu__copy">
-                <strong>{locale === 'sl' ? 'Uredi' : 'Edit'}</strong>
-                <small>{locale === 'sl' ? 'Ustvari ali uredi račun' : 'Create or edit an invoice'}</small>
-              </span>
-            </button>
-          )}
-          {bookedBillingHasInvoiceViewRows && (
-            <button
-              type="button"
-              role="menuitem"
-              className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action calendar-mobile-session-more-menu__invoice-subitem"
-              onClick={() => {
-                setMobileBillingActionsOpen(null)
-                setMobileBookingDetailsOpen(false)
-                openBookedBillingView('invoices')
-              }}
-            >
-              <span className="calendar-mobile-session-more-menu__icon" aria-hidden>
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M2.75 12s3.2-5.25 9.25-5.25S21.25 12 21.25 12 18.05 17.25 12 17.25 2.75 12 2.75 12Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-                  <circle cx="12" cy="12" r="2.45" stroke="currentColor" strokeWidth="1.8" />
-                </svg>
-              </span>
-              <span className="calendar-mobile-session-more-menu__copy">
-                <strong>{locale === 'sl' ? 'Pregled' : 'View'}</strong>
-                <small>{locale === 'sl' ? 'Odpri pregled računov' : 'Open invoice overview'}</small>
-              </span>
             </button>
           )}
         </>
@@ -2157,541 +2670,148 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
 
   return (
     <>
-      {confirmOverlap && (
-        <div className="modal-backdrop calendar-booking-supplement" onClick={() => { setConfirmOverlap(null) }}>
-          <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <PageHeader
-              title={warningCopy.overlappingTitle}
-              subtitle={warningCopy.overlappingSubtitle(confirmOverlap.overlapping.length)}
-            />
-            <div className="row gap">
-              <button onClick={() => saveBooking(true, true, true)} disabled={saveBookingLoading}>{warningCopy.overlappingConfirm}</button>
-              <button className="secondary" onClick={() => { setConfirmOverlap(null) }}>{warningCopy.overlappingCancel}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={Boolean(confirmOverlap)}
+        onClose={() => setConfirmOverlap(null)}
+        tone="warning"
+        icon={<CalendarWarningIcon />}
+        title={warningCopy.overlappingTitle}
+        text={confirmOverlap ? warningCopy.overlappingSubtitle(confirmOverlap.overlapping.length) : undefined}
+        confirmLabel={warningCopy.overlappingConfirm}
+        cancelLabel={warningCopy.overlappingCancel}
+        busy={saveBookingLoading}
+        onConfirm={() => saveBooking(true, true, true)}
+      />
 
-      {confirmBookedPersonalOverlap && (
-        <div className="modal-backdrop calendar-booking-supplement" onClick={cancelBookedPersonalOverlap}>
-          <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <PageHeader
-              title={warningCopy.personalTimeTitle}
-              subtitle={warningCopy.personalTimeSubtitle}
-            />
-            <div className="row gap">
-              <button type="button" onClick={() => void confirmBookedPersonalOverlapYes()} disabled={saveBookingLoading}>
-                {warningCopy.yes}
-              </button>
-              <button type="button" className="secondary" onClick={cancelBookedPersonalOverlap}>
-                {warningCopy.cancel}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={Boolean(confirmBookedPersonalOverlap)}
+        onClose={cancelBookedPersonalOverlap}
+        tone="warning"
+        icon={<CalendarWarningIcon />}
+        title={warningCopy.personalTimeTitle}
+        text={warningCopy.personalTimeSubtitle}
+        confirmLabel={warningCopy.yes}
+        cancelLabel={warningCopy.cancel}
+        busy={saveBookingLoading}
+        onConfirm={() => void confirmBookedPersonalOverlapYes()}
+      />
 
-      {confirmNonBookableMove && (
-        <div
-          className={`modal-backdrop calendar-booking-supplement${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
-          onClick={cancelNonBookableMove}
-        >
-          <div
-            className={`modal confirm-modal${isNativeAndroid ? ' confirm-modal-non-bookable-android' : ''}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {isNativeAndroid ? (
-              <p className="confirm-modal-non-bookable-text">
-                {confirmNonBookableMove.pastTime
-                  ? warningCopy.nonBookablePastTime
-                  : warningCopy.nonBookableSlot}
-              </p>
-            ) : (
-              <PageHeader
-                title={warningCopy.warningTitle}
-                subtitle={confirmNonBookableMove.pastTime
-                  ? warningCopy.nonBookablePastTime
-                  : warningCopy.nonBookableSlot}
-              />
-            )}
-            <div className="row gap">
-              <button type="button" onClick={() => void confirmNonBookableMoveYes()}>
-                {warningCopy.yes}
-              </button>
-              <button type="button" className="secondary" onClick={cancelNonBookableMove}>
-                {warningCopy.no}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={Boolean(confirmNonBookableMove)}
+        onClose={cancelNonBookableMove}
+        tone="warning"
+        icon={<CalendarWarningIcon />}
+        title={warningCopy.warningTitle}
+        text={
+          confirmNonBookableMove?.pastTime ? warningCopy.nonBookablePastTime : warningCopy.nonBookableSlot
+        }
+        confirmLabel={warningCopy.yes}
+        cancelLabel={warningCopy.no}
+        onConfirm={() => void confirmNonBookableMoveYes()}
+      />
 
-      {confirmNonBookable && (
-        <div
-          className={`modal-backdrop calendar-booking-supplement${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
-          onClick={() => setConfirmNonBookable(null)}
-        >
-          <div
-            className={`modal confirm-modal${isNativeAndroid ? ' confirm-modal-non-bookable-android' : ''}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {isNativeAndroid ? (
-              <p className="confirm-modal-non-bookable-text">
-                {confirmNonBookable.pastTime
-                  ? warningCopy.nonBookablePastTime
-                  : warningCopy.nonBookableSlot}
-              </p>
-            ) : (
-              <PageHeader
-                title={warningCopy.warningTitle}
-                subtitle={confirmNonBookable.pastTime
-                  ? warningCopy.nonBookablePastTime
-                  : warningCopy.nonBookableSlot}
-              />
-            )}
-            <div className="row gap">
-              <button
-                type="button"
-                onClick={() => void confirmNonBookableYes()}
-                disabled={saveBookingLoading}
-              >
-                {warningCopy.yes}
-              </button>
-              <button className="secondary" onClick={() => setConfirmNonBookable(null)}>{warningCopy.no}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={Boolean(confirmNonBookable)}
+        onClose={() => setConfirmNonBookable(null)}
+        tone="warning"
+        icon={<CalendarWarningIcon />}
+        title={warningCopy.warningTitle}
+        text={confirmNonBookable?.pastTime ? warningCopy.nonBookablePastTime : warningCopy.nonBookableSlot}
+        confirmLabel={warningCopy.yes}
+        cancelLabel={warningCopy.no}
+        busy={saveBookingLoading}
+        onConfirm={() => void confirmNonBookableYes()}
+      />
 
-      {waitlistModuleEnabled && releasedSlotWaitlistPrompt && (
-        <div
-          className="modal-backdrop calendar-booking-supplement"
-          onClick={() => !releasedSlotWaitlistLoading && setReleasedSlotWaitlistPrompt(null)}
-          role="dialog"
-          aria-modal="true"
-          aria-label={locale === 'sl' ? 'Ponudi sproščeni termin' : 'Offer released slot'}
-        >
-          <div className="modal confirm-modal calendar-waitlist-release-modal" onClick={(event) => event.stopPropagation()}>
+      <ConfirmDialog
+        open={Boolean(waitlistModuleEnabled && releasedSlotWaitlistPrompt)}
+        onClose={() => { if (!releasedSlotWaitlistLoading) setReleasedSlotWaitlistPrompt(null) }}
+        title={locale === 'sl' ? 'Ponudi sproščeni termin' : 'Offer the released slot'}
+        text={releasedSlotWaitlistPrompt
+          ? (locale === 'sl'
+            ? `Ta termin ustreza ${releasedSlotWaitlistPrompt.matches.count} ${Number(releasedSlotWaitlistPrompt.matches.count) === 1 ? 'stranki' : 'strankam'} na čakalni vrsti.`
+            : `This slot matches ${releasedSlotWaitlistPrompt.matches.count} waitlisted ${Number(releasedSlotWaitlistPrompt.matches.count) === 1 ? 'client' : 'clients'}.`)
+          : undefined}
+        icon={<svg viewBox="0 0 24 24" fill="none"><path d="M8 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.5 1.5h4m-2-2v4M2.5 20c.8-2.7 2.7-4 5.5-4s4.7 1.3 5.5 4M15 15h6M15 19h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+        stackedActions
+        busy={releasedSlotWaitlistLoading}
+        onConfirm={() => { if (releasedSlotWaitlistPrompt) void runReleasedSlotAction(releasedSlotWaitlistPrompt, true) }}
+        confirmLabel={releasedSlotWaitlistLoading
+          ? (locale === 'sl' ? 'Obdelujem …' : 'Processing …')
+          : (locale === 'sl' ? 'Ponudi prvi stranki' : 'Offer first client')}
+        cancelLabel={t('cancel')}
+        extraActions={releasedSlotWaitlistPrompt && (
+          <>
             <button
               type="button"
-              className="calendar-recurring-delete-modal__close"
-              onClick={() => setReleasedSlotWaitlistPrompt(null)}
+              className="cp-btn cp-btn--subtle"
+              onClick={() => window.open('/appointments', '_blank', 'noopener,noreferrer')}
               disabled={releasedSlotWaitlistLoading}
-              aria-label={t('mobileNavClose')}
             >
-              ×
+              {locale === 'sl' ? 'Prikaži čakalno vrsto' : 'View waitlist'}
             </button>
-            <div className="calendar-waitlist-release-modal__head">
-              <span className="calendar-waitlist-release-modal__icon" aria-hidden>
-                <svg viewBox="0 0 24 24" fill="none"><path d="M8 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.5 1.5h4m-2-2v4M2.5 20c.8-2.7 2.7-4 5.5-4s4.7 1.3 5.5 4M15 15h6M15 19h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </span>
-              <div>
-                <h3>{locale === 'sl' ? 'Ponudi sproščeni termin' : 'Offer the released slot'}</h3>
-                <p>
-                  {locale === 'sl'
-                    ? `Ta termin ustreza ${releasedSlotWaitlistPrompt.matches.count} ${Number(releasedSlotWaitlistPrompt.matches.count) === 1 ? 'stranki' : 'strankam'} na čakalni vrsti.`
-                    : `This slot matches ${releasedSlotWaitlistPrompt.matches.count} waitlisted ${Number(releasedSlotWaitlistPrompt.matches.count) === 1 ? 'client' : 'clients'}.`}
-                </p>
-              </div>
-            </div>
-            <div className="calendar-waitlist-release-modal__candidate">
-              <span className="calendar-waitlist-release-modal__avatar">
-                {String(releasedSlotWaitlistPrompt.matches.first.clientName || '?').split(/\s+/).slice(0, 2).map((part: string) => part[0]).join('').toUpperCase()}
-              </span>
-              <div>
-                <strong>{releasedSlotWaitlistPrompt.matches.first.clientName}</strong>
-                <span>{releasedSlotWaitlistPrompt.matches.first.clientPhone || releasedSlotWaitlistPrompt.matches.first.clientEmail || '—'}</span>
-              </div>
-              <span className="calendar-waitlist-release-modal__queue">
-                {locale === 'sl' ? 'Prva ustrezna' : 'First eligible'}
-              </span>
-            </div>
-            <div className="calendar-waitlist-release-modal__actions">
-              <button
-                type="button"
-                className="calendar-waitlist-release-modal__primary"
-                onClick={() => void runReleasedSlotAction(releasedSlotWaitlistPrompt, true)}
-                disabled={releasedSlotWaitlistLoading}
-              >
-                {releasedSlotWaitlistLoading
-                  ? (locale === 'sl' ? 'Obdelujem …' : 'Processing …')
-                  : (locale === 'sl' ? 'Ponudi prvi stranki' : 'Offer first client')}
-              </button>
-              <button
-                type="button"
-                className="calendar-waitlist-release-modal__secondary"
-                onClick={() => window.open('/appointments', '_blank', 'noopener,noreferrer')}
-                disabled={releasedSlotWaitlistLoading}
-              >
-                {locale === 'sl' ? 'Prikaži čakalno vrsto' : 'View waitlist'}
-              </button>
-              <button
-                type="button"
-                className="calendar-waitlist-release-modal__ghost"
-                onClick={() => void runReleasedSlotAction(releasedSlotWaitlistPrompt, false)}
-                disabled={releasedSlotWaitlistLoading}
-              >
-                {releasedSlotWaitlistPrompt.action === 'DELETE'
-                  ? (locale === 'sl' ? 'Izbriši brez ponudbe' : 'Delete without offer')
-                  : (locale === 'sl' ? 'Odpovej brez ponudbe' : 'Cancel without offer')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showRecurringDeleteDialog && (
-        <div
-          className="modal-backdrop calendar-booking-supplement"
-          onClick={() => setConfirmDelete(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label={t('formDeleteRecurringSessionTitle')}
-        >
-          <div className="modal confirm-modal calendar-recurring-delete-modal" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
-              className="calendar-recurring-delete-modal__close"
-              onClick={() => setConfirmDelete(false)}
-              aria-label={t('mobileNavClose')}
+              className="cp-btn cp-btn--danger"
+              onClick={() => void runReleasedSlotAction(releasedSlotWaitlistPrompt, false)}
+              disabled={releasedSlotWaitlistLoading}
             >
-              ×
+              {releasedSlotWaitlistPrompt.action === 'DELETE'
+                ? (locale === 'sl' ? 'Izbriši brez ponudbe' : 'Delete without offer')
+                : (locale === 'sl' ? 'Odpovej brez ponudbe' : 'Cancel without offer')}
             </button>
-            <div className="calendar-recurring-delete-modal__content">
-              <h3>{t('formDeleteRecurringSessionTitle')}</h3>
-              <p>{t('formDeleteRecurringSessionQuestion')}</p>
+          </>
+        )}
+      >
+        {releasedSlotWaitlistPrompt && (
+          <div className="calendar-waitlist-release-candidate">
+            <span className="calendar-waitlist-release-candidate__avatar">
+              {String(releasedSlotWaitlistPrompt.matches.first.clientName || '?').split(/\s+/).slice(0, 2).map((part: string) => part[0]).join('').toUpperCase()}
+            </span>
+            <div>
+              <strong>{releasedSlotWaitlistPrompt.matches.first.clientName}</strong>
+              <span>{releasedSlotWaitlistPrompt.matches.first.clientPhone || releasedSlotWaitlistPrompt.matches.first.clientEmail || '—'}</span>
             </div>
-            <div className="calendar-recurring-delete-modal__actions">
-              <button
-                type="button"
-                className="calendar-recurring-delete-modal__primary"
-                onClick={() => void prepareReleasedSlotAction('DELETE', 'SINGLE')}
-              >
-                <span className="calendar-recurring-delete-modal__button-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M7 3v3M17 3v3M4.75 9.25h14.5M7.2 21h9.6c1.54 0 2.2-.66 2.2-2.2V7.2C19 5.66 18.34 5 16.8 5H7.2C5.66 5 5 5.66 5 7.2v11.6C5 20.34 5.66 21 7.2 21Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </span>
-                <span>{t('formDeleteOnlyThisSession')}</span>
-              </button>
-              <button
-                type="button"
-                className="calendar-recurring-delete-modal__secondary"
-                onClick={() => void prepareReleasedSlotAction('DELETE', 'THIS_AND_FOLLOWING')}
-              >
-                <span className="calendar-recurring-delete-modal__button-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M7 3v3M17 3v3M4.75 9.25h14.5M8 21h4.5M7.2 21h4.1M7.2 21C5.66 21 5 20.34 5 18.8V7.2C5 5.66 5.66 5 7.2 5h9.6C18.34 5 19 5.66 19 7.2v4.3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M19.35 17.3a3.85 3.85 0 0 1-6.65 2.65M12.65 16.7a3.85 3.85 0 0 1 6.65-2.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M19.35 14.05V16.7h-2.65M12.65 19.95V17.3h2.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </span>
-                <span>{t('formDeleteThisAndFollowing')}</span>
-              </button>
-            </div>
+            <span className="calendar-waitlist-release-candidate__queue">
+              {locale === 'sl' ? 'Prva ustrezna' : 'First eligible'}
+            </span>
           </div>
-        </div>
-      )}
+        )}
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={showRecurringDeleteDialog}
+        onClose={() => setConfirmDelete(false)}
+        tone="danger"
+        icon={<CalendarFormFooterDeleteIcon />}
+        title={t('formDeleteRecurringSessionTitle')}
+        text={t('formDeleteRecurringSessionQuestion')}
+        stackedActions
+        confirmLabel={t('formDeleteOnlyThisSession')}
+        cancelLabel={t('formCancel')}
+        onConfirm={() => void prepareReleasedSlotAction('DELETE', 'SINGLE')}
+        extraActions={
+          <PanelButton variant="danger" onClick={() => void prepareReleasedSlotAction('DELETE', 'THIS_AND_FOLLOWING')}>
+            {t('formDeleteThisAndFollowing')}
+          </PanelButton>
+        }
+      />
 
       {selectedBookedSession && !calendarDashboardSelectionOnly && (
-        <div
-          className={useBookingSidePanel ? `modal-backdrop booking-side-panel-backdrop${calendarFormPageLayout ? ' calendar-form-page-backdrop' : ''}` : 'calendar-session-popup-layer'}
-          onClick={useBookingSidePanel && !calendarClientDetailId && !calendarFormPageLayout ? closeBookedModal : undefined}
+        <SidePanel
+          open
+          onClose={closeBookedModal}
+          ariaLabel={t('formBookedSession')}
+          closeOnScrimClick={false}
+          className="cp-panel--calendar-form cp-panel--calendar-standardized cp-panel--calendar-edit-booking"
         >
-          <div
-            ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={[useBookingSidePanel ? `modal large-modal booking-side-panel calendar-edit-session-panel${calendarFormPageLayout ? ' calendar-form-page' : ''}` : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', 'calendar-edit-session-panel--booked', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
-            style={getSessionPopupInlineStyle(true)}
-            onClick={(e) => {
-              e.stopPropagation()
-              if (mobileBookingDetailsOpen) {
-                setMobileBookingDetailsOpen(false)
-                setMobileBillingActionsOpen(null)
-              }
-            }}
-          >
-            <div className={`booking-side-panel-header${compactSessionEditHeader ? ' booking-side-panel-header--compact-booking' : ''}`} {...getSessionPopupDragHandleProps()}>
-              {compactSessionEditHeader ? (
-                !confirmDelete ? (
-                  <div className="booking-side-panel-header-toolbar booking-side-panel-header-toolbar--session-edit booking-side-panel-header-toolbar--session-edit-booked">
-                    <button type="button" className="secondary booking-side-panel-close" onClick={closeBookedModal} aria-label={t('mobileNavClose')}>
-                      ×
-                    </button>
-                    <div className="calendar-edit-session-panel__compact-title-wrap">
-                      <span className="calendar-edit-session-panel__compact-title">{t('formBookedSession')}</span>
-                    </div>
-                    <div className="booking-side-panel-header-ico-group">
-                      <div className="calendar-mobile-session-more-wrap">
-                        <button
-                          type="button"
-                          className="calendar-mobile-session-more-btn"
-                          aria-label={locale === 'sl' ? 'Več dejanj in informacij' : 'More actions and information'}
-                          aria-haspopup="menu"
-                          aria-expanded={mobileBookingDetailsOpen}
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            setMobileBillingActionsOpen(null)
-                            setMobileBookingDetailsOpen((open) => !open)
-                          }}
-                        >
-                          <span aria-hidden>⋮</span>
-                        </button>
-                        {mobileBookingDetailsOpen && (
-                          <div
-                            className="calendar-mobile-session-more-menu"
-                            role="menu"
-                            onPointerDown={(event) => event.stopPropagation()}
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            {(canShowOpenBillForBookedStatus || advanceBillingEnabled) && (
-                              <>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  aria-haspopup={mobilePrimaryBillingHasMultipleActions ? 'menu' : undefined}
-                                  aria-expanded={mobilePrimaryBillingHasMultipleActions ? mobilePrimaryBillingMenuOpen : undefined}
-                                  className={[
-                                    'calendar-mobile-session-more-menu__item',
-                                    'calendar-mobile-session-more-menu__action',
-                                    mobilePrimaryBillingHasMultipleActions ? 'calendar-mobile-session-more-menu__invoice-toggle' : '',
-                                    mobilePrimaryBillingHasMultipleActions && mobilePrimaryBillingMenuOpen ? 'calendar-mobile-session-more-menu__invoice-toggle--open' : '',
-                                  ].filter(Boolean).join(' ')}
-                                  disabled={bookedPaymentActionButtonsDisabled}
-                                  onClick={() => {
-                                    if (!mobilePrimaryBillingHasMultipleActions) {
-                                      setMobileBookingDetailsOpen(false)
-                                      setMobileBillingActionsOpen(null)
-                                      if (mobilePrimaryBillingKind === 'advance') openBookedAdvanceForm()
-                                      else if (bookedBillingCanEditInvoice) void openBookedInvoiceEditor()
-                                      else if (bookedBillingHasInvoiceViewRows) openBookedBillingView('invoices')
-                                      return
-                                    }
-                                    setMobileBillingActionsOpen((current) => current === mobilePrimaryBillingKind ? null : mobilePrimaryBillingKind)
-                                  }}
-                                >
-                                  <span className="calendar-mobile-session-more-menu__icon" aria-hidden>
-                                    {mobilePrimaryBillingKind === 'advance' ? (
-                                      <CalendarAdvancePaymentIcon />
-                                    ) : (
-                                      <svg viewBox="0 0 24 24" fill="none">
-                                        <path d="M7 3.75h6.9l3.85 3.85v12.65H7a1.75 1.75 0 0 1-1.75-1.75v-13A1.75 1.75 0 0 1 7 3.75Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-                                        <path d="M13.7 3.9V7.7h3.8M8.75 10.8h5.25M8.75 14h3.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                                        <text x="14.7" y="18.4" fontSize="5.7" fontWeight="800" fill="currentColor">€</text>
-                                      </svg>
-                                    )}
-                                  </span>
-                                  <span className="calendar-mobile-session-more-menu__copy">
-                                    <strong>{mobilePrimaryBillingKind === 'advance' ? (locale === 'sl' ? 'Predračun' : 'Proforma invoice') : (locale === 'sl' ? 'Račun' : 'Invoice')}</strong>
-                                    <small>{mobilePrimaryBillingKind === 'advance'
-                                      ? (locale === 'sl' ? 'Ustvari ali odpri predračun' : 'Create or open a proforma invoice')
-                                      : (locale === 'sl' ? 'Ustvari ali uredi račun' : 'Create or edit an invoice')}</small>
-                                  </span>
-                                  {mobilePrimaryBillingHasMultipleActions && (
-                                    <span className="calendar-mobile-session-more-menu__chevron calendar-mobile-session-more-menu__invoice-chevron" aria-hidden>⌃</span>
-                                  )}
-                                </button>
-                                {mobilePrimaryBillingHasMultipleActions && renderMobileBillingActionMenu(mobilePrimaryBillingKind)}
-                              </>
-                            )}
-                            {advanceBillingEnabled && canShowOpenBillForBookedStatus && (
-                              <>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  aria-haspopup={bookedBillingHasExistingAdvance ? 'menu' : undefined}
-                                  aria-expanded={bookedBillingHasExistingAdvance ? mobileBillingActionsOpen === 'advance' : undefined}
-                                  className={[
-                                    'calendar-mobile-session-more-menu__item',
-                                    'calendar-mobile-session-more-menu__action',
-                                    bookedBillingHasExistingAdvance ? 'calendar-mobile-session-more-menu__invoice-toggle' : '',
-                                    bookedBillingHasExistingAdvance && mobileBillingActionsOpen === 'advance' ? 'calendar-mobile-session-more-menu__invoice-toggle--open' : '',
-                                  ].filter(Boolean).join(' ')}
-                                  disabled={bookedPaymentActionButtonsDisabled}
-                                  onClick={() => {
-                                    if (!bookedBillingHasExistingAdvance) {
-                                      setMobileBookingDetailsOpen(false)
-                                      setMobileBillingActionsOpen(null)
-                                      openBookedAdvanceForm()
-                                      return
-                                    }
-                                    setMobileBillingActionsOpen((current) => current === 'advance' ? null : 'advance')
-                                  }}
-                                >
-                                  <span className="calendar-mobile-session-more-menu__icon" aria-hidden><CalendarAdvancePaymentIcon /></span>
-                                  <span className="calendar-mobile-session-more-menu__copy">
-                                    <strong>{locale === 'sl' ? 'Predračun' : 'Proforma invoice'}</strong>
-                                    <small>{locale === 'sl' ? 'Ustvari ali odpri predračun' : 'Create or open a proforma invoice'}</small>
-                                  </span>
-                                  {bookedBillingHasExistingAdvance && (
-                                    <span className="calendar-mobile-session-more-menu__chevron calendar-mobile-session-more-menu__invoice-chevron" aria-hidden>⌃</span>
-                                  )}
-                                </button>
-                                {bookedBillingHasExistingAdvance && renderMobileBillingActionMenu('advance')}
-                              </>
-                            )}
-{scannerModuleEnabled ? (
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action"
-                              disabled={bookingServiceScanDisabled}
-                              onClick={() => {
-                                if (bookingServiceScanDisabled) return
-                                setMobileBookingDetailsOpen(false)
-                                openBookedEntitlementPaymentModal(bookingServiceEntitlementStatus, bookingServiceEntitlementClient)
-                              }}
-                            >
-                              <span className="calendar-mobile-session-more-menu__icon" aria-hidden><BookedEntitlementScanIcon /></span>
-                              <span className="calendar-mobile-session-more-menu__copy">
-                                <strong>{locale === 'sl' ? 'Skener' : 'Scanner'}</strong>
-                                <small>{bookingServiceScanTitle}</small>
-                              </span>
-                            </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action calendar-mobile-session-more-menu__action--danger"
-                              onClick={() => {
-                                setMobileBookingDetailsOpen(false)
-                                void requestBookedSessionDelete()
-                              }}
-                            >
-                              <span className="calendar-mobile-session-more-menu__icon" aria-hidden><CalendarFormFooterDeleteIcon /></span>
-                              <span className="calendar-mobile-session-more-menu__copy">
-                                <strong>{t('formDeleteSession')}</strong>
-                                <small>{locale === 'sl' ? 'Izbriši ta termin' : 'Delete this session'}</small>
-                              </span>
-                            </button>
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className="calendar-mobile-session-more-menu__item calendar-mobile-session-more-menu__action calendar-mobile-session-more-menu__status-action"
-                              onClick={() => {
-                                setMobileBookingDetailsOpen(false)
-                                setNoShowClientPickerOpen(false)
-                                setMobileBookingStatusDraft(currentBookingStatusKey)
-                                setBookedStatusMenuOpen(true)
-                              }}
-                            >
-                              <span className={`calendar-mobile-session-more-menu__icon calendar-mobile-session-more-menu__status-icon calendar-mobile-session-more-menu__status-icon--${currentBookingStatusTone}`} aria-hidden>●</span>
-                              <span className="calendar-mobile-session-more-menu__copy">
-                                <strong>{locale === 'sl' ? 'Status' : 'Status'}</strong>
-                                <small>{currentBookingStatusLabel}</small>
-                              </span>
-                              <span className="calendar-mobile-session-more-menu__chevron" aria-hidden>›</span>
-                            </button>
-                            <div className="calendar-mobile-session-more-menu__item">
-                              <span className="calendar-mobile-session-more-menu__icon" aria-hidden>↗</span>
-                              <span className="calendar-mobile-session-more-menu__copy">
-                                <strong>{bookingSourceFieldLabel}</strong>
-                                <small>{bookingSourceMeta.label}</small>
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="booking-side-panel-header-toolbar booking-side-panel-header-toolbar--session-edit">
-                    <button type="button" className="secondary booking-side-panel-close" onClick={closeBookedModal} aria-label={t('mobileNavClose')}>
-                      ×
-                    </button>
-                  </div>
-                )
-              ) : (
-                <div className="booking-side-panel-header-toolbar booking-side-panel-header-toolbar--desktop-session-edit">
-                  <button
-                    type="button"
-                    className="secondary booking-side-panel-close"
-                    onClick={closeBookedModal}
-                    aria-label={t('mobileNavClose')}
-                  >
-                    ×
-                  </button>
-                  <h1 className="calendar-desktop-session-header__title">{t('formBookedSession')}</h1>
-                  <div className="calendar-desktop-session-actions">
-                    <button
-                      type="button"
-                      className="calendar-desktop-session-actions__toggle"
-                      aria-label={locale === 'sl' ? 'Več dejanj' : 'More actions'}
-                      aria-haspopup="menu"
-                      aria-expanded={mobileBookingDetailsOpen}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        setMobileBillingActionsOpen(null)
-                        setMobileBookingDetailsOpen((open) => !open)
-                      }}
-                    >
-                      <span aria-hidden>⋮</span>
-                    </button>
-                    {mobileBookingDetailsOpen && (
-                      <div
-                        className="calendar-desktop-session-actions__menu"
-                        role="menu"
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        {advanceBillingEnabled && (
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className="calendar-desktop-session-actions__item calendar-desktop-session-actions__item--advance"
-                            disabled={bookedPaymentActionButtonsDisabled}
-                            onClick={() => {
-                              setMobileBookingDetailsOpen(false)
-                              openBookedAdvanceForm()
-                            }}
-                          >
-                            <span className="calendar-desktop-session-actions__icon" aria-hidden><CalendarAdvancePaymentIcon /></span>
-                            <span>{locale === 'sl' ? 'Predplačilo' : 'Advance'}</span>
-                          </button>
-                        )}
-                        {canShowOpenBillForBookedStatus && (
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className="calendar-desktop-session-actions__item calendar-desktop-session-actions__item--invoice"
-                            disabled={bookedPaymentActionButtonsDisabled}
-                            onClick={() => {
-                              setMobileBookingDetailsOpen(false)
-                              void openBookedInvoiceEditor()
-                            }}
-                          >
-                            <span className="calendar-desktop-session-actions__icon" aria-hidden>
-                              <svg viewBox="0 0 24 24" fill="none">
-                                <path d="M7 3.75h6.9l3.85 3.85v12.65H7a1.75 1.75 0 0 1-1.75-1.75v-13A1.75 1.75 0 0 1 7 3.75Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-                                <path d="M13.7 3.9V7.7h3.8M8.75 10.8h5.25M8.75 14h3.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                                <text x="14.7" y="18.4" fontSize="5.7" fontWeight="800" fill="currentColor">€</text>
-                              </svg>
-                            </span>
-                            <span>{locale === 'sl' ? 'Račun' : 'Invoice'}</span>
-                          </button>
-                        )}
-{scannerModuleEnabled ? (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="calendar-desktop-session-actions__item calendar-desktop-session-actions__item--scanner"
-                          disabled={bookingServiceScanDisabled}
-                          onClick={() => {
-                            if (bookingServiceScanDisabled) return
-                            setMobileBookingDetailsOpen(false)
-                            openBookedEntitlementPaymentModal(bookingServiceEntitlementStatus, bookingServiceEntitlementClient)
-                          }}
-                        >
-                          <span className="calendar-desktop-session-actions__icon" aria-hidden><BookedEntitlementScanIcon /></span>
-                          <span>{locale === 'sl' ? 'Skener' : 'Scanner'}</span>
-                        </button>
-                        ) : null}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="booking-side-panel-body">
+            <PanelHeader
+              title={t('formBookedSession')}
+              subtitle={bookedPanelSubtitle}
+              onClose={closeBookedModal}
+              closeLabel={t('mobileNavClose')}
+            />
+            <PanelBody sectioned className="calendar-standardized-body calendar-standardized-edit-booking-body">
             {selectedBookedSession.billedAt && (
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                 <span
@@ -2713,7 +2833,13 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 Break overlaps another booking or a personal block during the configured break time.
               </div>
             )}
-            <div className="form-row-layout form-row-layout--booking">
+            <PanelSection
+              title={bookedSessionIsGroup ? sectionLabels.group : sectionLabels.clients}
+              className="calendar-standardized__section calendar-standardized__clients"
+              icon={<CalendarSectionIcon name="clients" />}
+              summary={bookedClientsSummary}
+              collapsible={isCalendarCreateMobile}
+            >
               {bookedSessionIsGroup ? (
                 <div className="form-row form-row-infield calendar-booking-client-with-group calendar-booking-field--client">
                   <div className="calendar-booking-service-infield-head">
@@ -2966,64 +3092,65 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 </div>
               </div>
               )}
-              <div className="calendar-booking-row-divider calendar-booking-row-divider--service" aria-hidden />
+            </PanelSection>
               {showBookingTypeRow && (
-                <div className="form-row calendar-booking-field--service calendar-booking-field--service-chain calendar-booking-service-with-online">
-                  <div className="calendar-booking-service-infield-head calendar-booking-service-infield-head--chain">
-                    <span className="form-field-inline-label">{t('formCalendarBookingService')}</span>
-                    {onlineSessionBookingEnabled && selectedBookedSession.online ? (
-                      <div className="meeting-provider-summary meeting-provider-summary--service-inline calendar-booking-service-meeting-inline">
-                        <span className="meeting-provider-summary__name">
-                          {selectedBookedSession.meetingProvider === 'google' ? 'Google Meet' : 'Zoom'}
-                        </span>
-                        <button
-                          type="button"
-                          className="secondary meeting-provider-change-btn"
-                          onClick={() => {
-                            setMeetingPickerCancelUnchecksOnline(false)
-                            setMeetingProviderPickerTarget('edit')
-                            setMeetingProviderPickerOpen(true)
-                          }}
-                        >
-                          {t('formChange')}
-                        </button>
-                      </div>
-                    ) : null}
-                    {onlineSessionBookingEnabled ? (
-                      <div className="calendar-booking-service-online-line" role="group" aria-label={t('formSessionOnlineShort')}>
-                        <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formSessionOnlineShort')}>
-                          <input
-                            type="checkbox"
-                            checked={!!selectedBookedSession.online}
-                            aria-labelledby={bookedSessionOnlineCaptionId}
-                            onChange={(e) => {
-                              const on = e.target.checked
-                              if (on) {
-                                setSelectedBookedSession({
-                                  ...selectedBookedSession,
-                                  online: true,
-                                  meetingProvider: selectedBookedSession.meetingProvider || 'zoom',
-                                })
-                                setMeetingPickerCancelUnchecksOnline(true)
+                  <CalendarServiceChainEditor
+                    sectionSummary={bookedServiceSummary}
+                    sectionClassName="calendar-standardized__section calendar-standardized__service"
+                    sectionCollapsible={isCalendarCreateMobile}
+                    sectionAction={onlineSessionBookingEnabled ? (
+                      <div className="cp-section__controls">
+                        {selectedBookedSession.online ? (
+                          <div className="meeting-provider-summary meeting-provider-summary--service-inline calendar-booking-service-meeting-inline">
+                            <span className="meeting-provider-summary__name">
+                              {selectedBookedSession.meetingProvider === 'google' ? 'Google Meet' : 'Zoom'}
+                            </span>
+                            <button
+                              type="button"
+                              className="secondary meeting-provider-change-btn"
+                              onClick={() => {
+                                setMeetingPickerCancelUnchecksOnline(false)
                                 setMeetingProviderPickerTarget('edit')
                                 setMeetingProviderPickerOpen(true)
-                              } else {
-                                setSelectedBookedSession({ ...selectedBookedSession, online: false, meetingLink: null })
-                                setMeetingProviderPickerOpen(false)
-                                setMeetingProviderPickerTarget(null)
-                                setMeetingPickerCancelUnchecksOnline(false)
-                              }
-                            }}
-                          />
-                          <span className="repeats-toggle-slider" />
-                        </label>
-                        <span id={bookedSessionOnlineCaptionId} className="calendar-booking-service-online-caption">
-                          {t('formSessionOnlineShort')}
-                        </span>
+                              }}
+                            >
+                              {t('formChange')}
+                            </button>
+                          </div>
+                        ) : null}
+                        <div className="calendar-booking-service-online-line" role="group" aria-label={t('formSessionOnlineShort')}>
+                          <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formSessionOnlineShort')}>
+                            <input
+                              type="checkbox"
+                              checked={!!selectedBookedSession.online}
+                              aria-labelledby={bookedSessionOnlineCaptionId}
+                              onChange={(e) => {
+                                const on = e.target.checked
+                                if (on) {
+                                  setSelectedBookedSession({
+                                    ...selectedBookedSession,
+                                    online: true,
+                                    meetingProvider: selectedBookedSession.meetingProvider || 'zoom',
+                                  })
+                                  setMeetingPickerCancelUnchecksOnline(true)
+                                  setMeetingProviderPickerTarget('edit')
+                                  setMeetingProviderPickerOpen(true)
+                                } else {
+                                  setSelectedBookedSession({ ...selectedBookedSession, online: false, meetingLink: null })
+                                  setMeetingProviderPickerOpen(false)
+                                  setMeetingProviderPickerTarget(null)
+                                  setMeetingPickerCancelUnchecksOnline(false)
+                                }
+                              }}
+                            />
+                            <span className="repeats-toggle-slider" />
+                          </label>
+                          <span id={bookedSessionOnlineCaptionId} className="calendar-booking-service-online-caption">
+                            {t('formSessionOnlineShort')}
+                          </span>
+                        </div>
                       </div>
                     ) : null}
-                  </div>
-                  <CalendarServiceChainEditor
                     locale={locale}
                     services={bookedServiceDrafts}
                     segments={bookedServiceChain.segments}
@@ -3038,6 +3165,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     defaultSpaceId={selectedBookedSession.space?.id ?? null}
                     multipleServicesEnabled={multipleServicesEnabled}
                     allowServiceEdit={!bookedBillingHasExistingOpenBill}
+                    showServiceEditButton
                     showSessionMaxParticipants={bookedSessionIsGroup}
                     sessionMaxParticipants={selectedBookedSession.maxParticipantsOverride ?? null}
                     onSessionMaxParticipantsChange={(value) =>
@@ -3057,121 +3185,95 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         sessionConsumablesOverridden: !resetToDefaults,
                       } : current)
                     }
-                  />
-                  <div className="calendar-booking-service-chain__billing-actions calendar-booking-service-chain__billing-actions--relocated-desktop">
-                    <div className="calendar-session-billing-actions">
-                      {(canShowOpenBillForBookedStatus || advanceBillingEnabled) && (
-                      <div className="calendar-session-billing-action-wrap">
-                        <button
-                          type="button"
-                          className={`secondary calendar-client-picker__invoice-btn calendar-client-picker__payee-tab-btn calendar-booking-service-invoice-btn${bookingServiceBillingButtonIsAdvance ? ' calendar-client-picker__advance-btn' : ''}${bookedBillingActionMenu === (bookingServiceBillingButtonIsAdvance ? 'advance' : 'invoice') ? ' is-menu-open' : ''}`}
-                          title={bookingServiceBillingButtonIsAdvance ? (locale === 'sl' ? 'Predplačila' : 'Advances') : (locale === 'sl' ? 'Računi' : 'Invoices')}
-                          aria-label={bookingServiceBillingButtonIsAdvance ? (locale === 'sl' ? 'Odpri meni predplačil' : 'Open advances menu') : (locale === 'sl' ? 'Odpri meni računov' : 'Open invoices menu')}
-                          disabled={bookedPaymentActionButtonsDisabled}
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            const actionKind = bookingServiceBillingButtonIsAdvance ? 'advance' : 'invoice'
-                            if (actionKind === 'advance' && !bookedBillingHasExistingAdvance) {
-                              openBookedAdvanceForm()
-                              return
-                            }
-                            if (actionKind === 'invoice' && bookedBillingInvoiceActionCount <= 1) {
-                              if (bookedBillingCanEditInvoice) void openBookedInvoiceEditor()
-                              else if (bookedBillingHasInvoiceViewRows) openBookedBillingView('invoices')
-                              return
-                            }
-                            toggleBookedBillingActionMenu(actionKind)
-                          }}
-                        >
-                          {bookingServiceBillingButtonIsAdvance ? (
-                            <CalendarAdvancePaymentIcon />
-                          ) : (
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-                              <path d="M7 3.75h6.9l3.85 3.85v12.65H7a1.75 1.75 0 0 1-1.75-1.75v-13A1.75 1.75 0 0 1 7 3.75Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-                              <path d="M13.7 3.9V7.7h3.8M8.75 10.8h5.25M8.75 14h3.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                              <text x="14.7" y="18.4" fontSize="5.7" fontWeight="800" fill="currentColor">€</text>
-                            </svg>
-                          )}
-                        </button>
-                        {renderBillingActionMenu(bookingServiceBillingButtonIsAdvance ? 'advance' : 'invoice')}
-                      </div>
-                      )}
-                      {advanceBillingEnabled && canShowOpenBillForBookedStatus && (
-                        <button
-                          type="button"
-                          className="secondary calendar-client-picker__invoice-btn calendar-client-picker__payee-tab-btn calendar-booking-service-invoice-btn calendar-client-picker__advance-btn"
-                          title={locale === 'sl' ? 'Pregled predplačil' : 'View advances'}
-                          aria-label={locale === 'sl' ? 'Odpri pregled predplačil za termin' : 'Open session advances view'}
-                          disabled={bookedPaymentActionButtonsDisabled}
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            openBookedBillingView('advances')
-                          }}
-                        >
-                          <CalendarAdvancePaymentIcon />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="secondary calendar-client-picker__invoice-btn calendar-client-picker__payee-tab-btn calendar-booking-service-invoice-btn calendar-booking-service-scan-btn"
-                        title={bookingServiceScanTitle}
-                        aria-label={bookingServiceScanTitle}
-                        disabled={bookingServiceScanDisabled}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          if (bookingServiceScanDisabled) return
-                          openBookedEntitlementPaymentModal(bookingServiceEntitlementStatus, bookingServiceEntitlementClient)
-                        }}
-                      >
-                        <BookedEntitlementScanIcon />
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                  >
+                    {bookedServiceExtraRows}
+                  </CalendarServiceChainEditor>
+              )}
+              {!showBookingTypeRow && bookedServiceExtraRows && (
+                <PanelSection
+                  title={sectionLabels.service}
+                  className="calendar-standardized-mobile-only"
+                  icon={<CalendarSectionIcon name="service" />}
+                >
+                  {bookedServiceExtraRows}
+                </PanelSection>
               )}
               {showBookingConsultantRow && (
-                <div className="form-row form-row-infield calendar-booking-field--consultant">
-                  <span className="form-field-inline-label">{t('formConsultant')}</span>
-                  <div className="form-field-inline-control">
-                  <DesktopSelect
-                    value={selectedBookedSession.consultant?.id ?? ''}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      if (val === '') {
-                        setSelectedBookedSession({ ...selectedBookedSession, consultant: null })
-                      } else {
-                        setSelectedBookedSession({ ...selectedBookedSession, consultant: metaUsers.find((u: any) => u.id === Number(val)) })
-                      }
-                    }}
-                  >
-                    <option value="">{t('formUnassigned')}</option>
-                    {bookedConsultants.map((c: any) => (
-                      <option key={c.id} value={c.id}>{fullName(c)}</option>
-                    ))}
-                  </DesktopSelect>
+                <PanelSection
+                  title={t('formConsultant')}
+                  className="calendar-standardized__section calendar-standardized__employee calendar-standardized-desktop-only"
+                  icon={<CalendarSectionIcon name="clients" />}
+                  collapsible={false}
+                >
+                  <div className="form-row form-row-infield calendar-booking-field--consultant">
+                    <div className="form-field-inline-control">
+                      <DesktopSelect
+                        value={selectedBookedSession?.consultant?.id ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          if (val === '') {
+                            setSelectedBookedSession({ ...selectedBookedSession, consultant: null })
+                          } else {
+                            setSelectedBookedSession({ ...selectedBookedSession, consultant: metaUsers.find((u: any) => u.id === Number(val)) })
+                          }
+                        }}
+                      >
+                        <option value="">{t('formUnassigned')}</option>
+                        {bookedConsultants.map((c: any) => (
+                          <option key={c.id} value={c.id}>{fullName(c)}</option>
+                        ))}
+                      </DesktopSelect>
+                    </div>
                   </div>
-                </div>
+                </PanelSection>
               )}
-              {showBookingSpaceRow && (!showBookingTypeRow || bookedServiceDrafts.filter((service: any) => service.typeId != null).length <= 1) && (
-                <div className="form-row form-row-infield calendar-booking-field--space">
-                  <span className="form-field-inline-label">{t('formCalendarBookingSpace')}</span>
-                  <div className="form-field-inline-control">
-                  <DesktopSelect
-                    value={selectedBookedSession.space?.id ?? ''}
-                    onChange={(e) => {
-                      const nextSpaceId = Number(e.target.value) || null
-                      updateSelectedBookedSessionServices(bookedServiceDrafts.map((service: any, index: number) => (
-                        index === 0 ? { ...service, spaceId: nextSpaceId } : service
-                      )))
-                    }}
-                  >
-                    <option value="">{t('formNoSpace')}</option>
-                    {bookedSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </DesktopSelect>
+              {bookedShowSpaceRow && (
+                <PanelSection
+                  title={t('formCalendarBookingSpace')}
+                  className="calendar-standardized__section calendar-standardized__space calendar-standardized-desktop-only"
+                  icon={<CalendarSectionIcon name="location" />}
+                  collapsible={false}
+                >
+                  <div className="form-row form-row-infield calendar-booking-field--space">
+                    <div className="form-field-inline-control">
+                      <DesktopSelect
+                        value={selectedBookedSession?.space?.id ?? ''}
+                        onChange={(e) => {
+                          const nextSpaceId = Number(e.target.value) || null
+                          updateSelectedBookedSessionServices(bookedServiceDrafts.map((service: any, index: number) => (
+                            index === 0 ? { ...service, spaceId: nextSpaceId } : service
+                          )))
+                        }}
+                      >
+                        <option value="">{t('formNoSpace')}</option>
+                        {bookedSpaces.map((space: any) => <option key={space.id} value={space.id}>{space.name}</option>)}
+                      </DesktopSelect>
+                    </div>
                   </div>
-                </div>
+                </PanelSection>
               )}
-              <div className="calendar-booking-row-divider calendar-booking-row-divider--timespan" aria-hidden />
+              <PanelSection
+                title={sectionLabels.schedule}
+                className="calendar-standardized__section calendar-standardized__schedule"
+                icon={<CalendarSectionIcon name="schedule" />}
+                defaultOpen={!isCalendarCreateMobile}
+                collapsible={isCalendarCreateMobile}
+                summary={bookedScheduleSummary}
+                action={!isCalendarCreateMobile ? (
+                  <div className="calendar-standardized__header-toggle" role="group" aria-label={t('formAllDay')}>
+                    <span id={`${editBookedAllDayCaptionId}-header`} className="calendar-standardized__toggle-caption">{t('formAllDay')}</span>
+                    <label className="repeats-toggle-switch calendar-standardized__toggle" title={t('formAllDay')}>
+                      <input
+                        type="checkbox"
+                        checked={isLocalBookingAllDay(selectedBookedSession.startTime, selectedBookedSession.endTime)}
+                        aria-labelledby={`${editBookedAllDayCaptionId}-header`}
+                        onChange={toggleBookedSessionAllDay}
+                      />
+                      <span className="repeats-toggle-slider" />
+                    </label>
+                  </div>
+                ) : undefined}
+              >
               <div className="form-row form-row-timespan calendar-booking-timespan-row">
                 <CalendarLocalTimespanRow
                   startValue={selectedBookedSession.startTime}
@@ -3229,130 +3331,41 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   }}
                 />
               </div>
-              {(() => {
-                const dateLoc = locale === 'sl' ? 'sl-SI' : 'en-GB'
-                const startDate = selectedBookedSession.startTime ? new Date(selectedBookedSession.startTime) : null
-                const sessionDay = startDate ? REPEAT_WEEKDAY_EN[startDate.getDay()] : 'Monday'
-                const sessionDateStr = startDate
-                  ? startDate.toLocaleDateString(dateLoc, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
-                  : ''
-                const repeatInterval = selectedBookedSession.repeatInterval ?? 1
-                const repeatUnit = selectedBookedSession.repeatUnit ?? 'weeks'
-                const repeatEndType = selectedBookedSession.repeatEndType ?? 'after'
-                const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(selectedBookedSession.repeatEndCount) || 2)))
-                const repeatEndDate = selectedBookedSession.repeatEndDate ?? ''
-                const summaryTail = repeatEndType === 'after'
-                  ? t('formRepeatEndsAfter').replace('{count}', String(repeatEndCount))
-                  : repeatEndDate
-                    ? t('formRepeatEndsOn').replace(
-                        '{date}',
-                        new Date(repeatEndDate).toLocaleDateString(dateLoc, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }),
-                      )
-                    : t('formRepeatNoEndDate')
-                const summaryLine = t('formRepeatSummaryLine').replace('{from}', sessionDateStr).replace('{tail}', summaryTail)
-                return (
-                  <div className={`form-row-repeats-section calendar-booking-repeats-section${selectedBookedSession.repeats ? ' calendar-booking-repeats-section--expanded' : ''}`}>
-                    <div className="form-row form-row-infield form-row--bare">
-                      <span className="form-field-inline-label">{t('formRepeats')}</span>
-                      <div className="form-field-inline-control">
-                        <label className="repeats-toggle-switch">
-                          <input
-                            type="checkbox"
-                            checked={!!selectedBookedSession.repeats}
-                            onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeats: e.target.checked, repeatDay: sessionDay })}
-                          />
-                          <span className="repeats-toggle-slider" />
-                        </label>
-                      </div>
-                    </div>
-                    {selectedBookedSession.repeats && (
-                      <div className="form-repeats-config">
-                        <div className="form-repeats-row">
-                          <span className="form-repeats-label">{t('formRepeatsEvery')}</span>
-                          <input
-                            type="number"
-                            min={1}
-                            max={52}
-                            className="form-repeats-number"
-                            value={repeatInterval}
-                            onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatInterval: Math.max(1, Number(e.target.value) || 1) })}
-                          />
-                          <DesktopSelect
-                            className="form-repeats-select"
-                            value={repeatUnit}
-                            onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatUnit: e.target.value })}
-                          >
-                            <option value="days">{t('formRepeatUnitDays')}</option>
-                            <option value="weeks">{t('formRepeatUnitWeeks')}</option>
-                            <option value="months">{t('formRepeatUnitMonths')}</option>
-                          </DesktopSelect>
-                        </div>
-                        {repeatUnit === 'weeks' && (
-                          <div className="form-repeats-row">
-                            <span className="form-repeats-label">{t('formRepeatsOnDay')}</span>
-                            <DesktopSelect
-                              className="form-repeats-select"
-                              value={selectedBookedSession.repeatDay ?? sessionDay}
-                              onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatDay: e.target.value })}
-                            >
-                              {REPEAT_WEEKDAY_EN.map((d) => (
-                                <option key={d} value={d}>{formatRepeatWeekdayLabel(locale, d)}</option>
-                              ))}
-                            </DesktopSelect>
-                          </div>
-                        )}
-                        <div className="form-repeats-row">
-                          <span className="form-repeats-label">{t('formRepeatsEnds')}</span>
-                          <DesktopSelect
-                            className="form-repeats-select"
-                            value={repeatEndType}
-                            onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatEndType: e.target.value })}
-                          >
-                            <option value="after">{t('formRepeatEndAfter')}</option>
-                            <option value="on">{t('formRepeatEndOnDate')}</option>
-                          </DesktopSelect>
-                          {repeatEndType === 'after' && (
-                            <input
-                              type="number"
-                              min={2}
-                              max={100}
-                              className="form-repeats-number"
-                              value={selectedBookedSession.repeatEndCount ?? 5}
-                              onChange={(e) => {
-                                const raw = e.target.value
-                                setSelectedBookedSession({
-                                  ...selectedBookedSession,
-                                  repeatEndCount: raw === '' ? '' : Math.min(100, Math.max(0, Math.floor(Number(raw) || 0))),
-                                })
-                              }}
-                              onBlur={(e) =>
-                                setSelectedBookedSession({
-                                  ...selectedBookedSession,
-                                  repeatEndCount: Math.max(2, Math.min(100, Math.floor(Number(e.target.value) || 2))),
-                                })
-                              }
-                            />
-                          )}
-                          {repeatEndType === 'on' && (
-                            <input
-                              type="date"
-                              className="form-repeats-date"
-                              value={repeatEndDate}
-                              onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatEndDate: e.target.value })}
-                            />
-                          )}
-                        </div>
-                        <p className="form-repeats-summary muted">
-                          {summaryLine}
-                        </p>
-                        <p className="form-repeats-note muted">
-                          {t('formRepeatsSameDurationNote')}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
+              <div className="calendar-standardized-mobile-only">
+                {renderBookedRepeats(true)}
+              </div>
+              </PanelSection>
+              <PanelSection
+                title={sectionLabels.repeats}
+                className="calendar-standardized__section calendar-standardized__repeat calendar-standardized-desktop-only"
+                icon={<CalendarSectionIcon name="repeat" />}
+                collapsible={false}
+                action={
+                  <label className="repeats-toggle-switch calendar-standardized__toggle" title={sectionLabels.repeats}>
+                    <input
+                      type="checkbox"
+                      checked={!!selectedBookedSession.repeats}
+                      aria-label={sectionLabels.repeats}
+                      onChange={(e) => {
+                        const startDate = selectedBookedSession.startTime ? new Date(selectedBookedSession.startTime) : null
+                        const sessionDay = startDate ? REPEAT_WEEKDAY_EN[startDate.getDay()] : 'Monday'
+                        setSelectedBookedSession({ ...selectedBookedSession, repeats: e.target.checked, repeatDay: sessionDay })
+                      }}
+                    />
+                    <span className="repeats-toggle-slider" />
+                  </label>
+                }
+              >
+                {selectedBookedSession.repeats ? renderBookedRepeats(false) : null}
+              </PanelSection>
+              <PanelSection
+                title={sectionLabels.notes}
+                className="calendar-standardized__section calendar-standardized__notes"
+                icon={<CalendarSectionIcon name="notes" />}
+                defaultOpen={!isCalendarCreateMobile}
+                collapsible={isCalendarCreateMobile}
+                summary={bookedNotesSummary}
+              >
               {(selectedBookedSession.meetingLink || (selectedBookedSession.notes || '').includes('Zoom meeting:')) && (
                 <div className="form-row form-row-infield calendar-booking-field--meeting-link">
                   <span className="form-field-inline-label">{t('formMeetingLink')}</span>
@@ -3365,7 +3378,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 </div>
               )}
               <div className="form-row form-row-infield stretch">
-                <span className="form-field-inline-label">{t('formNotes')}</span>
                 <div className="form-field-inline-control">
                 <SessionNotesTextarea
                   value={(selectedBookedSession.meetingLink ? (selectedBookedSession.notes || '').replace(/\n?Zoom meeting:\s*https?:\/\/[^\s\n]+/g, '').trim() : selectedBookedSession.notes) || ''}
@@ -3373,30 +3385,23 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 />
                 </div>
               </div>
-            </div>
-            </div>
+              </PanelSection>
+            </PanelBody>
             {showBookedSessionFooter && (
-            <div
-              className={`row gap booking-side-panel-footer${compactSessionEditHeader ? ' booking-side-panel-footer--mobile-save' : ''}${showRecurringDeleteDialog ? ' booking-side-panel-footer--hidden' : ''}`}
-              style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}
-            >
-              {confirmDelete ? (
-                showRecurringDeleteDialog ? null : (
-                  <>
-                    <span className="muted">{t('formDeleteSessionQuestion')}</span>
-                    <button className="danger" onClick={() => void prepareReleasedSlotAction('DELETE', 'SINGLE')}>{t('formYesDelete')}</button>
-                    <button className="secondary" onClick={() => setConfirmDelete(false)}>{t('formCancel')}</button>
-                  </>
-                )
-              ) : (
-                <>
-                  <div className="calendar-session-footer-tags">
+              <PanelActionBar
+                info={
+                  <span className="calendar-standardized__source-tag" aria-label={`${bookingSourceFieldLabel}: ${bookingSourceMeta.label}`}>
+                    {locale === 'sl' ? 'Vir:' : 'Source:'} {bookingSourceMeta.label}
+                  </span>
+                }
+              >
                     <div className="calendar-booking-status-menu-wrap">
                       <button
                         type="button"
-                        className={`secondary calendar-session-status-tag calendar-session-status-tag--${currentBookingStatusTone}`}
+                        className={`cp-action cp-action--labelled calendar-session-status-tag calendar-session-status-tag--${currentBookingStatusTone}`}
                         aria-haspopup="menu"
                         aria-expanded={bookedStatusMenuOpen}
+                        title={`${locale === 'sl' ? 'Status' : 'Status'}: ${currentBookingStatusLabel}`}
                         onClick={() => {
                           setBookedPaymentMenuOpen(false)
                           setNoShowClientPickerOpen(false)
@@ -3499,42 +3504,112 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         </div>
                       )}
                     </div>
-                    {!compactSessionEditHeader && (
-                      <div className="calendar-session-source-tag" aria-label={`${bookingSourceFieldLabel}: ${bookingSourceMeta.label}`}>
-                        <span className="calendar-session-source-tag__label">{locale === 'sl' ? 'Vir:' : 'Source:'} {bookingSourceMeta.label}</span>
-                      </div>
-                    )}
+                {(canShowOpenBillForBookedStatus || advanceBillingEnabled) && (
+                  <div className="calendar-session-billing-action-wrap">
+                    <button
+                      type="button"
+                      className={`cp-action calendar-standardized__billing-action${bookedBillingActionMenu === (bookingServiceBillingButtonIsAdvance ? 'advance' : 'invoice') ? ' is-menu-open' : ''}`}
+                      title={bookingServiceBillingButtonIsAdvance ? (locale === 'sl' ? 'Predplačila' : 'Advances') : (locale === 'sl' ? 'Računi' : 'Invoices')}
+                      aria-label={bookingServiceBillingButtonIsAdvance ? (locale === 'sl' ? 'Odpri meni predplačil' : 'Open advances menu') : (locale === 'sl' ? 'Odpri meni računov' : 'Open invoices menu')}
+                      disabled={bookedPaymentActionButtonsDisabled}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        const actionKind = bookingServiceBillingButtonIsAdvance ? 'advance' : 'invoice'
+                        if (actionKind === 'advance' && !bookedBillingHasExistingAdvance) {
+                          openBookedAdvanceForm()
+                          return
+                        }
+                        if (actionKind === 'invoice' && bookedBillingInvoiceActionCount <= 1) {
+                          if (bookedBillingCanEditInvoice) void openBookedInvoiceEditor()
+                          else if (bookedBillingHasInvoiceViewRows) openBookedBillingView('invoices')
+                          return
+                        }
+                        toggleBookedBillingActionMenu(actionKind)
+                      }}
+                    >
+                      {bookingServiceBillingButtonIsAdvance ? (
+                        <CalendarAdvancePaymentIcon />
+                      ) : (
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+                          <path d="M7 3.75h6.9l3.85 3.85v12.65H7a1.75 1.75 0 0 1-1.75-1.75v-13A1.75 1.75 0 0 1 7 3.75Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                          <path d="M13.7 3.9V7.7h3.8M8.75 10.8h5.25M8.75 14h3.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          <text x="14.7" y="18.4" fontSize="5.7" fontWeight="800" fill="currentColor">€</text>
+                        </svg>
+                      )}
+                      <span className="calendar-standardized__billing-label">
+                        {bookingServiceBillingButtonIsAdvance
+                          ? (locale === 'sl' ? 'Predplačilo' : 'Advance')
+                          : (locale === 'sl' ? 'Račun' : 'Invoice')}
+                      </span>
+                    </button>
+                    {renderBillingActionMenu(bookingServiceBillingButtonIsAdvance ? 'advance' : 'invoice')}
                   </div>
-                  <div className="calendar-session-footer-actions" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                )}
+                {advanceBillingEnabled && canShowOpenBillForBookedStatus && (
                   <button
                     type="button"
-                    className="calendar-form-footer-btn calendar-form-footer-btn--delete calendar-form-footer-btn--footer-delete"
-                    onClick={() => void requestBookedSessionDelete()}
+                    className="cp-action calendar-standardized__billing-action calendar-standardized__advance-action"
+                    title={locale === 'sl' ? 'Pregled predplačil' : 'View advances'}
+                    aria-label={locale === 'sl' ? 'Odpri pregled predplačil za termin' : 'Open session advances view'}
+                    disabled={bookedPaymentActionButtonsDisabled}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      openBookedBillingView('advances')
+                    }}
                   >
-                    <CalendarFormFooterDeleteIcon />
-                    <span className="calendar-form-footer-btn__label">{t('formDeleteSession')}</span>
+                    <CalendarAdvancePaymentIcon />
+                    <span className="calendar-standardized__billing-label">{locale === 'sl' ? 'Predplačilo' : 'Advance'}</span>
                   </button>
-                  <button
-                    type="button"
-                    className="calendar-form-footer-btn calendar-form-footer-btn--save calendar-form-footer-btn--save-mobile-bottom"
-                    onClick={() => void updateBookedSession()}
-                    disabled={bookedSessionSaveDisabled}
-                  >
-                    <CalendarFormFooterSaveIcon />
-                    <span className="calendar-form-footer-btn__label">
-                      {compactSessionEditHeader
-                        ? (locale === 'sl' ? 'Shrani spremembe' : locale === 'sr' ? 'Sačuvaj izmene' : 'Save changes')
-                        : t('formSave')}
-                    </span>
-                  </button>
-                  </div>
-                </>
-              )}
-            </div>
+                )}
+                <button
+                  type="button"
+                  className="cp-action calendar-standardized__scanner-action"
+                  title={bookingServiceScanTitle}
+                  aria-label={bookingServiceScanTitle}
+                  disabled={bookingServiceScanDisabled}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (bookingServiceScanDisabled) return
+                    openBookedEntitlementPaymentModal(bookingServiceEntitlementStatus, bookingServiceEntitlementClient)
+                  }}
+                >
+                  <BookedEntitlementScanIcon />
+                </button>
+              </PanelActionBar>
             )}
-          </div>
-        </div>
+            {showBookedSessionFooter && (
+              <PanelFooter>
+                <PanelButton
+                  variant="danger"
+                  icon={<CalendarFormFooterDeleteIcon />}
+                  onClick={() => void requestBookedSessionDelete()}
+                >
+                  {t('formDeleteSession')}
+                </PanelButton>
+                <PanelButton
+                  variant="primary"
+                  icon={<CalendarFormFooterSaveIcon />}
+                  onClick={() => void updateBookedSession()}
+                  disabled={bookedSessionSaveDisabled}
+                >
+                  {t('formSave')}
+                </PanelButton>
+              </PanelFooter>
+            )}
+        </SidePanel>
       )}
+
+      <ConfirmDialog
+        open={Boolean(selectedBookedSession && confirmDelete && !showRecurringDeleteDialog)}
+        onClose={() => setConfirmDelete(false)}
+        tone="danger"
+        icon={<CalendarFormFooterDeleteIcon />}
+        title={t('formDeleteSessionQuestion')}
+        text={bookedPanelSubtitle || undefined}
+        confirmLabel={t('formYesDelete')}
+        cancelLabel={t('formCancel')}
+        onConfirm={() => void prepareReleasedSlotAction('DELETE', 'SINGLE')}
+      />
 
       {compactSessionEditHeader && selectedBookedSession && bookedStatusMenuOpen && typeof document !== 'undefined' && createPortal(
         <div
@@ -3664,7 +3739,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     <strong>{candidate.clientName}</strong>
                     <span>{formatWaitlistJoinedAt(candidate.joinedAt) ? `${locale === 'sl' ? 'Prijavljen' : locale === 'sr' ? 'Prijavljen' : 'Joined'} ${formatWaitlistJoinedAt(candidate.joinedAt)}` : ''}</span>
                   </div>
-                  <button type="button" className="calendar-waitlist-picker-add" onClick={() => pullFirstWaitlistedGuestIntoBooking(candidate)}>
+                  <button type="button" className="calendar-waitlist-picker-add" onClick={() => void pullFirstWaitlistedGuestIntoBooking(candidate)}>
                     {locale === 'sl' ? 'Dodaj' : locale === 'sr' ? 'Dodaj' : 'Add'}
                   </button>
                 </div>
@@ -4356,50 +4431,59 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       )}
 
       {selectedPersonalBlock && (
-        <div
-          className={useBookingSidePanel ? `modal-backdrop booking-side-panel-backdrop${calendarFormPageLayout ? ' calendar-form-page-backdrop' : ''}` : 'calendar-session-popup-layer'}
-          onClick={useBookingSidePanel && !calendarFormPageLayout ? closePersonalModal : undefined}
+        <SidePanel
+          open
+          onClose={closePersonalModal}
+          ariaLabel={t('formPersonalBlockEditTitle')}
+          closeOnScrimClick={false}
+          size="sm"
+          className="cp-panel--calendar-form cp-panel--calendar-standardized cp-panel--calendar-edit-personal"
         >
-          <div
-            ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={[useBookingSidePanel ? `modal large-modal booking-side-panel calendar-edit-session-panel${calendarFormPageLayout ? ' calendar-form-page' : ''}` : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', 'calendar-edit-session-panel--personal-edit', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
-            style={getSessionPopupInlineStyle()}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={`booking-side-panel-header${compactSessionEditHeader ? ' booking-side-panel-header--compact-booking' : ''}`} {...getSessionPopupDragHandleProps()}>
-              {compactSessionEditHeader ? (
-                <div className="booking-side-panel-header-toolbar booking-side-panel-header-toolbar--session-edit booking-side-panel-header-toolbar--session-edit-generic">
-                  <button type="button" className="secondary booking-side-panel-close" onClick={closePersonalModal} aria-label={t('mobileNavClose')}>
-                    ×
-                  </button>
-                  <div className="calendar-edit-session-panel__compact-title-wrap">
-                    <span className="calendar-edit-session-panel__compact-title">{t('formPersonalBlockEditTitle')}</span>
-                  </div>
-                  <div className="booking-side-panel-header-ico-group">
-                    <button
-                      type="button"
-                      className="calendar-form-footer-btn calendar-form-footer-btn--delete"
-                      onClick={deletePersonalBlock}
-                      aria-label={t('formDelete')}
-                      title={t('formDelete')}
+            <PanelHeader
+              title={t('formPersonalBlockEditTitle')}
+              subtitle={personalPanelSubtitle}
+              onClose={closePersonalModal}
+              closeLabel={t('mobileNavClose')}
+              overflow={
+                <PanelOverflowMenu label={t('formDelete')}>
+                  {(close) => (
+                    <PanelMenuItem
+                      danger
+                      icon={<CalendarFormFooterDeleteIcon />}
+                      onClick={() => {
+                        close()
+                        deletePersonalBlock()
+                      }}
                     >
-                      <CalendarFormFooterDeleteIcon />
-                      <span className="calendar-form-footer-btn__label">{t('formDelete')}</span>
-                    </button>
-                  </div>
+                      {t('formDelete')}
+                    </PanelMenuItem>
+                  )}
+                </PanelOverflowMenu>
+              }
+            />
+            <PanelBody sectioned className="calendar-standardized-body">
+            <PanelSection
+              title={isCalendarCreateMobile ? t('formTask') : t('formPersonal')}
+              className="calendar-standardized__section calendar-standardized__personal"
+              icon={<CalendarSectionIcon name="clients" />}
+              summary={joinSummary(truncateSummary(selectedPersonalBlock.task, 40))}
+              collapsible={isCalendarCreateMobile}
+              action={!isCalendarCreateMobile ? (
+                <div className="calendar-standardized__header-toggle" role="group" aria-label={t('formVisibleToAdmins')}>
+                  <span className="calendar-standardized__toggle-caption">{t('formVisibleToAdmins')}</span>
+                  <label className="repeats-toggle-switch calendar-standardized__toggle" title={t('formVisibleToAdmins')}>
+                    <input
+                      type="checkbox"
+                      checked={!!selectedPersonalBlock.visibleToAdmins}
+                      onChange={(e) => setSelectedPersonalBlock({ ...selectedPersonalBlock, visibleToAdmins: e.target.checked })}
+                    />
+                    <span className="repeats-toggle-slider" />
+                  </label>
                 </div>
-              ) : (
-                <PageHeader
-                  title={t('formPersonalBlockEditTitle')}
-                  actions={<button type="button" className="secondary booking-side-panel-close" onClick={closePersonalModal} aria-label={t('mobileNavClose')}>×</button>}
-                />
-              )}
-            </div>
-            <div className="booking-side-panel-body">
-            <div className="form-row-layout">
+              ) : undefined}
+            >
               <div className="form-row form-row-infield calendar-personal-field-with-visibility">
                 <div className="calendar-booking-service-infield-head calendar-personal-visibility-head">
-                  <span className="form-field-inline-label">{t('formTask')}</span>
                   <div className="calendar-booking-service-online-line calendar-personal-visibility-line" role="group" aria-label={t('formVisibleToAdmins')}>
                     <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formVisibleToAdmins')}>
                       <input
@@ -4425,6 +4509,29 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 />
                 </div>
               </div>
+            </PanelSection>
+            <PanelSection
+              title={sectionLabels.schedule}
+              className="calendar-standardized__section calendar-standardized__schedule"
+              icon={<CalendarSectionIcon name="schedule" />}
+              defaultOpen={!isCalendarCreateMobile}
+              collapsible={isCalendarCreateMobile}
+              summary={scheduleSummary(selectedPersonalBlock.startTime, selectedPersonalBlock.endTime)}
+              action={!isCalendarCreateMobile ? (
+                <div className="calendar-standardized__header-toggle" role="group" aria-label={t('formAllDay')}>
+                  <span id={`${personalEditAllDayCaptionId}-header`} className="calendar-standardized__toggle-caption">{t('formAllDay')}</span>
+                  <label className="repeats-toggle-switch calendar-standardized__toggle" title={t('formAllDay')}>
+                    <input
+                      type="checkbox"
+                      checked={isLocalBookingAllDay(selectedPersonalBlock.startTime, selectedPersonalBlock.endTime)}
+                      aria-labelledby={`${personalEditAllDayCaptionId}-header`}
+                      onChange={toggleSelectedPersonalAllDay}
+                    />
+                    <span className="repeats-toggle-slider" />
+                  </label>
+                </div>
+              ) : undefined}
+            >
               <div className="form-row form-row-timespan">
                 <CalendarLocalTimespanRow
                   startValue={selectedPersonalBlock.startTime}
@@ -4439,26 +4546,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   labels={{ timeFrom: t('formTimeFrom'), timeTo: t('formTimeTo'), date: t('formCalendarDate') }}
                   allDayToggle={{
                     checked: isLocalBookingAllDay(selectedPersonalBlock.startTime, selectedPersonalBlock.endTime),
-                    onToggle: () => {
-                      setSelectedPersonalBlock((prev: any) => {
-                        if (!prev) return prev
-                        if (isLocalBookingAllDay(prev.startTime, prev.endTime)) {
-                          const d =
-                            splitLocalDateTimeParts(normalizeToLocalDateTime(prev.startTime)).date || localTodayYmd()
-                          const hm = toCalendarTimeValue(settings.WORKING_HOURS_START, '09:00').slice(0, 5)
-                          const start = normalizeToLocalDateTime(`${d}T${hm}:00`)
-                          const end = getBookingEndTimeForStart(start, null)
-                          return { ...prev, startTime: start, endTime: end }
-                        }
-                        const d =
-                          splitLocalDateTimeParts(normalizeToLocalDateTime(prev.startTime)).date || localTodayYmd()
-                        return {
-                          ...prev,
-                          startTime: normalizeToLocalDateTime(`${d}T00:00:00`),
-                          endTime: normalizeToLocalDateTime(`${d}T23:59:59`),
-                        }
-                      })
-                    },
+                    onToggle: toggleSelectedPersonalAllDay,
                     label: t('formAllDay'),
                     captionId: personalEditAllDayCaptionId,
                   }}
@@ -4489,86 +4577,108 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   }}
                 />
               </div>
+            </PanelSection>
+            <PanelSection
+              title={sectionLabels.notes}
+              className="calendar-standardized__section calendar-standardized__notes"
+              icon={<CalendarSectionIcon name="notes" />}
+              defaultOpen={!isCalendarCreateMobile}
+              collapsible={isCalendarCreateMobile}
+              summary={joinSummary(truncateSummary(selectedPersonalBlock.notes))}
+            >
               <div className="form-row form-row-infield stretch">
-                <span className="form-field-inline-label">{t('formNotes')}</span>
                 <div className="form-field-inline-control">
                 <SessionNotesTextarea value={selectedPersonalBlock.notes || ''} onChange={(e) => setSelectedPersonalBlock({ ...selectedPersonalBlock, notes: e.target.value })} />
                 </div>
               </div>
-            </div>
-            </div>
-            <div
-              className={`row gap booking-side-panel-footer${compactSessionEditHeader ? ' booking-side-panel-footer--mobile-save' : ''}`}
-              style={{ justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}
-            >
-              {!compactSessionEditHeader && (
-                <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--delete" onClick={deletePersonalBlock}>
-                  <CalendarFormFooterDeleteIcon />
-                  <span className="calendar-form-footer-btn__label">{t('formDelete')}</span>
-                </button>
-              )}
-              <button
-                type="button"
-                className={`calendar-form-footer-btn calendar-form-footer-btn--save${compactSessionEditHeader ? ' calendar-form-footer-btn--save-mobile-bottom' : ''}`}
-                onClick={updatePersonalBlock}
-              >
-                <CalendarFormFooterSaveIcon />
-                <span className="calendar-form-footer-btn__label">
-                  {compactSessionEditHeader
-                    ? (locale === 'sl' ? 'Shrani spremembe' : locale === 'sr' ? 'Sačuvaj izmene' : 'Save changes')
-                    : t('formSave')}
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
+            </PanelSection>
+            </PanelBody>
+            <PanelFooter>
+              <span className="calendar-standardized-desktop-delete">
+                <PanelButton variant="danger" icon={<CalendarFormFooterDeleteIcon />} onClick={deletePersonalBlock}>
+                  {t('formDelete')}
+                </PanelButton>
+              </span>
+              <PanelButton variant="ghost" onClick={closePersonalModal}>
+                {t('formCancel')}
+              </PanelButton>
+              <PanelButton variant="primary" icon={<CalendarFormFooterSaveIcon />} onClick={updatePersonalBlock}>
+                {t('formSave')}
+              </PanelButton>
+            </PanelFooter>
+        </SidePanel>
       )}
 
       {selectedTodo && (
-        <div
-          className={useBookingSidePanel ? `modal-backdrop booking-side-panel-backdrop${calendarFormPageLayout ? ' calendar-form-page-backdrop' : ''}` : 'calendar-session-popup-layer'}
-          onClick={useBookingSidePanel && !calendarFormPageLayout ? closeTodoModal : undefined}
+        <SidePanel
+          open
+          onClose={closeTodoModal}
+          ariaLabel={t('formTodoEditTitle')}
+          closeOnScrimClick={false}
+          size="sm"
+          className="cp-panel--calendar-form cp-panel--calendar-standardized cp-panel--calendar-edit-todo"
         >
-          <div
-            ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={[useBookingSidePanel ? `modal large-modal booking-side-panel calendar-edit-session-panel${calendarFormPageLayout ? ' calendar-form-page' : ''}` : 'modal large-modal calendar-session-popup calendar-edit-session-panel', 'calendar-edit-session-panel--design-match', 'calendar-edit-session-panel--todo-edit', availabilitySelection ? 'calendar-edit-session-panel--availability' : ''].filter(Boolean).join(' ')}
-            style={getSessionPopupInlineStyle()}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={`booking-side-panel-header${compactSessionEditHeader ? ' booking-side-panel-header--compact-booking' : ''}`} {...getSessionPopupDragHandleProps()}>
-              {compactSessionEditHeader ? (
-                <div className="booking-side-panel-header-toolbar booking-side-panel-header-toolbar--session-edit booking-side-panel-header-toolbar--session-edit-generic">
-                  <button type="button" className="secondary booking-side-panel-close" onClick={closeTodoModal} aria-label={t('mobileNavClose')}>
-                    ×
-                  </button>
-                  <div className="calendar-edit-session-panel__compact-title-wrap">
-                    <span className="calendar-edit-session-panel__compact-title">{t('formTodoEditTitle')}</span>
-                  </div>
-                  <button
-                    type="button"
-                    className="calendar-mobile-header-text-action calendar-mobile-header-text-action--todo-complete"
-                    onClick={completeTodo}
-                    aria-label={locale === 'sl' ? 'Opravljeno' : 'Done'}
-                    title={locale === 'sl' ? 'Opravljeno' : 'Done'}
-                  >
-                    {locale === 'sl' ? 'Opravljeno' : 'Done'}
-                  </button>
-                </div>
-              ) : (
-                <PageHeader
-                  title={t('formTodoEditTitle')}
-                  actions={<button type="button" className="secondary booking-side-panel-close" onClick={closeTodoModal} aria-label={t('mobileNavClose')}>×</button>}
-                />
-              )}
-            </div>
-            <div className="booking-side-panel-body">
-              <div className="form-row-layout">
+            <PanelHeader
+              title={t('formTodoEditTitle')}
+              subtitle={todoPanelSubtitle}
+              onClose={closeTodoModal}
+              closeLabel={t('mobileNavClose')}
+              overflow={
+                <PanelOverflowMenu label={t('formDelete')}>
+                  {(close) => (
+                    <PanelMenuItem
+                      danger
+                      icon={<CalendarFormFooterDeleteIcon />}
+                      onClick={() => {
+                        close()
+                        deleteTodo()
+                      }}
+                    >
+                      {t('formDelete')}
+                    </PanelMenuItem>
+                  )}
+                </PanelOverflowMenu>
+              }
+            />
+            <PanelBody sectioned className="calendar-standardized-body">
+              <PanelSection
+                title={t('formTodo')}
+                className="calendar-standardized__section calendar-standardized__task"
+                icon={<CalendarSectionIcon name={isCalendarCreateMobile ? 'notes' : 'service'} />}
+                summary={joinSummary(truncateSummary(selectedTodo.task, 40))}
+                collapsible={isCalendarCreateMobile}
+              >
                 <div className="form-row form-row-infield">
-                  <span className="form-field-inline-label">{t('formTodo')}</span>
                   <div className="form-field-inline-control">
                   <input value={selectedTodo.task || ''} onChange={(e) => setSelectedTodo({ ...selectedTodo, task: e.target.value })} />
                   </div>
                 </div>
+              </PanelSection>
+              <PanelSection
+                title={sectionLabels.schedule}
+                className="calendar-standardized__section calendar-standardized__schedule calendar-standardized__schedule--todo"
+                icon={<CalendarSectionIcon name="schedule" />}
+                defaultOpen={!isCalendarCreateMobile}
+                collapsible={isCalendarCreateMobile}
+                summary={joinSummary(
+                  formatPanelSlotSubtitle(selectedTodo.startTime, null, locale),
+                  isLocalTodoAllDayStart(selectedTodo.startTime) ? sectionLabels.allDay : null,
+                )}
+                action={!isCalendarCreateMobile ? (
+                  <div className="calendar-standardized__header-toggle" role="group" aria-label={t('formAllDay')}>
+                    <span id={`${todoEditAllDayCaptionId}-header`} className="calendar-standardized__toggle-caption">{t('formAllDay')}</span>
+                    <label className="repeats-toggle-switch calendar-standardized__toggle" title={t('formAllDay')}>
+                      <input
+                        type="checkbox"
+                        checked={isLocalTodoAllDayStart(selectedTodo.startTime)}
+                        aria-labelledby={`${todoEditAllDayCaptionId}-header`}
+                        onChange={toggleSelectedTodoAllDay}
+                      />
+                      <span className="repeats-toggle-slider" />
+                    </label>
+                  </div>
+                ) : undefined}
+              >
                 <div className="form-row form-row-timespan">
                   <CalendarLocalTimeDateRow
                     value={selectedTodo.startTime}
@@ -4577,20 +4687,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     labels={{ time: t('formTimeFrom'), date: t('formCalendarDate') }}
                     allDayToggle={{
                       checked: isLocalTodoAllDayStart(selectedTodo.startTime),
-                      onToggle: () => {
-                        setSelectedTodo((prev: any) => {
-                          if (!prev) return prev
-                          if (isLocalTodoAllDayStart(prev.startTime)) {
-                            const d =
-                              splitLocalDateTimeParts(normalizeToLocalDateTime(prev.startTime)).date || localTodayYmd()
-                            const hm = toCalendarTimeValue(settings.WORKING_HOURS_START, '09:00').slice(0, 5)
-                            return { ...prev, startTime: normalizeToLocalDateTime(`${d}T${hm}:00`) }
-                          }
-                          const d =
-                            splitLocalDateTimeParts(normalizeToLocalDateTime(prev.startTime)).date || localTodayYmd()
-                          return { ...prev, startTime: normalizeToLocalDateTime(`${d}T00:00:00`) }
-                        })
-                      },
+                      onToggle: toggleSelectedTodoAllDay,
                       label: t('formAllDay'),
                       captionId: todoEditAllDayCaptionId,
                     }}
@@ -4601,182 +4698,113 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     }}
                   />
                 </div>
+              </PanelSection>
+              <PanelSection
+                title={sectionLabels.notes}
+                className="calendar-standardized__section calendar-standardized__notes"
+                icon={<CalendarSectionIcon name="notes" />}
+                defaultOpen={!isCalendarCreateMobile}
+                collapsible={isCalendarCreateMobile}
+                summary={joinSummary(truncateSummary(selectedTodo.notes))}
+              >
                 <div className="form-row form-row-infield stretch">
-                  <span className="form-field-inline-label">{t('formNotes')}</span>
                   <div className="form-field-inline-control">
                   <SessionNotesTextarea value={selectedTodo.notes || ''} onChange={(e) => setSelectedTodo({ ...selectedTodo, notes: e.target.value })} />
                   </div>
                 </div>
-              </div>
-            </div>
-            <div
-              className={`row gap booking-side-panel-footer${compactSessionEditHeader ? ' booking-side-panel-footer--mobile-save' : ''}`}
-              style={{ justifyContent: 'flex-end', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}
-            >
-              {!compactSessionEditHeader && (
-                <>
-                  <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--delete" onClick={deleteTodo}>
-                    <CalendarFormFooterDeleteIcon />
-                    <span className="calendar-form-footer-btn__label">{t('formDelete')}</span>
-                  </button>
-                  <button type="button" className="calendar-form-footer-btn calendar-form-footer-btn--complete" onClick={completeTodo}>
-                    <CalendarFormFooterSaveIcon />
-                    <span className="calendar-form-footer-btn__label">{locale === 'sl' ? 'Opravljeno' : 'Done'}</span>
-                  </button>
-                </>
-              )}
-              <button
-                type="button"
-                className={`calendar-form-footer-btn calendar-form-footer-btn--save${compactSessionEditHeader ? ' calendar-form-footer-btn--save-mobile-bottom' : ''}`}
-                onClick={updateTodo}
-              >
-                <CalendarFormFooterSaveIcon />
-                <span className="calendar-form-footer-btn__label">
-                  {compactSessionEditHeader
-                    ? (locale === 'sl' ? 'Shrani spremembe' : locale === 'sr' ? 'Sačuvaj izmene' : 'Save changes')
-                    : t('formSave')}
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
+              </PanelSection>
+            </PanelBody>
+            <PanelFooter>
+              <span className="calendar-standardized-desktop-delete">
+                <PanelButton variant="danger" icon={<CalendarFormFooterDeleteIcon />} onClick={deleteTodo}>
+                  {t('formDelete')}
+                </PanelButton>
+              </span>
+              <PanelButton variant="subtle" icon={<CalendarFormFooterSaveIcon />} onClick={completeTodo}>
+                {locale === 'sl' ? 'Opravljeno' : 'Done'}
+              </PanelButton>
+              <PanelButton variant="primary" icon={<CalendarFormFooterSaveIcon />} onClick={updateTodo}>
+                {t('formSave')}
+              </PanelButton>
+            </PanelFooter>
+        </SidePanel>
       )}
 
       {selection && (
-        <div
-          className={useBookingSidePanel ? `modal-backdrop booking-side-panel-backdrop${calendarFormPageLayout ? ' calendar-form-page-backdrop' : ''}` : 'calendar-session-popup-layer'}
-          onClick={useBookingSidePanel && !calendarFormPageLayout ? closeBookingSelection : undefined}
+        <SidePanel
+          open
+          onClose={closeBookingSelection}
+          ariaLabel={renderBookingModeTitle()}
+          closeOnScrimClick={false}
+          className={`cp-panel--calendar-form${activeNewFormPanel === 'booking' ? ' cp-panel--calendar-new-booking' : ''}${activeNewFormPanel === 'todo' ? ' cp-panel--calendar-standardized cp-panel--calendar-new-todo' : ''}${activeNewFormPanel === 'personal' ? ' cp-panel--calendar-standardized cp-panel--calendar-new-personal' : ''}`}
         >
-          <div
-            ref={!useBookingSidePanel ? sessionPopupRef : undefined}
-            className={[
-              useBookingSidePanel
-                ? `modal large-modal booking-side-panel calendar-edit-session-panel${calendarFormPageLayout ? ' calendar-form-page' : ''}`
-                : 'modal large-modal calendar-session-popup calendar-edit-session-panel',
-              'calendar-edit-session-panel--design-match',
-              'calendar-edit-session-panel--new-create',
-              availabilitySelection
-                ? 'calendar-edit-session-panel--availability calendar-edit-session-panel--new-availability'
-                : form.todo
-                  ? 'calendar-edit-session-panel--new-todo'
-                  : form.personal
-                    ? 'calendar-edit-session-panel--new-personal'
-                    : 'calendar-edit-session-panel--new-booking',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-            style={getSessionPopupInlineStyle(true)}
-            onClick={(e) => {
-              e.stopPropagation()
+          <PanelHeader
+            title={renderBookingModeTitle()}
+            subtitle={newFormPanelSubtitle}
+            onClose={closeBookingSelection}
+            closeLabel={t('formBookSessionCloseAria')}
+          />
+          {!isNativeAndroid && (
+            <PanelTabs
+              label={t('formBookSession')}
+              activeId={activeNewFormPanel}
+              onSelect={(id) => activateNewFormPanel(id)}
+              tabs={[
+                {
+                  id: 'booking',
+                  label: t('formBooking'),
+                  icon: <BookingTypeTabIcon name="booking" />,
+                  to: urlForNewForm('booking', location.search),
+                },
+                {
+                  id: 'todo',
+                  label: t('formTodo'),
+                  icon: <BookingTypeTabIcon name="todo" />,
+                  to: urlForNewForm('todo', location.search),
+                  hidden: !todosModuleEnabled,
+                },
+                {
+                  id: 'personal',
+                  label: t('formPersonal'),
+                  icon: <BookingTypeTabIcon name="personal" />,
+                  to: urlForNewForm('personal', location.search),
+                  hidden: !personalModuleEnabled,
+                },
+                {
+                  id: 'availability',
+                  label: t('calendarModeAvailability'),
+                  icon: <BookingTypeTabIcon name="availability" />,
+                  to: urlForNewForm('availability', location.search),
+                },
+              ]}
+            />
+          )}
+          <PanelBody
+            sectioned
+            className={activeNewFormPanel === 'booking'
+              ? 'calendar-approved-booking-body'
+              : (activeNewFormPanel === 'todo' || activeNewFormPanel === 'personal')
+                ? 'calendar-standardized-body'
+                : ''}
+            onClick={() => {
               setClientDropdownOpen(false)
               setEditingClientSearch(false)
             }}
+            style={!isNativeAndroid ? { touchAction: 'pan-y' as const } : undefined}
+            onTouchStart={!isNativeAndroid ? onNewFormPanelTouchStart : undefined}
+            onTouchEnd={!isNativeAndroid ? onNewFormPanelTouchEnd : undefined}
           >
-            <div
-              className={`booking-side-panel-header${
-                compactSelectionHeader ? ' booking-side-panel-header--compact-booking' : ''
-              }`}
-              {...getSessionPopupDragHandleProps()}
-            >
-              {compactSelectionHeader ? (
-                <div className="booking-side-panel-header-toolbar booking-side-panel-header-toolbar--new-create">
-                  <button
-                    type="button"
-                    className="secondary booking-side-panel-close"
-                    onClick={closeBookingSelection}
-                    aria-label={t('formBookSessionCloseAria')}
-                  >
-                    ×
-                  </button>
-                  <h1 className="booking-side-panel-new-create-title">{t('formBookSession')}</h1>
-                  <button
-                    type="button"
-                    className="booking-side-panel-submit-check booking-side-panel-submit-check--new-create"
-                    onClick={() =>
-                      void (availabilitySelection != null ? confirmAvailabilityFromHeader() : saveBooking(false))
-                    }
-                    disabled={availabilitySelection != null ? availabilitySaving : saveBookingLoading}
-                    aria-label={compactSelectionCheckAria}
-                    title={compactSelectionCheckAria}
-                  >
-                    {availabilitySelection != null ? (
-                      availabilitySaving ? (
-                        <span className="booking-side-panel-submit-check-spinner" aria-hidden />
-                      ) : (
-                        <span className="booking-side-panel-submit-check__label">{t('formSave')}</span>
-                      )
-                    ) : saveBookingLoading ? (
-                      <span className="booking-side-panel-submit-check-spinner" aria-hidden />
-                    ) : (
-                      <span className="booking-side-panel-submit-check__label">{t('formSave')}</span>
-                    )}
-                  </button>
-                </div>
-              ) : (
-                <PageHeader
-                  title={renderBookingModeTitle()}
-                  actions={
-                    <button type="button" className="secondary booking-side-panel-close" onClick={closeBookingSelection} aria-label={t('formBookSessionCloseAria')}>
-                      ×
-                    </button>
-                  }
-                />
-              )}
-            </div>
-            <div
-              className="booking-side-panel-body"
-              style={
-                useBookingSidePanel && !isNativeAndroid ? { touchAction: 'pan-y' as const } : undefined
-              }
-              onTouchStart={useBookingSidePanel && !isNativeAndroid ? onNewFormPanelTouchStart : undefined}
-              onTouchEnd={useBookingSidePanel && !isNativeAndroid ? onNewFormPanelTouchEnd : undefined}
-            >
-            {!isNativeAndroid && (
-              <div className="booking-type-switcher">
-                <button
-                  type="button"
-                  className={!availabilitySelection && !form.todo && !form.personal ? 'booking-type-btn booking-type-btn--booking active' : 'booking-type-btn booking-type-btn--booking'}
-                  onClick={() => activateNewFormPanel('booking')}
-                >
-                  <span className="booking-type-btn-label"><BookingTypeTabIcon name="booking" />{t('formBooking')}</span>
-                </button>
-                {todosModuleEnabled && (
-                <button
-                  type="button"
-                  className={!availabilitySelection && form.todo ? 'booking-type-btn booking-type-btn--todo active' : 'booking-type-btn booking-type-btn--todo'}
-                  onClick={() => activateNewFormPanel('todo')}
-                >
-                  <span className="booking-type-btn-label"><BookingTypeTabIcon name="todo" />{t('formTodo')}</span>
-                </button>
-                )}
-                {personalModuleEnabled && (
-                <button
-                  type="button"
-                  className={!availabilitySelection && form.personal ? 'booking-type-btn booking-type-btn--personal active' : 'booking-type-btn booking-type-btn--personal'}
-                  onClick={() => activateNewFormPanel('personal')}
-                >
-                  <span className="booking-type-btn-label"><BookingTypeTabIcon name="personal" />{t('formPersonal')}</span>
-                </button>
-                )}
-                <button
-                  type="button"
-                  className={availabilitySelection ? 'booking-type-btn booking-type-btn--availability active' : 'booking-type-btn booking-type-btn--availability'}
-                  onClick={() => {
-                    const start = form.startTime || selection?.start
-                    const end = form.endTime || selection?.end
-                    if (!start || !end) return
-                    openAvailabilityModalFromSelection(start, end, form.consultantId ?? null, {
-                      skipCompactNavigate: useBookingSidePanel && location.pathname === ROUTE_NEW_BOOKING,
-                    })
-                  }}
-                >
-                  <span className="booking-type-btn-label"><BookingTypeTabIcon name="availability" />{t('calendarModeAvailability')}</span>
-                </button>
-              </div>
+            {(availabilitySelection ? availabilityError : saveBookingError) && (
+              <PanelBanner tone="error">
+                {availabilitySelection ? availabilityError : saveBookingError}
+              </PanelBanner>
             )}
-            <div className={`form-row-layout${!availabilitySelection && !form.todo && !form.personal ? ' form-row-layout--booking' : ''}`}>
               {availabilitySelection ? (
                 <>
+                <PanelSection
+                  title={t('calendarModeAvailability')}
+                  icon={<CalendarSectionIcon name="availability" />}
+                >
                   {locationFilterId == null && metaLocations.filter((item: any) => item?.active !== false).length > 1 && (
                     <div className="form-row form-row-infield">
                       <span className="form-field-inline-label">{locale === 'sl' ? 'Lokacija' : 'Location'}</span>
@@ -4849,6 +4877,12 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       </div>
                     </div>
                   </div>
+                </PanelSection>
+                <PanelSection
+                  title={sectionLabels.schedule}
+                  icon={<CalendarSectionIcon name="schedule" />}
+                  summary={scheduleSummary(availabilitySelection.startTime, availabilitySelection.endTime)}
+                >
                   <div className="form-row form-row-timespan">
                     <CalendarLocalTimespanRow
                       startValue={availabilitySelection.startTime}
@@ -4976,16 +5010,49 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       </div>
                     </div>
                   )}
+                </PanelSection>
                 </>
               ) : form.todo ? (
                 <>
+                <PanelSection
+                  title={t('formTodo')}
+                  className="calendar-standardized__section calendar-standardized__task"
+                  icon={<CalendarSectionIcon name={isCalendarCreateMobile ? 'notes' : 'service'} />}
+                  summary={joinSummary(truncateSummary(form.task, 40))}
+                  collapsible={isCalendarCreateMobile}
+                >
                   <div className="form-row form-row-infield calendar-new-create-primary-field calendar-new-create-todo-field">
-                    <span className="calendar-new-create-section-title">{t('formTodo')}</span>
                     <span className="form-field-inline-label">{t('formTaskNamePlaceholder')}</span>
                     <div className="form-field-inline-control">
                     <input aria-label={t('formTaskNamePlaceholder')} value={form.task || ''} onChange={(e) => setForm({ ...form, task: e.target.value })} />
                     </div>
                   </div>
+                </PanelSection>
+                <PanelSection
+                  title={sectionLabels.schedule}
+                  className="calendar-standardized__section calendar-standardized__schedule calendar-standardized__schedule--todo"
+                  icon={<CalendarSectionIcon name="schedule" />}
+                  defaultOpen={!isCalendarCreateMobile}
+                  collapsible={isCalendarCreateMobile}
+                  summary={joinSummary(
+                    formatPanelSlotSubtitle(form.startTime, null, locale),
+                    isLocalTodoAllDayStart(form.startTime) ? sectionLabels.allDay : null,
+                  )}
+                  action={!isCalendarCreateMobile ? (
+                    <div className="calendar-standardized__header-toggle" role="group" aria-label={t('formAllDay')}>
+                      <span id={`${todoFormAllDayCaptionId}-header`} className="calendar-standardized__toggle-caption">{t('formAllDay')}</span>
+                      <label className="repeats-toggle-switch calendar-standardized__toggle" title={t('formAllDay')}>
+                        <input
+                          type="checkbox"
+                          checked={isLocalTodoAllDayStart(form.startTime)}
+                          aria-labelledby={`${todoFormAllDayCaptionId}-header`}
+                          onChange={toggleNewTodoAllDay}
+                        />
+                        <span className="repeats-toggle-slider" />
+                      </label>
+                    </div>
+                  ) : undefined}
+                >
                   <div className="form-row form-row-timespan">
                     <CalendarLocalTimeDateRow
                       value={form.startTime}
@@ -4994,19 +5061,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       labels={{ time: t('formTimeFrom'), date: t('formCalendarDate') }}
                       allDayToggle={{
                         checked: isLocalTodoAllDayStart(form.startTime),
-                        onToggle: () => {
-                          setForm((f: any) => {
-                            if (isLocalTodoAllDayStart(f.startTime)) {
-                              const d =
-                                splitLocalDateTimeParts(normalizeToLocalDateTime(f.startTime)).date || localTodayYmd()
-                              const hm = toCalendarTimeValue(settings.WORKING_HOURS_START, '09:00').slice(0, 5)
-                              return { ...f, startTime: normalizeToLocalDateTime(`${d}T${hm}:00`) }
-                            }
-                            const d =
-                              splitLocalDateTimeParts(normalizeToLocalDateTime(f.startTime)).date || localTodayYmd()
-                            return { ...f, startTime: normalizeToLocalDateTime(`${d}T00:00:00`) }
-                          })
-                        },
+                        onToggle: toggleNewTodoAllDay,
                         label: t('formAllDay'),
                         captionId: todoFormAllDayCaptionId,
                       }}
@@ -5015,18 +5070,46 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       }}
                     />
                   </div>
+                </PanelSection>
+                <PanelSection
+                  title={sectionLabels.notes}
+                  className="calendar-standardized__section calendar-standardized__notes"
+                  icon={<CalendarSectionIcon name="notes" />}
+                  defaultOpen={!isCalendarCreateMobile}
+                  collapsible={isCalendarCreateMobile}
+                  summary={newFormNotesSummary}
+                >
                   <div className="form-row form-row-infield stretch">
-                    <span className="form-field-inline-label">{t('formNotes')}</span>
                     <div className="form-field-inline-control">
                     <SessionNotesTextarea value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                     </div>
                   </div>
+                </PanelSection>
                 </>
               ) : form.personal ? (
                 <>
+                <PanelSection
+                  title={isCalendarCreateMobile ? t('formTask') : t('formPersonal')}
+                  className="calendar-standardized__section calendar-standardized__personal"
+                  icon={<CalendarSectionIcon name="clients" />}
+                  summary={joinSummary(truncateSummary(form.task, 40))}
+                  collapsible={isCalendarCreateMobile}
+                  action={!isCalendarCreateMobile ? (
+                    <div className="calendar-standardized__header-toggle" role="group" aria-label={t('formVisibleToAdmins')}>
+                      <span className="calendar-standardized__toggle-caption">{t('formVisibleToAdmins')}</span>
+                      <label className="repeats-toggle-switch calendar-standardized__toggle" title={t('formVisibleToAdmins')}>
+                        <input
+                          type="checkbox"
+                          checked={!!form.visibleToAdmins}
+                          onChange={(e) => setForm({ ...form, visibleToAdmins: e.target.checked })}
+                        />
+                        <span className="repeats-toggle-slider" />
+                      </label>
+                    </div>
+                  ) : undefined}
+                >
                   <div className="form-row form-row-infield calendar-personal-field-with-visibility calendar-new-create-primary-field calendar-new-create-personal-field">
                     <div className="calendar-booking-service-infield-head calendar-personal-visibility-head">
-                      <span className="calendar-new-create-section-title">{t('formTask')}</span>
                       <div className="calendar-booking-service-online-line calendar-personal-visibility-line" role="group" aria-label={t('formVisibleToAdmins')}>
                         <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formVisibleToAdmins')}>
                           <input
@@ -5053,6 +5136,29 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     />
                     </div>
                   </div>
+                </PanelSection>
+                <PanelSection
+                  title={sectionLabels.schedule}
+                  className="calendar-standardized__section calendar-standardized__schedule"
+                  icon={<CalendarSectionIcon name="schedule" />}
+                  defaultOpen={!isCalendarCreateMobile}
+                  collapsible={isCalendarCreateMobile}
+                  summary={scheduleSummary(form.startTime, form.endTime)}
+                  action={!isCalendarCreateMobile ? (
+                    <div className="calendar-standardized__header-toggle" role="group" aria-label={t('formAllDay')}>
+                      <span id={`${personalFormAllDayCaptionId}-header`} className="calendar-standardized__toggle-caption">{t('formAllDay')}</span>
+                      <label className="repeats-toggle-switch calendar-standardized__toggle" title={t('formAllDay')}>
+                        <input
+                          type="checkbox"
+                          checked={isLocalBookingAllDay(form.startTime, form.endTime)}
+                          aria-labelledby={`${personalFormAllDayCaptionId}-header`}
+                          onChange={toggleNewPersonalAllDay}
+                        />
+                        <span className="repeats-toggle-slider" />
+                      </label>
+                    </div>
+                  ) : undefined}
+                >
                   <div className="form-row form-row-timespan">
                     <CalendarLocalTimespanRow
                       startValue={form.startTime}
@@ -5063,25 +5169,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       labels={{ timeFrom: t('formTimeFrom'), timeTo: t('formTimeTo'), date: t('formCalendarDate') }}
                       allDayToggle={{
                         checked: isLocalBookingAllDay(form.startTime, form.endTime),
-                        onToggle: () => {
-                          setForm((f: any) => {
-                            if (isLocalBookingAllDay(f.startTime, f.endTime)) {
-                              const d =
-                                splitLocalDateTimeParts(normalizeToLocalDateTime(f.startTime)).date || localTodayYmd()
-                              const hm = toCalendarTimeValue(settings.WORKING_HOURS_START, '09:00').slice(0, 5)
-                              const start = normalizeToLocalDateTime(`${d}T${hm}:00`)
-                              const end = getBookingEndTimeForStart(start, null)
-                              return { ...f, startTime: start, endTime: end }
-                            }
-                            const d =
-                              splitLocalDateTimeParts(normalizeToLocalDateTime(f.startTime)).date || localTodayYmd()
-                            return {
-                              ...f,
-                              startTime: normalizeToLocalDateTime(`${d}T00:00:00`),
-                              endTime: normalizeToLocalDateTime(`${d}T23:59:59`),
-                            }
-                          })
-                        },
+                        onToggle: toggleNewPersonalAllDay,
                         label: t('formAllDay'),
                         captionId: personalFormAllDayCaptionId,
                       }}
@@ -5104,15 +5192,31 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       }}
                     />
                   </div>
+                </PanelSection>
+                <PanelSection
+                  title={sectionLabels.notes}
+                  className="calendar-standardized__section calendar-standardized__notes"
+                  icon={<CalendarSectionIcon name="notes" />}
+                  defaultOpen={!isCalendarCreateMobile}
+                  collapsible={isCalendarCreateMobile}
+                  summary={newFormNotesSummary}
+                >
                   <div className="form-row form-row-infield stretch">
-                    <span className="form-field-inline-label">{t('formNotes')}</span>
                     <div className="form-field-inline-control">
                     <SessionNotesTextarea value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                     </div>
                   </div>
+                </PanelSection>
                 </>
               ) : (
                 <>
+              <PanelSection
+                title={bookingGroupMode ? sectionLabels.group : (compactSelectionHeader ? sectionLabels.clients : t('formClients'))}
+                className="calendar-approved-booking__section calendar-approved-booking__clients"
+                icon={<CalendarSectionIcon name="clients" />}
+                summary={newFormClientsSummary}
+                collapsible={compactSelectionHeader}
+              >
               <div className={`form-row form-row-infield calendar-booking-field--client${groupBookingEnabled ? ' calendar-booking-client-with-group' : ''}`}>
                 {groupBookingEnabled ? (
                   <div className="calendar-booking-service-infield-head">
@@ -5507,62 +5611,62 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   )}
                 </div>
               </div>
-              {!form.todo && !form.personal && !availabilitySelection && (
-                <div className="calendar-booking-row-divider calendar-booking-row-divider--service" aria-hidden />
-              )}
-              {!form.todo && !form.personal && !availabilitySelection && showBookingTypeRow && (
-                <div className="form-row calendar-booking-field--service calendar-booking-field--service-chain calendar-booking-service-with-online">
-                  <div className="calendar-booking-service-infield-head calendar-booking-service-infield-head--chain">
-                    <span className="form-field-inline-label">{t('formCalendarBookingService')}</span>
-                    {onlineSessionBookingEnabled && form.online ? (
-                      <div className="meeting-provider-summary meeting-provider-summary--service-inline calendar-booking-service-meeting-inline">
-                        <span className="meeting-provider-summary__name">
-                          {form.meetingProvider === 'google' ? 'Google Meet' : 'Zoom'}
-                        </span>
-                        <button
-                          type="button"
-                          className="secondary meeting-provider-change-btn"
-                          onClick={() => {
-                            setMeetingPickerCancelUnchecksOnline(false)
-                            setMeetingProviderPickerTarget('create')
-                            setMeetingProviderPickerOpen(true)
-                          }}
-                        >
-                          {t('formChange')}
-                        </button>
-                      </div>
-                    ) : null}
-                    {onlineSessionBookingEnabled ? (
-                      <div className="calendar-booking-service-online-line" role="group" aria-label={t('formSessionOnlineShort')}>
-                        <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formSessionOnlineShort')}>
-                          <input
-                            type="checkbox"
-                            checked={!!form.online}
-                            aria-labelledby={addBookingOnlineCaptionId}
-                            onChange={(e) => {
-                              const on = e.target.checked
-                              if (on) {
-                                setForm({ ...form, online: true })
-                                setMeetingPickerCancelUnchecksOnline(true)
+              </PanelSection>
+              {showBookingTypeRow && (
+                  <CalendarServiceChainEditor
+                    sectionSummary={newFormServiceSummary}
+                    sectionClassName="calendar-approved-booking__section calendar-approved-booking__service"
+                    sectionCollapsible={compactSelectionHeader}
+                    sectionDefaultOpen
+                    sectionAction={onlineSessionBookingEnabled ? (
+                      <div className="cp-section__controls">
+                        {form.online ? (
+                          <div className="meeting-provider-summary meeting-provider-summary--service-inline calendar-booking-service-meeting-inline">
+                            <span className="meeting-provider-summary__name">
+                              {form.meetingProvider === 'google' ? 'Google Meet' : 'Zoom'}
+                            </span>
+                            <button
+                              type="button"
+                              className="secondary meeting-provider-change-btn"
+                              onClick={() => {
+                                setMeetingPickerCancelUnchecksOnline(false)
                                 setMeetingProviderPickerTarget('create')
                                 setMeetingProviderPickerOpen(true)
-                              } else {
-                                setForm({ ...form, online: false })
-                                setMeetingProviderPickerOpen(false)
-                                setMeetingProviderPickerTarget(null)
-                                setMeetingPickerCancelUnchecksOnline(false)
-                              }
-                            }}
-                          />
-                          <span className="repeats-toggle-slider" />
-                        </label>
-                        <span id={addBookingOnlineCaptionId} className="calendar-booking-service-online-caption">
-                          {t('formSessionOnlineShort')}
-                        </span>
+                              }}
+                            >
+                              {t('formChange')}
+                            </button>
+                          </div>
+                        ) : null}
+                        <div className="calendar-booking-service-online-line" role="group" aria-label={t('formSessionOnlineShort')}>
+                          <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formSessionOnlineShort')}>
+                            <input
+                              type="checkbox"
+                              checked={!!form.online}
+                              aria-labelledby={addBookingOnlineCaptionId}
+                              onChange={(e) => {
+                                const on = e.target.checked
+                                if (on) {
+                                  setForm({ ...form, online: true })
+                                  setMeetingPickerCancelUnchecksOnline(true)
+                                  setMeetingProviderPickerTarget('create')
+                                  setMeetingProviderPickerOpen(true)
+                                } else {
+                                  setForm({ ...form, online: false })
+                                  setMeetingProviderPickerOpen(false)
+                                  setMeetingProviderPickerTarget(null)
+                                  setMeetingPickerCancelUnchecksOnline(false)
+                                }
+                              }}
+                            />
+                            <span className="repeats-toggle-slider" />
+                          </label>
+                          <span id={addBookingOnlineCaptionId} className="calendar-booking-service-online-caption">
+                            {t('formSessionOnlineShort')}
+                          </span>
+                        </div>
                       </div>
                     ) : null}
-                  </div>
-                  <CalendarServiceChainEditor
                     locale={locale}
                     services={formServiceDrafts}
                     segments={formServiceChain.segments}
@@ -5590,36 +5694,86 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         resetSessionConsumablesToDefaults: resetToDefaults,
                       }))
                     }
-                  />
-                </div>
+                  >
+                    {compactSelectionHeader ? newFormServiceExtraRows : null}
+                  </CalendarServiceChainEditor>
               )}
-              {showBookingConsultantRow && (
-                <div className="form-row form-row-infield calendar-booking-field--consultant">
-                  <span className="form-field-inline-label">{t('formConsultant')}</span>
-                  <div className="form-field-inline-control">
-                  <DesktopSelect disabled={form.todo || form.personal} value={form.consultantId ?? ''} onChange={(e) => setForm({ ...form, consultantId: e.target.value === '' ? null : Number(e.target.value) })}><option value="">{t('formUnassigned')}</option>{formConsultants.map((c: any) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}                  </DesktopSelect>
+              {!showBookingTypeRow && compactSelectionHeader && newFormServiceExtraRows && (
+                <PanelSection
+                  title={sectionLabels.service}
+                  icon={<CalendarSectionIcon name="service" />}
+                >
+                  {newFormServiceExtraRows}
+                </PanelSection>
+              )}
+              {!compactSelectionHeader && showBookingConsultantRow && (
+                <PanelSection
+                  title={t('formConsultant')}
+                  className="calendar-approved-booking__section calendar-approved-booking__employee"
+                  icon={<CalendarSectionIcon name="clients" />}
+                  collapsible={false}
+                >
+                  <div className="form-row form-row-infield calendar-booking-field--consultant">
+                    <div className="form-field-inline-control">
+                      <DesktopSelect
+                        disabled={form.todo || form.personal}
+                        value={form.consultantId ?? ''}
+                        onChange={(e) => setForm({ ...form, consultantId: e.target.value === '' ? null : Number(e.target.value) })}
+                      >
+                        <option value="">{t('formUnassigned')}</option>
+                        {formConsultants.map((c: any) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}
+                      </DesktopSelect>
+                    </div>
                   </div>
-                </div>
+                </PanelSection>
               )}
-              {!form.todo && !form.personal && !availabilitySelection && showBookingSpaceRow && (!showBookingTypeRow || formServiceDrafts.filter((service: any) => service.typeId != null).length <= 1) && (
-                <div className="form-row form-row-infield calendar-booking-field--space">
-                  <span className="form-field-inline-label">{t('formCalendarBookingSpace')}</span>
-                  <div className="form-field-inline-control">
-                  <DesktopSelect
-                    value={form.spaceId || ''}
-                    onChange={(e) => {
-                      const nextSpaceId = Number(e.target.value) || null
-                      updateBookingFormServices(formServiceDrafts.map((service: any, index: number) => (
-                        index === 0 ? { ...service, spaceId: nextSpaceId } : service
-                      )))
-                    }}
-                  ><option value="">{t('formNoSpace')}</option>{formSpaces.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</DesktopSelect>
+              {!compactSelectionHeader && newFormShowSpaceRow && (
+                <PanelSection
+                  title={t('formCalendarBookingSpace')}
+                  className="calendar-approved-booking__section calendar-approved-booking__space"
+                  icon={<CalendarSectionIcon name="location" />}
+                  collapsible={false}
+                >
+                  <div className="form-row form-row-infield calendar-booking-field--space">
+                    <div className="form-field-inline-control">
+                      <DesktopSelect
+                        value={form.spaceId || ''}
+                        onChange={(e) => {
+                          const nextSpaceId = Number(e.target.value) || null
+                          updateBookingFormServices(formServiceDrafts.map((service: any, index: number) => (
+                            index === 0 ? { ...service, spaceId: nextSpaceId } : service
+                          )))
+                        }}
+                      >
+                        <option value="">{t('formNoSpace')}</option>
+                        {formSpaces.map((space: any) => <option key={space.id} value={space.id}>{space.name}</option>)}
+                      </DesktopSelect>
+                    </div>
                   </div>
-                </div>
+                </PanelSection>
               )}
-              {!form.todo && !form.personal && !availabilitySelection && (
-                <div className="calendar-booking-row-divider calendar-booking-row-divider--timespan" aria-hidden />
-              )}
+              <PanelSection
+                title={sectionLabels.schedule}
+                className="calendar-approved-booking__section calendar-approved-booking__schedule"
+                icon={<CalendarSectionIcon name="schedule" />}
+                defaultOpen={!compactSelectionHeader}
+                collapsible={compactSelectionHeader}
+                summary={newFormScheduleSummary}
+                action={!compactSelectionHeader ? (
+                  <div className="calendar-approved-booking__header-toggle" role="group" aria-label={t('formAllDay')}>
+                    <span id={newBookingAllDayCaptionId} className="calendar-approved-booking__toggle-caption">{t('formAllDay')}</span>
+                    <label className="repeats-toggle-switch calendar-approved-booking__toggle" title={t('formAllDay')}>
+                      <input
+                        type="checkbox"
+                        checked={isLocalBookingAllDay(form.startTime, form.endTime)}
+                        aria-labelledby={newBookingAllDayCaptionId}
+                        onChange={toggleNewBookingAllDay}
+                      />
+                      <span className="repeats-toggle-slider" />
+                    </label>
+                  </div>
+                ) : undefined}
+              >
               <div className="form-row form-row-timespan calendar-booking-timespan-row">
                 <CalendarLocalTimespanRow
                   startValue={form.startTime}
@@ -5631,23 +5785,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   labels={{ timeFrom: t('formTimeFrom'), timeTo: t('formTimeTo'), date: t('formCalendarDate') }}
                   allDayToggle={{
                     checked: isLocalBookingAllDay(form.startTime, form.endTime),
-                    onToggle: () => {
-                      if (isLocalBookingAllDay(form.startTime, form.endTime)) {
-                        const d = splitLocalDateTimeParts(normalizeToLocalDateTime(form.startTime)).date || localTodayYmd()
-                        const hm = toCalendarTimeValue(settings.WORKING_HOURS_START, '09:00').slice(0, 5)
-                        updateBookingFormStartTime(normalizeToLocalDateTime(`${d}T${hm}:00`))
-                        return
-                      }
-                      const d = splitLocalDateTimeParts(normalizeToLocalDateTime(form.startTime)).date || localTodayYmd()
-                      bookingEndEditedManuallyRef.current = true
-                      setForm({
-                        ...form,
-                        startTime: normalizeToLocalDateTime(`${d}T00:00:00`),
-                        endTime: normalizeToLocalDateTime(`${d}T23:59:59`),
-                      })
-                    },
+                    onToggle: toggleNewBookingAllDay,
                     label: t('formAllDay'),
-                    captionId: newBookingAllDayCaptionId,
+                    captionId: compactSelectionHeader ? newBookingAllDayCaptionId : `${newBookingAllDayCaptionId}-field`,
                   }}
                   onCommitAllDayDate={(ymd) => {
                     bookingEndEditedManuallyRef.current = true
@@ -5670,132 +5810,45 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   }}
                 />
               </div>
-              {!form.todo && !form.personal && !availabilitySelection && (() => {
-                const dateLoc = locale === 'sl' ? 'sl-SI' : 'en-GB'
-                const startDate = form.startTime ? new Date(form.startTime) : null
-                const sessionDay = startDate ? REPEAT_WEEKDAY_EN[startDate.getDay()] : 'Monday'
-                const sessionDateStr = startDate
-                  ? startDate.toLocaleDateString(dateLoc, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
-                  : ''
-                const repeatInterval = form.repeatInterval ?? 1
-                const repeatUnit = form.repeatUnit ?? 'weeks'
-                const repeatEndType = form.repeatEndType ?? 'after'
-                const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(form.repeatEndCount) || 2)))
-                const repeatEndDate = form.repeatEndDate ?? ''
-                const summaryTail = repeatEndType === 'after'
-                  ? t('formRepeatEndsAfter').replace('{count}', String(repeatEndCount))
-                  : repeatEndDate
-                    ? t('formRepeatEndsOn').replace(
-                        '{date}',
-                        new Date(repeatEndDate).toLocaleDateString(dateLoc, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }),
-                      )
-                    : t('formRepeatNoEndDate')
-                const summaryLine = t('formRepeatSummaryLine').replace('{from}', sessionDateStr).replace('{tail}', summaryTail)
-                return (
-                  <div className={`form-row-repeats-section calendar-booking-repeats-section${form.repeats ? ' calendar-booking-repeats-section--expanded' : ''}`}>
-                    <div className="form-row form-row-infield form-row--bare">
-                      <span className="form-field-inline-label">{t('formRepeats')}</span>
-                      <div className="form-field-inline-control">
-                        <label className="repeats-toggle-switch">
-                          <input
-                            type="checkbox"
-                            checked={!!form.repeats}
-                            onChange={(e) => setForm({ ...form, repeats: e.target.checked, repeatDay: sessionDay })}
-                          />
-                          <span className="repeats-toggle-slider" />
-                        </label>
-                      </div>
-                    </div>
-                    {form.repeats && (
-                      <div className="form-repeats-config">
-                        <div className="form-repeats-row">
-                          <span className="form-repeats-label">{t('formRepeatsEvery')}</span>
-                          <input
-                            type="number"
-                            min={1}
-                            max={52}
-                            className="form-repeats-number"
-                            value={repeatInterval}
-                            onChange={(e) => setForm({ ...form, repeatInterval: Math.max(1, Number(e.target.value) || 1) })}
-                          />
-                          <DesktopSelect
-                            className="form-repeats-select"
-                            value={repeatUnit}
-                            onChange={(e) => setForm({ ...form, repeatUnit: e.target.value })}
-                          >
-                            <option value="days">{t('formRepeatUnitDays')}</option>
-                            <option value="weeks">{t('formRepeatUnitWeeks')}</option>
-                            <option value="months">{t('formRepeatUnitMonths')}</option>
-                          </DesktopSelect>
-                        </div>
-                        {repeatUnit === 'weeks' && (
-                          <div className="form-repeats-row">
-                            <span className="form-repeats-label">{t('formRepeatsOnDay')}</span>
-                            <DesktopSelect
-                              className="form-repeats-select"
-                              value={form.repeatDay ?? sessionDay}
-                              onChange={(e) => setForm({ ...form, repeatDay: e.target.value })}
-                            >
-                              {REPEAT_WEEKDAY_EN.map((d) => (
-                                <option key={d} value={d}>{formatRepeatWeekdayLabel(locale, d)}</option>
-                              ))}
-                            </DesktopSelect>
-                          </div>
-                        )}
-                        <div className="form-repeats-row">
-                          <span className="form-repeats-label">{t('formRepeatsEnds')}</span>
-                          <DesktopSelect
-                            className="form-repeats-select"
-                            value={repeatEndType}
-                            onChange={(e) => setForm({ ...form, repeatEndType: e.target.value })}
-                          >
-                            <option value="after">{t('formRepeatEndAfter')}</option>
-                            <option value="on">{t('formRepeatEndOnDate')}</option>
-                          </DesktopSelect>
-                          {repeatEndType === 'after' && (
-                            <input
-                              type="number"
-                              min={2}
-                              max={100}
-                              className="form-repeats-number"
-                              value={form.repeatEndCount ?? 5}
-                              onChange={(e) => {
-                                const raw = e.target.value
-                                setForm({
-                                  ...form,
-                                  repeatEndCount: raw === '' ? '' : Math.min(100, Math.max(0, Math.floor(Number(raw) || 0))),
-                                })
-                              }}
-                              onBlur={(e) =>
-                                setForm({
-                                  ...form,
-                                  repeatEndCount: Math.max(2, Math.min(100, Math.floor(Number(e.target.value) || 2))),
-                                })
-                              }
-                            />
-                          )}
-                          {repeatEndType === 'on' && (
-                            <input
-                              type="date"
-                              className="form-repeats-date"
-                              value={repeatEndDate}
-                              onChange={(e) => setForm({ ...form, repeatEndDate: e.target.value })}
-                            />
-                          )}
-                        </div>
-                        <p className="form-repeats-summary muted">
-                          {summaryLine}
-                        </p>
-                        <p className="form-repeats-note muted">
-                          {t('formRepeatsSameDurationNote')}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
+              {compactSelectionHeader ? renderNewBookingRepeats(true) : null}
+              </PanelSection>
+              {!compactSelectionHeader && (
+                <PanelSection
+                  title={sectionLabels.repeats}
+                  className="calendar-approved-booking__section calendar-approved-booking__repeat"
+                  icon={<CalendarSectionIcon name="repeat" />}
+                  collapsible={false}
+                  action={
+                    <label className="repeats-toggle-switch calendar-approved-booking__toggle" title={sectionLabels.repeats}>
+                      <input
+                        type="checkbox"
+                        checked={!!form.repeats}
+                        aria-label={sectionLabels.repeats}
+                        onChange={(e) => {
+                          const startDate = form.startTime ? new Date(form.startTime) : null
+                          const sessionDay = startDate ? REPEAT_WEEKDAY_EN[startDate.getDay()] : 'Monday'
+                          setForm({ ...form, repeats: e.target.checked, repeatDay: sessionDay })
+                        }}
+                      />
+                      <span className="repeats-toggle-slider" />
+                    </label>
+                  }
+                >
+                  {form.repeats ? renderNewBookingRepeats(false) : null}
+                </PanelSection>
+              )}
               {isNativeAndroid ? (
                 <>
+                <PanelSection
+                  title={t('formOptions')}
+                  icon={<CalendarSectionIcon name="location" />}
+                  defaultOpen={false}
+                  summary={joinSummary(
+                    form.todo ? t('formTodo') : null,
+                    form.personal ? t('formPersonal') : null,
+                    form.online ? t('formOnline') : null,
+                  )}
+                >
                   <div className="form-row form-row-infield book-session-flags-row">
                     <span className="form-field-inline-label">{t('formOptions')}</span>
                     <div className="form-field-inline-control">
@@ -5827,8 +5880,14 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       </div>
                     </div>
                   )}
+                </PanelSection>
+                <PanelSection
+                  title={sectionLabels.notes}
+                  icon={<CalendarSectionIcon name="notes" />}
+                  defaultOpen={false}
+                  summary={newFormNotesSummary}
+                >
                   <div className="form-row form-row-infield stretch book-session-notes-android">
-                    <span className="form-field-inline-label">{t('formNotes')}</span>
                     <div className="form-field-inline-control">
                     <div className="book-session-notes-android-wrap">
                       <button
@@ -5850,361 +5909,281 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     </div>
                     </div>
                   </div>
+                </PanelSection>
                 </>
               ) : (
-                <>
+                <PanelSection
+                  title={sectionLabels.notes}
+                  className="calendar-approved-booking__section calendar-approved-booking__notes"
+                  icon={<CalendarSectionIcon name="notes" />}
+                  defaultOpen={!compactSelectionHeader}
+                  collapsible={compactSelectionHeader}
+                  summary={newFormNotesSummary}
+                >
                   <div className="form-row form-row-infield stretch">
-                    <span className="form-field-inline-label">{t('formNotes')}</span>
                     <div className="form-field-inline-control">
                     <SessionNotesTextarea value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                     </div>
                   </div>
-                </>
+                </PanelSection>
               )}
                 </>
               )}
-            </div>
-            </div>
-            {(availabilitySelection ? availabilityError : saveBookingError) && (
-              <div className="calendar-booking-inline-toast-wrap">
-                <div className="toast toast-error calendar-booking-inline-toast" role="alert">
-                  <span className="toast-message">{availabilitySelection ? availabilityError : saveBookingError}</span>
-                  <button
-                    type="button"
-                    className="toast-dismiss"
-                    onClick={() => {
-                      if (availabilitySelection) setAvailabilityError(null)
-                      else setSaveBookingError(null)
-                    }}
-                    aria-label="Dismiss booking error"
-                  >
-                    OK
-                  </button>
-                </div>
-              </div>
-            )}
-            {showSelectionFormFooter && (
-            <div className="row gap booking-side-panel-footer" style={{ justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-              <button
-                type="button"
-                className="calendar-form-footer-btn calendar-form-footer-btn--save"
+          </PanelBody>
+          <PanelFooter>
+            <PanelButton variant="ghost" onClick={closeBookingSelection}>
+              {t('formCancel')}
+            </PanelButton>
+            {availabilitySelection != null ? (
+              <PanelButton
+                variant="primary"
+                busy={availabilitySaving}
+                onClick={() => void confirmAvailabilityFromHeader()}
+                icon={<CalendarFormFooterSaveIcon />}
+              >
+                {availabilitySaving
+                  ? t('formSaving')
+                  : availabilityIntent === 'block'
+                    ? t('formBlockAvailabilityShort')
+                    : availabilitySelection.slotId
+                      ? t('formSaveChanges')
+                      : t('formAvailabilityOpenShort')}
+              </PanelButton>
+            ) : (
+              <PanelButton
+                variant="primary"
+                busy={saveBookingLoading}
                 onClick={() => void saveBooking(false)}
-                disabled={saveBookingLoading}
+                icon={<CalendarFormFooterSaveIcon />}
               >
-                <CalendarFormFooterSaveIcon />
-                <span className="calendar-form-footer-btn__label">
-                  {saveBookingLoading ? t('formSaving') : form.todo ? t('formAddTodo') : form.personal ? t('formAddBlock') : t('formBookSession')}
-                </span>
-              </button>
-            </div>
+                {saveBookingLoading ? t('formSaving') : form.todo ? t('formAddTodo') : form.personal ? t('formAddBlock') : t('formBookSession')}
+              </PanelButton>
             )}
-            {!calendarFiltersBottomBar && availabilitySelection != null && (
-              <div className="row gap booking-side-panel-footer" style={{ justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                <button
-                  type="button"
-                  className="calendar-form-footer-btn calendar-form-footer-btn--save"
-                  onClick={() => void confirmAvailabilityFromHeader()}
-                  disabled={availabilitySaving}
-                >
-                  <CalendarFormFooterSaveIcon />
-                  <span className="calendar-form-footer-btn__label">
-                    {availabilitySaving
-                      ? t('formSaving')
-                      : availabilityIntent === 'block'
-                        ? t('formBlockAvailabilityShort')
-                        : availabilitySelection.slotId
-                          ? t('formSaveChanges')
-                          : t('formAvailabilityOpenShort')}
-                  </span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+          </PanelFooter>
+        </SidePanel>
       )}
-      {meetingProviderPickerOpen && (selection || selectedBookedSession) && (
-        <div
-          className="modal-backdrop meeting-provider-picker-backdrop"
-          onClick={() => {
-            setMeetingProviderPickerOpen(false)
-            if (meetingPickerCancelUnchecksOnline) {
-              if (meetingProviderPickerTarget === 'edit') {
-                setSelectedBookedSession((s: any) => (s ? { ...s, online: false } : s))
-              } else {
-                setForm((f: any) => ({ ...f, online: false }))
-              }
-            }
-            setMeetingProviderPickerTarget(null)
-            setMeetingPickerCancelUnchecksOnline(false)
-          }}
-        >
-          <div className="modal meeting-provider-picker-modal" onClick={(e) => e.stopPropagation()}>
-            <p className="meeting-provider-picker-title">Choose meeting</p>
-            <p className="muted meeting-provider-picker-hint">Google Meet or Zoom</p>
-            <div className="meeting-provider-picker-actions">
-              <button
-                type="button"
-                onClick={() => {
-                  if (meetingProviderPickerTarget === 'edit') {
-                    setSelectedBookedSession((s: any) => (s ? { ...s, meetingProvider: 'zoom', online: true } : s))
-                  } else {
-                    setForm((f: any) => ({ ...f, meetingProvider: 'zoom', online: true }))
-                  }
-                  setMeetingProviderPickerOpen(false)
-                  setMeetingProviderPickerTarget(null)
-                  setMeetingPickerCancelUnchecksOnline(false)
-                }}
-              >
-                Zoom
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (meetingProviderPickerTarget === 'edit') {
-                    setSelectedBookedSession((s: any) => (s ? { ...s, meetingProvider: 'google', online: true } : s))
-                  } else {
-                    setForm((f: any) => ({ ...f, meetingProvider: 'google', online: true }))
-                  }
-                  setMeetingProviderPickerOpen(false)
-                  setMeetingProviderPickerTarget(null)
-                  setMeetingPickerCancelUnchecksOnline(false)
-                }}
-              >
-                Google Meet
-              </button>
-            </div>
-            <button
-              type="button"
-              className="secondary meeting-provider-picker-cancel"
-              onClick={() => {
-                setMeetingProviderPickerOpen(false)
-                if (meetingPickerCancelUnchecksOnline) {
-                  if (meetingProviderPickerTarget === 'edit') {
-                    setSelectedBookedSession((s: any) => (s ? { ...s, online: false } : s))
-                  } else {
-                    setForm((f: any) => ({ ...f, online: false }))
-                  }
-                }
-                setMeetingProviderPickerTarget(null)
-                setMeetingPickerCancelUnchecksOnline(false)
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={Boolean(meetingProviderPickerOpen && (selection || selectedBookedSession))}
+        onClose={dismissMeetingProviderPicker}
+        title={locale === 'sl' ? 'Izberi sestanek' : 'Choose meeting'}
+        text="Google Meet / Zoom"
+        confirmLabel="Zoom"
+        cancelLabel={t('formCancel')}
+        onConfirm={() => pickMeetingProvider('zoom')}
+        extraActions={
+          <PanelButton variant="subtle" onClick={() => pickMeetingProvider('google')}>
+            Google Meet
+          </PanelButton>
+        }
+      />
 
       {androidLanguageModal && <LanguageModal onClose={() => setAndroidLanguageModal(false)} />}
 
-      {showAddGroupModal && (
-        <div
-          className={`modal-backdrop calendar-client-create-popup-backdrop calendar-booking-supplement clients-action-workspace-backdrop${isCalendarCreateMobile ? ' clients-simple-create-backdrop calendar-client-create-page-backdrop' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) closeCalendarAddGroupModal()
-          }}
-          role="presentation"
-        >
-          <div
-            className={`modal large-modal calendar-client-create-popup clients-tab-client-detail-modal clients-action-workspace-modal clients-create-modal clients-group-create-modal${isCalendarCreateMobile ? ' clients-simple-create-modal calendar-client-create-page' : ''}`}
-            onMouseDown={(e) => e.stopPropagation()}
+      <SidePanel
+        open={showAddGroupModal}
+        onClose={closeCalendarAddGroupModal}
+        ariaLabel={locale === 'sl' ? 'Nova skupina' : 'New group'}
+        size="lg"
+      >
+        {isCalendarCreateMobile ? (
+          <form
+            className="clients-create-modal-form clients-simple-create-form"
+            autoComplete="off"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!calendarCreateGroupDisabled) void createGroupFromBooking()
+            }}
           >
-            {isCalendarCreateMobile ? (
-              <form
-                className="clients-create-modal-form clients-simple-create-form"
-                autoComplete="off"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  if (!calendarCreateGroupDisabled) void createGroupFromBooking()
-                }}
+            <div className="clients-simple-create-header">
+              <button
+                type="button"
+                className="clients-simple-create-close"
+                onClick={closeCalendarAddGroupModal}
+                aria-label={t('mobileNavClose')}
               >
-                <div className="clients-simple-create-header">
-                  <button
-                    type="button"
-                    className="clients-simple-create-close"
-                    onClick={closeCalendarAddGroupModal}
-                    aria-label={t('mobileNavClose')}
-                  >
-                    ×
-                  </button>
-                  <h2>{locale === 'sl' ? 'Nova skupina' : 'New group'}</h2>
+                ×
+              </button>
+              <h2>{locale === 'sl' ? 'Nova skupina' : 'New group'}</h2>
+            </div>
+            <div className="clients-simple-create-body">
+              <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
+                <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
+                  <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                    <span>{locale === 'sl' ? 'Ime skupine' : 'Group name'} *</span>
+                    <input
+                      required
+                      autoFocus
+                      placeholder={locale === 'sl' ? 'Ime skupine *' : 'Group name *'}
+                      value={newGroupForm.name}
+                      onChange={(e) => setNewGroupForm((current: any) => ({ ...current, name: e.target.value }))}
+                    />
+                  </label>
+                  <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                    <span>{locale === 'sl' ? 'E-pošta skupine' : 'Group email'}</span>
+                    <input
+                      type="email"
+                      inputMode="email"
+                      placeholder={locale === 'sl' ? 'E-pošta skupine' : 'Group email'}
+                      value={newGroupForm.email}
+                      onChange={(e) => setNewGroupForm((current: any) => ({ ...current, email: e.target.value }))}
+                    />
+                  </label>
                 </div>
-                <div className="clients-simple-create-body">
-                  <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
-                    <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
-                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{locale === 'sl' ? 'Ime skupine' : 'Group name'} *</span>
-                        <input
-                          required
-                          autoFocus
-                          placeholder={locale === 'sl' ? 'Ime skupine *' : 'Group name *'}
-                          value={newGroupForm.name}
-                          onChange={(e) => setNewGroupForm((current: any) => ({ ...current, name: e.target.value }))}
-                        />
-                      </label>
-                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{locale === 'sl' ? 'E-pošta skupine' : 'Group email'}</span>
-                        <input
-                          type="email"
-                          inputMode="email"
-                          placeholder={locale === 'sl' ? 'E-pošta skupine' : 'Group email'}
-                          value={newGroupForm.email}
-                          onChange={(e) => setNewGroupForm((current: any) => ({ ...current, email: e.target.value }))}
-                        />
-                      </label>
-                    </div>
-                    {groupModalError && <div className="error">{groupModalError}</div>}
-                    <button
-                      type="submit"
-                      className="clients-gapp-save-button clients-simple-create-submit"
-                      disabled={calendarCreateGroupDisabled}
-                    >
-                      {savingNewGroupModal ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…') : calendarCreateGroupLabel}
-                    </button>
-                  </div>
-                </div>
-              </form>
-            ) : (
-              <form
-                className="clients-create-modal-form"
-                autoComplete="off"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  if (!calendarCreateGroupDisabled) void createGroupFromBooking()
-                }}
+                {groupModalError && <div className="error">{groupModalError}</div>}
+                <button
+                  type="submit"
+                  className="clients-gapp-save-button clients-simple-create-submit"
+                  disabled={calendarCreateGroupDisabled}
+                >
+                  {savingNewGroupModal ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…') : calendarCreateGroupLabel}
+                </button>
+              </div>
+            </div>
+          </form>
+        ) : (
+          <>
+            <PanelHeader
+              title={locale === 'sl' ? 'Nova skupina' : 'New group'}
+              onClose={closeCalendarAddGroupModal}
+              closeLabel={t('mobileNavClose')}
+            />
+            <PanelBody
+              as="form"
+              id="calendar-new-group-form"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (!calendarCreateGroupDisabled) void createGroupFromBooking()
+              }}
+            >
+              <div className="clients-detail-fields clients-create-fields">
+                <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                  <span>{locale === 'sl' ? 'Ime skupine' : 'Group name'}</span>
+                  <input
+                    required
+                    autoFocus
+                    placeholder={locale === 'sl' ? 'Ime skupine' : 'Group name'}
+                    value={newGroupForm.name}
+                    onChange={(e) => setNewGroupForm((current: any) => ({ ...current, name: e.target.value }))}
+                  />
+                </label>
+                <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                  <span>{locale === 'sl' ? 'E-pošta skupine' : 'Group email'}</span>
+                  <input
+                    type="email"
+                    placeholder={locale === 'sl' ? 'E-pošta skupine' : 'Group email'}
+                    value={newGroupForm.email}
+                    onChange={(e) => setNewGroupForm((current: any) => ({ ...current, email: e.target.value }))}
+                  />
+                </label>
+              </div>
+              {groupModalError && <div className="error">{groupModalError}</div>}
+            </PanelBody>
+            <PanelFooter>
+              <PanelButton onClick={closeCalendarAddGroupModal}>{t('formCancel')}</PanelButton>
+              <PanelButton
+                type="submit"
+                form="calendar-new-group-form"
+                variant="primary"
+                icon={<GuestConfigSaveIcon />}
+                disabled={calendarCreateGroupDisabled}
               >
-                <div className="clients-action-workspace-header">
-                  <div className="clients-action-workspace-client">
-                    <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>N</span>
-                    <div className="clients-name-stack clients-action-workspace-title-stack">
-                      <span className="clients-name">{calendarNewGroupDisplayName}</span>
-                      <span className="clients-id">ID #— <span className="clients-action-workspace-status-dot" /> {locale === 'sl' ? 'Aktivna' : 'Active'}</span>
-                    </div>
-                  </div>
-                  <button type="button" className="secondary clients-action-workspace-close" onClick={closeCalendarAddGroupModal} aria-label={t('mobileNavClose')}>
-                    ×
-                  </button>
-                </div>
-                <div className="clients-action-workspace-body">
-                  <div className="clients-detail-shell clients-action-workspace-shell">
-                    <div className="clients-detail-fields clients-create-fields">
-                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{locale === 'sl' ? 'Ime skupine' : 'Group name'}</span>
-                        <input
-                          required
-                          autoFocus
-                          placeholder={locale === 'sl' ? 'Ime skupine' : 'Group name'}
-                          value={newGroupForm.name}
-                          onChange={(e) => setNewGroupForm((current: any) => ({ ...current, name: e.target.value }))}
-                        />
-                      </label>
-                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{locale === 'sl' ? 'E-pošta skupine' : 'Group email'}</span>
-                        <input
-                          type="email"
-                          placeholder={locale === 'sl' ? 'E-pošta skupine' : 'Group email'}
-                          value={newGroupForm.email}
-                          onChange={(e) => setNewGroupForm((current: any) => ({ ...current, email: e.target.value }))}
-                        />
-                      </label>
-                    </div>
-                    {groupModalError && <div className="error">{groupModalError}</div>}
-                  </div>
-                </div>
-                <div className="form-actions clients-action-workspace-footer clients-create-footer clients-create-footer--single">
-                  <button type="submit" className="clients-gapp-save-button" disabled={calendarCreateGroupDisabled}>
-                    {savingNewGroupModal ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…') : calendarCreateGroupLabel}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
+                {savingNewGroupModal ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…') : calendarCreateGroupLabel}
+              </PanelButton>
+            </PanelFooter>
+          </>
+        )}
+      </SidePanel>
 
-      {showAddClientModal && (
-        <div
-          className={`modal-backdrop calendar-client-create-popup-backdrop calendar-booking-supplement clients-action-workspace-backdrop${isCalendarCreateMobile ? ' clients-simple-create-backdrop calendar-client-create-page-backdrop' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) closeCalendarAddClientModal()
-          }}
-          role="presentation"
-        >
-          <div
-            className={`modal large-modal calendar-client-create-popup clients-tab-client-detail-modal clients-action-workspace-modal clients-client-create-modal${isCalendarCreateMobile ? ' clients-simple-create-modal calendar-client-create-page' : ''}`}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            {isCalendarCreateMobile ? (
-              <SimpleClientCreatePage
-                title={locale === 'sl' ? 'Nova stranka' : 'New client'}
-                closeLabel={t('mobileNavClose')}
-                submitLabel={calendarCreateClientLabel}
-                savingLabel={locale === 'sl' ? 'Shranjujem…' : 'Saving…'}
-                draft={newClientForm}
-                labels={{
-                  firstName: locale === 'sl' ? 'Ime' : 'First name',
-                  lastName: locale === 'sl' ? 'Priimek' : 'Last name',
-                  email: locale === 'sl' ? 'E-pošta' : 'Email',
-                  phone: locale === 'sl' ? 'Telefon' : 'Phone',
-                }}
-                saving={savingClient}
-                submitDisabled={calendarCreateClientDisabled}
-                keyboardOpen={calendarCreateKeyboardOpen}
-                error={clientError}
-                inputNamePrefix="calendra-calendar-new-client"
-                onClose={closeCalendarAddClientModal}
-                onChange={(field, value) => setNewClientForm((current: any) => ({ ...current, [field]: value }))}
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  if (!calendarCreateClientDisabled) void createClientFromBooking()
-                }}
-              />
-            ) : (
-              <form
-                className="clients-create-modal-form"
-                autoComplete="off"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  if (!calendarCreateClientDisabled) void createClientFromBooking()
-                }}
+      <SidePanel
+        open={showAddClientModal}
+        onClose={closeCalendarAddClientModal}
+        ariaLabel={locale === 'sl' ? 'Nova stranka' : 'New client'}
+        size="lg"
+        className="clients-standard-customer-panel clients-standard-customer-panel--create"
+      >
+        {isCalendarCreateMobile ? (
+          <SimpleClientCreatePage
+            title={locale === 'sl' ? 'Nova stranka' : 'New client'}
+            closeLabel={t('mobileNavClose')}
+            submitLabel={calendarCreateClientLabel}
+            savingLabel={locale === 'sl' ? 'Shranjujem…' : 'Saving…'}
+            draft={newClientForm}
+            labels={{
+              firstName: locale === 'sl' ? 'Ime' : 'First name',
+              lastName: locale === 'sl' ? 'Priimek' : 'Last name',
+              email: locale === 'sl' ? 'E-pošta' : 'Email',
+              phone: locale === 'sl' ? 'Telefon' : 'Phone',
+            }}
+            saving={savingClient}
+            submitDisabled={calendarCreateClientDisabled}
+            keyboardOpen={calendarCreateKeyboardOpen}
+            error={clientError}
+            inputNamePrefix="calendra-calendar-new-client"
+            onClose={closeCalendarAddClientModal}
+            onChange={(field, value) => setNewClientForm((current: any) => ({ ...current, [field]: value }))}
+            onSubmit={(event) => {
+              event.preventDefault()
+              if (!calendarCreateClientDisabled) void createClientFromBooking()
+            }}
+          />
+        ) : (
+          <>
+            <PanelHeader
+              title={locale === 'sl' ? 'Nova stranka' : 'New client'}
+              subtitle={locale === 'sl' ? 'Dodaj novega uporabnika (stranko)' : 'Add a new customer'}
+              onClose={closeCalendarAddClientModal}
+              closeLabel={t('mobileNavClose')}
+            />
+            <PanelBody
+              as="form"
+              id="calendar-new-client-form"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (!calendarCreateClientDisabled) void createClientFromBooking()
+              }}
+            >
+              <div className="clients-standard-customer-profile">
+                <section className="clients-standard-customer-section clients-standard-customer-section--person">
+                  <h3>
+                    <CalendarClientProfileSectionIcon name="person" />
+                    <span>{locale === 'sl' ? 'Osebni podatki' : 'Personal details'}</span>
+                  </h3>
+                  <div className="clients-standard-profile-grid">
+                    {renderCalendarNewClientEditableField('firstName', locale === 'sl' ? 'Ime' : 'First name')}
+                    {renderCalendarNewClientEditableField('lastName', locale === 'sl' ? 'Priimek' : 'Last name')}
+                  </div>
+                </section>
+                <section className="clients-standard-customer-section">
+                  <h3>
+                    <CalendarClientProfileSectionIcon name="email" />
+                    <span>{locale === 'sl' ? 'E-pošta' : 'Email'}</span>
+                  </h3>
+                  {renderCalendarNewClientEditableField('email', locale === 'sl' ? 'E-pošta' : 'Email', true, 'email')}
+                </section>
+                <section className="clients-standard-customer-section">
+                  <h3>
+                    <CalendarClientProfileSectionIcon name="phone" />
+                    <span>{locale === 'sl' ? 'Telefon' : 'Phone'}</span>
+                  </h3>
+                  {renderCalendarNewClientEditableField('phone', locale === 'sl' ? 'Telefon' : 'Phone', true, 'tel')}
+                </section>
+              </div>
+              {clientError && <div className="error">{clientError}</div>}
+            </PanelBody>
+            <PanelFooter>
+              <PanelButton
+                type="submit"
+                form="calendar-new-client-form"
+                variant="primary"
+                icon={<GuestConfigSaveIcon />}
+                disabled={calendarCreateClientDisabled}
               >
-                <div className="clients-action-workspace-header">
-                  <div className="clients-action-workspace-client">
-                    <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>
-                      {newClientInitials(String(newClientForm.firstName ?? ''), String(newClientForm.lastName ?? ''))}
-                    </span>
-                    <div className="clients-name-stack clients-action-workspace-title-stack">
-                      <span className="clients-name">{calendarNewClientDisplayName}</span>
-                      <span className="clients-id">ID #— <span className="clients-action-workspace-status-dot" /> {calendarNewClientActiveLabel}</span>
-                    </div>
-                  </div>
-                  <button type="button" className="secondary clients-action-workspace-close" onClick={closeCalendarAddClientModal} aria-label={t('mobileNavClose')}>
-                    ×
-                  </button>
-                </div>
-
-                <div className="clients-action-workspace-body">
-                  <div className="clients-detail-shell clients-action-workspace-shell">
-                    <div className="clients-detail-fields clients-create-fields clients-action-workspace-settings-grid">
-                      {renderCalendarNewClientEditableField('firstName', locale === 'sl' ? 'Ime' : 'First name')}
-                      {renderCalendarNewClientEditableField('lastName', locale === 'sl' ? 'Priimek' : 'Last name')}
-                      {renderCalendarNewClientEditableField('email', locale === 'sl' ? 'E-pošta' : 'Email', true, 'email')}
-                      {renderCalendarNewClientEditableField('phone', locale === 'sl' ? 'Telefon' : 'Phone', true, 'tel')}
-                    </div>
-                    {clientError && <div className="error">{clientError}</div>}
-                  </div>
-                </div>
-
-                <div className="form-actions clients-action-workspace-footer clients-create-footer clients-create-footer--single">
-                  <button type="submit" className="clients-gapp-save-button" disabled={calendarCreateClientDisabled}>
-                    {savingClient ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…') : calendarCreateClientLabel}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
+                {savingClient ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…') : calendarCreateClientLabel}
+              </PanelButton>
+            </PanelFooter>
+          </>
+        )}
+      </SidePanel>
 
 
     </>

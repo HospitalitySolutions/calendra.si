@@ -4,6 +4,7 @@ import { api } from '../api'
 import { Card, Field, SectionTitle } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useLocale } from '../locale'
+import { useConfirm } from '../components/panel'
 import type { User } from '../lib/types'
 import googleCalendarLogo from '../assets/google-calendar-logo.png'
 
@@ -118,6 +119,7 @@ function statusLabel(status?: ConnectionStatus | null, locale?: string) {
 
 export function GoogleCalendarIntegrationSection({ me }: { me: User }) {
   const { t, locale } = useLocale()
+  const confirm = useConfirm()
   const { showToast } = useToast()
   const companyId = me.companyId
   const [connections, setConnections] = useState<GoogleCalendarConnection[]>([])
@@ -267,7 +269,12 @@ export function GoogleCalendarIntegrationSection({ me }: { me: User }) {
   }
 
   const disconnect = async (connectionId: number) => {
-    if (!window.confirm('Disconnect this Google Calendar connection? Existing Google events are not deleted.')) return
+    const confirmed = await confirm({
+      title: t('confirmDisconnectGoogleCalendar'),
+      text: t('confirmDisconnectGoogleCalendarText'),
+      tone: 'danger',
+    })
+    if (!confirmed) return
     setBusyConnectionId(connectionId)
     try {
       await api.post(`/google/calendar/connections/${connectionId}/disconnect`)

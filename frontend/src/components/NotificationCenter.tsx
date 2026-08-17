@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useLocale } from '../locale'
 import { subscribeBookingUpdates } from '../lib/bookingRealtime'
+import { useDismissable } from './panel'
 
 type NotificationPanelTab = 'NOTIFICATIONS' | 'TASKS'
 
@@ -173,6 +174,7 @@ export function NotificationCenter({
   const [feed, setFeed] = useState<NotificationFeed>({ items: [], unreadCount: 0 })
   const [loading, setLoading] = useState(false)
   const [completingTodoId, setCompletingTodoId] = useState<number | null>(null)
+  const close = useCallback(() => setOpen(false), [])
 
   const copy = useMemo(() => locale === 'sl' ? {
     title: 'Obvestila in naloge', clear: 'Počisti', notifications: 'Obvestila', tasks: 'Naloge',
@@ -244,26 +246,11 @@ export function NotificationCenter({
   }, [load])
 
   useEffect(() => {
-    const close = () => setOpen(false)
     window.addEventListener('close-staff-notifications', close)
     return () => window.removeEventListener('close-staff-notifications', close)
-  }, [])
+  }, [close])
 
-  useEffect(() => {
-    if (!open) return
-    const onClick = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false)
-    }
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', onClick)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onClick)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
+  useDismissable(rootRef, open, close)
 
   useEffect(() => {
     if (!todosEnabled && tab === 'TASKS') setTab('NOTIFICATIONS')

@@ -2524,6 +2524,180 @@
     color: #dbeafe;
 }
 
+/* Empty calendar slot: choose which standardized side panel to open. */
+.calendar-create-menu-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 330;
+    background: transparent;
+}
+
+.calendar-create-menu {
+    --calendar-create-menu-arrow-left: 118px;
+    position: absolute;
+    width: 236px;
+    box-sizing: border-box;
+    padding: 12px;
+    border: 1px solid #dfe5ee;
+    border-radius: 13px;
+    background: #ffffff;
+    color: #101828;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16), 0 3px 10px rgba(15, 23, 42, 0.08);
+    animation: calendar-create-menu-in 0.14s ease-out;
+}
+
+.calendar-create-menu::before,
+.calendar-create-menu::after {
+    content: '';
+    position: absolute;
+    left: var(--calendar-create-menu-arrow-left);
+    width: 0;
+    height: 0;
+    transform: translateX(-50%);
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+}
+
+.calendar-create-menu--below::before {
+    top: -9px;
+    border-bottom: 9px solid #dfe5ee;
+}
+
+.calendar-create-menu--below::after {
+    top: -7px;
+    border-bottom: 8px solid #ffffff;
+}
+
+.calendar-create-menu--above::before {
+    bottom: -9px;
+    border-top: 9px solid #dfe5ee;
+}
+
+.calendar-create-menu--above::after {
+    bottom: -7px;
+    border-top: 8px solid #ffffff;
+}
+
+@keyframes calendar-create-menu-in {
+    from { opacity: 0; transform: translateY(3px) scale(0.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.calendar-create-menu__title {
+    padding: 1px 3px 10px;
+    color: #344054;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.calendar-create-menu__items {
+    display: grid;
+    gap: 6px;
+}
+
+.calendar-create-menu__item {
+    width: 100%;
+    height: 44px;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) 16px;
+    align-items: center;
+    gap: 10px;
+    padding: 0 11px;
+    border: 1px solid #dfe5ee;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #101828;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.calendar-create-menu__item:hover,
+.calendar-create-menu__item:focus-visible {
+    outline: none;
+    border-color: #b9cdf4;
+    background: #f8fbff;
+    box-shadow: 0 0 0 2px rgba(22, 114, 243, 0.07);
+}
+
+.calendar-create-menu__item:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+    background: #f8fafc;
+}
+
+.calendar-create-menu__icon {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #ff5a00;
+}
+
+.calendar-create-menu__label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.calendar-create-menu__chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #98a2b3;
+}
+
+[data-theme="dark"] .calendar-create-menu {
+    border-color: #334155;
+    background: #111827;
+    color: #f8fafc;
+    box-shadow: 0 18px 42px rgba(2, 6, 23, 0.46);
+}
+
+[data-theme="dark"] .calendar-create-menu--below::before {
+    border-bottom-color: #334155;
+}
+
+[data-theme="dark"] .calendar-create-menu--below::after {
+    border-bottom-color: #111827;
+}
+
+[data-theme="dark"] .calendar-create-menu--above::before {
+    border-top-color: #334155;
+}
+
+[data-theme="dark"] .calendar-create-menu--above::after {
+    border-top-color: #111827;
+}
+
+[data-theme="dark"] .calendar-create-menu__title {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .calendar-create-menu__item {
+    border-color: #334155;
+    background: #0f172a;
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .calendar-create-menu__item:hover,
+[data-theme="dark"] .calendar-create-menu__item:focus-visible {
+    border-color: #3b82f6;
+    background: #172554;
+}
+
+[data-theme="dark"] .calendar-create-menu__item:disabled {
+    background: #111827;
+}
+
 /* Compact mobile session queue + action menu (no +Add / +X buttons on blocks) */
 .fc .calendar-event-overlap-queue-indicator {
     display: none;

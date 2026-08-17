@@ -38,14 +38,17 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import {
   buildNewSlotSearchParams,
   isCalendarFormPath,
-  isLegacyNewSlotPath,
+  legacyCalendarFormRedirect,
   matchCalendarFormRoute,
   mergeNewBookingAndAvailabilitySearch,
   parseAvailabilityQuery,
   parseNewSlotQuery,
   pathForNewForm,
+  urlForEditForm,
+  urlForNewForm,
   ROUTE_NEW_BOOKING,
   type AvailabilityFormQuery,
+  type CalendarNewForm,
   type NewSlotQuery,
 } from '../calendarFormRoutes'
 import { api, getApiErrorMessage } from '../../api'
@@ -62,6 +65,7 @@ import { GuestConfigSaveIcon } from '../../components/GuestConfigSaveIcon'
 import { type BookingPayeeDraft } from './types/bookingPayee'
 import { canIssueAdvanceInvoices, canIssueOpenInvoices } from '../../lib/employeePermissions'
 import { useToast } from '../../components/Toast'
+import { ConfirmDialog, useConfirm } from '../../components/panel'
 import { subscribeBookingUpdates } from '../../lib/bookingRealtime'
 import { consultantDayWindow, parseHmToMinutes as whWindowParseHm, windowToDayMs } from '../../lib/consultantWorkingHours'
 import { dayOptions, type BookingPaymentAllocation, type BookingPaymentStatus, type BookingPaymentStatusValue, type User } from '../../lib/types'
@@ -138,6 +142,7 @@ import { CalendarLocalTimeDateRow, CalendarLocalTimespanRow } from './components
 import { PersonalTaskCombo } from './components/PersonalTaskCombo'
 import { SessionNotesTextarea } from './components/SessionNotesTextarea'
 import { CalendarDashboard } from './components/CalendarDashboard'
+import { CalendarCreateMenu, type CalendarCreateMenuOption } from './components/CalendarCreateMenu'
 import {
   CALENDAR_FILTERS_BOTTOM_BAR_MAX_PX,
   useCalendarCompactHeader,
@@ -432,6 +437,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const location = useLocation()
   const { locale, t } = useLocale()
   const { showToast } = useToast()
+  const confirm = useConfirm()
   const isAndroidWeb = !isNativeAndroid && /Android/i.test(window.navigator.userAgent || '')
   const calendarLocaleTag = locale === 'sl' ? 'sl-SI' : 'en-GB'
   const voiceRecognitionLang = locale === 'sl' ? 'sl-SI' : 'en-US'
@@ -719,6 +725,16 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     menuLeft: number
     menuTop: number
   }>(null)
+  const [calendarCreateMenu, setCalendarCreateMenu] = useState<null | {
+    start: string
+    end: string
+    preserveDraggedRange: boolean
+    resourceId?: string | null
+    menuLeft: number
+    menuTop: number
+    placement: 'above' | 'below'
+    arrowLeft: number
+  }>(null)
   /** Closing the overlap drawer updates React state before FullCalendar may still run dateClick in a render where overlap state is already null — suppress that one follow-up open/select. */
   const overlapDrawerDismissConsumePointerRef = useRef(false)
   const armOverlapDrawerDismissPointerCleanup = () => {
@@ -845,6 +861,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const calendarHeaderCompact = useCalendarCompactHeader()
   const calendarFiltersBottomBar = useCalendarFiltersBottomBar()
   const compactCalendarFormLayout = useCalendarFormPageLayout()
+  const calendarCreateMenuEnabled = !isNativeAndroid && !compactCalendarFormLayout
   /** Appointment create/edit flows are route-backed; desktop presents them as modal pages over the calendar. */
   const calendarFormPageLayout = true
   const calendarDateNavArrowsInRail = useCalendarDateNavArrowsInRail()
@@ -939,13 +956,10 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   }, [useBookingSidePanel, location.pathname, navigate])
 
   useEffect(() => {
-    if (!useBookingSidePanel) return
-    if (!isLegacyNewSlotPath(location.pathname)) return
-    const sp = new URLSearchParams(location.search)
-    if (location.pathname.endsWith('/personal')) sp.set('panel', 'personal')
-    else if (location.pathname.endsWith('/todo')) sp.set('panel', 'todo')
-    navigate(`${ROUTE_NEW_BOOKING}?${sp.toString()}`, { replace: true })
-  }, [useBookingSidePanel, location.pathname, location.search, navigate])
+    const redirect = legacyCalendarFormRedirect(location.pathname, location.search)
+    if (!redirect) return
+    navigate(redirect, { replace: true })
+  }, [location.pathname, location.search, navigate])
 
   const [androidScheduleOpen, setAndroidScheduleOpen] = useState(false)
   const [androidConfigOpen, setAndroidConfigOpen] = useState(false)
@@ -1297,6 +1311,8 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       '.calendar-filters-bottom-bar',
       '.modal',
       '.booking-side-panel',
+      '.cp-panel',
+      '.cp-dialog',
     ].join(',')))
   }, [])
 
@@ -2230,7 +2246,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       params.delete('sessionId')
     }
     const pathname = useBookingSidePanel && Number.isInteger(sessionId) && sessionId > 0
-      ? `/calendar/booking/${sessionId}`
+      ? urlForEditForm('booking', sessionId)
       : location.pathname
     const nextSearch = params.toString()
     navigate({ pathname, search: nextSearch ? `?${nextSearch}` : '' }, { replace: false })
@@ -2251,7 +2267,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
       params.delete('sessionId')
     }
     const pathname = useBookingSidePanel && Number.isInteger(sessionId) && sessionId > 0
-      ? `/calendar/booking/${sessionId}`
+      ? urlForEditForm('booking', sessionId)
       : location.pathname
     const nextSearch = params.toString()
     navigate({ pathname, search: nextSearch ? `?${nextSearch}` : '' }, { replace: false })
@@ -2551,7 +2567,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     if (!todoIdRaw) return
     const todoId = Number(todoIdRaw)
     if (!Number.isFinite(todoId)) return
-    navigate(`/calendar/todo/${todoId}`, { replace: true })
+    navigate(urlForEditForm('todo', todoId), { replace: true })
   }, [todosModuleEnabled, location.search, navigate])
 
   useEffect(() => {
@@ -3520,7 +3536,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
         rangeEndDate: endDateOnly,
         fromWorkingHours: false,
       }
-      pushCompactFormRoute(`${ROUTE_NEW_BOOKING}?${mergeNewBookingAndAvailabilitySearch(slotQ, availabilityQ)}`)
+      pushCompactFormRoute(urlForNewForm('availability', mergeNewBookingAndAvailabilitySearch(slotQ, availabilityQ)))
     }
   }
 
@@ -3561,51 +3577,50 @@ export default function CalendarPage({ user }: CalendarPageProps) {
         rangeEndDate: slot.endDate || date,
         fromWorkingHours: !!slot.fromWorkingHours,
       }
-      pushCompactFormRoute(`${ROUTE_NEW_BOOKING}?${mergeNewBookingAndAvailabilitySearch(slotQ, availabilityQ)}`)
+      pushCompactFormRoute(urlForNewForm('availability', mergeNewBookingAndAvailabilitySearch(slotQ, availabilityQ)))
     }
   }
 
-  const buildNewFormPanelOrder = (): Array<'booking' | 'personal' | 'todo' | 'availability'> => {
-    const o: Array<'booking' | 'personal' | 'todo' | 'availability'> = ['booking']
+  const buildNewFormPanelOrder = (): CalendarNewForm[] => {
+    const o: CalendarNewForm[] = ['booking']
     if (personalModuleEnabled) o.push('personal')
     if (todosModuleEnabled) o.push('todo')
     o.push('availability')
     return o
   }
 
-  const getActiveNewFormPanel = (): 'booking' | 'personal' | 'todo' | 'availability' => {
+  const getActiveNewFormPanel = (): CalendarNewForm => {
     if (availabilitySelection) return 'availability'
     if (form.todo) return 'todo'
     if (form.personal) return 'personal'
     return 'booking'
   }
 
-  const activateNewFormPanel = (panel: 'booking' | 'personal' | 'todo' | 'availability') => {
+  /**
+   * Each tab of the "dodaj termin" panel is its own URL. The state is updated before
+   * navigating and the route is marked as already hydrated, so switching tabs keeps
+   * whatever the user has typed instead of reloading defaults from the query string.
+   */
+  const activateNewFormPanel = (panel: CalendarNewForm) => {
+    if (panel === 'availability') {
+      const start = form.startTime || selection?.start
+      const end = form.endTime || selection?.end
+      if (!start || !end) return
+      openAvailabilityModalFromSelection(start, end, form.consultantId ?? null)
+      return
+    }
+
+    setAvailabilitySelection(null)
+    setAvailabilityError(null)
+    setAvailabilitySaving(false)
     if (panel === 'booking') {
-      setAvailabilitySelection(null)
-      setAvailabilityError(null)
-      setAvailabilitySaving(false)
       setForm((f: any) => ({ ...f, personal: false, todo: false }))
-      return
-    }
-    if (panel === 'personal') {
-      setAvailabilitySelection(null)
-      setAvailabilityError(null)
-      setAvailabilitySaving(false)
+    } else if (panel === 'personal') {
       setForm((f: any) => ({ ...f, personal: true, todo: false, online: false, consultantId: user.id, visibleToAdmins: Boolean(f.visibleToAdmins) }))
-      return
-    }
-    if (panel === 'todo') {
-      setAvailabilitySelection(null)
-      setAvailabilityError(null)
-      setAvailabilitySaving(false)
+    } else {
       setForm((f: any) => ({ ...f, todo: true, personal: false, online: false, consultantId: user.id }))
-      return
     }
-    const start = form.startTime || selection?.start
-    const end = form.endTime || selection?.end
-    if (!start || !end) return
-    openAvailabilityModalFromSelection(start, end, form.consultantId ?? null, { skipCompactNavigate: true })
+    pushCompactFormRoute(urlForNewForm(panel, location.search))
   }
 
   const stepNewFormPanel = (dir: -1 | 1) => {
@@ -3638,7 +3653,7 @@ export default function CalendarPage({ user }: CalendarPageProps) {
     const dy = t.clientY - start.y
     if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.15) return
     stepNewFormPanel(dx < 0 ? 1 : -1)
-    document.querySelectorAll<HTMLElement>('.booking-type-switcher .booking-type-btn').forEach((el) => {
+    document.querySelectorAll<HTMLElement>('.cp-panel-tabs .cp-panel-tab').forEach((el) => {
       el.blur()
     })
   }
@@ -4395,7 +4410,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       if (e.ctrlKey || e.metaKey || e.altKey) return
       // Dedicated calendar form pages own the keyboard. Never let view shortcuts
       // (for example "3" for three-day view) reach the calendar underneath.
-      if (isCalendarFormPath(location.pathname) || document.querySelector('.calendar-form-page')) return
+      if (isCalendarFormPath(location.pathname) || document.querySelector('[data-cp-overlay]')) return
       const el = e.target as HTMLElement | null
       if (el?.closest('input, textarea, select, [contenteditable="true"]')) return
       const api = calendarRef.current?.getApi()
@@ -6581,6 +6596,25 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     }
   }, [sessionQuickActions])
 
+  useEffect(() => {
+    if (!calendarCreateMenu) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setCalendarCreateMenu(null)
+      calendarRef.current?.getApi()?.unselect()
+    }
+    const onResize = () => {
+      setCalendarCreateMenu(null)
+      calendarRef.current?.getApi()?.unselect()
+    }
+    document.addEventListener('keydown', onKey)
+    window.addEventListener('resize', onResize)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('resize', onResize)
+    }
+  }, [calendarCreateMenu])
+
   const formatCalendarClock = useCallback((value: string | undefined | null) => {
     if (!value) return ''
     const date = new Date(value)
@@ -6911,9 +6945,9 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       && Number.isInteger(nextId)
       && nextId > 0
       && previousId !== nextId
-      && location.pathname === `/calendar/booking/${previousId}`
+      && location.pathname === urlForEditForm('booking', previousId)
     ) {
-      navigate({ pathname: `/calendar/booking/${nextId}`, search: location.search }, { replace: true })
+      navigate({ pathname: urlForEditForm('booking', nextId), search: location.search }, { replace: true })
     }
     notifyBookingAndClientRecordsChanged()
 
@@ -7185,7 +7219,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const params = new URLSearchParams({
       groupBookingId: String(id),
       autoStart: '1',
-      returnTo: `/calendar/booking/${id}`,
+      returnTo: urlForEditForm('booking', id),
     })
     navigate(`/scanner?${params.toString()}`)
   }
@@ -7199,7 +7233,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     const params = new URLSearchParams({
       paymentBookingId: String(paymentBookingId),
       autoStart: '1',
-      returnTo: `/calendar/booking/${returnBookingId}`,
+      returnTo: urlForEditForm('booking', returnBookingId),
     })
     const clientId = Number(client?.id ?? status?.clientId)
     if (Number.isInteger(clientId) && clientId > 0) {
@@ -7789,28 +7823,31 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     if (lastHydratedFormRouteKeyRef.current === fullKey) return
 
     if (routeMatch.kind === 'new') {
-      const sp = new URLSearchParams(location.search.startsWith('?') ? location.search.slice(1) : location.search)
-      if (sp.has('fromWh')) {
+      if (routeMatch.form === 'availability') {
         const a = parseAvailabilityQuery(location.search)
-        if (a) {
-          setSelection({ start: a.start, end: a.end })
-          setAvailabilityError(null)
-          setAvailabilityIntent('add')
-          setAvailabilitySelection({
-            slotId: a.fromWorkingHours ? null : a.slotId,
-            consultantId: a.consultantId,
-            locationId: a.locationId ?? defaultAvailabilityLocationId(),
-            startTime: a.start,
-            endTime: a.end,
-            indefinite: a.indefinite,
-            rangeStartDate: a.rangeStartDate,
-            rangeEndDate: a.rangeEndDate,
-          })
-          lastHydratedFormRouteKeyRef.current = fullKey
-          return
-        }
+        if (!a) return
+        setSelection({ start: a.start, end: a.end })
+        setAvailabilityError(null)
+        setAvailabilityIntent('add')
+        setAvailabilitySelection({
+          slotId: a.fromWorkingHours ? null : a.slotId,
+          consultantId: a.consultantId,
+          locationId: a.locationId ?? defaultAvailabilityLocationId(),
+          startTime: a.start,
+          endTime: a.end,
+          indefinite: a.indefinite,
+          rangeStartDate: a.rangeStartDate,
+          rangeEndDate: a.rangeEndDate,
+        })
+        lastHydratedFormRouteKeyRef.current = fullKey
+        return
       }
-      if (sp.get('panel') === 'personal' && personalModuleEnabled) {
+      // Every other tab is a booking-shaped form, so leaving the availability tab
+      // has to drop its state or the panel keeps rendering availability fields.
+      setAvailabilitySelection(null)
+      setAvailabilityError(null)
+      setAvailabilitySaving(false)
+      if (routeMatch.form === 'personal' && personalModuleEnabled) {
         const q = parseNewSlotQuery(location.search)
         if (!q.start || !q.end) return
         const startLocal = normalizeToLocalDateTime(q.start)
@@ -7851,7 +7888,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         lastHydratedFormRouteKeyRef.current = fullKey
         return
       }
-      if (sp.get('panel') === 'todo' && todosModuleEnabled) {
+      if (routeMatch.form === 'todo' && todosModuleEnabled) {
         const q = parseNewSlotQuery(location.search)
         if (!q.start || !q.end) return
         const startLocal = normalizeToLocalDateTime(q.start)
@@ -8753,6 +8790,64 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     return cursor >= selectionEndMs
   }
 
+  const openCalendarCreateMenu = (
+    start: string,
+    end: string,
+    options?: {
+      preserveDraggedRange?: boolean
+      resourceId?: string | null
+      anchorEl?: HTMLElement | null
+      clientX?: number | null
+      clientY?: number | null
+    },
+  ) => {
+    if (!calendarCreateMenuEnabled || typeof window === 'undefined') return false
+
+    const MENU_WIDTH = 236
+    const MENU_HEIGHT = 246
+    const VIEWPORT_GAP = 12
+    const ANCHOR_GAP = 10
+    const anchorRect = options?.anchorEl?.getBoundingClientRect() ?? null
+    const fallbackX = typeof options?.clientX === 'number' && Number.isFinite(options.clientX)
+      ? options.clientX
+      : window.innerWidth / 2
+    const fallbackY = typeof options?.clientY === 'number' && Number.isFinite(options.clientY)
+      ? options.clientY
+      : window.innerHeight / 2
+    const centerX = anchorRect ? anchorRect.left + anchorRect.width / 2 : fallbackX
+    const anchorTop = anchorRect ? anchorRect.top : fallbackY
+    const anchorBottom = anchorRect ? anchorRect.bottom : fallbackY
+
+    const maxLeft = Math.max(VIEWPORT_GAP, window.innerWidth - MENU_WIDTH - VIEWPORT_GAP)
+    const menuLeft = Math.min(Math.max(centerX - MENU_WIDTH / 2, VIEWPORT_GAP), maxLeft)
+    const availableBelow = window.innerHeight - anchorBottom - VIEWPORT_GAP
+    const placement: 'above' | 'below' = availableBelow >= MENU_HEIGHT + ANCHOR_GAP ? 'below' : 'above'
+    const desiredTop = placement === 'below'
+      ? anchorBottom + ANCHOR_GAP
+      : anchorTop - MENU_HEIGHT - ANCHOR_GAP
+    const maxTop = Math.max(VIEWPORT_GAP, window.innerHeight - MENU_HEIGHT - VIEWPORT_GAP)
+    const menuTop = Math.min(Math.max(desiredTop, VIEWPORT_GAP), maxTop)
+    const arrowLeft = Math.min(Math.max(centerX - menuLeft, 22), MENU_WIDTH - 22)
+
+    setSessionQuickActions(null)
+    setCalendarCreateMenu({
+      start,
+      end,
+      preserveDraggedRange: !!options?.preserveDraggedRange,
+      resourceId: options?.resourceId,
+      menuLeft,
+      menuTop,
+      placement,
+      arrowLeft,
+    })
+    return true
+  }
+
+  const closeCalendarCreateMenu = () => {
+    setCalendarCreateMenu(null)
+    calendarRef.current?.getApi()?.unselect()
+  }
+
   const handleCalendarSelection = (
     start: string,
     end: string,
@@ -8822,11 +8917,80 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
     openBookingModal(start, end, user.id, preserveDraggedRange, undefined, undefined, true, anchorEl)
   }
 
+  const openCalendarCreateMenuPanel = (panel: CalendarCreateMenuOption) => {
+    const menu = calendarCreateMenu
+    if (!menu) return
+    setCalendarCreateMenu(null)
+    setSessionQuickActions(null)
+    setOverlapDrawerGroupId(null)
+
+    const resourceId = menu.resourceId ?? null
+    const bookableInfo = getBookableSelectionInfo(menu.start, menu.end)
+    const consultantFromResource =
+      bookingsUseResourceColumns && resourceId != null && resourceId !== ''
+        ? (resourceId === CONSULTANT_RESOURCE_UNASSIGNED_ID ? user.id : Number(resourceId))
+        : null
+    const preferredConsultantId =
+      Number.isFinite(consultantFromResource)
+        ? Number(consultantFromResource)
+        : (bookableInfo.consultantId ?? consultantFilterId ?? user.id)
+
+    let selectedSpaceId: number | null | undefined
+    if (spaceFilterId != null) {
+      selectedSpaceId = spaceFilterId
+    } else if (spacesUseResourceColumns && resourceId != null && resourceId !== '') {
+      selectedSpaceId = resourceId === SPACE_RESOURCE_UNASSIGNED_ID ? null : Number(resourceId)
+    } else {
+      selectedSpaceId = locationScopedMetaSpaces[0]?.id ?? null
+    }
+
+    if (panel === 'booking') {
+      if (calendarMode === 'availability') setCalendarMode('bookings')
+      openBookingModal(
+        menu.start,
+        menu.end,
+        preferredConsultantId,
+        menu.preserveDraggedRange,
+        selectedSpaceId,
+        undefined,
+        bookableEnabled ? !bookableInfo.isBookable : false,
+        null,
+        resourceId,
+      )
+      return
+    }
+
+    if (panel === 'availability') {
+      if (!bookableEnabled) return
+      openAvailabilityModalFromSelection(menu.start, menu.end, preferredConsultantId)
+      return
+    }
+
+    if (panel === 'todo' && !todosModuleEnabled) return
+    if (panel === 'personal' && !personalModuleEnabled) return
+
+    const qs = buildNewSlotSearchParams({
+      start: menu.start,
+      end: menu.end,
+      consultantId: preferredConsultantId,
+      spaceId: selectedSpaceId,
+      resourceId: resourceId || undefined,
+    })
+
+    // Unlike booking/availability, todo and personal have not been hydrated in
+    // local state before routing. Do not use pushCompactFormRoute here because
+    // that helper intentionally marks the destination as already hydrated.
+    // Navigating normally lets the route hydration effect initialize the proper
+    // new Opravilo / new Osebno form from the selected calendar slot.
+    navigate(`${pathForNewForm(panel)}?${qs}`)
+  }
+
   const handleCalendarSelectionFromUi = (
     start: string,
     end: string,
     preserveDraggedRange = false,
     resourceId?: string | null,
+    pointer?: { clientX?: number | null; clientY?: number | null },
   ) => {
     if (!isNativeAndroid && overlapDrawerDismissConsumePointerRef.current) {
       overlapDrawerDismissConsumePointerRef.current = false
@@ -8838,6 +9002,16 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       if (t - androidSelectionAtRef.current < 450) return
       androidSelectionAtRef.current = t
       calendarRef.current?.getApi().unselect()
+    }
+    if (
+      openCalendarCreateMenu(start, end, {
+        preserveDraggedRange,
+        resourceId,
+        clientX: pointer?.clientX,
+        clientY: pointer?.clientY,
+      })
+    ) {
+      return
     }
     handleCalendarSelection(start, end, {
       preserveDraggedRange,
@@ -10265,21 +10439,19 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       return
     }
     if (!skipConfirmation && targetStatus === 'CHECKED_OUT') {
-      const checkoutConfirmed = window.confirm(
-        locale === 'sl'
-          ? 'Preklopim status na ZAKLJUČEN? Termin bo označen kot zaključen.'
-          : 'Switch status to CHECKED OUT? The session will be marked as completed.',
-      )
+      const checkoutConfirmed = await confirm({
+        title: locale === 'sl' ? 'Preklopim status na ZAKLJUČEN?' : 'Switch status to CHECKED OUT?',
+        text: locale === 'sl' ? 'Termin bo označen kot zaključen.' : 'The session will be marked as completed.',
+      })
       if (!checkoutConfirmed) return
     } else if (!skipConfirmation) {
-      const confirmMessage = targetStatus === 'CANCELLED'
-        ? (locale === 'sl'
-          ? 'Preklopim status na ODPOVEDAN? To bo sprostilo razpoložljivost termina.'
-          : 'Switch status to CANCELLED? This will release the booking availability.')
-        : (locale === 'sl'
-          ? 'Preklopim status na NI PRIŠEL? To bo sprostilo razpoložljivost termina.'
-          : 'Switch status to NO SHOW? This will release the booking availability.')
-      if (!window.confirm(confirmMessage)) return
+      const title = targetStatus === 'CANCELLED'
+        ? (locale === 'sl' ? 'Preklopim status na ODPOVEDAN?' : 'Switch status to CANCELLED?')
+        : (locale === 'sl' ? 'Preklopim status na NI PRIŠEL?' : 'Switch status to NO SHOW?')
+      const text = locale === 'sl'
+        ? 'To bo sprostilo razpoložljivost termina.'
+        : 'This will release the booking availability.'
+      if (!(await confirm({ title, text, tone: 'danger' }))) return
     }
     return await updateBookedSession(allowWaitlistHold, targetStatus)
   }
@@ -10303,8 +10475,8 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       if (document.body?.getAttribute('data-modern-time-picker-open') === 'true') return
       const target = e.target as HTMLElement | null
       if (target && sessionPopupRef.current?.contains(target)) return
-      // Don't close the booking form while the meeting provider picker is open
-      if (target && target.closest('.meeting-provider-picker-backdrop')) return
+      // Panels and dialogs manage their own dismissal; a click inside one is never an outside click.
+      if (target && target.closest('[data-cp-overlay]')) return
       // Time picker popover is rendered in a portal outside the popup container.
       if (target && target.closest('.modern-time-picker-popover, .modern-time-picker-backdrop, .modern-time-picker-dialog, [data-modern-time-picker-portal="true"]')) return
       // Nested modals (new client, overlap / personal confirm) sit outside sessionPopupRef
@@ -10508,11 +10680,14 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       requestedStoredStatus === 'RESERVED' &&
       new Date(selectedBookedSession.startTime).getTime() > Date.now()
     ) {
-      const moveToReservedConfirmed = window.confirm(
-        locale === 'sl'
-          ? 'Termin je trenutno v teku. Premik v prihodnost bo status preklopil na REZERVIRANO. Nadaljujem?'
-          : 'This booking is currently ongoing. Moving it to a future time will switch status to RESERVED. Continue?',
-      )
+      const moveToReservedConfirmed = await confirm({
+        title: locale === 'sl'
+          ? 'Termin je trenutno v teku. Nadaljujem?'
+          : 'This booking is currently ongoing. Continue?',
+        text: locale === 'sl'
+          ? 'Premik v prihodnost bo status preklopil na REZERVIRANO.'
+          : 'Moving it to a future time will switch status to RESERVED.',
+      })
       if (!moveToReservedConfirmed) return
     }
     const statusValidation = getStatusTransitionValidation(
@@ -12294,7 +12469,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         meetingProvider: props.meetingProvider || 'zoom',
       })
       if (useBookingSidePanel && props.id != null) {
-        pushCompactFormRoute(`/calendar/booking/${props.id}`)
+        pushCompactFormRoute(urlForEditForm('booking', props.id))
       }
       return
     }
@@ -12304,7 +12479,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       setSelectedTodo(null)
       setSelectedPersonalBlock(props)
       if (useBookingSidePanel && props.id != null) {
-        pushCompactFormRoute(`/calendar/personal/${props.id}`)
+        pushCompactFormRoute(urlForEditForm('personal', props.id))
       }
       return
     }
@@ -12314,7 +12489,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       setSelectedPersonalBlock(null)
       setSelectedTodo(props)
       if (useBookingSidePanel && props.id != null) {
-        pushCompactFormRoute(`/calendar/todo/${props.id}`)
+        pushCompactFormRoute(urlForEditForm('todo', props.id))
       }
     }
   }, [isNativeAndroid, placeSessionPopup, pushCompactFormRoute, useBookingSidePanel])
@@ -12332,7 +12507,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       meetingProvider: row.props.meetingProvider || 'zoom',
     })
     if (useBookingSidePanel && row.props.id != null) {
-      pushCompactFormRoute(`/calendar/booking/${row.props.id}`)
+      pushCompactFormRoute(urlForEditForm('booking', row.props.id))
     }
     closeSessionsSheet()
   }, [closeSessionsSheet, isNativeAndroid, placeSessionPopup, useBookingSidePanel, pushCompactFormRoute])
@@ -12422,7 +12597,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         meetingProvider: props.meetingProvider || 'zoom',
       })
       if (useBookingSidePanel && props.id != null) {
-        pushCompactFormRoute(`/calendar/booking/${props.id}`)
+        pushCompactFormRoute(urlForEditForm('booking', props.id))
       }
       return
     }
@@ -12432,7 +12607,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       setSelectedTodo(null)
       setSelectedPersonalBlock(props)
       if (useBookingSidePanel && props.id != null) {
-        pushCompactFormRoute(`/calendar/personal/${props.id}`)
+        pushCompactFormRoute(urlForEditForm('personal', props.id))
       }
       return
     }
@@ -12442,7 +12617,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       setSelectedPersonalBlock(null)
       setSelectedTodo(props)
       if (useBookingSidePanel && props.id != null) {
-        pushCompactFormRoute(`/calendar/todo/${props.id}`)
+        pushCompactFormRoute(urlForEditForm('todo', props.id))
       }
     }
   }
@@ -12497,30 +12672,25 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       // Nested pickers and confirmation flows must consume Enter themselves.
       if (document.body?.getAttribute('data-modern-time-picker-open') === 'true') return
       if (document.body?.getAttribute('data-waitlist-picker-open') === 'true') return
+      // Stacked panels and dialogs (pickers, confirmations) own Enter; the base panel does not.
+      const NESTED_OVERLAYS = [
+        '[data-cp-overlay="dialog"]',
+        '[data-cp-overlay][data-depth="1"]',
+        '[data-cp-overlay][data-depth="2"]',
+        '.calendar-booking-supplement',
+        '.calendar-payment-manager-backdrop',
+        '.calendar-waitlist-picker-backdrop',
+        '.clients-action-workspace-backdrop--embedded',
+        '.billing-bill-modal-backdrop',
+      ].join(',')
       if (target.closest([
         '.client-dropdown-panel',
         '.config-dropdown',
         '[role="listbox"]',
         '[role="option"]',
-        '.calendar-service-edit-backdrop',
-        '.calendar-service-picker-backdrop',
-        '.meeting-provider-picker-backdrop',
-        '.calendar-booking-supplement',
-        '.calendar-payment-manager-backdrop',
-        '.calendar-waitlist-picker-backdrop',
-        '.clients-action-workspace-backdrop--embedded',
-        '.billing-bill-modal-backdrop',
+        NESTED_OVERLAYS,
       ].join(','))) return
-      if (document.querySelector([
-        '.calendar-service-edit-backdrop',
-        '.calendar-service-picker-backdrop',
-        '.meeting-provider-picker-backdrop',
-        '.calendar-booking-supplement',
-        '.calendar-payment-manager-backdrop',
-        '.calendar-waitlist-picker-backdrop',
-        '.clients-action-workspace-backdrop--embedded',
-        '.billing-bill-modal-backdrop',
-      ].join(','))) return
+      if (document.querySelector(NESTED_OVERLAYS)) return
       if (
         showAddClientModal
         || showAddGroupModal
@@ -13322,6 +13492,25 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 return
               }
               if (isViewOnly) return
+              const [menuStartHour, menuStartMinute] = slotMinTime.split(':').map((value) => Number(value) || 0)
+              const menuStartDate = new Date(arg.date)
+              menuStartDate.setHours(menuStartHour, menuStartMinute, 0, 0)
+              const menuEndDate = new Date(menuStartDate.getTime() + SLOT_MS)
+              const menuResourceId = (arg as { resource?: { id?: string } }).resource?.id
+              if (
+                openCalendarCreateMenu(
+                  toLocalDateTimeString(menuStartDate),
+                  toLocalDateTimeString(menuEndDate),
+                  {
+                    preserveDraggedRange: false,
+                    resourceId: menuResourceId,
+                    clientX: arg.jsEvent?.clientX,
+                    clientY: arg.jsEvent?.clientY,
+                  },
+                )
+              ) {
+                return
+              }
               if (calendarMode === 'bookings') {
                 const [startHour, startMinute] = slotMinTime.split(':').map((value) => Number(value) || 0)
                 const startDate = new Date(arg.date)
@@ -13392,12 +13581,18 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               arg.view.type !== 'resourceTimeGridThreeDay'
             )
               return
-            if (!isNativeAndroid && calendarMode !== 'bookings' && calendarMode !== 'spaces') return
+            if (!isNativeAndroid && !calendarCreateMenuEnabled && calendarMode !== 'bookings' && calendarMode !== 'spaces') return
             if (isViewOnly && !canCreateFromViewOnlyWeekClick) return
             const start = new Date(arg.date)
             const end = new Date(start.getTime() + SLOT_MS)
             const rid = (arg as { resource?: { id?: string } }).resource?.id
-            handleCalendarSelectionFromUi(toLocalDateTimeString(start), toLocalDateTimeString(end), false, rid)
+            handleCalendarSelectionFromUi(
+              toLocalDateTimeString(start),
+              toLocalDateTimeString(end),
+              false,
+              rid,
+              { clientX: arg.jsEvent?.clientX, clientY: arg.jsEvent?.clientY },
+            )
           }}
           slotDuration={calendarSlotDuration}
           snapDuration={calendarSnapDuration}
@@ -13521,6 +13716,15 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                   const end = toLocalDateTimeString(endDate)
                   const highlightEl = document.querySelector('.fc-highlight') as HTMLElement | null
                   const resourceId = (info as { resource?: { id?: string } }).resource?.id ?? null
+                  if (
+                    openCalendarCreateMenu(start, end, {
+                      preserveDraggedRange: true,
+                      resourceId,
+                      anchorEl: highlightEl,
+                    })
+                  ) {
+                    return
+                  }
                   handleCalendarSelection(start, end, {
                     preserveDraggedRange: true,
                     anchorEl: highlightEl,
@@ -13877,7 +14081,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
             }
             if (props.kind === 'waitlist-offer') {
               info.jsEvent.preventDefault()
-              if (props.requestId != null) navigate(`/appointments?requestId=${props.requestId}`)
+              if (props.requestId != null) navigate(`/appointments/drawer/request/${props.requestId}`)
               return
             }
             if (openSessionQuickActionMenu(info)) {
@@ -13908,7 +14112,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               }
               placeSessionPopup(info.el)
               if (useBookingSidePanel && props.id != null) {
-                pushCompactFormRoute(`/calendar/booking/${props.id}`)
+                pushCompactFormRoute(urlForEditForm('booking', props.id))
               }
               clearSessionEventClickChrome(info.el)
               return
@@ -13920,7 +14124,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               placeSessionPopup(info.el)
               setSelectedPersonalBlock(props)
               if (useBookingSidePanel && props.id != null) {
-                pushCompactFormRoute(`/calendar/personal/${props.id}`)
+                pushCompactFormRoute(urlForEditForm('personal', props.id))
               }
               clearSessionEventClickChrome(info.el)
               return
@@ -13932,7 +14136,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
               placeSessionPopup(info.el)
               setSelectedTodo(props)
               if (useBookingSidePanel && props.id != null) {
-                pushCompactFormRoute(`/calendar/todo/${props.id}`)
+                pushCompactFormRoute(urlForEditForm('todo', props.id))
               }
               clearSessionEventClickChrome(info.el)
               return
@@ -14649,16 +14853,33 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
                 : null
             }
             onOpenClient={(clientId) => openCalendarClientDetail(clientId)}
-            onOpenTodo={(todoId) => pushCompactFormRoute(`/calendar/todo/${todoId}`)}
+            onOpenTodo={(todoId) => pushCompactFormRoute(urlForEditForm('todo', todoId))}
             onEditSession={() => {
               const bookingId = Number(selectedBookedSession?.id || 0)
-              if (bookingId > 0) pushCompactFormRoute(`/calendar/booking/${bookingId}`)
+              if (bookingId > 0) pushCompactFormRoute(urlForEditForm('booking', bookingId))
             }}
             onOpenFullOpenBill={(status, openBillId) => { openBookedPaymentOpenBillEditor(status, openBillId) }}
             onOpenFullAdvance={(status, client) => { openBookedPaymentAdvanceEditor(status, client) }}
             onRefreshCalendar={() => loadCalendarRangeOnly(true)}
           />
         ) : null}
+        {calendarCreateMenu && typeof document !== 'undefined'
+          ? createPortal(
+              <CalendarCreateMenu
+                left={calendarCreateMenu.menuLeft}
+                top={calendarCreateMenu.menuTop}
+                placement={calendarCreateMenu.placement}
+                arrowLeft={calendarCreateMenu.arrowLeft}
+                locale={locale}
+                todoEnabled={todosModuleEnabled}
+                personalEnabled={personalModuleEnabled}
+                availabilityEnabled={bookableEnabled}
+                onSelect={openCalendarCreateMenuPanel}
+                onClose={closeCalendarCreateMenu}
+              />,
+              document.body,
+            )
+          : null}
         {sessionQuickActions ? (
           <div
             className="calendar-session-action-menu-layer"
@@ -15460,26 +15681,21 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         </div>
       )}
 
-      {confirmSwap && (
-        <div className="modal-backdrop" onClick={cancelSwap}>
-          <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <PageHeader
-              title={locale === 'sl' ? 'Zamenjava terminov?' : locale === 'sr' ? 'Zamena termina?' : 'Switch sessions?'}
-              subtitle={locale === 'sl'
-                ? `Termin za "${fullName(confirmSwap.dragged.client)}" bo zamenjan s terminom za "${fullName(confirmSwap.target.client)}". Oba termina bosta zamenjala čas izvedbe.`
-                : locale === 'sr'
-                  ? `Termin za "${fullName(confirmSwap.dragged.client)}" biće zamenjen terminom za "${fullName(confirmSwap.target.client)}". Oba termina će zameniti vreme održavanja.`
-                  : `This will swap "${fullName(confirmSwap.dragged.client)}" with "${fullName(confirmSwap.target.client)}". Both sessions will exchange their time slots.`}
-            />
-            <div className="row gap">
-              <button onClick={confirmSwapSessions}>
-                {locale === 'sl' ? 'Da, zamenjaj' : locale === 'sr' ? 'Da, zameni' : 'Yes, switch'}
-              </button>
-              <button className="secondary" onClick={cancelSwap}>{t('cancel')}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={confirmSwap != null}
+        onClose={cancelSwap}
+        title={locale === 'sl' ? 'Zamenjava terminov?' : locale === 'sr' ? 'Zamena termina?' : 'Switch sessions?'}
+        text={confirmSwap
+          ? (locale === 'sl'
+            ? `Termin za "${fullName(confirmSwap.dragged.client)}" bo zamenjan s terminom za "${fullName(confirmSwap.target.client)}". Oba termina bosta zamenjala čas izvedbe.`
+            : locale === 'sr'
+              ? `Termin za "${fullName(confirmSwap.dragged.client)}" biće zamenjen terminom za "${fullName(confirmSwap.target.client)}". Oba termina će zameniti vreme održavanja.`
+              : `This will swap "${fullName(confirmSwap.dragged.client)}" with "${fullName(confirmSwap.target.client)}". Both sessions will exchange their time slots.`)
+          : undefined}
+        onConfirm={confirmSwapSessions}
+        confirmLabel={locale === 'sl' ? 'Da, zamenjaj' : locale === 'sr' ? 'Da, zameni' : 'Yes, switch'}
+        cancelLabel={t('cancel')}
+      />
 
       <Suspense fallback={null}>
         <CalendarSessionModals ctx={calendarSessionModalProps} />

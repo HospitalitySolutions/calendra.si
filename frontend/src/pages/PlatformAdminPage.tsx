@@ -1,9 +1,20 @@
 import '../styles/features.booking.css'
 import { DesktopSelect } from "../components/DesktopSelect";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 import axios from "axios";
 import { api } from "../api";
+import { useLocale } from "../locale";
+import {
+  ConfirmDialog,
+  PanelBanner,
+  PanelBody,
+  PanelButton,
+  PanelFooter,
+  PanelHeader,
+  SidePanel,
+  useConfirm,
+} from "../components/panel";
+import { PLATFORM_ADMIN_DRAWERS, useDrawerRoute } from "../lib/drawerRoutes";
 import { clearAuthStoragePreservingTheme } from "../theme";
 import { TENANT_CONFIG_TYPE_OPTIONS } from "./configuration/guestWebsiteSettings";
 import "../styles/features/platform-admin.css";
@@ -4923,6 +4934,8 @@ type PlatformAnnouncementAdminRow = {
 };
 
 function PlatformAnnouncementsPanel() {
+  const { t } = useLocale();
+  const confirm = useConfirm();
   const [rows, setRows] = useState<PlatformAnnouncementAdminRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -4983,7 +4996,7 @@ function PlatformAnnouncementsPanel() {
   };
 
   const remove = async (id: number) => {
-    if (!window.confirm("Delete this announcement?")) return;
+    if (!(await confirm({ title: t("confirmDeleteAnnouncement"), tone: "danger" }))) return;
     await api.delete(`/platform-admin/announcements/${id}`).catch(() => undefined);
     load();
   };
@@ -5139,6 +5152,8 @@ const DEFAULT_DEMO_AVAILABILITY: DemoAvailabilityWindow[] = Object.keys(DEMO_DAY
 }));
 
 function DemoCallsAdminPanel() {
+  const { t } = useLocale();
+  const confirm = useConfirm();
   const [profile, setProfile] = useState<DemoBookingProfileAdmin | null>(null);
   const [hosts, setHosts] = useState<DemoBookingHost[]>([]);
   const [rows, setRows] = useState<DemoBookingAdminRow[]>([]);
@@ -5226,7 +5241,7 @@ function DemoCallsAdminPanel() {
   };
 
   const cancel = async (bookingId: number) => {
-    if (!window.confirm("Cancel this demo call and notify the potential client?")) return;
+    if (!(await confirm({ title: t("confirmCancelDemoCall"), tone: "danger" }))) return;
     try {
       await api.post(`/platform-admin/demo-bookings/${bookingId}/cancel`, null, { params: { locale: "sl" } });
       await load();
@@ -5483,12 +5498,40 @@ export function PlatformAdminPage() {
   const [searchErr, setSearchErr] = useState<string | null>(null);
   const [activeNav, setActiveNav] = useState("overview");
   const [workspace, setWorkspace] = useState<AdminWorkspaceTab>("overview");
-  /** Which admin modal is open; price override UI is only mounted when this is "price". */
-  const [activeModalKind, setActiveModalKind] = useState<string | null>(null);
+  const { match: drawerMatch, isOpen: isDrawerOpen, open: openDrawer, close: closeDrawer } =
+    useDrawerRoute();
+  const adminPageDrawers =
+    drawerMatch == null || drawerMatch.descriptor.page === "/platform-admin";
+  const newTenantOpen =
+    adminPageDrawers && isDrawerOpen(PLATFORM_ADMIN_DRAWERS.newTenant);
+  const tenantSubscriptionOpen =
+    adminPageDrawers && isDrawerOpen(PLATFORM_ADMIN_DRAWERS.tenantSubscription);
+  const trialFollowUpOpen =
+    adminPageDrawers && isDrawerOpen(PLATFORM_ADMIN_DRAWERS.trialFollowUp);
+  const changePlanOpen =
+    adminPageDrawers && isDrawerOpen(PLATFORM_ADMIN_DRAWERS.changePlan);
+  const priceOverrideOpen =
+    adminPageDrawers && isDrawerOpen(PLATFORM_ADMIN_DRAWERS.priceOverride);
+  const suspendOpen =
+    adminPageDrawers && isDrawerOpen(PLATFORM_ADMIN_DRAWERS.suspend);
+  const tenantFormOpen = newTenantOpen || tenantSubscriptionOpen;
+  const adminActionKind = changePlanOpen
+    ? "plan"
+    : priceOverrideOpen
+      ? "price"
+      : suspendOpen
+        ? "suspend"
+        : null;
+  const drawerTenantId = Number(drawerMatch?.params.id);
+  const tenantOverlayOpen =
+    tenantFormOpen ||
+    trialFollowUpOpen ||
+    changePlanOpen ||
+    priceOverrideOpen ||
+    suspendOpen;
   const [auditLog, setAuditLog] = useState<AuditLogEntryDto[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditErr, setAuditErr] = useState<string | null>(null);
-  const [manualTenantOpen, setManualTenantOpen] = useState(false);
   const [manualTenantMode, setManualTenantMode] = useState<"create" | "edit">("create");
   const [manualTenantOptions, setManualTenantOptions] = useState<ManualTenantOptions | null>(null);
   const [manualTenantForm, setManualTenantForm] = useState<ManualTenantFormState>(() =>
@@ -5497,11 +5540,17 @@ export function PlatformAdminPage() {
   const [manualTenantSaving, setManualTenantSaving] = useState(false);
   const [manualTenantErr, setManualTenantErr] = useState<string | null>(null);
   const [manualTenantResult, setManualTenantResult] = useState<string | null>(null);
-  const [trialFollowUpOpen, setTrialFollowUpOpen] = useState(false);
   const [trialFollowUpLanguage, setTrialFollowUpLanguage] = useState<TrialFollowUpLanguage>("sl");
   const [trialFollowUpSending, setTrialFollowUpSending] = useState(false);
   const [trialFollowUpErr, setTrialFollowUpErr] = useState<string | null>(null);
   const [trialFollowUpResult, setTrialFollowUpResult] = useState<string | null>(null);
+  const [deleteTenantOpen, setDeleteTenantOpen] = useState(false);
+  const [deleteTenantReason, setDeleteTenantReason] = useState("");
+  const [deleteTenantBusy, setDeleteTenantBusy] = useState(false);
+  const [adminActionBusy, setAdminActionBusy] = useState(false);
+  const formSeedKeyRef = useRef<string | null>(null);
+  const actionSeedKeyRef = useRef<string | null>(null);
+  const followUpSeedKeyRef = useRef<string | null>(null);
   const [emailSender, setEmailSender] = useState<TenantEmailSenderAdminDto | null>(null);
   const [emailSenderDraft, setEmailSenderDraft] = useState<TenantEmailSenderAdminDto | null>(null);
   const [emailSenderLoading, setEmailSenderLoading] = useState(false);
@@ -5512,10 +5561,8 @@ export function PlatformAdminPage() {
   selectedRef.current = selected;
 
   useEffect(() => {
-    setTrialFollowUpOpen(false);
-    setTrialFollowUpErr(null);
-    setTrialFollowUpResult(null);
-  }, [selected?.id]);
+    if (tenantOverlayOpen) setWorkspace("tenants");
+  }, [tenantOverlayOpen]);
 
   const reloadAuditForCurrentSelection = useCallback(async () => {
     const id = selectedRef.current?.id;
@@ -5598,6 +5645,27 @@ export function PlatformAdminPage() {
   }, []);
 
   useEffect(() => {
+    const needsTenant =
+      tenantSubscriptionOpen ||
+      trialFollowUpOpen ||
+      changePlanOpen ||
+      priceOverrideOpen ||
+      suspendOpen;
+    if (!needsTenant || !Number.isFinite(drawerTenantId)) return;
+    if (selected?.id === drawerTenantId) return;
+    void loadDetail(drawerTenantId);
+  }, [
+    changePlanOpen,
+    drawerTenantId,
+    loadDetail,
+    priceOverrideOpen,
+    selected?.id,
+    suspendOpen,
+    tenantSubscriptionOpen,
+    trialFollowUpOpen,
+  ]);
+
+  useEffect(() => {
     if (!selected?.id) {
       setAuditLog([]);
       setAuditErr(null);
@@ -5675,71 +5743,213 @@ export function PlatformAdminPage() {
     [loadDetail],
   );
 
-  const openModal = useCallback(
-    async (kind: string) => {
-      const root = rootRef.current;
-      const modal = root?.querySelector<HTMLElement>("#modalBackdrop");
-      const modalTitle = root?.querySelector<HTMLElement>("#modalTitle");
-      const modalCopy = root?.querySelector<HTMLElement>("#modalCopy");
-      const actionSelect =
-        root?.querySelector<HTMLSelectElement>("#actionSelect");
-      const reasonText =
-        root?.querySelector<HTMLTextAreaElement>("#reasonText");
-      const cfg = modalContent[kind] || modalContent.plan;
-      flushSync(() => {
-        setActiveModalKind(kind);
-      });
-      if (modalTitle) modalTitle.textContent = cfg[0];
-      if (modalCopy) modalCopy.textContent = cfg[1];
-      if (actionSelect) {
-        if (kind === "plan" && selected) {
-          const opts = buildPlanChangeActionOptions(selected);
-          actionSelect.innerHTML = opts
-            .map((value) => `<option>${escapeHtml(value)}</option>`)
-            .join("");
-        } else {
-          const list = cfg[2].length ? cfg[2] : ["Confirm"];
-          actionSelect.innerHTML = list
-            .map((value) => `<option>${escapeHtml(value)}</option>`)
-            .join("");
-        }
-      }
-      if (reasonText) reasonText.value = "";
-      if (modal) modal.dataset.modalKind = kind;
-      if (kind === "price" && selected && root) {
-        let catalog = mergeRegisterCatalog(undefined);
-        try {
-          const { data } = await api.get<RegisterPriceCatalogDto>(
-            "/platform-admin/register-prices",
-          );
-          catalog = mergeRegisterCatalog(data);
-        } catch {
-          // use merged defaults
-        }
-        const backdrop = root.querySelector<HTMLElement>("#modalBackdrop");
-        if (backdrop?.dataset.modalKind === "price" && selected) {
-          applyPriceModalDOM(root, selected, catalog);
-        }
-      }
-      if (kind === "plan" && selected && root) {
-        updatePlanChangePanels(root, selected);
-      }
-      modal?.classList.add("platform-admin-visible");
-      modal?.setAttribute("aria-hidden", "false");
+  const closeAdminDrawer = useCallback(() => {
+    closeDrawer();
+  }, [closeDrawer]);
+
+  const openAdminAction = useCallback(
+    (kind: "plan" | "price" | "suspend") => {
+      if (!selected) return;
+      const descriptor =
+        kind === "plan"
+          ? PLATFORM_ADMIN_DRAWERS.changePlan
+          : kind === "price"
+            ? PLATFORM_ADMIN_DRAWERS.priceOverride
+            : PLATFORM_ADMIN_DRAWERS.suspend;
+      openDrawer(descriptor, { params: { id: selected.id } });
     },
-    [selected],
+    [openDrawer, selected],
   );
 
-  const closeModal = useCallback(() => {
-    const root = rootRef.current;
-    const modal = root?.querySelector<HTMLElement>("#modalBackdrop");
-    modal?.classList.remove("platform-admin-visible");
-    modal?.setAttribute("aria-hidden", "true");
-    if (modal) modal.dataset.modalKind = "";
-    flushSync(() => {
-      setActiveModalKind(null);
-    });
+  const hydrateAdminActionModal = useCallback(async () => {
+    if (!adminActionKind || !selected) return false;
+    const root = document.documentElement;
+    const modal = document.getElementById("modalBackdrop");
+    if (!modal) return false;
+    const cfg = modalContent[adminActionKind] || modalContent.plan;
+    const modalTitle = document.getElementById("modalTitle");
+    const modalCopy = document.getElementById("modalCopy");
+    const actionSelect = document.querySelector<HTMLSelectElement>("#actionSelect");
+    const reasonText = document.querySelector<HTMLTextAreaElement>("#reasonText");
+    if (modalTitle) modalTitle.textContent = cfg[0];
+    if (modalCopy) modalCopy.textContent = cfg[1];
+    if (actionSelect) {
+      if (adminActionKind === "plan") {
+        const opts = buildPlanChangeActionOptions(selected);
+        actionSelect.innerHTML = opts
+          .map((value) => `<option>${escapeHtml(value)}</option>`)
+          .join("");
+      } else {
+        const list = cfg[2].length ? cfg[2] : ["Confirm"];
+        actionSelect.innerHTML = list
+          .map((value) => `<option>${escapeHtml(value)}</option>`)
+          .join("");
+      }
+    }
+    if (reasonText) reasonText.value = "";
+    modal.dataset.modalKind = adminActionKind;
+    if (adminActionKind === "price") {
+      let catalog = mergeRegisterCatalog(undefined);
+      try {
+        const { data } = await api.get<RegisterPriceCatalogDto>(
+          "/platform-admin/register-prices",
+        );
+        catalog = mergeRegisterCatalog(data);
+      } catch {
+        // use merged defaults
+      }
+      if (document.getElementById("modalBackdrop")?.dataset.modalKind === "price") {
+        applyPriceModalDOM(root, selected, catalog);
+      }
+    }
+    if (adminActionKind === "plan") updatePlanChangePanels(root, selected);
+    return true;
+  }, [adminActionKind, selected]);
+
+  useEffect(() => {
+    if (!adminActionKind || !selected || selected.id !== drawerTenantId) {
+      if (!adminActionKind) actionSeedKeyRef.current = null;
+      return undefined;
+    }
+    const key = `${adminActionKind}:${selected.id}`;
+    if (actionSeedKeyRef.current === key) return undefined;
+    let cancelled = false;
+    const run = () => {
+      void hydrateAdminActionModal().then((ok) => {
+        if (cancelled) return;
+        if (ok) actionSeedKeyRef.current = key;
+        else requestAnimationFrame(run);
+      });
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [adminActionKind, drawerTenantId, hydrateAdminActionModal, selected]);
+
+  const onAdminActionFieldChange = useCallback(() => {
+    updatePriceOverridePanels(document.documentElement);
+    if (selectedRef.current) updatePlanChangePanels(document.documentElement, selectedRef.current);
   }, []);
+
+  const confirmAdminAction = useCallback(async () => {
+    const root = document.documentElement;
+    const kind = adminActionKind ?? "";
+    const tenantId = selectedRef.current?.id;
+    if (!tenantId || !kind) {
+      closeAdminDrawer();
+      return;
+    }
+    const reason =
+      document.querySelector<HTMLTextAreaElement>("#reasonText")?.value.trim() ?? "";
+    setAdminActionBusy(true);
+    try {
+      if (kind === "price") {
+        if (!reason) {
+          window.alert("A reason is required before changing subscription pricing.");
+          return;
+        }
+        const actionSelect = document.querySelector<HTMLSelectElement>("#actionSelect");
+        const idx = actionSelect?.selectedIndex ?? -1;
+        const customRaw =
+          document.querySelector<HTMLInputElement>("#priceCustomInput")?.value ?? "";
+        const discountRaw =
+          document.querySelector<HTMLInputElement>("#priceDiscountPercent")?.value ?? "";
+        const amount = Number.parseFloat(customRaw.replace(",", "."));
+        const discountPercent = Number.parseFloat(discountRaw.replace(",", "."));
+        if (idx === 0 && (!Number.isFinite(amount) || amount < 0)) {
+          window.alert("Enter a valid non-negative custom price.");
+          return;
+        }
+        if (
+          idx === 1 &&
+          (!Number.isFinite(discountPercent) ||
+            discountPercent <= 0 ||
+            discountPercent > 100)
+        ) {
+          window.alert("Enter a discount greater than 0 and at most 100%.");
+          return;
+        }
+        const action =
+          idx === 0 ? "CUSTOM_PRICE" : idx === 1 ? "DISCOUNT" : idx === 2 ? "REMOVE" : "";
+        if (!action) {
+          window.alert("Choose a valid price override action.");
+          return;
+        }
+        try {
+          const { data } = await api.post<TenancyDetails>(
+            `/platform-admin/tenancies/${tenantId}/price-override`,
+            {
+              action,
+              amount: idx === 0 ? amount : null,
+              discountPercent: idx === 1 ? discountPercent : null,
+              includeAddons:
+                idx === 1 &&
+                (document.querySelector<HTMLInputElement>("#priceDiscountIncludeAddons")
+                  ?.checked ?? false),
+              reason,
+            },
+          );
+          setSelected(data);
+          await reloadAuditForCurrentSelection();
+          closeAdminDrawer();
+        } catch (e) {
+          const message = axios.isAxiosError(e)
+            ? String(
+                e.response?.data?.message ||
+                  e.response?.data?.error ||
+                  "Could not save the price override.",
+              )
+            : "Could not save the price override.";
+          window.alert(message);
+        }
+        return;
+      }
+      const payload = buildPlatformAdminAuditPayload(kind, root);
+      if (!payload) {
+        window.alert("This action is not recorded in the platform audit log yet.");
+        closeAdminDrawer();
+        return;
+      }
+      try {
+        await api.post(`/platform-admin/tenancies/${tenantId}/audit-log`, payload);
+        await reloadAuditForCurrentSelection();
+        closeAdminDrawer();
+      } catch {
+        window.alert("Could not save this action to the audit log. Please try again.");
+      }
+    } finally {
+      setAdminActionBusy(false);
+    }
+  }, [adminActionKind, closeAdminDrawer, reloadAuditForCurrentSelection]);
+
+  const confirmDeleteTenant = useCallback(async () => {
+    const tenantId = selectedRef.current?.id;
+    const reason = deleteTenantReason.trim();
+    if (!tenantId || !reason) return;
+    setDeleteTenantBusy(true);
+    try {
+      await api.delete(`/platform-admin/tenancies/${tenantId}`, {
+        data: { reason },
+      });
+      setSelected(null);
+      await loadTenanciesList();
+      setDeleteTenantOpen(false);
+      setDeleteTenantReason("");
+    } catch (e) {
+      if (axios.isAxiosError(e) && e.response) {
+        const msg =
+          typeof e.response.data === "string"
+            ? e.response.data
+            : (e.response.data as { message?: string })?.message;
+        window.alert(msg || "Could not delete this tenant. Please try again.");
+      } else {
+        window.alert("Could not delete this tenant. Please try again.");
+      }
+    } finally {
+      setDeleteTenantBusy(false);
+    }
+  }, [deleteTenantReason, loadTenanciesList]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -5768,182 +5978,14 @@ export function PlatformAdminPage() {
           `#${navButton.dataset.target}`,
         );
         section?.scrollIntoView({ behavior: "smooth", block: "start" });
-        return;
       }
-      const modalButton = target.closest<HTMLElement>("[data-open-modal]");
-      if (modalButton?.dataset.openModal) {
-        void openModal(modalButton.dataset.openModal);
-        return;
-      }
-      if (target.closest("#closeModal")) {
-        closeModal();
-        return;
-      }
-      if (target.closest("#confirmModal")) {
-        void (async () => {
-          const modalBackdrop =
-            root.querySelector<HTMLElement>("#modalBackdrop");
-          const kind = modalBackdrop?.dataset.modalKind ?? "";
-          const tenantId = selectedRef.current?.id;
-          if (!tenantId) {
-            closeModal();
-            return;
-          }
-          const reason =
-            root
-              .querySelector<HTMLTextAreaElement>("#reasonText")
-              ?.value.trim() ?? "";
-          if (kind === "delete") {
-            if (!reason) {
-              window.alert("A reason is required before deleting a tenant.");
-              return;
-            }
-            try {
-              await api.delete(`/platform-admin/tenancies/${tenantId}`, {
-                data: { reason },
-              });
-              setSelected(null);
-              await loadTenanciesList();
-              closeModal();
-            } catch (e) {
-              if (axios.isAxiosError(e) && e.response) {
-                const msg =
-                  typeof e.response.data === "string"
-                    ? e.response.data
-                    : (e.response.data as { message?: string })?.message;
-                window.alert(msg || "Could not delete this tenant. Please try again.");
-              } else {
-                window.alert("Could not delete this tenant. Please try again.");
-              }
-            }
-            return;
-          }
-          if (kind === "price") {
-            if (!reason) {
-              window.alert("A reason is required before changing subscription pricing.");
-              return;
-            }
-            const actionSelect = root.querySelector<HTMLSelectElement>("#actionSelect");
-            const idx = actionSelect?.selectedIndex ?? -1;
-            const customRaw =
-              root.querySelector<HTMLInputElement>("#priceCustomInput")?.value ?? "";
-            const discountRaw =
-              root.querySelector<HTMLInputElement>("#priceDiscountPercent")?.value ?? "";
-            const amount = Number.parseFloat(customRaw.replace(",", "."));
-            const discountPercent = Number.parseFloat(discountRaw.replace(",", "."));
-            if (idx === 0 && (!Number.isFinite(amount) || amount < 0)) {
-              window.alert("Enter a valid non-negative custom price.");
-              return;
-            }
-            if (
-              idx === 1 &&
-              (!Number.isFinite(discountPercent) ||
-                discountPercent <= 0 ||
-                discountPercent > 100)
-            ) {
-              window.alert("Enter a discount greater than 0 and at most 100%.");
-              return;
-            }
-            const action =
-              idx === 0 ? "CUSTOM_PRICE" : idx === 1 ? "DISCOUNT" : idx === 2 ? "REMOVE" : "";
-            if (!action) {
-              window.alert("Choose a valid price override action.");
-              return;
-            }
-            try {
-              const { data } = await api.post<TenancyDetails>(
-                `/platform-admin/tenancies/${tenantId}/price-override`,
-                {
-                  action,
-                  amount: idx === 0 ? amount : null,
-                  discountPercent: idx === 1 ? discountPercent : null,
-                  includeAddons:
-                    idx === 1 &&
-                    (root.querySelector<HTMLInputElement>(
-                      "#priceDiscountIncludeAddons",
-                    )?.checked ?? false),
-                  reason,
-                },
-              );
-              setSelected(data);
-              await reloadAuditForCurrentSelection();
-              closeModal();
-            } catch (e) {
-              const message = axios.isAxiosError(e)
-                ? String(
-                    e.response?.data?.message ||
-                      e.response?.data?.error ||
-                      "Could not save the price override.",
-                  )
-                : "Could not save the price override.";
-              window.alert(message);
-            }
-            return;
-          }
-          const payload = buildPlatformAdminAuditPayload(kind, root);
-          if (!payload) {
-            window.alert(
-              "This action is not recorded in the platform audit log yet.",
-            );
-            closeModal();
-            return;
-          }
-          try {
-            await api.post(
-              `/platform-admin/tenancies/${tenantId}/audit-log`,
-              payload,
-            );
-            await reloadAuditForCurrentSelection();
-            closeModal();
-          } catch {
-            window.alert(
-              "Could not save this action to the audit log. Please try again.",
-            );
-          }
-        })();
-        return;
-      }
-      const modal = root.querySelector("#modalBackdrop");
-      if (modal && event.target === modal) {
-        closeModal();
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeModal();
-    };
-
-    const onModalFieldChange = (event: Event) => {
-      const id = (event.target as HTMLElement | null)?.id;
-      if (id === "actionSelect" || id === "priceDiscountIncludeAddons") {
-        updatePriceOverridePanels(root);
-        if (selectedRef.current)
-          updatePlanChangePanels(root, selectedRef.current);
-      }
-    };
-    const onModalFieldInput = (event: Event) => {
-      const id = (event.target as HTMLElement | null)?.id;
-      if (id === "priceDiscountPercent" || id === "priceCustomInput")
-        updatePriceOverridePanels(root);
     };
 
     root.addEventListener("click", handleClick);
-    root.addEventListener("change", onModalFieldChange);
-    root.addEventListener("input", onModalFieldInput);
-    document.addEventListener("keydown", handleKeyDown);
     return () => {
       root.removeEventListener("click", handleClick);
-      root.removeEventListener("change", onModalFieldChange);
-      root.removeEventListener("input", onModalFieldInput);
-      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [
-    logout,
-    openModal,
-    closeModal,
-    reloadAuditForCurrentSelection,
-    loadTenanciesList,
-  ]);
+  }, [logout]);
 
   const workspaceHint = useMemo(() => {
     if (!selected?.tenantCode) return "—";
@@ -6040,27 +6082,63 @@ export function PlatformAdminPage() {
   }, [manualTenantOptions]);
 
   const openManualTenantCreate = useCallback(() => {
-    setManualTenantMode("create");
-    setManualTenantForm(defaultManualTenantForm());
-    setManualTenantErr(null);
-    setManualTenantResult(null);
-    setManualTenantOpen(true);
-    void loadManualTenantOptions().catch(() => {
-      setManualTenantErr("Could not load manual tenant options.");
-    });
-  }, [loadManualTenantOptions]);
+    openDrawer(PLATFORM_ADMIN_DRAWERS.newTenant);
+  }, [openDrawer]);
 
   const openManualTenantEdit = useCallback(() => {
     if (!selected) return;
-    setManualTenantMode("edit");
-    setManualTenantForm(formFromTenancyDetails(selected));
-    setManualTenantErr(null);
-    setManualTenantResult(null);
-    setManualTenantOpen(true);
-    void loadManualTenantOptions().catch(() => {
-      setManualTenantErr("Could not load manual tenant options.");
+    openDrawer(PLATFORM_ADMIN_DRAWERS.tenantSubscription, {
+      params: { id: selected.id },
     });
-  }, [loadManualTenantOptions, selected]);
+  }, [openDrawer, selected]);
+
+  useEffect(() => {
+    if (newTenantOpen) {
+      const key = "new-tenant";
+      if (formSeedKeyRef.current === key) return;
+      formSeedKeyRef.current = key;
+      setManualTenantMode("create");
+      setManualTenantForm(defaultManualTenantForm());
+      setManualTenantErr(null);
+      setManualTenantResult(null);
+      void loadManualTenantOptions().catch(() => {
+        setManualTenantErr("Could not load manual tenant options.");
+      });
+      return;
+    }
+    if (tenantSubscriptionOpen && Number.isFinite(drawerTenantId) && selected?.id === drawerTenantId) {
+      const key = `tenant-subscription:${drawerTenantId}`;
+      if (formSeedKeyRef.current === key) return;
+      formSeedKeyRef.current = key;
+      setManualTenantMode("edit");
+      setManualTenantForm(formFromTenancyDetails(selected));
+      setManualTenantErr(null);
+      setManualTenantResult(null);
+      void loadManualTenantOptions().catch(() => {
+        setManualTenantErr("Could not load manual tenant options.");
+      });
+      return;
+    }
+    if (!newTenantOpen && !tenantSubscriptionOpen) formSeedKeyRef.current = null;
+  }, [
+    drawerTenantId,
+    loadManualTenantOptions,
+    newTenantOpen,
+    selected,
+    tenantSubscriptionOpen,
+  ]);
+
+  useEffect(() => {
+    if (trialFollowUpOpen && Number.isFinite(drawerTenantId)) {
+      const key = `trial-follow-up:${drawerTenantId}`;
+      if (followUpSeedKeyRef.current === key) return;
+      followUpSeedKeyRef.current = key;
+      setTrialFollowUpLanguage("sl");
+      setTrialFollowUpErr(null);
+      return;
+    }
+    followUpSeedKeyRef.current = null;
+  }, [drawerTenantId, trialFollowUpOpen]);
 
   const updateManualTenantField = useCallback(
     (key: keyof ManualTenantFormState, value: string) => {
@@ -6216,11 +6294,10 @@ export function PlatformAdminPage() {
 
   const openTrialFollowUp = useCallback(() => {
     if (!selected) return;
-    setTrialFollowUpLanguage("sl");
-    setTrialFollowUpErr(null);
-    setTrialFollowUpResult(null);
-    setTrialFollowUpOpen(true);
-  }, [selected]);
+    openDrawer(PLATFORM_ADMIN_DRAWERS.trialFollowUp, {
+      params: { id: selected.id },
+    });
+  }, [openDrawer, selected]);
 
   const sendTrialFollowUp = useCallback(async () => {
     if (!selected) return;
@@ -6231,7 +6308,7 @@ export function PlatformAdminPage() {
         `/platform-admin/tenancies/${selected.id}/trial-follow-up`,
         { language: trialFollowUpLanguage },
       );
-      setTrialFollowUpOpen(false);
+      closeAdminDrawer();
       setTrialFollowUpResult(
         `Trial follow-up sent to ${data.recipient} in ${TRIAL_FOLLOW_UP_LANGUAGE_LABELS[data.language] ?? data.language}.`,
       );
@@ -6252,7 +6329,7 @@ export function PlatformAdminPage() {
     } finally {
       setTrialFollowUpSending(false);
     }
-  }, [reloadAuditForCurrentSelection, selected, trialFollowUpLanguage]);
+  }, [closeAdminDrawer, reloadAuditForCurrentSelection, selected, trialFollowUpLanguage]);
 
   const manualSelectedAddonKeys = useMemo(
     () => new Set(manualTenantForm.addOns.map((row) => row.key)),
@@ -6386,12 +6463,12 @@ export function PlatformAdminPage() {
                       </div>
                     </div>
 
-                    {manualTenantErr && !manualTenantOpen ? (
+                    {manualTenantErr && !tenantFormOpen ? (
                       <div className="platform-admin-manual-error" style={{ marginBottom: 16 }}>
                         {manualTenantErr}
                       </div>
                     ) : null}
-                    {manualTenantResult && !manualTenantOpen ? (
+                    {manualTenantResult && !tenantFormOpen ? (
                       <div className="platform-admin-manual-result" style={{ marginBottom: 16 }}>
                         {manualTenantResult}
                       </div>
@@ -6549,28 +6626,31 @@ export function PlatformAdminPage() {
                               <button
                                 className="platform-admin-button platform-admin-primary platform-admin-small"
                                 type="button"
-                                data-open-modal="plan"
+                                onClick={() => openAdminAction("plan")}
                               >
                                 Change plan
                               </button>
                               <button
                                 className="platform-admin-button platform-admin-secondary platform-admin-small"
                                 type="button"
-                                data-open-modal="price"
+                                onClick={() => openAdminAction("price")}
                               >
                                 Price override
                               </button>
                               <button
                                 className="platform-admin-button platform-admin-danger platform-admin-small"
                                 type="button"
-                                data-open-modal="suspend"
+                                onClick={() => openAdminAction("suspend")}
                               >
                                 Suspend
                               </button>
                               <button
                                 className="platform-admin-button platform-admin-danger platform-admin-small"
                                 type="button"
-                                data-open-modal="delete"
+                                onClick={() => {
+                                  setDeleteTenantReason("");
+                                  setDeleteTenantOpen(true);
+                                }}
                               >
                                 Delete
                               </button>
@@ -7181,43 +7261,31 @@ export function PlatformAdminPage() {
                   />
                 )}
         </main>
+      </div>
 
-        {trialFollowUpOpen && selected ? (
-          <div
-            className="platform-admin-manual-tenant-backdrop"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Send trial follow-up"
-          >
-            <div className="platform-admin-manual-tenant-modal platform-admin-follow-up-modal">
-              <div className="platform-admin-manual-tenant-header">
-                <div className="platform-admin-manual-tenant-title">
-                  <div className="platform-admin-eyebrow">Tenant follow-up</div>
-                  <h2>Send presentation invitation</h2>
-                  <p>
-                    Send the selected tenant a branded follow-up with one main button
-                    for booking a 30-minute Calendra presentation.
-                  </p>
-                </div>
-                <button
-                  className="platform-admin-button platform-admin-secondary platform-admin-small"
-                  type="button"
-                  disabled={trialFollowUpSending}
-                  onClick={() => setTrialFollowUpOpen(false)}
-                >
-                  Close
-                </button>
-              </div>
-
+      <SidePanel
+        open={trialFollowUpOpen && Boolean(selected)}
+        onClose={closeAdminDrawer}
+        ariaLabel="Send trial follow-up"
+        size="md"
+        closeOnScrimClick={!trialFollowUpSending}
+      >
+        <PanelHeader
+          title="Send presentation invitation"
+          subtitle="Send the selected tenant a branded follow-up with one main button for booking a 30-minute Calendra presentation."
+          onClose={closeAdminDrawer}
+          closeLabel="Close"
+        />
+        <PanelBody>
               {trialFollowUpErr ? (
-                <div className="platform-admin-manual-error">{trialFollowUpErr}</div>
+                <PanelBanner tone="error">{trialFollowUpErr}</PanelBanner>
               ) : null}
 
               <section className="platform-admin-manual-section platform-admin-follow-up-summary">
                 <div className="platform-admin-follow-up-recipient">
                   <span>Recipient</span>
-                  <strong>{selected.contactName || selected.companyName}</strong>
-                  <a href={`mailto:${selected.contactEmail}`}>{selected.contactEmail}</a>
+                  <strong>{selected?.contactName || selected?.companyName}</strong>
+                  <a href={`mailto:${selected?.contactEmail}`}>{selected?.contactEmail}</a>
                 </div>
                 <div className="platform-admin-manual-field">
                   <label htmlFor="trialFollowUpLanguage">Email language</label>
@@ -7239,58 +7307,40 @@ export function PlatformAdminPage() {
                   single CTA button linking to <strong>calendra.si/predstavitev</strong>.
                 </div>
               </section>
-
-              <div className="platform-admin-manual-actions">
-                <button
-                  className="platform-admin-button platform-admin-secondary"
-                  type="button"
-                  disabled={trialFollowUpSending}
-                  onClick={() => setTrialFollowUpOpen(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="platform-admin-button platform-admin-primary"
-                  type="button"
-                  disabled={trialFollowUpSending || !selected.contactEmail?.trim()}
-                  onClick={sendTrialFollowUp}
-                >
-                  {trialFollowUpSending ? "Sending…" : "Send follow-up"}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {manualTenantOpen ? (
-          <div
-            className="platform-admin-manual-tenant-backdrop"
-            role="dialog"
-            aria-modal="true"
-            aria-label={manualTenantMode === "create" ? "Create manual tenant" : "Edit manual subscription"}
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={closeAdminDrawer} disabled={trialFollowUpSending}>
+            Cancel
+          </PanelButton>
+          <PanelButton
+            variant="primary"
+            disabled={trialFollowUpSending || !selected?.contactEmail?.trim()}
+            busy={trialFollowUpSending}
+            onClick={() => void sendTrialFollowUp()}
           >
-            <div className="platform-admin-manual-tenant-modal">
-              <div className="platform-admin-manual-tenant-header">
-                <div className="platform-admin-manual-tenant-title">
-                  <div className="platform-admin-eyebrow">Platform Admin</div>
-                  <h2>
-                    {manualTenantMode === "create"
-                      ? "Add tenant manually"
-                      : "Edit tenant subscription"}
-                  </h2>
-                  <p>
-                    Creates the tenant, first admin user, package limits,
-                    features, invoice/payment link and separate invite email.
-                  </p>
-                </div>
-                <button
-                  className="platform-admin-button platform-admin-secondary platform-admin-small"
-                  type="button"
-                  onClick={() => setManualTenantOpen(false)}
-                >
-                  Close
-                </button>
-              </div>
+            {trialFollowUpSending ? "Sending…" : "Send follow-up"}
+          </PanelButton>
+        </PanelFooter>
+      </SidePanel>
+
+      <SidePanel
+        open={tenantFormOpen}
+        onClose={closeAdminDrawer}
+        ariaLabel={manualTenantMode === "create" ? "Create manual tenant" : "Edit manual subscription"}
+        size="xl"
+        closeOnScrimClick={false}
+      >
+        <PanelHeader
+          title={manualTenantMode === "create" ? "Add tenant manually" : "Edit tenant subscription"}
+          subtitle={
+            manualTenantMode === "create"
+              ? "Creates the tenant, first admin user, package limits, features, invoice/payment link and separate invite email."
+              : "Update this tenant's package limits, features, invoice and payment settings."
+          }
+          onClose={closeAdminDrawer}
+          closeLabel="Close"
+        />
+        <PanelBody>
 
               {manualTenantErr ? (
                 <div className="platform-admin-manual-error">{manualTenantErr}</div>
@@ -7624,57 +7674,52 @@ export function PlatformAdminPage() {
                   </div>
                 ) : null}
               </section>
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={closeAdminDrawer} disabled={manualTenantSaving}>
+            Cancel
+          </PanelButton>
+          <PanelButton
+            variant="primary"
+            disabled={manualTenantSaving}
+            busy={manualTenantSaving}
+            onClick={() => void submitManualTenant()}
+          >
+            {manualTenantSaving
+              ? "Saving…"
+              : manualTenantMode === "create"
+                ? "Create tenant"
+                : "Save subscription"}
+          </PanelButton>
+        </PanelFooter>
+      </SidePanel>
 
-              <div className="platform-admin-manual-actions">
-                <button
-                  className="platform-admin-button platform-admin-secondary"
-                  type="button"
-                  onClick={() => setManualTenantOpen(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="platform-admin-button platform-admin-primary"
-                  type="button"
-                  disabled={manualTenantSaving}
-                  onClick={submitManualTenant}
-                >
-                  {manualTenantSaving
-                    ? "Saving…"
-                    : manualTenantMode === "create"
-                      ? "Create tenant"
-                      : "Save subscription"}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        <div
-          className="platform-admin-modal-backdrop"
-          id="modalBackdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-hidden="true"
-          data-modal-kind=""
-        >
-          <div className="platform-admin-modal">
-            <h3 id="modalTitle">Admin action</h3>
-            <p id="modalCopy">
-              Admin overrides require a reason and create an immutable audit log
-              entry.
-            </p>
+      <SidePanel
+        open={Boolean(adminActionKind)}
+        onClose={closeAdminDrawer}
+        ariaLabel={adminActionKind ? modalContent[adminActionKind][0] : "Admin action"}
+        size="md"
+        closeOnScrimClick={!adminActionBusy}
+      >
+        <PanelHeader
+          title={adminActionKind ? modalContent[adminActionKind][0] : "Admin action"}
+          subtitle={adminActionKind ? modalContent[adminActionKind][1] : undefined}
+          onClose={closeAdminDrawer}
+          closeLabel="Cancel"
+        />
+        <PanelBody>
+          <div id="modalBackdrop" data-modal-kind={adminActionKind ?? ""}>
             <div className="platform-admin-select-row" id="modalPlanRow">
               <label htmlFor="actionSelect">Action</label>
-              <DesktopSelect id="actionSelect">
+              <DesktopSelect id="actionSelect" onChange={onAdminActionFieldChange}>
                 <option>Upgrade immediately</option>
               </DesktopSelect>
             </div>
-            {activeModalKind === "plan" && selected ? (
+            {adminActionKind === "plan" && selected ? (
               <div id="planChangeExtras" className="platform-admin-plan-change-extras" hidden>
                 <div className="platform-admin-select-row">
                   <label htmlFor="planTargetSelect">New plan</label>
-                  <DesktopSelect id="planTargetSelect" />
+                  <DesktopSelect id="planTargetSelect" onChange={onAdminActionFieldChange} />
                 </div>
                 <p
                   id="planEffectiveDateHint"
@@ -7683,7 +7728,7 @@ export function PlatformAdminPage() {
                 />
               </div>
             ) : null}
-            {activeModalKind === "price" && selected ? (
+            {adminActionKind === "price" && selected ? (
               <div id="priceOverrideExtras" className="platform-admin-price-override-extras">
                 <div
                   id="priceOverridePanelCustom"
@@ -7702,6 +7747,7 @@ export function PlatformAdminPage() {
                       min={0}
                       step={0.01}
                       inputMode="decimal"
+                      onChange={onAdminActionFieldChange}
                     />
                     <p
                       className="platform-admin-muted"
@@ -7734,9 +7780,14 @@ export function PlatformAdminPage() {
                       max={100}
                       step={0.5}
                       inputMode="decimal"
+                      onChange={onAdminActionFieldChange}
                     />
                     <label className="platform-admin-checkbox-row">
-                      <input id="priceDiscountIncludeAddons" type="checkbox" />
+                      <input
+                        id="priceDiscountIncludeAddons"
+                        type="checkbox"
+                        onChange={onAdminActionFieldChange}
+                      />
                       <span>
                         Include this tenant&apos;s selected add-ons in the %
                         discount. Usage charges remain unchanged.
@@ -7765,25 +7816,49 @@ export function PlatformAdminPage() {
                 placeholder="Required for admin override, price changes, suspension and annual downgrade exceptions."
               />
             </div>
-            <div className="platform-admin-modal-actions">
-              <button
-                className="platform-admin-button platform-admin-secondary"
-                type="button"
-                id="closeModal"
-              >
-                Cancel
-              </button>
-              <button
-                className="platform-admin-button platform-admin-primary"
-                type="button"
-                id="confirmModal"
-              >
-                Confirm action
-              </button>
-            </div>
           </div>
-        </div>
-      </div>
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={closeAdminDrawer} disabled={adminActionBusy}>
+            Cancel
+          </PanelButton>
+          <PanelButton
+            variant="primary"
+            disabled={adminActionBusy}
+            busy={adminActionBusy}
+            onClick={() => void confirmAdminAction()}
+          >
+            Confirm action
+          </PanelButton>
+        </PanelFooter>
+      </SidePanel>
+
+      <ConfirmDialog
+        open={deleteTenantOpen}
+        onClose={() => {
+          if (deleteTenantBusy) return;
+          setDeleteTenantOpen(false);
+          setDeleteTenantReason("");
+        }}
+        tone="danger"
+        title="Delete tenant"
+        text={modalContent.delete[1]}
+        confirmLabel="Delete permanently"
+        cancelLabel="Cancel"
+        confirmDisabled={!deleteTenantReason.trim()}
+        busy={deleteTenantBusy}
+        onConfirm={() => void confirmDeleteTenant()}
+      >
+        <label className="field">
+          <span className="field-label">Reason / internal note</span>
+          <textarea
+            value={deleteTenantReason}
+            onChange={(e) => setDeleteTenantReason(e.target.value)}
+            placeholder="Required before deleting a tenant."
+          />
+        </label>
+      </ConfirmDialog>
     </>
   );
 }
+

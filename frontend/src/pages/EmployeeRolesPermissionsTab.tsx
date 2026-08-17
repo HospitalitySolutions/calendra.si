@@ -3,6 +3,8 @@ import { api } from '../api'
 import { Card, EmptyState } from '../components/ui'
 import { CONSUMABLE_SPECIAL_PERMISSIONS, EMPLOYEE_PERMISSION_ACTION_KEYS, type EmployeePermission } from '../lib/employeePermissions'
 import { useLocale, type AppLocale } from '../locale'
+import { PanelBody, PanelHeader, SidePanel, useConfirm } from '../components/panel'
+import { CONSULTANTS_DRAWERS, useDrawerRoute } from '../lib/drawerRoutes'
 
 type PermissionAction = typeof EMPLOYEE_PERMISSION_ACTION_KEYS[number]
 
@@ -349,6 +351,11 @@ function roleDisplayDescription(role: EmployeeRole, locale: AppLocale) {
 
 export function EmployeeRolesPermissionsTab() {
   const { locale } = useLocale()
+  const confirm = useConfirm()
+  const { match: drawerMatch, isOpen: isDrawerOpen, open: openDrawer, close: closeDrawer } = useDrawerRoute()
+  const consultantsDrawers = drawerMatch == null || drawerMatch.descriptor.page === '/consultants'
+  const membersOpen = consultantsDrawers && isDrawerOpen(CONSULTANTS_DRAWERS.roleMembers)
+  const membersRoleId = membersOpen ? drawerMatch?.params.id : undefined
   const copy = roleCopyForLocale(locale)
   const [overview, setOverview] = useState<RolesOverview | null>(null)
   const [selectedRoleId, setSelectedRoleId] = useState<string>('')
@@ -527,19 +534,49 @@ export function EmployeeRolesPermissionsTab() {
   }
 
   async function openMembersDialog(role: EmployeeRole) {
-    setMembersDialog({ role, members: [], loading: true, error: '' })
-    try {
-      const { data } = await api.get<RoleMembersResponse>(`/employee-roles/${encodeURIComponent(role.id)}/members`)
-      setMembersDialog({ role, members: data.members ?? [], loading: false, error: '' })
-    } catch (error: any) {
-      setMembersDialog({
-        role,
-        members: [],
-        loading: false,
-        error: error?.response?.data?.message || copy.membersLoadError,
-      })
-    }
+    openDrawer(CONSULTANTS_DRAWERS.roleMembers, {
+      params: { id: role.id },
+      search: 'tab=roles',
+    })
   }
+
+  useEffect(() => {
+    if (!membersOpen || !membersRoleId) {
+      setMembersDialog(null)
+      return
+    }
+    let cancelled = false
+    const placeholderRole: EmployeeRole = {
+      id: membersRoleId,
+      system: false,
+      name: '',
+      permissions: [],
+      memberCount: 0,
+    }
+    setMembersDialog({ role: placeholderRole, members: [], loading: true, error: '' })
+    void api.get<RoleMembersResponse>(`/employee-roles/${encodeURIComponent(membersRoleId)}/members`)
+      .then(({ data }) => {
+        if (cancelled) return
+        setMembersDialog((current) => ({
+          role: current?.role ?? placeholderRole,
+          members: data.members ?? [],
+          loading: false,
+          error: '',
+        }))
+      })
+      .catch((error: any) => {
+        if (cancelled) return
+        setMembersDialog((current) => ({
+          role: current?.role ?? placeholderRole,
+          members: [],
+          loading: false,
+          error: error?.response?.data?.message || copy.membersLoadError,
+        }))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [copy.membersLoadError, membersOpen, membersRoleId])
 
   async function createNewRole() {
     setSaving(true)
@@ -604,7 +641,7 @@ export function EmployeeRolesPermissionsTab() {
 
   async function archiveSelectedRole() {
     if (!selectedRole || selectedRole.system || !selectedRole.customRoleId) return
-    const confirmed = window.confirm(copy.archiveConfirm(roleDisplayName(selectedRole, locale)))
+    const confirmed = await confirm({ title: copy.archiveConfirm(roleDisplayName(selectedRole, locale)), tone: 'danger' })
     if (!confirmed) return
     setArchiving(true)
     setErrorMessage('')
@@ -914,17 +951,27 @@ export function EmployeeRolesPermissionsTab() {
       </div>
 
       {membersDialog && (
-        <div className="modal-backdrop employee-roles-members-backdrop" onClick={() => setMembersDialog(null)}>
-          <div className="employee-roles-members-modal" role="dialog" aria-modal="true" aria-labelledby="employee-role-members-title" onClick={(event) => event.stopPropagation()}>
-            <div className="employee-roles-members-head">
-              <div>
-                <span className="employee-roles-members-eyebrow">{copy.assignedUsersEyebrow}</span>
-                <h2 id="employee-role-members-title">{roleDisplayName(membersDialog.role, locale)}</h2>
-                <p>{memberLabel(membersDialog.members.length || membersDialog.role.memberCount, locale)}</p>
-              </div>
-              <button type="button" className="employee-roles-members-close" onClick={() => setMembersDialog(null)} aria-label={copy.closeMembers}>×</button>
-            </div>
-
+        <SidePanel
+          open
+          size="md"
+          onClose={() => closeDrawer({ search: 'tab=roles' })}
+          ariaLabel={roleDisplayName(
+            roles.find((role) => role.id === membersDialog.role.id) ?? membersDialog.role,
+            locale,
+          ) || copy.assignedUsersEyebrow}
+        >
+          <PanelHeader
+            title={
+              roleDisplayName(
+                roles.find((role) => role.id === membersDialog.role.id) ?? membersDialog.role,
+                locale,
+              ) || copy.assignedUsersEyebrow
+            }
+            subtitle={memberLabel(membersDialog.members.length || membersDialog.role.memberCount, locale)}
+            onClose={() => closeDrawer({ search: 'tab=roles' })}
+            closeLabel={copy.closeMembers}
+          />
+          <PanelBody>
             {membersDialog.loading ? (
               <div className="employee-roles-members-state">{copy.loadingMembers}</div>
             ) : membersDialog.error ? (
@@ -951,8 +998,8 @@ export function EmployeeRolesPermissionsTab() {
                 ))}
               </div>
             )}
-          </div>
-        </div>
+          </PanelBody>
+        </SidePanel>
       )}
     </div>
   )

@@ -3,6 +3,20 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useLocale } from '../locale'
+import {
+  PanelBanner,
+  PanelBody,
+  PanelButton,
+  PanelFooter,
+  PanelHeader,
+  PanelMenuItem,
+  PanelOverflowMenu,
+  PanelSection,
+  PanelSectionIcon,
+  SidePanel,
+  useConfirm,
+} from '../components/panel'
+import { WAITLIST_DRAWERS, useDrawerRoute } from '../lib/drawerRoutes'
 import { ModernTimePicker } from '../components/ModernTimePicker'
 import { useAuthenticatedUser } from '../authUserContext'
 import { queryClient } from '../queries/queryClient'
@@ -267,12 +281,31 @@ function eventLabel(type: string, locale: string) {
 
 export function AppointmentsPage() {
   const { locale } = useLocale()
+  const confirm = useConfirm()
   const me = useAuthenticatedUser()
   const activeUnitId = me.activeUnitId ?? me.companyId ?? null
   const location = useLocation()
   const navigate = useNavigate()
-  const query = useMemo(() => new URLSearchParams(location.search), [location.search])
-  const queryRequestId = Number(query.get('requestId') || 0) || null
+
+  /*
+   * The open request is the URL. `/appointments/drawer/request/:id` reloads straight
+   * into the detail drawer; the three bodies below follow the entry's own status, so
+   * they are one drawer rather than three routes.
+   */
+  const { match: drawerMatch, isOpen: isDrawerOpen, open: openDrawer, close: closeDrawerRoute } = useDrawerRoute()
+  const drawerRequestId = drawerMatch?.descriptor.name === WAITLIST_DRAWERS.request.name
+    ? Number(drawerMatch.params.id) || null
+    : null
+
+  // Pre-drawer links carried the request in `?requestId=`; keep them working.
+  useEffect(() => {
+    const legacyId = Number(new URLSearchParams(location.search).get('requestId') || 0)
+    if (!legacyId) return
+    const params = new URLSearchParams(location.search)
+    params.delete('requestId')
+    const search = params.toString()
+    navigate(`/appointments/drawer/request/${legacyId}${search ? `?${search}` : ''}`, { replace: true })
+  }, [location.search, navigate])
   const [view, setView] = useState<'ACTIVE' | 'OFFERED' | 'HISTORY'>('ACTIVE')
   const [rows, setRows] = useState<WaitlistRequest[]>([])
   const [selected, setSelected] = useState<WaitlistRequest | null>(null)
@@ -287,7 +320,12 @@ export function AppointmentsPage() {
   const [dateToFilter, setDateToFilter] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [filterDraft, setFilterDraft] = useState({ serviceFilter: '', employeeFilter: '', sourceFilter: '', dateFromFilter: '', dateToFilter: '' })
-  const [showCreate, setShowCreate] = useState(false)
+  const createOpen = isDrawerOpen(WAITLIST_DRAWERS.newRequest)
+  const openCreate = useCallback(() => {
+    setRequestForm(emptyRequestForm())
+    openDrawer(WAITLIST_DRAWERS.newRequest)
+  }, [openDrawer])
+  const closeCreate = useCallback(() => closeDrawerRoute({ replace: true }), [closeDrawerRoute])
   const [showOffer, setShowOffer] = useState(false)
   const [viewCounts, setViewCounts] = useState<{ ACTIVE: number; OFFERED: number; HISTORY: number }>({ ACTIVE: 0, OFFERED: 0, HISTORY: 0 })
   const [requestForm, setRequestForm] = useState<RequestForm>(emptyRequestForm)
@@ -397,7 +435,7 @@ export function AppointmentsPage() {
         HISTORY: Number(data?.counts?.history || 0),
       })
       if (preserveSelection) return
-      const targetId = preferredId ?? queryRequestId
+      const targetId = preferredId ?? drawerRequestId
       if (targetId) {
         if (selectionEpoch !== modalSelectionEpoch.current) return
         const detailOptions = waitlistDetailQueryOptions<WaitlistRequest>(activeUnitId, targetId)
@@ -416,7 +454,7 @@ export function AppointmentsPage() {
     } finally {
       if (!silent) setLoading(false)
     }
-  }, [activeUnitId, view, debouncedSearch, serviceFilter, employeeFilter, sourceFilter, dateFromFilter, dateToFilter, queryRequestId, copy.loadError])
+  }, [activeUnitId, view, debouncedSearch, serviceFilter, employeeFilter, sourceFilter, dateFromFilter, dateToFilter, drawerRequestId, copy.loadError])
 
   const loadLookups = useCallback(async () => {
     // Reuse the same scheduling metadata cache as Calendar instead of issuing
@@ -512,8 +550,8 @@ export function AppointmentsPage() {
   }, [loadRows])
   useEffect(() => { void loadLookups() }, [loadLookups])
   useEffect(() => {
-    if (showCreate) void loadCreateLookups()
-  }, [loadCreateLookups, showCreate])
+    if (createOpen) void loadCreateLookups()
+  }, [loadCreateLookups, createOpen])
   useEffect(() => {
     if (showOffer) void loadOfferLookups()
   }, [loadOfferLookups, showOffer])
@@ -542,10 +580,7 @@ export function AppointmentsPage() {
   const selectRequest = async (row: WaitlistRequest) => {
     const epoch = ++modalSelectionEpoch.current
     setSelected(row)
-    const params = new URLSearchParams(location.search)
-    params.delete('tab')
-    params.set('requestId', String(row.id))
-    navigate({ pathname: '/appointments', search: params.toString() }, { replace: true })
+    openDrawer(WAITLIST_DRAWERS.request, { params: { id: row.id } })
     const detail = await queryClient
       .fetchQuery(waitlistDetailQueryOptions<WaitlistRequest>(activeUnitId, row.id))
       .catch(() => null)
@@ -595,9 +630,11 @@ export function AppointmentsPage() {
       }
       const { data } = await api.post('/waitlists', payload)
       await queryClient.invalidateQueries({ queryKey: queryKeys.waitlist.all })
-      setShowCreate(false)
       setRequestForm(emptyRequestForm())
       setView('ACTIVE')
+      // The new request replaces the create drawer, so its detail opens on the same URL step.
+      if (data?.id) openDrawer(WAITLIST_DRAWERS.request, { params: { id: data.id }, replace: true })
+      else closeCreate()
       await loadRows(data?.id, { force: true })
     } catch (e: any) {
       window.alert(e?.response?.data?.message || e?.response?.data?.detail || 'Napaka pri shranjevanju.')
@@ -675,14 +712,18 @@ export function AppointmentsPage() {
   }
 
   const removeSelected = async () => {
-    if (!selected || !window.confirm(locale === 'sl' ? 'Ali želite zahtevo odstraniti s čakalne vrste?' : 'Remove this request from the waitlist?')) return
+    if (!selected) return
+    const title = locale === 'sl' ? 'Ali želite zahtevo odstraniti s čakalne vrste?' : 'Remove this request from the waitlist?'
+    if (!(await confirm({ title, tone: 'danger' }))) return
     await api.delete(`/waitlists/${selected.id}`)
     await queryClient.invalidateQueries({ queryKey: queryKeys.waitlist.all })
     await closeSelected()
   }
 
 
-  const closeSelected = async (options: { refreshRows?: boolean; suppressNextReload?: boolean } = {}) => {
+  const closeSelected = async (
+    options: { refreshRows?: boolean; suppressNextReload?: boolean; keepUrl?: boolean } = {},
+  ) => {
     if (closingSelectedRef.current) return
     closingSelectedRef.current = true
 
@@ -698,13 +739,9 @@ export function AppointmentsPage() {
       }
     } finally {
       setSelected(null)
-      const params = new URLSearchParams(location.search)
-      const hadRequestId = params.has('requestId')
-      params.delete('requestId')
-      params.delete('tab')
-      if (hadRequestId) {
+      if (drawerRequestId != null && !options.keepUrl) {
         skipNextRowsReload.current = suppressNextReload
-        navigate({ pathname: '/appointments', search: params.toString() }, { replace: true })
+        closeDrawerRoute({ replace: true })
       }
       closingSelectedRef.current = false
     }
@@ -712,7 +749,10 @@ export function AppointmentsPage() {
 
   const revokeSelectedOffer = async () => {
     if (!selected?.currentOffer) return
-    const confirmed = window.confirm(locale === 'sl' ? 'Ali želite preklicati aktivno ponudbo?' : 'Revoke the active offer?')
+    const confirmed = await confirm({
+      title: locale === 'sl' ? 'Ali želite preklicati aktivno ponudbo?' : 'Revoke the active offer?',
+      tone: 'danger',
+    })
     if (!confirmed) return
     try {
       await api.delete(`/waitlists/offers/${selected.currentOffer.id}`)
@@ -730,9 +770,11 @@ export function AppointmentsPage() {
       openOffer(selected)
       return
     }
-    const confirmed = window.confirm(locale === 'sl'
-      ? 'Aktivna ponudba bo preklicana in lahko boste poslali novo. Nadaljujem?'
-      : 'The active offer will be revoked before you send a new one. Continue?')
+    const confirmed = await confirm({
+      title: locale === 'sl'
+        ? 'Aktivna ponudba bo preklicana in lahko boste poslali novo. Nadaljujem?'
+        : 'The active offer will be revoked before you send a new one. Continue?',
+    })
     if (!confirmed) return
     try {
       await api.delete(`/waitlists/offers/${selected.currentOffer.id}`)
@@ -766,8 +808,11 @@ export function AppointmentsPage() {
       timeTo: firstWindow?.timeTo?.slice(0, 5) || '18:00',
       notes: selected.notes || '',
     })
-    void closeSelected({ refreshRows: false })
-    setShowCreate(true)
+    // The create drawer takes over the detail drawer's URL step, so closeSelected
+    // must not navigate as well or it would land back on the page instead.
+    skipNextRowsReload.current = true
+    void closeSelected({ refreshRows: false, keepUrl: true })
+    openDrawer(WAITLIST_DRAWERS.newRequest, { replace: true })
   }
 
   const openSelectedBooking = () => {
@@ -841,6 +886,11 @@ export function AppointmentsPage() {
       ? copy.anyAvailable
       : null
   const selectedHistory = selected ? [...selected.history].sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime()) : []
+  /* Which body the detail drawer shows follows the entry's own status, not the page tab:
+     a request opened from a deep link has no tab to inherit. */
+  const selectedIsActive = selected?.status === 'ACTIVE'
+  const selectedIsOffered = selected?.status === 'OFFERED'
+  const selectedIsHistory = Boolean(selected) && !selectedIsActive && !selectedIsOffered
   const activeFilterCount = [serviceFilter, employeeFilter, sourceFilter, dateFromFilter, dateToFilter].filter(Boolean).length
 
   const openFilters = () => {
@@ -878,7 +928,7 @@ export function AppointmentsPage() {
             {activeFilterCount > 0 && <strong className="waitlist-filter-trigger__count">{activeFilterCount}</strong>}
           </button>
         </div>
-        <button type="button" className="appointments-primary waitlist-add-button" onClick={() => setShowCreate(true)}>{icon('plus')}<span>{isMobileWaitlist ? (locale === 'sl' ? 'Dodaj' : 'Add') : copy.add}</span></button>
+        <button type="button" className="appointments-primary waitlist-add-button" onClick={openCreate}>{icon('plus')}<span>{isMobileWaitlist ? (locale === 'sl' ? 'Dodaj' : 'Add') : copy.add}</span></button>
       </section>
 
       {error && <div className="waitlist-error">{error}</div>}
@@ -976,92 +1026,72 @@ export function AppointmentsPage() {
 
       </div>
 
-      {selected && <div className="waitlist-detail-backdrop" onMouseDown={() => void closeSelected()}>
-        <article className={`waitlist-detail-modal waitlist-detail-modal--${view.toLowerCase()}`} onMouseDown={event => event.stopPropagation()}>
-          <header className="waitlist-detail-modal__header">
-            <div className="waitlist-client waitlist-client--modal">
-              <span className="waitlist-avatar large">{waitlistClientInitials(selected.clientName)}</span>
-              <div>
-                <div className="waitlist-detail-modal__title-row">
-                  <h2>{selected.clientName}</h2>
-                  <span className={`waitlist-status status-${selected.status.toLowerCase()}`}>{statusLabel(selected.status, locale)}</span>
-                </div>
-                <p>{copy.joinedSince} {formatDateTime(selected.joinedAt)}</p>
+      <SidePanel
+        open={isDrawerOpen(WAITLIST_DRAWERS.request) && Boolean(selected)}
+        onClose={() => void closeSelected()}
+        ariaLabel={selected?.clientName || copy.request}
+        size="lg"
+      >
+        {selected && <>
+          <PanelHeader
+            title={<span className="waitlist-detail-title">{selected.clientName}<span className={`waitlist-status status-${selected.status.toLowerCase()}`}>{statusLabel(selected.status, locale)}</span></span>}
+            subtitle={`${copy.joinedSince} ${formatDateTime(selected.joinedAt)}`}
+            onClose={() => void closeSelected()}
+            closeLabel={copy.close}
+            overflow={
+              <PanelOverflowMenu label={copy.actions}>
+                {close => <>
+                  <PanelMenuItem onClick={() => { close(); navigate(`/inbox?clientId=${selected.clientId || ''}`) }} icon={icon('message')}>{copy.message}</PanelMenuItem>
+                  {selectedIsHistory && <PanelMenuItem onClick={() => { close(); reAddSelected() }} icon={icon('plus')}>{copy.reAdd}</PanelMenuItem>}
+                  {selectedIsOffered && selected.currentOffer && <PanelMenuItem onClick={() => { close(); void revokeSelectedOffer() }} icon={icon('close')}>{copy.revokeOffer}</PanelMenuItem>}
+                  <PanelMenuItem onClick={() => { close(); void removeSelected() }} icon={icon('trash')} danger>{copy.remove}</PanelMenuItem>
+                </>}
+              </PanelOverflowMenu>
+            }
+          />
+
+          <PanelBody sectioned>
+            <PanelSection
+              title={copy.contact}
+              icon={<PanelSectionIcon name="contact" />}
+              summary={selected.clientPhone || selected.clientEmail || '—'}
+            >
+              <div className="waitlist-contact-stack">
+                <div>{icon('mail')}<span>{selected.clientEmail || '—'}</span></div>
+                <div>{icon('phone')}<span>{selected.clientPhone || '—'}</span></div>
               </div>
-            </div>
-            <button type="button" className="icon-button waitlist-detail-modal__close" onClick={() => void closeSelected()} aria-label={copy.close}>{icon('close')}</button>
-          </header>
+            </PanelSection>
 
-          {view === 'ACTIVE' && <>
-            <div className="waitlist-detail-modal__body waitlist-detail-modal__body--active">
-              <section className="waitlist-popup-card waitlist-popup-card--contact">
-                <h3>{icon('user')}{copy.contact}</h3>
-                <div className="waitlist-contact-grid">
-                  <div>{icon('mail')}<span>{selected.clientEmail || '—'}</span></div>
-                  <div>{icon('phone')}<span>{selected.clientPhone || '—'}</span></div>
-                </div>
-              </section>
-
-              <section className="waitlist-popup-card">
-                <h3>{icon('calendar')}{copy.request}</h3>
-                <dl className="waitlist-popup-dl">
-                  <dt>{copy.service}</dt><dd>{requestServiceLabel(selected, serviceGroupsModuleEnabled)} · {requestServiceDetails(selected, serviceGroupsModuleEnabled)}</dd>
+            <PanelSection
+              title={selectedIsHistory ? copy.closedRequest : copy.request}
+              icon={<PanelSectionIcon name="schedule" />}
+              summary={requestServiceLabel(selected, serviceGroupsModuleEnabled)}
+            >
+              <dl className="waitlist-popup-dl">
+                <dt>{copy.service}</dt><dd>{requestServiceLabel(selected, serviceGroupsModuleEnabled)} · {requestServiceDetails(selected, serviceGroupsModuleEnabled)}</dd>
+                {selectedIsActive ? <>
                   <dt>{copy.period}</dt><dd>{selectedPeriod}</dd>
                   <dt>{copy.time}</dt><dd><div className="waitlist-request-time"><span>{selectedTime}</span>{selectedPreferenceBadge && <span className="waitlist-preference-badge">{icon('history')}{selectedPreferenceBadge}</span>}</div></dd>
-                  {showWeekdayPreferences && <><dt>{copy.weekdays}</dt><dd><div className="waitlist-weekday-chips" aria-label={copy.weekdays}>{WAITLIST_WEEKDAYS.map(day => {
-                    const isSelected = allWeekdaysAccepted || selectedWeekdays.has(day)
-                    return <span key={day} className={`waitlist-weekday-chip${isSelected ? ' is-selected' : ''}`} aria-label={`${weekdayShortLabel(day, locale)}: ${isSelected ? (locale === 'sl' ? 'izbrano' : 'selected') : (locale === 'sl' ? 'ni izbrano' : 'not selected')}`}>{weekdayShortLabel(day, locale)}</span>
-                  })}</div></dd></>}
-                  <dt>{copy.employee}</dt><dd>{selectedEmployeeName}</dd>
-                  <dt>{copy.location}</dt><dd>{selected.locationName || '—'}</dd>
-                  <dt>{copy.participants}</dt><dd>{selected.requestedParticipants}</dd>
-                  <dt>{copy.source}</dt><dd>{sourceLabel(selected.source, locale)}</dd>
-                </dl>
-              </section>
+                </> : <>
+                  <dt>{copy.requestedWindow}</dt><dd>{selectedWantedTime}</dd>
+                </>}
+                {selectedIsActive && showWeekdayPreferences && <><dt>{copy.weekdays}</dt><dd><div className="waitlist-weekday-chips" aria-label={copy.weekdays}>{WAITLIST_WEEKDAYS.map(day => {
+                  const isSelected = allWeekdaysAccepted || selectedWeekdays.has(day)
+                  return <span key={day} className={`waitlist-weekday-chip${isSelected ? ' is-selected' : ''}`} aria-label={`${weekdayShortLabel(day, locale)}: ${isSelected ? (locale === 'sl' ? 'izbrano' : 'selected') : (locale === 'sl' ? 'ni izbrano' : 'not selected')}`}>{weekdayShortLabel(day, locale)}</span>
+                })}</div></dd></>}
+                <dt>{copy.employee}</dt><dd>{selectedEmployeeName}</dd>
+                <dt>{copy.location}</dt><dd>{selected.locationName || '—'}</dd>
+                <dt>{copy.participants}</dt><dd>{selected.requestedParticipants}</dd>
+                <dt>{copy.source}</dt><dd>{sourceLabel(selected.source, locale)}</dd>
+              </dl>
+            </PanelSection>
 
-              {selected.notes && <section className="waitlist-popup-card waitlist-popup-card--notes">
-                <h3>{icon('info')}{copy.note}</h3>
-                <p>{selected.notes}</p>
-              </section>}
-
-              <section className="waitlist-popup-card">
-                <h3>{icon('history')}{copy.audit}</h3>
-                <div className="waitlist-popup-timeline">
-                  {selectedHistory.length === 0 ? <p>—</p> : selectedHistory.map(event => <article key={event.id}>
-                    <span className="timeline-dot"/>
-                    <time>{formatDateTime(event.occurredAt)}</time>
-                    <div><strong>{eventLabel(event.type, locale)}</strong>{event.detail && <p>{event.detail}</p>}</div>
-                  </article>)}
-                </div>
-              </section>
-            </div>
-            <footer className="waitlist-detail-modal__footer">
-              <button type="button" className="primary" onClick={() => openOffer()}>{icon('offer')}{copy.offer}</button>
-              <button type="button" onClick={() => navigate(`/calendar?waitlistRequestId=${selected.id}&clientId=${selected.clientId || ''}&typeId=${selected.serviceId}&date=${selected.dateFrom}`)}>{icon('booking')}{copy.reserve}</button>
-              <button type="button" onClick={() => navigate(`/inbox?clientId=${selected.clientId || ''}`)}>{icon('message')}{copy.message}</button>
-              <button type="button" className="danger" onClick={() => void removeSelected()}>{icon('trash')}{copy.remove}</button>
-            </footer>
-          </>}
-
-          {view === 'OFFERED' && <>
-            <div className="waitlist-detail-modal__body waitlist-detail-modal__body--offered">
-              <section className="waitlist-popup-section">
-                <h3>{copy.customerAndRequest}</h3>
-                <dl className="waitlist-popup-dl waitlist-popup-dl--icons">
-                  <dt>{icon('mail')}{locale === 'sl' ? 'E-pošta' : 'Email'}</dt><dd>{selected.clientEmail || '—'}</dd>
-                  <dt>{icon('phone')}{locale === 'sl' ? 'Telefon' : 'Phone'}</dt><dd>{selected.clientPhone || '—'}</dd>
-                  <dt>{icon('history')}{copy.service}</dt><dd>{requestServiceLabel(selected, serviceGroupsModuleEnabled)} · {requestServiceDetails(selected, serviceGroupsModuleEnabled)}</dd>
-                  <dt>{icon('calendar')}{copy.requestedWindow}</dt><dd>{selectedWantedTime}</dd>
-                  <dt>{icon('user')}{copy.employee}</dt><dd>{selectedEmployeeName}</dd>
-                  <dt>{icon('pin')}{copy.location}</dt><dd>{selected.locationName || '—'}</dd>
-                  <dt>{icon('user')}{copy.participants}</dt><dd>{selected.requestedParticipants}</dd>
-                  <dt>{icon('queue')}{copy.source}</dt><dd>{sourceLabel(selected.source, locale)}</dd>
-                </dl>
-                <div className="waitlist-offer-additional"><span>{copy.additionalInfo}</span><p>{selected.notes || '—'}</p></div>
-              </section>
-
-              <section className="waitlist-popup-section waitlist-popup-section--offer">
-                <h3>{copy.activeOffer}</h3>
+            {selectedIsOffered && (
+              <PanelSection
+                title={copy.activeOffer}
+                icon={<PanelSectionIcon name="offer" />}
+                summary={selected.currentOffer ? formatDateTime(selected.currentOffer.slotStart) : copy.noActiveOffer}
+              >
                 {selected.currentOffer ? <div className="waitlist-active-offer-card">
                   <div className="waitlist-active-offer-card__heading">
                     <span className="waitlist-active-offer-card__icon">{icon('offer')}</span>
@@ -1074,132 +1104,196 @@ export function AppointmentsPage() {
                   </dl>
                   <div className="waitlist-active-offer-card__info">{icon('info')}<span>{copy.temporaryHold} {formatDateTime(selected.currentOffer.expiresAt)}.</span></div>
                 </div> : <div className="waitlist-popup-empty-offer">{copy.noActiveOffer}</div>}
-              </section>
-            </div>
-            <footer className="waitlist-detail-modal__footer">
-              <button type="button" className="primary" onClick={() => void offerAnotherSelected()}>{icon('offer')}{copy.offerAnother}</button>
-              {selected.currentOffer && <button type="button" onClick={() => void revokeSelectedOffer()}>{icon('close')}{copy.revokeOffer}</button>}
-              <button type="button" onClick={() => navigate(`/inbox?clientId=${selected.clientId || ''}`)}>{icon('message')}{copy.message}</button>
-              <button type="button" onClick={() => void closeSelected()}>{copy.close}</button>
-            </footer>
-          </>}
+              </PanelSection>
+            )}
 
-          {view === 'HISTORY' && <>
-            <div className="waitlist-detail-modal__body waitlist-detail-modal__body--history">
-              <div className="waitlist-history-grid">
-                <section className="waitlist-popup-card">
-                  <h3>{copy.contact}</h3>
-                  <div className="waitlist-contact-stack"><div>{icon('mail')}<span>{selected.clientEmail || '—'}</span></div><div>{icon('phone')}<span>{selected.clientPhone || '—'}</span></div></div>
-                  <hr/>
-                  <h3>{copy.closedRequest}</h3>
-                  <dl className="waitlist-popup-dl">
-                    <dt>{copy.service}</dt><dd>{requestServiceLabel(selected, serviceGroupsModuleEnabled)} · {requestServiceDetails(selected, serviceGroupsModuleEnabled)}</dd>
-                    <dt>{copy.requestedWindow}</dt><dd>{selectedWantedTime}</dd>
-                    <dt>{copy.employee}</dt><dd>{selectedEmployeeName}</dd>
-                    <dt>{copy.location}</dt><dd>{selected.locationName || '—'}</dd>
-                    <dt>{copy.participants}</dt><dd>{selected.requestedParticipants}</dd>
-                    <dt>{copy.source}</dt><dd>{sourceLabel(selected.source, locale)}</dd>
-                  </dl>
-                </section>
+            {selectedIsHistory && (
+              <PanelSection
+                title={copy.linkedBooking}
+                icon={<PanelSectionIcon name="availability" />}
+                summary={selected.bookedBookingId ? `#${selected.bookedBookingId}` : statusLabel(selected.status, locale)}
+              >
+                {selected.bookedBookingId ? <div className="waitlist-linked-booking-card waitlist-linked-booking-card--panel">
+                  <div className="waitlist-linked-booking-card__icon">{icon('booking')}</div>
+                  <span>{locale === 'sl' ? 'Rezervacija' : 'Booking'}</span>
+                  <strong>#{selected.bookedBookingId}</strong>
+                  <p>{selected.currentOffer?.serviceName || requestServiceLabel(selected, serviceGroupsModuleEnabled)}</p>
+                  <button type="button" onClick={openSelectedBooking}>{copy.openBooking}{icon('external')}</button>
+                </div> : <p className="waitlist-popup-muted">{statusLabel(selected.status, locale)}</p>}
+              </PanelSection>
+            )}
 
-                <section className="waitlist-popup-card waitlist-linked-booking-card">
-                  <h3>{copy.linkedBooking}</h3>
-                  {selected.bookedBookingId ? <>
-                    <div className="waitlist-linked-booking-card__icon">{icon('booking')}</div>
-                    <span>{locale === 'sl' ? 'Rezervacija' : 'Booking'}</span>
-                    <strong>#{selected.bookedBookingId}</strong>
-                    <p>{selected.currentOffer?.serviceName || requestServiceLabel(selected, serviceGroupsModuleEnabled)}</p>
-                    <button type="button" onClick={openSelectedBooking}>{copy.openBooking}{icon('external')}</button>
-                  </> : <p className="waitlist-popup-muted">{statusLabel(selected.status, locale)}</p>}
-                </section>
+            <PanelSection
+              title={copy.note}
+              icon={<PanelSectionIcon name="notes" />}
+              defaultOpen={false}
+              summary={selected.notes?.trim() || '—'}
+            >
+              <p className="waitlist-popup-note">{selected.notes?.trim() || '—'}</p>
+            </PanelSection>
+
+            <PanelSection
+              title={selectedIsHistory ? copy.fullHistory : copy.audit}
+              icon={<PanelSectionIcon name="history" />}
+              defaultOpen={false}
+              summary={selectedHistory.length ? `${selectedHistory.length}` : '—'}
+            >
+              <div className="waitlist-popup-timeline">
+                {selectedHistory.length === 0 ? <p>—</p> : selectedHistory.map(event => <article key={event.id}>
+                  <span className="timeline-dot"/>
+                  <time>{formatDateTime(event.occurredAt)}</time>
+                  <div><strong>{eventLabel(event.type, locale)}</strong>{event.detail && <p>{event.detail}</p>}</div>
+                </article>)}
               </div>
+            </PanelSection>
+          </PanelBody>
 
-              <section className="waitlist-popup-card waitlist-popup-card--full-history">
-                <h3>{copy.fullHistory}</h3>
-                <div className="waitlist-popup-timeline waitlist-popup-timeline--wide">
-                  {selectedHistory.length === 0 ? <p>—</p> : selectedHistory.map(event => <article key={event.id}>
-                    <span className="timeline-dot"/>
-                    <div><strong>{eventLabel(event.type, locale)}</strong>{event.detail && <p>{event.detail}</p>}</div>
-                    <time>{formatDateTime(event.occurredAt)}</time>
-                    <small>{event.actorName || '—'}</small>
-                  </article>)}
-                </div>
-              </section>
+          <PanelFooter>
+            <PanelButton onClick={() => void closeSelected()}>{copy.close}</PanelButton>
+            {selectedIsActive && <>
+              <PanelButton
+                icon={icon('booking')}
+                onClick={() => navigate(`/calendar?waitlistRequestId=${selected.id}&clientId=${selected.clientId || ''}&typeId=${selected.serviceId}&date=${selected.dateFrom}`)}
+              >
+                {copy.reserve}
+              </PanelButton>
+              <PanelButton variant="primary" icon={icon('offer')} onClick={() => void openOffer()}>{copy.offer}</PanelButton>
+            </>}
+            {selectedIsOffered && (
+              <PanelButton variant="primary" icon={icon('offer')} onClick={() => void offerAnotherSelected()}>{copy.offerAnother}</PanelButton>
+            )}
+            {selectedIsHistory && selected.bookedBookingId && (
+              <PanelButton variant="primary" icon={icon('calendar')} onClick={openSelectedBooking}>{copy.openBooking}</PanelButton>
+            )}
+          </PanelFooter>
+        </>}
+      </SidePanel>
+
+    {/* Filters are transient and their values are not in the URL today, so this one stays unrouted. */}
+    <SidePanel open={showFilters} onClose={() => setShowFilters(false)} ariaLabel={copy.filters} size="sm">
+      <PanelHeader title={copy.filters} onClose={() => setShowFilters(false)} closeLabel={copy.close} />
+      <PanelBody sectioned>
+        <PanelSection title={copy.filters} icon={<PanelSectionIcon name="settings" />} collapsible={false}>
+          <div className="waitlist-form-grid one-col">
+            <label><span>{copy.service}</span><DesktopSelect value={filterDraft.serviceFilter} onChange={event => setFilterDraft(value => ({ ...value, serviceFilter: event.target.value }))}><option value="">{copy.allServices}</option>{serviceOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</DesktopSelect></label>
+            <label><span>{copy.employee}</span><DesktopSelect value={filterDraft.employeeFilter} onChange={event => setFilterDraft(value => ({ ...value, employeeFilter: event.target.value }))}><option value="">{copy.allEmployees}</option>{employeeOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</DesktopSelect></label>
+            <label><span>{copy.source}</span><DesktopSelect value={filterDraft.sourceFilter} onChange={event => setFilterDraft(value => ({ ...value, sourceFilter: event.target.value }))}><option value="">{copy.allSources}</option><option value="WIDGET">{sourceLabel('WIDGET', locale)}</option><option value="PUBLIC_BOOKING_PAGE">{sourceLabel('PUBLIC_BOOKING_PAGE', locale)}</option><option value="GUEST_APP">{sourceLabel('GUEST_APP', locale)}</option><option value="STAFF">{sourceLabel('STAFF', locale)}</option><option value="PHONE">{sourceLabel('PHONE', locale)}</option></DesktopSelect></label>
+            <label><span>{copy.from}</span><input type="date" value={filterDraft.dateFromFilter} onChange={event => setFilterDraft(value => ({ ...value, dateFromFilter: event.target.value }))}/></label>
+            <label><span>{copy.to}</span><input type="date" value={filterDraft.dateToFilter} onChange={event => setFilterDraft(value => ({ ...value, dateToFilter: event.target.value }))}/></label>
+          </div>
+        </PanelSection>
+      </PanelBody>
+      <PanelFooter>
+        <PanelButton onClick={resetFilterDraft}>{copy.resetFilters}</PanelButton>
+        <PanelButton variant="primary" onClick={applyFilters}>{copy.applyFilters}</PanelButton>
+      </PanelFooter>
+    </SidePanel>
+
+    <SidePanel open={createOpen} onClose={closeCreate} ariaLabel={copy.createTitle} size="lg">
+      <PanelHeader title={copy.createTitle} onClose={closeCreate} closeLabel={copy.close} />
+      <PanelBody as="form" id="waitlist-create" onSubmit={createRequest} sectioned>
+        <PanelSection
+          title={locale === 'sl' ? 'Stranka in storitev' : 'Client and service'}
+          icon={<PanelSectionIcon name="clients" />}
+        >
+          <div className="waitlist-form-grid">
+            <label><span>{copy.client}</span><DesktopSelect required value={requestForm.clientId} onChange={event => setRequestForm(value => ({ ...value, clientId: event.target.value }))}><option value="">{copy.select}</option>{clients.map(client => <option key={client.id} value={client.id}>{`${client.firstName || ''} ${client.lastName || ''}`.trim()} {client.email ? `· ${client.email}` : ''}</option>)}</DesktopSelect></label>
+            {serviceGroupsModuleEnabled && (
+              <div className="waitlist-service-scope wide">
+                <label><input type="radio" name="waitlist-service-scope" checked={requestForm.serviceScope === 'EXACT_SERVICE'} onChange={() => setRequestForm(value => ({ ...value, serviceScope: 'EXACT_SERVICE', serviceGroupId: '' }))}/><span>{copy.exactService}</span></label>
+                <label><input type="radio" name="waitlist-service-scope" checked={requestForm.serviceScope === 'SERVICE_GROUP'} onChange={() => setRequestForm(value => ({ ...value, serviceScope: 'SERVICE_GROUP', serviceId: '' }))}/><span>{copy.anyGroupService}</span></label>
+              </div>
+            )}
+            {serviceGroupsModuleEnabled && requestForm.serviceScope === 'SERVICE_GROUP' ?
+              <label><span>{copy.serviceGroup}</span><DesktopSelect required value={requestForm.serviceGroupId} onChange={event => setRequestForm(value => ({ ...value, serviceGroupId: event.target.value }))}><option value="">{copy.select}</option>{serviceGroups.filter(group => group.serviceCount > 0).map(group => <option key={group.id} value={group.id}>{group.name} · {group.serviceCount}</option>)}</DesktopSelect></label> :
+              <label><span>{copy.service}</span><DesktopSelect required value={requestForm.serviceId} onChange={event => setRequestForm(value => ({ ...value, serviceId: event.target.value }))}><option value="">{copy.select}</option>{serviceOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</DesktopSelect></label>}
+            <label><span>{copy.employeeOptional}</span><DesktopSelect value={requestForm.specificEmployeeId} onChange={event => setRequestForm(value => ({ ...value, specificEmployeeId: event.target.value }))}><option value="">{copy.any}</option>{employeeOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</DesktopSelect></label>
+            <label><span>{copy.location}</span><DesktopSelect value={requestForm.locationId} onChange={event => setRequestForm(value => ({ ...value, locationId: event.target.value }))}><option value="">—</option>{locations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</DesktopSelect></label>
+          </div>
+        </PanelSection>
+
+        <PanelSection title={locale === 'sl' ? 'Termin' : 'Appointment'} icon={<PanelSectionIcon name="schedule" />}>
+          <div className="waitlist-form-grid">
+            <div className="waitlist-flexible-option wide">
+              <span><strong>{copy.flexible}</strong><small>{copy.flexibleHelp}</small></span>
+              <button type="button" role="switch" aria-checked={requestForm.anyAvailableSlot} className={`waitlist-payment-switch${requestForm.anyAvailableSlot ? ' is-on' : ''}`} onClick={() => setRequestForm(value => ({ ...value, anyAvailableSlot: !value.anyAvailableSlot }))}><span>{requestForm.anyAvailableSlot ? 'ON' : 'OFF'}</span><i/></button>
             </div>
-            <footer className="waitlist-detail-modal__footer">
-              {selected.bookedBookingId && <button type="button" className="primary" onClick={openSelectedBooking}>{icon('calendar')}{copy.openBooking}</button>}
-              <button type="button" onClick={() => navigate(`/inbox?clientId=${selected.clientId || ''}`)}>{icon('message')}{copy.message}</button>
-              <button type="button" onClick={reAddSelected}>{icon('plus')}{copy.reAdd}</button>
-              <button type="button" className="danger" onClick={() => void removeSelected()}>{icon('trash')}{copy.remove}</button>
-            </footer>
-          </>}
-        </article>
-      </div>}
+            {!requestForm.anyAvailableSlot && <>
+              <label><span>{copy.dateFrom}</span><input required type="date" value={requestForm.dateFrom} onChange={event => setRequestForm(value => ({ ...value, dateFrom: event.target.value, dateTo: value.dateTo || event.target.value }))}/></label>
+              <label><span>{copy.dateTo}</span><input required type="date" min={requestForm.dateFrom || undefined} value={requestForm.dateTo} onChange={event => setRequestForm(value => ({ ...value, dateTo: event.target.value }))}/></label>
+              <label><span>{copy.timeFrom}</span><ModernTimePicker className="waitlist-time-picker" ariaLabel={copy.timeFrom} value={requestForm.timeFrom} onChange={timeFrom => setRequestForm(value => ({ ...value, timeFrom }))}/></label>
+              <label><span>{copy.timeTo}</span><ModernTimePicker className="waitlist-time-picker" ariaLabel={copy.timeTo} value={requestForm.timeTo} onChange={timeTo => setRequestForm(value => ({ ...value, timeTo }))}/></label>
+              <p className="waitlist-form-hint wide">{copy.timeWindowHelp}</p>
+            </>}
+          </div>
+        </PanelSection>
 
-    {showFilters && <div className="waitlist-modal-backdrop" onMouseDown={() => setShowFilters(false)}><div className="waitlist-modal compact waitlist-filter-modal" onMouseDown={event => event.stopPropagation()}><header className="waitlist-filter-modal__header"><h2>{copy.filters}</h2><button type="button" className="waitlist-filter-modal__close" onClick={() => setShowFilters(false)} aria-label={copy.close}>{icon('close')}</button></header><div className="waitlist-form-grid waitlist-filter-modal__body">
-      <label><span>{copy.service}</span><DesktopSelect value={filterDraft.serviceFilter} onChange={event => setFilterDraft(value => ({ ...value, serviceFilter: event.target.value }))}><option value="">{copy.allServices}</option>{serviceOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</DesktopSelect></label>
-      <label><span>{copy.employee}</span><DesktopSelect value={filterDraft.employeeFilter} onChange={event => setFilterDraft(value => ({ ...value, employeeFilter: event.target.value }))}><option value="">{copy.allEmployees}</option>{employeeOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</DesktopSelect></label>
-      <label><span>{copy.source}</span><DesktopSelect value={filterDraft.sourceFilter} onChange={event => setFilterDraft(value => ({ ...value, sourceFilter: event.target.value }))}><option value="">{copy.allSources}</option><option value="WIDGET">{sourceLabel('WIDGET', locale)}</option><option value="PUBLIC_BOOKING_PAGE">{sourceLabel('PUBLIC_BOOKING_PAGE', locale)}</option><option value="GUEST_APP">{sourceLabel('GUEST_APP', locale)}</option><option value="STAFF">{sourceLabel('STAFF', locale)}</option><option value="PHONE">{sourceLabel('PHONE', locale)}</option></DesktopSelect></label>
-      <label><span>{copy.from}</span><input type="date" value={filterDraft.dateFromFilter} onChange={event => setFilterDraft(value => ({ ...value, dateFromFilter: event.target.value }))}/></label>
-      <label><span>{copy.to}</span><input type="date" value={filterDraft.dateToFilter} onChange={event => setFilterDraft(value => ({ ...value, dateToFilter: event.target.value }))}/></label>
-    </div><footer className="waitlist-filter-modal__footer"><button type="button" className="secondary" onClick={resetFilterDraft}>{copy.resetFilters}</button><button type="button" className="primary" onClick={applyFilters}>{copy.applyFilters}</button></footer></div></div>}
+        <PanelSection
+          title={locale === 'sl' ? 'Podrobnosti' : 'Details'}
+          icon={<PanelSectionIcon name="notes" />}
+          defaultOpen={false}
+          summary={`${requestForm.requestedParticipants || 1}${requestForm.notes.trim() ? ` · ${copy.note}` : ''}`}
+        >
+          <div className="waitlist-form-grid">
+            <label><span>{copy.participants}</span><input min="1" type="number" value={requestForm.requestedParticipants} onChange={event => setRequestForm(value => ({ ...value, requestedParticipants: event.target.value }))}/></label>
+            <label className="wide"><span>{copy.note}</span><textarea rows={3} value={requestForm.notes} onChange={event => setRequestForm(value => ({ ...value, notes: event.target.value }))}/></label>
+          </div>
+        </PanelSection>
+      </PanelBody>
+      <PanelFooter>
+        <PanelButton onClick={closeCreate}>{copy.cancel}</PanelButton>
+        <PanelButton type="submit" form="waitlist-create" variant="primary" icon={icon('save')} busy={saving}>{copy.save}</PanelButton>
+      </PanelFooter>
+    </SidePanel>
 
-    {showCreate && <div className="waitlist-modal-backdrop" onMouseDown={() => setShowCreate(false)}><form className="waitlist-modal" onSubmit={createRequest} onMouseDown={event => event.stopPropagation()}><header><h2>{copy.createTitle}</h2><button type="button" className="icon-button" onClick={() => setShowCreate(false)}>{icon('close')}</button></header><div className="waitlist-form-grid">
-      <label><span>{copy.client}</span><DesktopSelect required value={requestForm.clientId} onChange={event => setRequestForm(value => ({ ...value, clientId: event.target.value }))}><option value="">{copy.select}</option>{clients.map(client => <option key={client.id} value={client.id}>{`${client.firstName || ''} ${client.lastName || ''}`.trim()} {client.email ? `· ${client.email}` : ''}</option>)}</DesktopSelect></label>
-      {serviceGroupsModuleEnabled && (
-        <div className="waitlist-service-scope wide">
-          <label><input type="radio" name="waitlist-service-scope" checked={requestForm.serviceScope === 'EXACT_SERVICE'} onChange={() => setRequestForm(value => ({ ...value, serviceScope: 'EXACT_SERVICE', serviceGroupId: '' }))}/><span>{copy.exactService}</span></label>
-          <label><input type="radio" name="waitlist-service-scope" checked={requestForm.serviceScope === 'SERVICE_GROUP'} onChange={() => setRequestForm(value => ({ ...value, serviceScope: 'SERVICE_GROUP', serviceId: '' }))}/><span>{copy.anyGroupService}</span></label>
-        </div>
-      )}
-      {serviceGroupsModuleEnabled && requestForm.serviceScope === 'SERVICE_GROUP' ?
-        <label><span>{copy.serviceGroup}</span><DesktopSelect required value={requestForm.serviceGroupId} onChange={event => setRequestForm(value => ({ ...value, serviceGroupId: event.target.value }))}><option value="">{copy.select}</option>{serviceGroups.filter(group => group.serviceCount > 0).map(group => <option key={group.id} value={group.id}>{group.name} · {group.serviceCount}</option>)}</DesktopSelect></label> :
-        <label><span>{copy.service}</span><DesktopSelect required value={requestForm.serviceId} onChange={event => setRequestForm(value => ({ ...value, serviceId: event.target.value }))}><option value="">{copy.select}</option>{serviceOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</DesktopSelect></label>}
-      <label><span>{copy.employeeOptional}</span><DesktopSelect value={requestForm.specificEmployeeId} onChange={event => setRequestForm(value => ({ ...value, specificEmployeeId: event.target.value }))}><option value="">{copy.any}</option>{employeeOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</DesktopSelect></label>
-      <label><span>{copy.location}</span><DesktopSelect value={requestForm.locationId} onChange={event => setRequestForm(value => ({ ...value, locationId: event.target.value }))}><option value="">—</option>{locations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</DesktopSelect></label>
-      <div className="waitlist-flexible-option wide">
-        <span><strong>{copy.flexible}</strong><small>{copy.flexibleHelp}</small></span>
-        <button type="button" role="switch" aria-checked={requestForm.anyAvailableSlot} className={`waitlist-payment-switch${requestForm.anyAvailableSlot ? ' is-on' : ''}`} onClick={() => setRequestForm(value => ({ ...value, anyAvailableSlot: !value.anyAvailableSlot }))}><span>{requestForm.anyAvailableSlot ? 'ON' : 'OFF'}</span><i/></button>
-      </div>
-      {!requestForm.anyAvailableSlot && <>
-        <label><span>{copy.dateFrom}</span><input required type="date" value={requestForm.dateFrom} onChange={event => setRequestForm(value => ({ ...value, dateFrom: event.target.value, dateTo: value.dateTo || event.target.value }))}/></label>
-        <label><span>{copy.dateTo}</span><input required type="date" min={requestForm.dateFrom || undefined} value={requestForm.dateTo} onChange={event => setRequestForm(value => ({ ...value, dateTo: event.target.value }))}/></label>
-        <label><span>{copy.timeFrom}</span><ModernTimePicker className="waitlist-time-picker" ariaLabel={copy.timeFrom} value={requestForm.timeFrom} onChange={timeFrom => setRequestForm(value => ({ ...value, timeFrom }))}/></label>
-        <label><span>{copy.timeTo}</span><ModernTimePicker className="waitlist-time-picker" ariaLabel={copy.timeTo} value={requestForm.timeTo} onChange={timeTo => setRequestForm(value => ({ ...value, timeTo }))}/></label>
-        <p className="waitlist-form-hint wide">{copy.timeWindowHelp}</p>
+    {/* Stacked on the detail drawer: a slot picker for the request already open behind it. */}
+    <SidePanel open={showOffer && Boolean(selected)} onClose={() => setShowOffer(false)} ariaLabel={copy.offerTitle} size="md">
+      {selected && <>
+        <PanelHeader
+          title={copy.offerTitle}
+          subtitle={`${selected.clientName} · ${requestServiceLabel(selected, serviceGroupsModuleEnabled)}`}
+          onClose={() => setShowOffer(false)}
+          closeLabel={copy.close}
+        />
+        <PanelBody as="form" id="waitlist-offer" onSubmit={sendOffer} sectioned>
+          <PanelSection title={copy.activeOffer} icon={<PanelSectionIcon name="offer" />} collapsible={false}>
+            <div className="waitlist-form-grid">
+              <label className="wide"><span>{copy.concreteService}</span><DesktopSelect required value={offerForm.serviceId} onChange={event => updateOfferService(event.target.value)}><option value="">{copy.select}</option>{selected.eligibleServices?.filter(item => item.id).map(item => <option key={item.id} value={item.id || ''}>{item.name}{item.durationMinutes ? ` · ${item.durationMinutes} min` : ''}</option>)}</DesktopSelect></label>
+              <label><span>{copy.start}</span><input required type="datetime-local" value={offerForm.slotStart} onChange={event => setOfferForm(value => ({ ...value, slotStart: event.target.value }))}/></label>
+              <label><span>{copy.end}</span><input required type="datetime-local" value={offerForm.slotEnd} onChange={event => setOfferForm(value => ({ ...value, slotEnd: event.target.value }))}/></label>
+              {employeeOptions.length > 1 && <label><span>{copy.employee}</span><DesktopSelect value={offerForm.employeeId} onChange={event => setOfferForm(value => ({ ...value, employeeId: event.target.value }))}><option value="">—</option>{employeeOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</DesktopSelect></label>}
+              {spaces.filter(item => !selected?.locationId || Number(item.locationId) === Number(selected.locationId)).length > 1 && <label><span>{copy.room}</span><DesktopSelect value={offerForm.roomId} onChange={event => setOfferForm(value => ({ ...value, roomId: event.target.value }))}><option value="">—</option>{spaces.filter(item => !selected?.locationId || Number(item.locationId) === Number(selected.locationId)).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</DesktopSelect></label>}
+              <label><span>{copy.validity}</span><input required min="5" max="1440" type="number" value={offerForm.validityMinutes} onChange={event => setOfferForm(value => ({ ...value, validityMinutes: event.target.value }))}/></label>
+            </div>
+            <PanelBanner>
+              {copy.temporaryHold} <strong>{offerForm.validityMinutes} min</strong>.{' '}
+              {locale === 'sl' ? 'V tem času termin ni na voljo drugim rezervacijam.' : 'The slot is unavailable to other bookings during that time.'}
+            </PanelBanner>
+          </PanelSection>
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={() => setShowOffer(false)}>{copy.cancel}</PanelButton>
+          <PanelButton type="submit" form="waitlist-offer" variant="primary" busy={saving}>{copy.offer}</PanelButton>
+        </PanelFooter>
       </>}
-      <label><span>{copy.participants}</span><input min="1" type="number" value={requestForm.requestedParticipants} onChange={event => setRequestForm(value => ({ ...value, requestedParticipants: event.target.value }))}/></label>
-      <label className="wide"><span>{copy.note}</span><textarea rows={3} value={requestForm.notes} onChange={event => setRequestForm(value => ({ ...value, notes: event.target.value }))}/></label>
-    </div><footer><button type="submit" className="primary" disabled={saving}>{icon('save')}<span>{saving ? '…' : copy.save}</span></button></footer></form></div>}
-
-    {showOffer && selected && <div className="waitlist-modal-backdrop" onMouseDown={() => setShowOffer(false)}><form className="waitlist-modal compact" onSubmit={sendOffer} onMouseDown={event => event.stopPropagation()}><header><div><h2>{copy.offerTitle}</h2><p>{selected.clientName} · {requestServiceLabel(selected, serviceGroupsModuleEnabled)}</p></div><button type="button" className="icon-button" onClick={() => setShowOffer(false)}>{icon('close')}</button></header><div className="waitlist-form-grid">
-      <label className="wide"><span>{copy.concreteService}</span><DesktopSelect required value={offerForm.serviceId} onChange={event => updateOfferService(event.target.value)}><option value="">{copy.select}</option>{selected.eligibleServices?.filter(item => item.id).map(item => <option key={item.id} value={item.id || ''}>{item.name}{item.durationMinutes ? ` · ${item.durationMinutes} min` : ''}</option>)}</DesktopSelect></label>
-      <label><span>{copy.start}</span><input required type="datetime-local" value={offerForm.slotStart} onChange={event => setOfferForm(value => ({ ...value, slotStart: event.target.value }))}/></label>
-      <label><span>{copy.end}</span><input required type="datetime-local" value={offerForm.slotEnd} onChange={event => setOfferForm(value => ({ ...value, slotEnd: event.target.value }))}/></label>
-      {employeeOptions.length > 1 && <label><span>{copy.employee}</span><DesktopSelect value={offerForm.employeeId} onChange={event => setOfferForm(value => ({ ...value, employeeId: event.target.value }))}><option value="">—</option>{employeeOptions.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</DesktopSelect></label>}
-      {spaces.filter(item => !selected?.locationId || Number(item.locationId) === Number(selected.locationId)).length > 1 && <label><span>{copy.room}</span><DesktopSelect value={offerForm.roomId} onChange={event => setOfferForm(value => ({ ...value, roomId: event.target.value }))}><option value="">—</option>{spaces.filter(item => !selected?.locationId || Number(item.locationId) === Number(selected.locationId)).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</DesktopSelect></label>}
-      <label><span>{copy.validity}</span><input required min="5" max="1440" type="number" value={offerForm.validityMinutes} onChange={event => setOfferForm(value => ({ ...value, validityMinutes: event.target.value }))}/></label>
-    </div><div className="waitlist-modal-info">{copy.temporaryHold} <strong>{offerForm.validityMinutes} min</strong>. V tem času termin ni na voljo drugim rezervacijam.</div><footer><button type="submit" className="primary" disabled={saving}>{saving ? '…' : copy.offer}</button></footer></form></div>}
+    </SidePanel>
 
     <style>{`
-      .appointments-page{padding:28px 30px 70px;min-height:100%;background:#f7f9fc;color:#14213a}.appointments-page-header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:22px}.appointments-page-header h1{margin:0;font-size:28px;color:#13213a}.appointments-subtabs{display:flex;gap:28px;border-bottom:1px solid #dfe5ee}.appointments-subtabs button{display:flex;align-items:center;gap:8px;padding:0 2px 13px;border:0;background:transparent;color:#69758b;font-weight:700;cursor:pointer;position:relative}.appointments-subtabs button.active{color:#1463df}.appointments-subtabs button.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;border-radius:3px;background:#1463df}.appointments-primary,.waitlist-actions .primary,.waitlist-modal .primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:10px;background:#1463df;color:#fff;padding:11px 16px;font-weight:750;cursor:pointer;box-shadow:0 6px 18px rgba(20,99,223,.18)}.appointments-coming{max-width:700px;margin:90px auto;text-align:center;background:#fff;border:1px solid #e1e7f0;border-radius:18px;padding:52px}.appointments-coming-icon{width:56px;height:56px;margin:0 auto 14px;border-radius:16px;background:#eef5ff;color:#1463df;display:grid;place-items:center}.appointments-coming h2{margin:0 0 8px}.appointments-coming p{color:#6a758a}.waitlist-view-tabs{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #edf2f7;overflow:auto}.waitlist-view-tabs button{display:inline-flex;align-items:center;gap:9px;border:1px solid transparent;background:transparent;padding:10px 14px;border-radius:10px;color:#667085;font-weight:700;cursor:pointer;white-space:nowrap}.waitlist-view-tabs button.active{background:#eaf2ff;color:#1463df;border-color:#cfe0ff}.waitlist-tab-count{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 8px;border-radius:999px;background:#eef2f6;color:#475467;font-size:12px;line-height:1}.waitlist-view-tabs button.active .waitlist-tab-count{background:#dbe9ff;color:#1463df}.waitlist-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 14px}.waitlist-toolbar__left{display:flex;align-items:center;gap:10px;flex:1 1 auto;min-width:0}.waitlist-filters select,.waitlist-filters input,.waitlist-form-grid select,.waitlist-form-grid input,.waitlist-form-grid textarea{width:100%;box-sizing:border-box;border:1px solid #dce3ed;border-radius:10px;background:#fff;color:#1b2940;padding:10px 11px;font:inherit;outline:none}.waitlist-filters select:focus,.waitlist-filters input:focus,.waitlist-form-grid select:focus,.waitlist-form-grid input:focus,.waitlist-form-grid textarea:focus{border-color:#5e9af2;box-shadow:0 0 0 3px rgba(20,99,223,.1)}.waitlist-search{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:280px;border:1px solid #dce3ed;border-radius:10px;background:#fff;padding:0 11px;color:#8792a5}.waitlist-search input{border:0;padding-left:0;box-shadow:none!important}.waitlist-filter-trigger{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;border:1px solid #dce3ed;border-radius:10px;background:#fff;color:#344054;padding:10px 14px;font-weight:700;cursor:pointer}.waitlist-filter-trigger__count{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:#eaf2ff;color:#1463df;font-size:11px}.waitlist-add-button{flex:0 0 auto}.waitlist-date{display:flex;align-items:center;background:#fff;border:1px solid #dce3ed;border-radius:10px;padding-left:9px}.waitlist-date span{font-size:11px;color:#7c8799;white-space:nowrap}.waitlist-date input{border:0;padding-left:7px}.waitlist-error{margin-bottom:12px;padding:12px 14px;border:1px solid #fecaca;background:#fff1f2;color:#b42318;border-radius:10px}.waitlist-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}.waitlist-layout.has-detail{grid-template-columns:minmax(0,1fr) 390px}.waitlist-table-card,.waitlist-detail{background:#fff;border:1px solid #e0e6ef;border-radius:15px;box-shadow:0 7px 22px rgba(24,39,75,.045)}.waitlist-table-wrap{overflow:auto;border-radius:15px}.waitlist-table-card table{width:100%;border-collapse:collapse;min-width:1030px}.waitlist-table-card th{padding:13px 14px;text-align:left;background:#f8fafc;border-bottom:1px solid #e7ebf1;color:#68758a;font-size:11px;text-transform:uppercase;letter-spacing:.035em}.waitlist-table-card td{padding:14px;border-bottom:1px solid #edf0f5;color:#3b475a;font-size:13px;vertical-align:middle}.waitlist-table-card tr:last-child td{border-bottom:0}.waitlist-table-card tbody tr{cursor:pointer;transition:.15s}.waitlist-table-card tbody tr:hover,.waitlist-table-card tbody tr.selected{background:#f2f7ff}.waitlist-table-card td strong,.waitlist-table-card td small{display:block}.waitlist-table-card td strong{color:#19263b;font-size:13px}.waitlist-table-card td small{margin-top:3px;color:#7b8798;font-size:11px}.waitlist-client{display:flex;align-items:center;gap:10px}.waitlist-avatar{display:grid;place-items:center;flex:0 0 auto;width:34px;height:34px;border-radius:50%;background:#eee9ff;color:#6841c6;font-size:11px;font-weight:800}.waitlist-avatar.large{width:46px;height:46px;font-size:13px}.waitlist-avatar--mobile{width:50px;height:50px;font-size:20px}.waitlist-status{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:750;background:#eef2f6;color:#475467;white-space:nowrap}.status-active{background:#fff5d9;color:#9a6700}.status-offered{background:#eaf2ff;color:#175cd3}.status-offer_accepted,.status-booked{background:#e9f8ef;color:#087a3e}.status-expired,.status-cancelled,.status-removed,.status-declined{background:#f1f3f6;color:#596579}.waitlist-countdown{color:#175cd3!important;font-variant-numeric:tabular-nums}.waitlist-empty{text-align:center!important;color:#7b8798!important;padding:45px!important}.waitlist-mobile{padding:14px}.waitlist-mobile__result-count{margin:0 2px 14px;color:#66758f;font-size:13px;font-weight:600}.waitlist-mobile__list{display:grid;gap:14px}.waitlist-mobile__empty{padding:36px 18px!important;border:1px dashed #d6deea;border-radius:18px;background:#fff}.waitlist-mobile-card{display:block;border:1px solid #dde5f0;border-radius:22px;background:#fff;box-shadow:0 10px 30px rgba(15,23,42,.06);padding:18px;cursor:pointer;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}.waitlist-mobile-card:hover,.waitlist-mobile-card.is-selected{border-color:#cfe0ff;box-shadow:0 12px 34px rgba(20,99,223,.12)}.waitlist-mobile-card__header{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:start}.waitlist-mobile-card__identity{min-width:0}.waitlist-mobile-card__identity h3{margin:0;color:#1b2940;font-size:18px;line-height:1.2}.waitlist-mobile-card__identity span{display:block;margin-top:7px;color:#7b8798;font-size:12px;line-height:1.35;overflow-wrap:anywhere}.waitlist-mobile-card__summary{display:grid;justify-items:end;gap:8px;min-width:max-content}.waitlist-mobile-card__open{display:inline-flex;align-items:center;gap:6px;border:1px solid #cfe0ff;border-radius:999px;background:#fff;color:#1463df;padding:8px 12px;font-size:12px;font-weight:800;cursor:pointer}.waitlist-mobile-card__open svg{width:15px;height:15px}.waitlist-mobile-card__details{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px 20px;margin-top:16px;padding-top:16px;border-top:1px solid #edf1f6}.waitlist-mobile-card__detail{display:flex;align-items:flex-start;gap:10px;min-width:0}.waitlist-mobile-card__detail--wide{grid-column:1/-1}.waitlist-mobile-card__detail-icon{display:flex;align-items:flex-start;justify-content:center;flex:0 0 22px;width:22px;height:22px;border-radius:0;background:transparent;color:#7b8798}.waitlist-mobile-card__detail-icon svg{width:22px;height:22px}.waitlist-mobile-card__detail>div{min-width:0}.waitlist-mobile-card__detail span{display:block;margin-bottom:4px;color:#7b8798;font-size:11px;font-weight:700;line-height:1.25}.waitlist-mobile-card__detail strong{display:block;color:#24364d;font-size:13px;line-height:1.32}.waitlist-mobile-card__detail small{display:block;margin-top:3px;color:#728096;font-size:12px;line-height:1.35}.waitlist-mobile__pagination{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:16px}.waitlist-mobile__pagination button{display:grid;place-items:center;width:46px;height:46px;border:1px solid #d8e0eb;border-radius:14px;background:#fff;color:#344054;font-size:24px;line-height:1;cursor:pointer}.waitlist-mobile__pagination button:disabled{opacity:.45;cursor:not-allowed}.waitlist-mobile__pagination span{display:grid;place-items:center;min-width:50px;height:50px;padding:0 14px;border:1px solid #cfe0ff;border-radius:16px;background:#eaf2ff;color:#1463df;font-size:20px;font-weight:800}.waitlist-detail{position:sticky;top:84px;max-height:calc(100vh - 105px);overflow:auto}.waitlist-detail-head{display:flex;justify-content:space-between;align-items:flex-start;padding:18px;border-bottom:1px solid #e9edf3}.waitlist-detail-head h2{font-size:18px;margin:0 0 6px}.icon-button{border:0;background:transparent;color:#657187;display:grid;place-items:center;padding:5px;cursor:pointer;border-radius:7px}.icon-button:hover{background:#eef2f6}.waitlist-hold{margin:14px 16px 0;padding:12px 13px;border-radius:10px;background:#edf5ff;border:1px solid #cfe1ff;color:#175cd3}.waitlist-hold strong,.waitlist-hold span{display:block}.waitlist-hold span{font-size:12px;margin-top:4px}.waitlist-detail section{padding:16px 18px;border-bottom:1px solid #edf0f4}.waitlist-detail section:last-child{border-bottom:0}.waitlist-detail h3{display:flex;align-items:center;gap:7px;margin:0 0 12px;font-size:13px;color:#26364d}.waitlist-detail-grid{display:grid;grid-template-columns:120px minmax(0,1fr);gap:9px 12px;font-size:12px}.waitlist-detail-grid span{color:#7b8798}.waitlist-detail-grid strong{font-weight:650;color:#344054}.waitlist-note{margin-top:12px;background:#f7f9fc;border-radius:9px;padding:10px 11px}.waitlist-note span{font-size:11px;color:#7b8798}.waitlist-note p{margin:5px 0 0;font-size:12px}.waitlist-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.waitlist-actions button,.waitlist-actions a{display:flex;align-items:center;justify-content:center;gap:7px;min-height:38px;border:1px solid #d8e0eb;border-radius:9px;background:#fff;color:#344054;text-decoration:none;font-size:12px;font-weight:700;cursor:pointer}.waitlist-actions .primary{border-color:#1463df;color:#fff}.waitlist-actions .danger{color:#d92d20;border-color:#f7c5c1}.waitlist-timeline article{display:grid;grid-template-columns:12px 1fr;gap:8px;position:relative;padding-bottom:14px}.waitlist-timeline article:not(:last-child):before{content:"";position:absolute;left:4px;top:11px;bottom:0;width:1px;background:#dce3ec}.timeline-dot{width:9px;height:9px;border-radius:50%;background:#1463df;margin-top:3px;z-index:1}.waitlist-timeline strong{font-size:11px;text-transform:capitalize}.waitlist-timeline p{font-size:11px;margin:3px 0;color:#667085}.waitlist-timeline small{font-size:10px;color:#98a2b3}.waitlist-modal-backdrop{position:fixed;inset:0;z-index:5000;background:rgba(15,23,42,.48);display:grid;place-items:center;padding:24px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}.waitlist-modal{width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 36px);overflow:auto;background:#fff;border-radius:22px;box-shadow:0 28px 64px rgba(15,23,42,.22)}.waitlist-modal.compact{width:min(660px,calc(100vw - 32px))}.waitlist-modal header{display:flex;align-items:flex-start;justify-content:space-between;padding:18px 20px;border-bottom:1px solid #e7edf4}.waitlist-modal h2{margin:0;font-size:18px;color:#172033}.waitlist-modal header p{margin:4px 0 0;color:#7b8798;font-size:12px}.waitlist-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 18px;padding:20px}.waitlist-form-grid label{display:grid;gap:7px}.waitlist-form-grid label span{font-size:13px;font-weight:700;color:#475467}.waitlist-form-grid .wide{grid-column:1/-1}.waitlist-filter-modal__header{align-items:center!important}.waitlist-filter-modal__close{width:40px;height:40px;border:0;border-radius:999px;background:transparent;color:#667085;display:grid;place-items:center;cursor:pointer}.waitlist-filter-modal__close:hover{background:#f3f6fb}.waitlist-filter-modal__body{padding-top:20px}.waitlist-filter-modal__body select,.waitlist-filter-modal__body input{min-height:44px;border-radius:12px;padding:0 14px}.waitlist-filter-modal__footer{display:flex;justify-content:space-between!important;align-items:center;padding:16px 20px;border-top:1px solid #e7edf4}.waitlist-filter-modal__footer .secondary,.waitlist-filter-modal__footer .primary{min-width:120px;min-height:42px;padding:0 18px;border-radius:14px;font-weight:700}.waitlist-filter-modal__footer .secondary{border:1px solid #d7e0ea;background:#f3f4f6;color:#374151}.waitlist-filter-modal__footer .primary{border:1px solid #1463df;background:#1463df;color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 10px 22px rgba(20,99,223,.2)}.waitlist-time-picker.modern-time-picker__trigger{width:100%;min-height:44px;padding:0 14px;border-radius:12px;font-weight:600}.waitlist-flexible-option{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 15px;border:1px solid #dce3ed;border-radius:12px;background:#f8fbff}.waitlist-flexible-option>span{display:grid;gap:4px}.waitlist-flexible-option strong{font-size:13px;color:#26364d}.waitlist-flexible-option small{font-size:12px;line-height:1.45;color:#6b778c}.waitlist-flexible-option .waitlist-payment-switch{position:relative;display:flex;align-items:center;justify-content:flex-end;flex:0 0 auto;width:78px;height:40px;padding:0 10px;border:0;border-radius:999px;background:#d7e0ed;color:#617087;cursor:pointer;transition:background .18s ease,color .18s ease,box-shadow .18s ease;box-shadow:inset 0 0 0 1px rgba(148,163,184,.18),0 3px 8px rgba(15,23,42,.08)}.waitlist-flexible-option .waitlist-payment-switch span{position:absolute;right:10px;font-size:11px;font-weight:800;letter-spacing:.02em;line-height:1;pointer-events:none}.waitlist-flexible-option .waitlist-payment-switch i{position:absolute;top:4px;left:4px;width:32px;height:32px;border-radius:50%;background:#fff;box-shadow:0 2px 7px rgba(15,23,42,.2);transition:transform .18s ease}.waitlist-flexible-option .waitlist-payment-switch.is-on{justify-content:flex-start;background:#2468e8;color:#fff;box-shadow:0 5px 12px rgba(36,104,232,.24)}.waitlist-flexible-option .waitlist-payment-switch.is-on span{left:11px;right:auto}.waitlist-flexible-option .waitlist-payment-switch.is-on i{transform:translateX(38px)}.waitlist-flexible-option .waitlist-payment-switch:focus-visible{outline:3px solid rgba(37,99,235,.2);outline-offset:2px}.waitlist-service-scope{display:flex;gap:10px;flex-wrap:wrap;padding:4px 0}.waitlist-service-scope label{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #dce4ef;border-radius:10px;background:#fff;color:#344054;font-weight:700;cursor:pointer}.waitlist-service-scope input{margin:0}.waitlist-form-hint{margin:-4px 0 0;color:#7b8798;font-size:11px;line-height:1.4}.waitlist-modal-info{margin:0 20px 18px;padding:11px 12px;border-radius:9px;background:#f0f6ff;color:#365b8f;font-size:12px}.waitlist-modal footer{display:flex;justify-content:flex-end;gap:9px;padding:15px 20px;border-top:1px solid #e8edf3}.waitlist-modal footer button{border:1px solid #d8e0eb;border-radius:9px;background:#fff;color:#344054;padding:9px 15px;font-weight:700;cursor:pointer}.waitlist-modal footer .primary{color:#fff;border-color:#1463df;display:inline-flex;align-items:center;justify-content:center;gap:8px}.waitlist-modal footer .primary svg{flex:0 0 auto}.waitlist-modal button:disabled{opacity:.6;cursor:wait}@media(max-width:1250px){.waitlist-toolbar{align-items:stretch;flex-direction:column}.waitlist-toolbar__left{width:100%}.waitlist-add-button{align-self:flex-end}}@media(max-width: 1024px){.appointments-page{padding:20px 14px 70px}.appointments-page-header{align-items:stretch;flex-direction:column}.appointments-primary{align-self:flex-start}.waitlist-toolbar{align-items:stretch}.waitlist-toolbar__left{flex-direction:column;align-items:stretch}.waitlist-search{min-width:0}.waitlist-filter-trigger{justify-content:center}.waitlist-layout.has-detail{grid-template-columns:1fr}.waitlist-detail{position:static;max-height:none}.waitlist-form-grid{grid-template-columns:1fr}.waitlist-form-grid .wide{grid-column:auto}.waitlist-modal-backdrop{padding:12px}.waitlist-filter-modal__footer{flex-direction:column-reverse;justify-content:flex-end!important;align-items:stretch}.waitlist-filter-modal__footer button{width:100%}}@media(max-width: 1024px){.appointments-page{margin:0;border-radius:0;padding:18px 14px 78px;box-shadow:none;min-height:100vh}.waitlist-table-card{border-radius:26px;overflow:hidden}.waitlist-view-tabs{display:flex;align-items:stretch;gap:12px;margin:0 0 16px;padding:8px;border:1px solid #e1e7f0;border-radius:22px;background:#fff;overflow-x:auto;scrollbar-width:none}.waitlist-view-tabs::-webkit-scrollbar{display:none}.waitlist-view-tabs button{display:inline-flex;align-items:center;gap:10px;flex:0 0 auto;min-width:164px;padding:14px 16px;border:1px solid transparent;border-radius:16px;background:transparent;color:#344054;font-size:15px;font-weight:700;white-space:nowrap}.waitlist-view-tabs button.active{background:#eaf2ff;color:#1463df;border-color:#cfe0ff;box-shadow:0 10px 24px rgba(20,99,223,.12)}.waitlist-tab-count{min-width:28px;height:28px;padding:0 9px;font-size:12px}.waitlist-view-tabs button.active .waitlist-tab-count{background:#dbe9ff;color:#1463df}.waitlist-toolbar{gap:12px}.waitlist-toolbar__left{gap:12px}.waitlist-search,.waitlist-filter-trigger{min-height:48px;border-radius:14px}.waitlist-table-card{border:0;background:transparent;box-shadow:none}.waitlist-mobile{padding:0}.waitlist-mobile-card__header{grid-template-columns:auto minmax(0,1fr)}.waitlist-mobile-card__summary{grid-column:1/-1;justify-items:start;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:2px}.waitlist-mobile-card__details{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}@media(max-width:540px){.waitlist-actions{grid-template-columns:1fr}.appointments-subtabs{gap:17px}.waitlist-mobile-card{padding:16px}.waitlist-mobile-card__details{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px 16px}.waitlist-mobile-card__detail{gap:8px}.waitlist-mobile-card__detail-icon{flex-basis:20px;width:20px;height:20px}.waitlist-mobile-card__detail-icon svg{width:20px;height:20px}.waitlist-mobile-card__detail strong{font-size:12px}.waitlist-mobile-card__detail small{font-size:11px}.waitlist-mobile__pagination{gap:12px}.waitlist-mobile__pagination button{width:44px;height:44px}.waitlist-mobile__pagination span{min-width:48px;height:48px;font-size:18px}}
+      .appointments-page{padding:28px 30px 70px;min-height:100%;background:#f7f9fc;color:#14213a}.appointments-page-header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:22px}.appointments-page-header h1{margin:0;font-size:28px;color:#13213a}.appointments-subtabs{display:flex;gap:28px;border-bottom:1px solid #dfe5ee}.appointments-subtabs button{display:flex;align-items:center;gap:8px;padding:0 2px 13px;border:0;background:transparent;color:#69758b;font-weight:700;cursor:pointer;position:relative}.appointments-subtabs button.active{color:#1463df}.appointments-subtabs button.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;border-radius:3px;background:#1463df}.appointments-primary,.waitlist-actions .primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:10px;background:#1463df;color:#fff;padding:11px 16px;font-weight:750;cursor:pointer;box-shadow:0 6px 18px rgba(20,99,223,.18)}.appointments-coming{max-width:700px;margin:90px auto;text-align:center;background:#fff;border:1px solid #e1e7f0;border-radius:18px;padding:52px}.appointments-coming-icon{width:56px;height:56px;margin:0 auto 14px;border-radius:16px;background:#eef5ff;color:#1463df;display:grid;place-items:center}.appointments-coming h2{margin:0 0 8px}.appointments-coming p{color:#6a758a}.waitlist-view-tabs{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #edf2f7;overflow:auto}.waitlist-view-tabs button{display:inline-flex;align-items:center;gap:9px;border:1px solid transparent;background:transparent;padding:10px 14px;border-radius:10px;color:#667085;font-weight:700;cursor:pointer;white-space:nowrap}.waitlist-view-tabs button.active{background:#eaf2ff;color:#1463df;border-color:#cfe0ff}.waitlist-tab-count{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 8px;border-radius:999px;background:#eef2f6;color:#475467;font-size:12px;line-height:1}.waitlist-view-tabs button.active .waitlist-tab-count{background:#dbe9ff;color:#1463df}.waitlist-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 14px}.waitlist-toolbar__left{display:flex;align-items:center;gap:10px;flex:1 1 auto;min-width:0}.waitlist-filters select,.waitlist-filters input{width:100%;box-sizing:border-box;border:1px solid #dce3ed;border-radius:10px;background:#fff;color:#1b2940;padding:10px 11px;font:inherit;outline:none}.waitlist-filters select:focus,.waitlist-filters input:focus{border-color:#5e9af2;box-shadow:0 0 0 3px rgba(20,99,223,.1)}.waitlist-search{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:280px;border:1px solid #dce3ed;border-radius:10px;background:#fff;padding:0 11px;color:#8792a5}.waitlist-search input{border:0;padding-left:0;box-shadow:none!important}.waitlist-filter-trigger{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;border:1px solid #dce3ed;border-radius:10px;background:#fff;color:#344054;padding:10px 14px;font-weight:700;cursor:pointer}.waitlist-filter-trigger__count{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:#eaf2ff;color:#1463df;font-size:11px}.waitlist-add-button{flex:0 0 auto}.waitlist-date{display:flex;align-items:center;background:#fff;border:1px solid #dce3ed;border-radius:10px;padding-left:9px}.waitlist-date span{font-size:11px;color:#7c8799;white-space:nowrap}.waitlist-date input{border:0;padding-left:7px}.waitlist-error{margin-bottom:12px;padding:12px 14px;border:1px solid #fecaca;background:#fff1f2;color:#b42318;border-radius:10px}.waitlist-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}.waitlist-layout.has-detail{grid-template-columns:minmax(0,1fr) 390px}.waitlist-table-card,.waitlist-detail{background:#fff;border:1px solid #e0e6ef;border-radius:15px;box-shadow:0 7px 22px rgba(24,39,75,.045)}.waitlist-table-wrap{overflow:auto;border-radius:15px}.waitlist-table-card table{width:100%;border-collapse:collapse;min-width:1030px}.waitlist-table-card th{padding:13px 14px;text-align:left;background:#f8fafc;border-bottom:1px solid #e7ebf1;color:#68758a;font-size:11px;text-transform:uppercase;letter-spacing:.035em}.waitlist-table-card td{padding:14px;border-bottom:1px solid #edf0f5;color:#3b475a;font-size:13px;vertical-align:middle}.waitlist-table-card tr:last-child td{border-bottom:0}.waitlist-table-card tbody tr{cursor:pointer;transition:.15s}.waitlist-table-card tbody tr:hover,.waitlist-table-card tbody tr.selected{background:#f2f7ff}.waitlist-table-card td strong,.waitlist-table-card td small{display:block}.waitlist-table-card td strong{color:#19263b;font-size:13px}.waitlist-table-card td small{margin-top:3px;color:#7b8798;font-size:11px}.waitlist-client{display:flex;align-items:center;gap:10px}.waitlist-avatar{display:grid;place-items:center;flex:0 0 auto;width:34px;height:34px;border-radius:50%;background:#eee9ff;color:#6841c6;font-size:11px;font-weight:800}.waitlist-avatar.large{width:46px;height:46px;font-size:13px}.waitlist-avatar--mobile{width:50px;height:50px;font-size:20px}.waitlist-status{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:750;background:#eef2f6;color:#475467;white-space:nowrap}.status-active{background:#fff5d9;color:#9a6700}.status-offered{background:#eaf2ff;color:#175cd3}.status-offer_accepted,.status-booked{background:#e9f8ef;color:#087a3e}.status-expired,.status-cancelled,.status-removed,.status-declined{background:#f1f3f6;color:#596579}.waitlist-countdown{color:#175cd3!important;font-variant-numeric:tabular-nums}.waitlist-empty{text-align:center!important;color:#7b8798!important;padding:45px!important}.waitlist-mobile{padding:14px}.waitlist-mobile__result-count{margin:0 2px 14px;color:#66758f;font-size:13px;font-weight:600}.waitlist-mobile__list{display:grid;gap:14px}.waitlist-mobile__empty{padding:36px 18px!important;border:1px dashed #d6deea;border-radius:18px;background:#fff}.waitlist-mobile-card{display:block;border:1px solid #dde5f0;border-radius:22px;background:#fff;box-shadow:0 10px 30px rgba(15,23,42,.06);padding:18px;cursor:pointer;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}.waitlist-mobile-card:hover,.waitlist-mobile-card.is-selected{border-color:#cfe0ff;box-shadow:0 12px 34px rgba(20,99,223,.12)}.waitlist-mobile-card__header{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:start}.waitlist-mobile-card__identity{min-width:0}.waitlist-mobile-card__identity h3{margin:0;color:#1b2940;font-size:18px;line-height:1.2}.waitlist-mobile-card__identity span{display:block;margin-top:7px;color:#7b8798;font-size:12px;line-height:1.35;overflow-wrap:anywhere}.waitlist-mobile-card__summary{display:grid;justify-items:end;gap:8px;min-width:max-content}.waitlist-mobile-card__open{display:inline-flex;align-items:center;gap:6px;border:1px solid #cfe0ff;border-radius:999px;background:#fff;color:#1463df;padding:8px 12px;font-size:12px;font-weight:800;cursor:pointer}.waitlist-mobile-card__open svg{width:15px;height:15px}.waitlist-mobile-card__details{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px 20px;margin-top:16px;padding-top:16px;border-top:1px solid #edf1f6}.waitlist-mobile-card__detail{display:flex;align-items:flex-start;gap:10px;min-width:0}.waitlist-mobile-card__detail--wide{grid-column:1/-1}.waitlist-mobile-card__detail-icon{display:flex;align-items:flex-start;justify-content:center;flex:0 0 22px;width:22px;height:22px;border-radius:0;background:transparent;color:#7b8798}.waitlist-mobile-card__detail-icon svg{width:22px;height:22px}.waitlist-mobile-card__detail>div{min-width:0}.waitlist-mobile-card__detail span{display:block;margin-bottom:4px;color:#7b8798;font-size:11px;font-weight:700;line-height:1.25}.waitlist-mobile-card__detail strong{display:block;color:#24364d;font-size:13px;line-height:1.32}.waitlist-mobile-card__detail small{display:block;margin-top:3px;color:#728096;font-size:12px;line-height:1.35}.waitlist-mobile__pagination{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:16px}.waitlist-mobile__pagination button{display:grid;place-items:center;width:46px;height:46px;border:1px solid #d8e0eb;border-radius:14px;background:#fff;color:#344054;font-size:24px;line-height:1;cursor:pointer}.waitlist-mobile__pagination button:disabled{opacity:.45;cursor:not-allowed}.waitlist-mobile__pagination span{display:grid;place-items:center;min-width:50px;height:50px;padding:0 14px;border:1px solid #cfe0ff;border-radius:16px;background:#eaf2ff;color:#1463df;font-size:20px;font-weight:800}.waitlist-detail{position:sticky;top:84px;max-height:calc(100vh - 105px);overflow:auto}.waitlist-detail-head{display:flex;justify-content:space-between;align-items:flex-start;padding:18px;border-bottom:1px solid #e9edf3}.waitlist-detail-head h2{font-size:18px;margin:0 0 6px}.icon-button{border:0;background:transparent;color:#657187;display:grid;place-items:center;padding:5px;cursor:pointer;border-radius:7px}.icon-button:hover{background:#eef2f6}.waitlist-hold{margin:14px 16px 0;padding:12px 13px;border-radius:10px;background:#edf5ff;border:1px solid #cfe1ff;color:#175cd3}.waitlist-hold strong,.waitlist-hold span{display:block}.waitlist-hold span{font-size:12px;margin-top:4px}.waitlist-detail section{padding:16px 18px;border-bottom:1px solid #edf0f4}.waitlist-detail section:last-child{border-bottom:0}.waitlist-detail h3{display:flex;align-items:center;gap:7px;margin:0 0 12px;font-size:13px;color:#26364d}.waitlist-detail-grid{display:grid;grid-template-columns:120px minmax(0,1fr);gap:9px 12px;font-size:12px}.waitlist-detail-grid span{color:#7b8798}.waitlist-detail-grid strong{font-weight:650;color:#344054}.waitlist-note{margin-top:12px;background:#f7f9fc;border-radius:9px;padding:10px 11px}.waitlist-note span{font-size:11px;color:#7b8798}.waitlist-note p{margin:5px 0 0;font-size:12px}.waitlist-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.waitlist-actions button,.waitlist-actions a{display:flex;align-items:center;justify-content:center;gap:7px;min-height:38px;border:1px solid #d8e0eb;border-radius:9px;background:#fff;color:#344054;text-decoration:none;font-size:12px;font-weight:700;cursor:pointer}.waitlist-actions .primary{border-color:#1463df;color:#fff}.waitlist-actions .danger{color:#d92d20;border-color:#f7c5c1}.waitlist-timeline article{display:grid;grid-template-columns:12px 1fr;gap:8px;position:relative;padding-bottom:14px}.waitlist-timeline article:not(:last-child):before{content:"";position:absolute;left:4px;top:11px;bottom:0;width:1px;background:#dce3ec}.timeline-dot{width:9px;height:9px;border-radius:50%;background:#1463df;margin-top:3px;z-index:1}.waitlist-timeline strong{font-size:11px;text-transform:capitalize}.waitlist-timeline p{font-size:11px;margin:3px 0;color:#667085}.waitlist-timeline small{font-size:10px;color:#98a2b3}.waitlist-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 18px;}.waitlist-form-grid label{display:grid;gap:7px}.waitlist-form-grid label span{font-size:13px;font-weight:700;color:#475467}.waitlist-form-grid .wide{grid-column:1/-1}.waitlist-time-picker.modern-time-picker__trigger{width:100%;min-height:44px;padding:0 14px;border-radius:12px;font-weight:600}.waitlist-flexible-option{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 15px;border:1px solid #dce3ed;border-radius:12px;background:#f8fbff}.waitlist-flexible-option>span{display:grid;gap:4px}.waitlist-flexible-option strong{font-size:13px;color:#26364d}.waitlist-flexible-option small{font-size:12px;line-height:1.45;color:#6b778c}.waitlist-flexible-option .waitlist-payment-switch{position:relative;display:flex;align-items:center;justify-content:flex-end;flex:0 0 auto;width:78px;height:40px;padding:0 10px;border:0;border-radius:999px;background:#d7e0ed;color:#617087;cursor:pointer;transition:background .18s ease,color .18s ease,box-shadow .18s ease;box-shadow:inset 0 0 0 1px rgba(148,163,184,.18),0 3px 8px rgba(15,23,42,.08)}.waitlist-flexible-option .waitlist-payment-switch span{position:absolute;right:10px;font-size:11px;font-weight:800;letter-spacing:.02em;line-height:1;pointer-events:none}.waitlist-flexible-option .waitlist-payment-switch i{position:absolute;top:4px;left:4px;width:32px;height:32px;border-radius:50%;background:#fff;box-shadow:0 2px 7px rgba(15,23,42,.2);transition:transform .18s ease}.waitlist-flexible-option .waitlist-payment-switch.is-on{justify-content:flex-start;background:#2468e8;color:#fff;box-shadow:0 5px 12px rgba(36,104,232,.24)}.waitlist-flexible-option .waitlist-payment-switch.is-on span{left:11px;right:auto}.waitlist-flexible-option .waitlist-payment-switch.is-on i{transform:translateX(38px)}.waitlist-flexible-option .waitlist-payment-switch:focus-visible{outline:3px solid rgba(37,99,235,.2);outline-offset:2px}.waitlist-service-scope{display:flex;gap:10px;flex-wrap:wrap;padding:4px 0}.waitlist-service-scope label{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #dce4ef;border-radius:10px;background:#fff;color:#344054;font-weight:700;cursor:pointer}.waitlist-service-scope input{margin:0}.waitlist-form-hint{margin:-4px 0 0;color:#7b8798;font-size:11px;line-height:1.4}@media(max-width:1250px){.waitlist-toolbar{align-items:stretch;flex-direction:column}.waitlist-toolbar__left{width:100%}.waitlist-add-button{align-self:flex-end}}@media(max-width: 1024px){.appointments-page{padding:20px 14px 70px}.appointments-page-header{align-items:stretch;flex-direction:column}.appointments-primary{align-self:flex-start}.waitlist-toolbar{align-items:stretch}.waitlist-toolbar__left{flex-direction:column;align-items:stretch}.waitlist-search{min-width:0}.waitlist-filter-trigger{justify-content:center}.waitlist-layout.has-detail{grid-template-columns:1fr}.waitlist-detail{position:static;max-height:none}.waitlist-form-grid{grid-template-columns:1fr}.waitlist-form-grid .wide{grid-column:auto}}@media(max-width: 1024px){.appointments-page{margin:0;border-radius:0;padding:18px 14px 78px;box-shadow:none;min-height:100vh}.waitlist-table-card{border-radius:26px;overflow:hidden}.waitlist-view-tabs{display:flex;align-items:stretch;gap:12px;margin:0 0 16px;padding:8px;border:1px solid #e1e7f0;border-radius:22px;background:#fff;overflow-x:auto;scrollbar-width:none}.waitlist-view-tabs::-webkit-scrollbar{display:none}.waitlist-view-tabs button{display:inline-flex;align-items:center;gap:10px;flex:0 0 auto;min-width:164px;padding:14px 16px;border:1px solid transparent;border-radius:16px;background:transparent;color:#344054;font-size:15px;font-weight:700;white-space:nowrap}.waitlist-view-tabs button.active{background:#eaf2ff;color:#1463df;border-color:#cfe0ff;box-shadow:0 10px 24px rgba(20,99,223,.12)}.waitlist-tab-count{min-width:28px;height:28px;padding:0 9px;font-size:12px}.waitlist-view-tabs button.active .waitlist-tab-count{background:#dbe9ff;color:#1463df}.waitlist-toolbar{gap:12px}.waitlist-toolbar__left{gap:12px}.waitlist-search,.waitlist-filter-trigger{min-height:48px;border-radius:14px}.waitlist-table-card{border:0;background:transparent;box-shadow:none}.waitlist-mobile{padding:0}.waitlist-mobile-card__header{grid-template-columns:auto minmax(0,1fr)}.waitlist-mobile-card__summary{grid-column:1/-1;justify-items:start;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:2px}.waitlist-mobile-card__details{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}@media(max-width:540px){.waitlist-actions{grid-template-columns:1fr}.appointments-subtabs{gap:17px}.waitlist-mobile-card{padding:16px}.waitlist-mobile-card__details{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px 16px}.waitlist-mobile-card__detail{gap:8px}.waitlist-mobile-card__detail-icon{flex-basis:20px;width:20px;height:20px}.waitlist-mobile-card__detail-icon svg{width:20px;height:20px}.waitlist-mobile-card__detail strong{font-size:12px}.waitlist-mobile-card__detail small{font-size:11px}.waitlist-mobile__pagination{gap:12px}.waitlist-mobile__pagination button{width:44px;height:44px}.waitlist-mobile__pagination span{min-width:48px;height:48px;font-size:18px}}
 
-      /* Clients-style waitlist layout and centered row-detail popups */
+      /* Clients-style waitlist layout. Detail, create, offer and filters live in cp- panels. */
       .appointments-page{margin:22px;border:1px solid #e3e9f2;border-radius:20px;background:#fff;box-shadow:0 9px 30px rgba(16,36,70,.055);min-height:calc(100vh - 118px)}
       .waitlist-layout{display:block}.waitlist-table-card{border:0;border-radius:0;box-shadow:none}.waitlist-table-wrap{border-radius:0}.waitlist-table-card th{background:#fff;border-bottom:1px solid #dfe6ef;padding-top:17px;padding-bottom:17px}.waitlist-table-card td{padding-top:17px;padding-bottom:17px}.waitlist-table-card tbody tr:hover,.waitlist-table-card tbody tr.selected{background:#edf4ff}.waitlist-view-tabs{display:flex;align-items:center;width:100%;border-bottom:1px solid #edf2f7;gap:10px;margin:0 0 14px;padding:0;background:transparent}.waitlist-view-tabs button{display:inline-flex;align-items:center;justify-content:center;gap:9px;border:0;background:transparent;color:#334155;padding:10px 14px;border-radius:10px;font-size:15px;font-weight:700;line-height:1.2;box-shadow:none;transition:color .18s ease,background .18s ease,box-shadow .18s ease}.waitlist-view-tabs button:hover{background:#fff;color:#0f172a;box-shadow:inset 0 0 0 1px rgba(148,163,184,.22),0 6px 16px rgba(15,23,42,.08)}.waitlist-view-tabs button.active{border:0;background:#eaf2ff;color:#1463df;box-shadow:inset 0 0 0 1px rgba(37,99,235,.16),0 3px 10px rgba(37,99,235,.18)}.waitlist-view-tabs button svg{flex:0 0 auto}.waitlist-filters{margin-top:14px}
-      .waitlist-detail-backdrop{position:fixed;inset:0;z-index:4900;display:grid;place-items:center;padding:20px;background:rgba(14,28,52,.56);backdrop-filter:blur(2px)}
-      .waitlist-detail-modal{width:min(780px,calc(100vw - 36px));max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(223,230,240,.9);border-radius:18px;background:#fff;box-shadow:0 28px 80px rgba(8,23,49,.32);animation:waitlistModalIn .18s ease-out}
-      .waitlist-detail-modal--offered{width:min(880px,calc(100vw - 36px))}.waitlist-detail-modal--history{width:min(920px,calc(100vw - 36px))}
-      @keyframes waitlistModalIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
-      .waitlist-detail-modal__header{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:22px 28px;border-bottom:1px solid #e5eaf1}.waitlist-client--modal{align-items:center}.waitlist-detail-modal__title-row{display:flex;align-items:center;flex-wrap:wrap;gap:12px}.waitlist-detail-modal__title-row h2{margin:0;color:#17243b;font-size:21px}.waitlist-detail-modal__header p{margin:5px 0 0;color:#748197;font-size:12px}.waitlist-detail-modal__close{align-self:flex-start}.waitlist-detail-modal__body{overflow:auto;padding:20px 28px}.waitlist-detail-modal__body--active{display:grid;gap:14px}.waitlist-detail-modal__body--offered{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:26px}.waitlist-detail-modal__body--history{display:grid;gap:14px}
+      .waitlist-detail-title{display:inline-flex;align-items:center;flex-wrap:wrap;gap:10px}
+      .waitlist-popup-note{margin:0;color:#526077;font-size:12px;line-height:1.55}
       .waitlist-popup-card{padding:18px 20px;border:1px solid #dfe6ef;border-radius:13px;background:#fff}.waitlist-popup-card h3,.waitlist-popup-section h3{display:flex;align-items:center;gap:9px;margin:0 0 15px;color:#20304b;font-size:13px}.waitlist-popup-card hr{height:1px;margin:18px 0;border:0;background:#e7ebf1}.waitlist-popup-card--contact{padding:16px 20px}.waitlist-popup-card--notes p,.waitlist-offer-additional p{margin:0;color:#526077;font-size:12px;line-height:1.55}.waitlist-contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.waitlist-contact-grid>div,.waitlist-contact-stack>div{display:flex;align-items:center;gap:10px;color:#40516b;font-size:12px}.waitlist-contact-stack{display:grid;gap:13px}
       .waitlist-popup-dl{display:grid;grid-template-columns:150px minmax(0,1fr);gap:11px 18px;margin:0;font-size:12px}.waitlist-popup-dl dt{color:#758198}.waitlist-popup-dl dd{margin:0;color:#27364d;font-weight:650;line-height:1.45}.waitlist-request-time{display:flex;align-items:center;flex-wrap:wrap;gap:9px}.waitlist-preference-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;background:#eaf2ff;color:#1463df;font-size:11px;font-weight:750;line-height:1}.waitlist-preference-badge svg{width:14px;height:14px}.waitlist-weekday-chips{display:flex;align-items:center;flex-wrap:wrap;gap:7px}.waitlist-weekday-chip{display:inline-flex;align-items:center;justify-content:center;min-width:42px;height:30px;padding:0 10px;border:1px solid #d6dfeb;border-radius:8px;background:#fff;color:#59677d;font-size:11px;font-weight:700;line-height:1}.waitlist-weekday-chip.is-selected{border-color:#1463df;background:#1463df;color:#fff;box-shadow:0 4px 10px rgba(20,99,223,.16)}.waitlist-popup-dl--icons dt{display:flex;align-items:center;gap:8px}.waitlist-popup-section{min-width:0}.waitlist-popup-section--offer{padding-left:26px;border-left:1px solid #e2e7ef}.waitlist-offer-additional{margin-top:18px;padding:13px 14px;border:1px solid #e2e8f1;border-radius:11px;background:#fafcff}.waitlist-offer-additional span{display:block;margin-bottom:7px;color:#758198;font-size:11px}
       .waitlist-active-offer-card{padding:18px;border:1px solid #d7e4f7;border-radius:14px;background:linear-gradient(180deg,#f9fbff,#f2f7ff)}.waitlist-active-offer-card__heading{display:flex;gap:14px;padding-bottom:16px;border-bottom:1px solid #dce6f4}.waitlist-active-offer-card__icon{display:grid;place-items:center;flex:0 0 48px;height:48px;border-radius:50%;background:#e5efff;color:#1463df}.waitlist-active-offer-card__heading small,.waitlist-active-offer-card__heading strong,.waitlist-active-offer-card__heading span{display:block}.waitlist-active-offer-card__heading small{color:#77849a;font-size:11px}.waitlist-active-offer-card__heading strong{margin:5px 0;color:#1463df;font-size:16px}.waitlist-active-offer-card__heading span{color:#31425d;font-size:13px}.waitlist-active-offer-card dl{display:grid;grid-template-columns:120px 1fr;gap:12px;margin:17px 0;font-size:12px}.waitlist-active-offer-card dt{color:#78859a}.waitlist-active-offer-card dd{margin:0;color:#27364d;font-weight:600}.waitlist-active-offer-card__info{display:flex;align-items:flex-start;gap:9px;padding:11px;border:1px solid #cbdcf5;border-radius:10px;background:#eaf3ff;color:#365b8f;font-size:11px;line-height:1.4}.waitlist-popup-empty-offer{padding:22px;border:1px dashed #d9e1ec;border-radius:12px;color:#758198;text-align:center;font-size:12px}
       .waitlist-popup-timeline{display:grid;gap:0}.waitlist-popup-timeline article{position:relative;display:grid;grid-template-columns:12px 145px 1fr;gap:10px;padding:0 0 13px}.waitlist-popup-timeline article:not(:last-child)::before{content:"";position:absolute;left:4px;top:10px;bottom:0;width:1px;background:#d5deea}.waitlist-popup-timeline .timeline-dot{margin-top:4px}.waitlist-popup-timeline time{color:#53627a;font-size:11px}.waitlist-popup-timeline strong{color:#34445c;font-size:11px}.waitlist-popup-timeline p{margin:3px 0 0;color:#7a8799;font-size:10px}.waitlist-popup-timeline--wide article{grid-template-columns:12px 1fr 150px 100px;align-items:start}.waitlist-popup-timeline--wide small{color:#65748a;font-size:10px;text-align:right}
       .waitlist-history-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(260px,.8fr);gap:14px}.waitlist-linked-booking-card{position:relative}.waitlist-linked-booking-card__icon{display:grid;place-items:center;width:50px;height:50px;margin-bottom:10px;border-radius:50%;background:#e6f8ed;color:#0b9d55}.waitlist-linked-booking-card>span{display:block;color:#7a879a;font-size:11px}.waitlist-linked-booking-card>strong{display:block;margin:5px 0;color:#253650;font-size:17px}.waitlist-linked-booking-card>p{color:#53627a;font-size:12px}.waitlist-linked-booking-card>button{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:18px;padding:10px;border:1px solid #b9d0f5;border-radius:9px;background:#fff;color:#1463df;font-weight:700;cursor:pointer}.waitlist-popup-muted{color:#758198}
-      .waitlist-detail-modal__footer{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px;padding:16px 28px;border-top:1px solid #e4e9f0;background:#fff}.waitlist-detail-modal__footer button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:9px 17px;border:1px solid #d7e0ec;border-radius:9px;background:#fff;color:#34445c;font-weight:700;cursor:pointer}.waitlist-detail-modal__footer button.primary{border-color:#1463df;background:#1463df;color:#fff;box-shadow:0 7px 17px rgba(20,99,223,.18)}.waitlist-detail-modal__footer button.danger{border-color:#f5b8b8;color:#dc2626}.waitlist-detail-modal__footer button:hover{background:#f6f9fd}.waitlist-detail-modal__footer button.primary:hover{background:#0f5ed9}
-      @media(max-width: 1024px){.appointments-page{margin:12px;border-radius:16px}.waitlist-detail-modal__body--offered{grid-template-columns:1fr}.waitlist-popup-section--offer{padding-left:0;padding-top:20px;border-left:0;border-top:1px solid #e2e7ef}.waitlist-history-grid{grid-template-columns:1fr}.waitlist-detail-modal__footer{justify-content:stretch}.waitlist-detail-modal__footer button{flex:1 1 180px}}
-      @media(max-width:620px){.waitlist-detail-backdrop{padding:0}.waitlist-detail-modal,.waitlist-detail-modal--offered,.waitlist-detail-modal--history{width:100%;height:100%;max-height:none;border:0;border-radius:0}.waitlist-detail-modal__header,.waitlist-detail-modal__body,.waitlist-detail-modal__footer{padding-left:18px;padding-right:18px}.waitlist-contact-grid{grid-template-columns:1fr}.waitlist-popup-dl{grid-template-columns:105px minmax(0,1fr)}.waitlist-weekday-chips{gap:6px}.waitlist-weekday-chip{min-width:38px;height:29px;padding:0 8px}.waitlist-popup-timeline article{grid-template-columns:12px 1fr}.waitlist-popup-timeline time{grid-column:2}.waitlist-popup-timeline--wide article{grid-template-columns:12px 1fr}.waitlist-popup-timeline--wide time,.waitlist-popup-timeline--wide small{grid-column:2;text-align:left}.waitlist-detail-modal__footer button{flex-basis:100%}}
+      
+      @media(max-width: 1024px){.appointments-page{margin:12px;border-radius:16px}.waitlist-popup-section--offer{padding-left:0;padding-top:20px;border-left:0;border-top:1px solid #e2e7ef}.waitlist-history-grid{grid-template-columns:1fr}}
+      @media(max-width:620px){.waitlist-contact-grid{grid-template-columns:1fr}.waitlist-popup-dl{grid-template-columns:105px minmax(0,1fr)}.waitlist-weekday-chips{gap:6px}.waitlist-weekday-chip{min-width:38px;height:29px;padding:0 8px}.waitlist-popup-timeline article{grid-template-columns:12px 1fr}.waitlist-popup-timeline time{grid-column:2}.waitlist-popup-timeline--wide article{grid-template-columns:12px 1fr}.waitlist-popup-timeline--wide time,.waitlist-popup-timeline--wide small{grid-column:2;text-align:left}}
       @media(max-width: 1024px){
         .appointments-page{margin:0!important;padding:0 0 calc(92px + env(safe-area-inset-bottom))!important;min-height:100vh;border-radius:0!important;background:#f8fafc;box-shadow:none!important;color:#13213a}
         .waitlist-view-tabs{position:sticky;top:calc(61px + env(safe-area-inset-top));z-index:190;display:flex;align-items:stretch;width:100%;min-height:58px;margin:-1px 0 0;padding:0 14px;gap:0;border:0;border-radius:0;background:linear-gradient(135deg,#0b71ee 0%,#0865db 100%);box-shadow:0 -2px 0 #0b71ee;box-sizing:border-box;overflow:visible}

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { api, getApiErrorMessage } from '../../api'
 import type { CustomFieldAppliesTo, CustomFieldDefinition, CustomFieldType } from '../../lib/types'
 import { useLocale } from '../../locale'
+import { useConfirm } from '../../components/panel'
 
 type CustomFieldDraft = {
   id?: number
@@ -80,6 +81,7 @@ function normalizeDraft(draft: CustomFieldDraft) {
 
 export function ConfigurationCustomFieldsSection() {
   const { locale } = useLocale()
+  const confirm = useConfirm()
   const [activeTab, setActiveTab] = useState<CustomFieldAppliesTo>('CLIENT')
   const [fields, setFields] = useState<CustomFieldDefinition[]>([])
   const [loading, setLoading] = useState(false)
@@ -233,7 +235,7 @@ export function ConfigurationCustomFieldsSection() {
   }
 
   const deleteField = async (field: CustomFieldDefinition) => {
-    if (!window.confirm(copy.confirmDelete)) return
+    if (!(await confirm({ title: copy.confirmDelete, tone: 'danger' }))) return
     setError('')
     try {
       await api.delete(`/custom-fields/${field.id}`)

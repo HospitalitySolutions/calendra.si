@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { api, getApiErrorMessage } from '../../../api'
 import { bookingStatusDisplayLabel, deriveBookingStatus } from '../calendarStatus'
+import { PanelBanner, PanelBody, PanelFooter, PanelHeader, SidePanel } from '../../../components/panel'
 import './CalendarGroupGuestsPanel.css'
 
 type CalendarGroupGuestsPanelProps = {
@@ -404,29 +404,23 @@ export function CalendarGroupGuestsPanel({
   const titleName = String(group?.name || session?.groupName || '').trim() || (sl ? `Skupina #${session?.groupId || ''}` : `Group #${session?.groupId || ''}`)
   const displayedRows = mode === 'current' ? visibleAttendees : availableClients
 
-  const content = (
-    <div className="calendar-group-guests-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget && busyClientId == null) onClose()
-    }}>
-      <section className="calendar-group-guests-panel" role="dialog" aria-modal="true" aria-labelledby="calendar-group-guests-title">
-        <header className="calendar-group-guests-header">
-          <button type="button" className="calendar-group-guests-icon-button calendar-group-guests-close-desktop" onClick={onClose} aria-label={copy.close} disabled={busyClientId != null}>
-            <CloseIcon />
-          </button>
-          <button type="button" className="calendar-group-guests-icon-button calendar-group-guests-back-mobile" onClick={onClose} aria-label={copy.close} disabled={busyClientId != null}>
-            <BackIcon />
-          </button>
-          <div className="calendar-group-guests-heading">
-            <h2 id="calendar-group-guests-title">
-              <span className="calendar-group-guests-title-desktop">{titleName} – {copy.details}</span>
-              <span className="calendar-group-guests-title-mobile">{titleName} – {copy.guests}</span>
-            </h2>
-            <p>{serviceLabel(session)} <span aria-hidden="true">•</span> {sessionDateTime(session, locale)}</p>
-          </div>
-          <button type="button" className="calendar-group-guests-close-text" onClick={onClose} disabled={busyClientId != null}>{copy.close}</button>
-        </header>
+  return (
+    <SidePanel
+      open
+      onClose={onClose}
+      ariaLabel={`${titleName} – ${copy.guests}`}
+      size="lg"
+      closeOnScrimClick={busyClientId == null}
+      closeOnEscape={busyClientId == null}
+    >
+        <PanelHeader
+          title={`${titleName} – ${copy.details}`}
+          subtitle={`${serviceLabel(session)} • ${sessionDateTime(session, locale)}`}
+          onClose={onClose}
+          closeLabel={copy.close}
+        />
 
-        <div className="calendar-group-guests-scroll">
+        <PanelBody>
           <div className="calendar-group-guests-summary">
             <div className="calendar-group-guests-stat">
               <span className="calendar-group-guests-stat-icon calendar-group-guests-stat-icon--blue"><PeopleIcon /></span>
@@ -467,7 +461,7 @@ export function CalendarGroupGuestsPanel({
             </button>
           </div>
 
-          {error && <div className="calendar-group-guests-error" role="alert">{error}</div>}
+          {error && <PanelBanner tone="error">{error}</PanelBanner>}
           {mode === 'current' && isFull && <div className="calendar-group-guests-capacity-note">{copy.full}</div>}
 
           <div className="calendar-group-guests-table" data-mode={mode}>
@@ -559,15 +553,14 @@ export function CalendarGroupGuestsPanel({
               })}
             </div>
           </div>
-        </div>
+        </PanelBody>
 
-        <footer className="calendar-group-guests-footer">
-          <span className="calendar-group-guests-info-icon">i</span>
-          <span>{mode === 'current' ? copy.infoCurrent : copy.infoAdd}</span>
-        </footer>
-      </section>
-    </div>
+        <PanelFooter>
+          <span className="calendar-group-guests-footer-note">
+            <span className="calendar-group-guests-info-icon">i</span>
+            {mode === 'current' ? copy.infoCurrent : copy.infoAdd}
+          </span>
+        </PanelFooter>
+    </SidePanel>
   )
-
-  return createPortal(content, document.body)
 }

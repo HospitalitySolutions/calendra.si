@@ -4,7 +4,7 @@ import '../styles/features.booking.css'
 import '../styles/features/booking-side-panel.css'
 import '../styles/features/modern-clients.css'
 import { DesktopSelect } from '../components/DesktopSelect'
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser'
@@ -16,6 +16,9 @@ import { normalizePaymentMethod } from '../lib/types'
 import { Card, EmptyState, Field } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useLocale, type AppLocale } from '../locale'
+import { ConfirmDialog, PanelBody, PanelButton, PanelFooter, PanelHeader, PanelMenuItem, PanelOverflowMenu, PanelTabs, SidePanel, useConfirm } from '../components/panel'
+import { GuestConfigSaveIcon } from '../components/GuestConfigSaveIcon'
+import { BILLING_DRAWERS, buildDrawerUrl, useDrawerRoute } from '../lib/drawerRoutes'
 import { canIssueAdvanceInvoices, canIssueOpenInvoices, canIssueRefundInvoices } from '../lib/employeePermissions'
 import { useMobileKeyboardOpen } from '../hooks/useMobileKeyboardOpen'
 import { DEFAULT_INVOICE_PRINT_FORMAT_KEY, normalizeInvoicePrintPreference, type InvoicePrintFormat } from '../lib/invoicePrintFormat'
@@ -701,6 +704,34 @@ type HistoryInvoiceTypeFilter = 'all' | BillDocumentType | 'REFUND'
 type HistoryFiscalStatusFilter = 'all' | NonNullable<Bill['fiscalStatus']>
 type HistoryPaymentStatusFilter = 'all' | NonNullable<Bill['paymentStatus']>
 type BillingTab = 'open' | 'openPayments' | 'unusedAdvances' | 'giftCards' | 'history'
+
+function parseBillingTab(search: string): BillingTab {
+  const tab = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search).get('tab')
+  if (tab === 'openPayments' || tab === 'unusedAdvances' || tab === 'giftCards' || tab === 'history') return tab
+  return 'open'
+}
+
+function billingTabSearch(tab: BillingTab): string {
+  return tab === 'open' ? '' : `tab=${tab}`
+}
+
+function mergeSearch(...parts: Array<string | undefined>): string {
+  const params = new URLSearchParams()
+  for (const part of parts) {
+    if (!part) continue
+    new URLSearchParams(part.startsWith('?') ? part.slice(1) : part).forEach((value, key) => {
+      if (value) params.set(key, value)
+    })
+  }
+  return params.toString()
+}
+
+function parseLegacyOpenBillEditPath(pathname: string): number | null {
+  const match = pathname.match(/^(?:\/billing)?\/open-bills\/(\d+)\/edit\/?$/)
+  if (!match) return null
+  const id = Number(match[1])
+  return Number.isInteger(id) && id > 0 ? id : null
+}
 type BillingGiftCardStatus = 'all' | 'active' | 'partially_used' | 'used' | 'expired' | 'cancelled' | 'pending_payment'
 type BillingGiftCard = {
   id: number
@@ -916,19 +947,49 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const canIssueRefundInvoice = canIssueRefundInvoices(me)
   const { showToast } = useToast()
   const { t, locale } = useLocale()
+  const confirm = useConfirm()
   const mobileKeyboardOpen = useMobileKeyboardOpen(1024)
   const routeParams = useParams()
   const navigate = useNavigate()
   const location = useLocation()
+  const { match: drawerMatch, isOpen: isDrawerOpen, open: openDrawer, close: closeDrawerRoute } = useDrawerRoute()
+  const embeddedCreateMode = embeddedCreateBill != null
+  const activeEmbeddedOpenBillId = Number(embeddedOpenBillId ?? 0)
+  const embeddedOpenBillMode = Number.isInteger(activeEmbeddedOpenBillId) && activeEmbeddedOpenBillId > 0
+  const embeddedMode = embeddedCreateMode || embeddedOpenBillMode
+  const billingPageDrawers = !embeddedMode && (drawerMatch == null || drawerMatch.descriptor.page === '/billing')
+  const newBillDrawerOpen = billingPageDrawers && isDrawerOpen(BILLING_DRAWERS.newBill)
+  const openBillDrawerOpen = billingPageDrawers && isDrawerOpen(BILLING_DRAWERS.openBill)
+  const billDrawerOpen = billingPageDrawers && isDrawerOpen(BILLING_DRAWERS.bill)
+  const giftCardDrawerOpen = billingPageDrawers && isDrawerOpen(BILLING_DRAWERS.giftCard)
+  const workspaceBillsDrawerOpen = billingPageDrawers && isDrawerOpen(BILLING_DRAWERS.workspaceBills)
+  const drawerName = drawerMatch?.descriptor.name ?? ''
+  const drawerId = drawerMatch?.params.id ?? ''
+  const drawerKey = drawerName ? `${drawerName}:${drawerId}` : ''
+  const pageSearch = embeddedMode ? '' : billingTabSearch(parseBillingTab(location.search))
+  const closeDrawer = useCallback(
+    () => closeDrawerRoute({ search: pageSearch }),
+    [closeDrawerRoute, pageSearch],
+  )
+  const selectBillingTab = useCallback((tab: BillingTab) => {
+    if (embeddedMode) return
+    const search = billingTabSearch(tab)
+    if (drawerMatch?.descriptor.page === '/billing') {
+      closeDrawerRoute({ search })
+      return
+    }
+    navigate(search ? `/billing?${search}` : '/billing', { replace: true })
+  }, [closeDrawerRoute, drawerMatch, embeddedMode, navigate])
   const routedOpenBillId = Number(routeParams.openBillId ?? 0)
   const activeRouteOpenBillId = Number.isInteger(routedOpenBillId) && routedOpenBillId > 0 ? routedOpenBillId : null
-  const activeEmbeddedOpenBillId = Number(embeddedOpenBillId ?? 0)
-  const activeOpenBillId = Number.isInteger(activeEmbeddedOpenBillId) && activeEmbeddedOpenBillId > 0
+  const drawerOpenBillIdRaw = Number(openBillDrawerOpen ? drawerId : 0)
+  const drawerOpenBillId = Number.isInteger(drawerOpenBillIdRaw) && drawerOpenBillIdRaw > 0 ? drawerOpenBillIdRaw : null
+  const legacyPathOpenBillId = embeddedMode ? null : parseLegacyOpenBillEditPath(location.pathname)
+  const activeOpenBillId = embeddedOpenBillMode
     ? activeEmbeddedOpenBillId
-    : activeRouteOpenBillId
-  const editorOnlyMode = activeOpenBillId != null && (embeddedOpenBillId != null || activeRouteOpenBillId != null)
-  const embeddedCreateMode = embeddedCreateBill != null
-  const overlayOnlyMode = editorOnlyMode || embeddedCreateMode
+    : (drawerOpenBillId ?? (openBillDrawerOpen ? null : (legacyPathOpenBillId ?? activeRouteOpenBillId)))
+  const editorOnlyMode = embeddedOpenBillMode
+  const overlayOnlyMode = embeddedMode
   const billingCopy = locale === 'sl' ? {
     newCompanyTitle: 'Novo podjetje',
     newCompanySubtitle: 'Obvezno je samo ime podjetja.',
@@ -1166,9 +1227,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [invoiceLocations, setInvoiceLocations] = useState<Location[]>([])
   const [workspaceBills, setWorkspaceBills] = useState<WorkspaceBill[]>([])
   const [showWorkspaceBills, setShowWorkspaceBills] = useState(false)
+  const workspaceBillsPanelOpen = embeddedMode ? showWorkspaceBills : workspaceBillsDrawerOpen
   const [workspaceBillsLoading, setWorkspaceBillsLoading] = useState(false)
   const [billForm, setBillForm] = useState<BillForm>({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', wholeBillDiscountPercent: '0', itemDiscounts: {} })
   const [showCreateBillModal, setShowCreateBillModal] = useState(false)
+  const createBillPanelOpen = embeddedCreateMode ? showCreateBillModal : newBillDrawerOpen
   const [editingCreateBillPayee, setEditingCreateBillPayee] = useState(false)
   const [creatingBill, setCreatingBill] = useState(false)
   const [bankTransferQrMissingModal, setBankTransferQrMissingModal] = useState<BankTransferQrMissingModal | null>(null)
@@ -1282,7 +1345,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     dateTo: '',
     status: 'all',
   })
-  const [billingTab, setBillingTab] = useState<BillingTab>('open')
+  const [billingTab, setBillingTab] = useState<BillingTab>(() => (embeddedMode ? 'open' : parseBillingTab(location.search)))
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(() => queryClient.getQueryData<BillingSummary>(queryKeys.billing.summary(activeUnitId, selectedLocationId)) ?? null)
   const [loadedBillingEditorDependencyScopeKey, setLoadedBillingEditorDependencyScopeKey] = useState('')
   const [selectedUnusedAdvanceId, setSelectedUnusedAdvanceId] = useState<number | null>(null)
@@ -1847,8 +1910,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
   }, [billForm.sessionId, bookings, invoiceIssuers, invoiceLocations, selectedInvoiceLocationId])
 
-  const openWorkspaceBillHistory = async () => {
-    setShowWorkspaceBills(true)
+  const loadWorkspaceBills = async () => {
     setWorkspaceBillsLoading(true)
     try {
       const { data } = await api.get('/billing/workspace-bills?size=500')
@@ -1860,13 +1922,37 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
   }
 
+  const openWorkspaceBillHistory = async () => {
+    if (embeddedMode) setShowWorkspaceBills(true)
+    else openDrawer(BILLING_DRAWERS.workspaceBills, { search: pageSearch })
+    await loadWorkspaceBills()
+  }
+
+  useEffect(() => {
+    if (embeddedMode) return
+    const fromUrl = parseBillingTab(location.search)
+    setBillingTab((prev) => (prev === fromUrl ? prev : fromUrl))
+  }, [embeddedMode, location.search])
+
+  useEffect(() => {
+    if (embeddedMode) return
+    const legacyId = parseLegacyOpenBillEditPath(location.pathname)
+    if (!legacyId) return
+    navigate(buildDrawerUrl(BILLING_DRAWERS.openBill, {
+      params: { id: String(legacyId) },
+      search: location.search.replace(/^\?/, ''),
+    }), { replace: true })
+  }, [embeddedMode, location.pathname, location.search, navigate])
+
   useEffect(() => {
     if (!advanceBillingEnabled && billingTab === 'unusedAdvances') {
-      setBillingTab('open')
+      if (embeddedMode) setBillingTab('open')
+      else selectBillingTab('open')
       setSelectedUnusedAdvanceId(null)
     }
     if (!giftCardsEnabled && billingTab === 'giftCards') {
-      setBillingTab('open')
+      if (embeddedMode) setBillingTab('open')
+      else selectBillingTab('open')
     }
     if (!fiscalCashRegisterEnabled && historyFiscalStatusFilter !== 'all') {
       setHistoryFiscalStatusFilter('all')
@@ -2218,7 +2304,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           onEmbeddedClose()
           return
         }
-        if (activeRouteOpenBillId) navigate('/billing', { replace: true })
+        if (openBillDrawerOpen) closeDrawer()
+        else navigate(pageSearch ? `/billing?${pageSearch}` : '/billing', { replace: true })
       })
 
     return () => {
@@ -2245,6 +2332,19 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setDetailOpenBill(null)
     setOpenBillEditorRootId(null)
   }, [activeOpenBillId, embeddedCreateBill])
+
+  useEffect(() => {
+    if (!giftCardDrawerOpen) {
+      if (!embeddedMode) setDetailGiftCard(null)
+      return
+    }
+    const id = Number(drawerId)
+    if (!Number.isInteger(id) || id <= 0) return
+    setDetailGiftCard((prev) => {
+      if (prev?.id === id) return prev
+      return giftCards.find((card) => card.id === id) ?? prev
+    })
+  }, [drawerId, embeddedMode, giftCardDrawerOpen, giftCards])
 
 
   useEffect(() => {
@@ -3996,6 +4096,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', discountType: 'PERCENT', discountValue: '0', wholeBillDiscountPercent: '0', itemDiscounts: {} })
       setShowCreateBillModal(false)
       setEditingCreateBillPayee(false)
+      if (!embeddedCreateMode && newBillDrawerOpen) closeDrawer()
       if (data?.id && shouldCreateCheckoutSession(data)) {
         await api.post(`/billing/bills/${data.id}/checkout-session`)
       }
@@ -4042,7 +4143,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       itemDiscounts: {},
     })
     setEditingCreateBillPayee(false)
-    setShowCreateBillModal(true)
+    if (embeddedMode) setShowCreateBillModal(true)
+    else openDrawer(BILLING_DRAWERS.newBill, { search: pageSearch })
   }
 
   const openCreateAdvanceBillModal = async () => {
@@ -4065,7 +4167,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       itemDiscounts: {},
     })
     setEditingCreateBillPayee(false)
-    setShowCreateBillModal(true)
+    if (embeddedMode) setShowCreateBillModal(true)
+    else openDrawer(BILLING_DRAWERS.newBill, { search: mergeSearch(pageSearch, 'type=advance') })
   }
 
   const closeCreateBillModal = () => {
@@ -4076,11 +4179,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setRecipientCompanyPickerOpen(false)
     setEditingRecipientCompanySearch(false)
     if (embeddedCreateBill && onEmbeddedClose) onEmbeddedClose()
-  }
-
-  /** Close only when press starts on the dimmed overlay (not after selecting/dragging from inside the panel — same as transaction-services modal). */
-  const onCreateBillBackdropMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) closeCreateBillModal()
+    else if (newBillDrawerOpen) closeDrawer()
   }
 
   const closeDetailOpenBill = () => {
@@ -4098,18 +4197,41 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       return
     }
     setDetailOpenBill(null)
-    if (!activeOpenBillId) return
     const searchParams = new URLSearchParams(location.search)
     const returnTo = searchParams.get('returnTo')
     if (returnTo) {
       navigate(returnTo, { replace: true })
       return
     }
-    navigate('/billing', { replace: true })
+    if (openBillDrawerOpen) {
+      closeDrawer()
+      return
+    }
+    if (!activeOpenBillId) return
+    navigate(pageSearch ? `/billing?${pageSearch}` : '/billing', { replace: true })
   }
 
-  const onDetailOpenBillBackdropMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) closeDetailOpenBill()
+  const closeGiftCardPanel = () => {
+    setDetailGiftCard(null)
+    if (giftCardDrawerOpen) closeDrawer()
+  }
+
+  const openGiftCardPanel = (card: BillingGiftCard) => {
+    setDetailGiftCard(card)
+    if (!embeddedMode) {
+      openDrawer(BILLING_DRAWERS.giftCard, { params: { id: String(card.id) }, search: pageSearch })
+    }
+  }
+
+  const closeWorkspaceBillsPanel = () => {
+    setShowWorkspaceBills(false)
+    if (workspaceBillsDrawerOpen) closeDrawer()
+  }
+
+  const closeFolioPanel = () => {
+    setFiscalLogBill(null)
+    setDetailFolioBill(null)
+    if (billDrawerOpen) closeDrawer()
   }
 
   const openEditInvoicePopup = (ob: OpenBill) => {
@@ -4121,6 +4243,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setSelectedOpenBillLines({})
     setMoveSelectedTargetOpenBillId(null)
     setDetailOpenBill(ob)
+    if (!embeddedMode) {
+      openDrawer(BILLING_DRAWERS.openBill, { params: { id: String(ob.id) }, search: pageSearch })
+    }
   }
 
   const selectedClient = useMemo(() => clients.find((client) => client.id === billForm.clientId), [clients, billForm.clientId])
@@ -5168,7 +5293,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const deleteOpenBill = async (ob: OpenBill) => {
     if (deletingOpenId) return
-    if (!window.confirm('Delete this open bill? This cannot be undone.')) return
+    const confirmed = await confirm({
+      title: t('confirmDeleteOpenBill'),
+      text: t('confirmCannotBeUndone'),
+      tone: 'danger',
+    })
+    if (!confirmed) return
     setDeletingOpenId(ob.id)
     try {
       await api.delete(`/billing/open-bills/${ob.id}`)
@@ -5560,6 +5690,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setBillingTab('open')
       setShowCreateBillModal(false)
       setEditingCreateBillPayee(false)
+      if (!embeddedCreateMode && newBillDrawerOpen) closeDrawer()
       showToast('success', 'Open bill created.')
     } catch (error: any) {
       showToast(
@@ -5615,6 +5746,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', consultantId: me.id, discountType: 'PERCENT', discountValue: '0', wholeBillDiscountPercent: '0', itemDiscounts: {} })
       setShowCreateBillModal(false)
       setEditingCreateBillPayee(false)
+      if (!embeddedCreateMode && newBillDrawerOpen) closeDrawer()
       await reloadAfterBillingMutation()
     } catch (error: any) {
       closePdfActionWindow(printWindow)
@@ -6533,8 +6665,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
 
     return (
-      <div className="billing-payee-modal-backdrop" onMouseDown={closeAdvancePaymentModal} role="presentation">
-        <div className="billing-advance-picker-modal" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Izberi predplačila' : 'Choose advance payments'}>
+      <SidePanel
+        open
+        onClose={closeAdvancePaymentModal}
+        ariaLabel={locale === 'sl' ? 'Izberi predplačila' : 'Choose advance payments'}
+        size="lg"
+      >
+        <div className="billing-advance-picker-modal">
           <div className="billing-payee-modal-head billing-advance-picker-head">
             <div>
               <h3>{locale === 'sl' ? 'Izberi neizkoriščena predplačila' : 'Choose unused advance payments'}</h3>
@@ -6594,7 +6731,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             </button>
           </div>
         </div>
-      </div>
+      </SidePanel>
     )
   }
 
@@ -6614,7 +6751,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           : (locale === 'sl' ? 'Vnesite kodo ugodnosti' : 'Enter entitlement code')
 
     return (
-      <div className="billing-entitlement-modal-backdrop" onMouseDown={closeEntitlementPaymentModal} role="presentation">
+      <SidePanel
+        open
+        onClose={closeEntitlementPaymentModal}
+        ariaLabel={modalTitle}
+        size="md"
+      >
         <div
           className={`billing-entitlement-modal billing-entitlement-modal--${entitlementPaymentStep}`}
           onMouseDown={(event) => event.stopPropagation()}
@@ -6814,7 +6956,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             </div>
           )}
         </div>
-      </div>
+      </SidePanel>
     )
   }
 
@@ -7217,8 +7359,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
 
     return (
-      <div className="billing-payee-modal-backdrop" onMouseDown={() => setEditingCreateBillPayee(false)} role="presentation">
-        <div className="billing-payee-modal billing-payee-modal--editor" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}>
+      <SidePanel
+        open
+        onClose={() => setEditingCreateBillPayee(false)}
+        ariaLabel={locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}
+        size="lg"
+      >
+        <div className="billing-payee-modal billing-payee-modal--editor">
           <div className="billing-payee-mobile-topbar">
             <button type="button" className="billing-bill-modal-close" onClick={() => setEditingCreateBillPayee(false)} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
             <div className="billing-payee-mobile-topbar-title">{locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}</div>
@@ -7440,7 +7587,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             </button>
           </div>
         </div>
-      </div>
+      </SidePanel>
     )
   }
   const renderAddOpenBillDialog = () => {
@@ -7470,8 +7617,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       ? sortedClients
       : sortedClients.filter((client) => client.billingCompany?.id === ctx.recipientCompanyId)
     return (
-      <div className="billing-payee-modal-backdrop" onMouseDown={() => { if (!creatingAdditionalOpenBill) setAddOpenBillContext(null) }} role="presentation">
-        <div className="billing-payee-modal" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Dodaj nov račun' : 'Add new bill'}>
+      <SidePanel
+        open
+        onClose={() => { if (!creatingAdditionalOpenBill) setAddOpenBillContext(null) }}
+        ariaLabel={locale === 'sl' ? 'Dodaj nov račun' : 'Add new bill'}
+        size="lg"
+      >
+        <div className="billing-payee-modal">
           <div className="billing-payee-modal-head">
             <div>
               <h3>{locale === 'sl' ? 'Dodaj nov račun' : 'Add new bill'}</h3>
@@ -7564,7 +7716,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             </button>
           </div>
         </div>
-      </div>
+      </SidePanel>
     )
   }
 
@@ -7676,8 +7828,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
 
     return (
-      <div className="billing-payee-modal-backdrop" onMouseDown={closeOpenBillPayeeEditor} role="presentation">
-        <div className="billing-payee-modal billing-payee-modal--editor" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}>
+      <SidePanel
+        open
+        onClose={closeOpenBillPayeeEditor}
+        ariaLabel={locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}
+        size="lg"
+      >
+        <div className="billing-payee-modal billing-payee-modal--editor">
           <div className="billing-payee-mobile-topbar">
             <button type="button" className="billing-bill-modal-close" onClick={closeOpenBillPayeeEditor} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
             <div className="billing-payee-mobile-topbar-title">{locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}</div>
@@ -7895,7 +8052,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             </button>
           </div>
         </div>
-      </div>
+      </SidePanel>
     )
   }
   const renderModernOpenBillEditor = (ob: OpenBill) => {
@@ -8324,8 +8481,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--purple">€</span><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(totalAcrossBills)}</strong></div>
           <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--red">▤</span><span>{locale === 'sl' ? 'Neplačano' : 'Unpaid'}</span><strong>{currency(totalUnpaidAcrossBills)}</strong></div>
         </section>
-        {renderOpenBillPayeeEditorDialog()}
-        {renderAddOpenBillDialog()}
       </div>
     )
   }
@@ -8426,7 +8581,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       return
     }
     if (!canRefundBill(bill)) return
-    const ok = window.confirm(`Create refund invoice for ${bill.billNumber || `#${bill.id}`}?`)
+    const ok = await confirm({
+      title: t('confirmCreateRefund').replace('{name}', bill.billNumber || `#${bill.id}`),
+    })
     if (!ok) return
     setRefundingBillId(bill.id)
     try {
@@ -8472,11 +8629,50 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
   }
 
-  const openFolioPanel = async (bill: Bill, tab: 'invoice' | 'fiscal' = 'invoice') => {
+  const hydrateFolioBill = async (bill: Bill, tab: 'invoice' | 'fiscal' = 'invoice') => {
     setDetailFolioBill(normalizeBill(bill))
     setFolioPanelTab(fiscalCashRegisterEnabled ? tab : 'invoice')
     await openFiscalLog(bill)
   }
+
+  const openFolioPanel = async (bill: Bill, tab: 'invoice' | 'fiscal' = 'invoice') => {
+    await hydrateFolioBill(bill, tab)
+    if (!embeddedMode) {
+      openDrawer(BILLING_DRAWERS.bill, { params: { id: String(bill.id) }, search: pageSearch })
+    }
+  }
+
+  const folioHydrateKeyRef = useRef('')
+  useEffect(() => {
+    if (!billDrawerOpen) {
+      folioHydrateKeyRef.current = ''
+      return
+    }
+    const id = Number(drawerId)
+    if (!Number.isInteger(id) || id <= 0) return
+    if (folioHydrateKeyRef.current === drawerKey) return
+    folioHydrateKeyRef.current = drawerKey
+    if (detailFolioBill?.id === id) {
+      void openFiscalLog(detailFolioBill)
+      return
+    }
+    const existing = bills.find((bill) => Number(bill.id) === id)
+    if (existing) {
+      void hydrateFolioBill(existing)
+      return
+    }
+    void api.get<Bill>(`/billing/bills/${id}`)
+      .then(({ data }) => {
+        if (data) void hydrateFolioBill(normalizeBill(data))
+        else closeDrawer()
+      })
+      .catch(() => closeDrawer())
+  }, [billDrawerOpen, drawerId, drawerKey])
+
+  useEffect(() => {
+    if (!workspaceBillsDrawerOpen) return
+    void loadWorkspaceBills()
+  }, [workspaceBillsDrawerOpen])
 
   /** Plain document icon (matches open-bill “create bill” icon, no payment-status badge). */
   const renderPlainFolioPdfIcon = () => (
@@ -8716,20 +8912,20 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <Card className={`${isOpenBillsMobile ? 'billing-mobile-shell ' : ''}${billingTab === 'open' && isOpenBillsMobile ? 'billing-open-mobile-shell ' : ''}billing-modern-card billing-modern-card--${billingTab}`}>
             <div className="billing-modern-header">
               <div ref={billingTabsRef} className="clients-session-tabs billing-modern-tabs" style={{ marginBottom: 0 }}>
-                <button type="button" className={billingTab === 'open' ? 'clients-session-tab active' : 'clients-session-tab'} onPointerEnter={() => prefetchBillingTabData('open')} onFocus={() => prefetchBillingTabData('open')} onClick={() => setBillingTab('open')}>
+                <button type="button" className={billingTab === 'open' ? 'clients-session-tab active' : 'clients-session-tab'} onPointerEnter={() => prefetchBillingTabData('open')} onFocus={() => prefetchBillingTabData('open')} onClick={() => (embeddedMode ? setBillingTab('open') : selectBillingTab('open'))}>
                   {billingTabIcon('open')}
                   <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabOpenBills')}</span>
                   <span className="billing-tab-label billing-tab-label--mobile">{t('billingTabOpenBills')}</span>
                   <strong className="billing-tab-count">{billingTabCounts.open}</strong>
                 </button>
-                <button type="button" className={billingTab === 'openPayments' ? 'clients-session-tab active' : 'clients-session-tab'} onPointerEnter={() => prefetchBillingTabData('openPayments')} onFocus={() => prefetchBillingTabData('openPayments')} onClick={() => setBillingTab('openPayments')}>
+                <button type="button" className={billingTab === 'openPayments' ? 'clients-session-tab active' : 'clients-session-tab'} onPointerEnter={() => prefetchBillingTabData('openPayments')} onFocus={() => prefetchBillingTabData('openPayments')} onClick={() => (embeddedMode ? setBillingTab('openPayments') : selectBillingTab('openPayments'))}>
                   {billingTabIcon('openPayments')}
                   <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabOpenPayments')}</span>
                   <span className="billing-tab-label billing-tab-label--mobile">{locale === 'sl' ? 'Odprta plačila' : 'Payments'}</span>
                   <strong className="billing-tab-count">{billingTabCounts.openPayments}</strong>
                 </button>
                 {advanceBillingEnabled && (
-                  <button type="button" className={billingTab === 'unusedAdvances' ? 'clients-session-tab active' : 'clients-session-tab'} onPointerEnter={() => prefetchBillingTabData('unusedAdvances')} onFocus={() => prefetchBillingTabData('unusedAdvances')} onClick={() => setBillingTab('unusedAdvances')}>
+                  <button type="button" className={billingTab === 'unusedAdvances' ? 'clients-session-tab active' : 'clients-session-tab'} onPointerEnter={() => prefetchBillingTabData('unusedAdvances')} onFocus={() => prefetchBillingTabData('unusedAdvances')} onClick={() => (embeddedMode ? setBillingTab('unusedAdvances') : selectBillingTab('unusedAdvances'))}>
                     {billingTabIcon('unusedAdvances')}
                     <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabUnusedAdvances')}</span>
                     <span className="billing-tab-label billing-tab-label--mobile">{locale === 'sl' ? 'Predplačila' : 'Advances'}</span>
@@ -8737,14 +8933,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </button>
                 )}
                 {giftCardsEnabled && (
-                  <button type="button" className={billingTab === 'giftCards' ? 'clients-session-tab active' : 'clients-session-tab'} onPointerEnter={() => prefetchBillingTabData('giftCards')} onFocus={() => prefetchBillingTabData('giftCards')} onClick={() => setBillingTab('giftCards')}>
+                  <button type="button" className={billingTab === 'giftCards' ? 'clients-session-tab active' : 'clients-session-tab'} onPointerEnter={() => prefetchBillingTabData('giftCards')} onFocus={() => prefetchBillingTabData('giftCards')} onClick={() => (embeddedMode ? setBillingTab('giftCards') : selectBillingTab('giftCards'))}>
                     {billingTabIcon('giftCards')}
                     <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabGiftCards')}</span>
                     <span className="billing-tab-label billing-tab-label--mobile">{locale === 'sl' ? 'Boni' : 'Vouchers'}</span>
                     <strong className="billing-tab-count">{billingTabCounts.giftCards}</strong>
                   </button>
                 )}
-                <button type="button" className={billingTab === 'history' ? 'clients-session-tab active' : 'clients-session-tab'} onPointerEnter={() => prefetchBillingTabData('history')} onFocus={() => prefetchBillingTabData('history')} onClick={() => setBillingTab('history')}>
+                <button type="button" className={billingTab === 'history' ? 'clients-session-tab active' : 'clients-session-tab'} onPointerEnter={() => prefetchBillingTabData('history')} onFocus={() => prefetchBillingTabData('history')} onClick={() => (embeddedMode ? setBillingTab('history') : selectBillingTab('history'))}>
                   {billingTabIcon('history')}
                   <span className="billing-tab-label billing-tab-label--desktop">{t('billingTabFolioHistory')}</span>
                   <span className="billing-tab-label billing-tab-label--mobile">{locale === 'sl' ? 'Zgodovina' : 'History'}</span>
@@ -9423,7 +9619,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       </thead>
                       <tbody>
                         {giftCardsPagination.slice.map((card) => (
-                          <tr key={card.id} className="clients-row billing-history-row" onClick={() => setDetailGiftCard(card)}>
+                          <tr key={card.id} className="clients-row billing-history-row" onClick={() => openGiftCardPanel(card)}>
                             <td className="billing-modern-link-cell">{card.giftCardNumber || `DB-${card.id}`}</td>
                             <td>{card.code || '—'}</td>
                             <td><span className="billing-status-pill billing-status-pill--not-sent">{voucherTypeLabel(card)}</span></td>
@@ -9442,7 +9638,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                             <td><span className={`billing-status-pill billing-status-pill--${giftCardStatusClass(card.status)}`}>{giftCardStatusLabel(card.status)}</span></td>
                             <td>{card.billNumber || card.orderReference || '—'}</td>
                             <td className="billing-modern-actions billing-modern-actions--history" onClick={(e) => e.stopPropagation()}>
-                              <button type="button" className="billing-action-btn" onClick={() => setDetailGiftCard(card)}>{locale === 'sl' ? 'Poglej' : 'View'}</button>
+                              <button type="button" className="billing-action-btn" onClick={() => openGiftCardPanel(card)}>{locale === 'sl' ? 'Poglej' : 'View'}</button>
                               <button type="button" className="billing-action-btn" onClick={() => downloadGiftCardPdf(card)}>{locale === 'sl' ? 'Prenesi PDF' : 'PDF'}</button>
                               <button type="button" className="billing-action-btn" onClick={() => sendGiftCardAgain(card)} disabled={sendingGiftCardId === card.id}>{sendingGiftCardId === card.id ? (locale === 'sl' ? 'Pošiljam…' : 'Sending…') : (locale === 'sl' ? 'Pošlji' : 'Send')}</button>
                               <button type="button" className="billing-action-btn" onClick={() => printGiftCardPdf(card)} disabled={printingGiftCardId === card.id}>{printingGiftCardId === card.id ? (locale === 'sl' ? 'Tiskanje…' : 'Printing…') : (locale === 'sl' ? 'Natisni' : 'Print')}</button>
@@ -9925,12 +10121,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             )}
 
             {showGiftCardFilters && billingTab === 'giftCards' && (
-              <div className="billing-filter-modal-backdrop" onMouseDown={() => setShowGiftCardFilters(false)} role="presentation">
-                <div className="billing-filter-modal" onMouseDown={(e) => e.stopPropagation()}>
-                  <div className="billing-filter-modal__header">
-                    <h3>{historyFilterText.title}</h3>
-                    <button type="button" className="billing-filter-modal__close" onClick={() => setShowGiftCardFilters(false)} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
-                  </div>
+              <SidePanel
+                open
+                onClose={() => setShowGiftCardFilters(false)}
+                ariaLabel={historyFilterText.title}
+                size="sm"
+              >
+                  <PanelHeader
+                    title={historyFilterText.title}
+                    onClose={() => setShowGiftCardFilters(false)}
+                    closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+                  />
+                  <PanelBody>
                   <div className="billing-filter-modal__body">
                     <label>
                       <span>{historyFilterText.from}</span>
@@ -9953,22 +10155,28 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       </DesktopSelect>
                     </label>
                   </div>
-                  <div className="billing-filter-modal__footer">
-                    <button type="button" className="secondary" onClick={resetGiftCardFilterDraft}>{historyFilterText.reset}</button>
-                    <button type="button" className="primary" onClick={applyGiftCardFilters}>{historyFilterText.apply}</button>
-                  </div>
-                </div>
-              </div>
+                  </PanelBody>
+                  <PanelFooter>
+                    <PanelButton onClick={resetGiftCardFilterDraft}>{historyFilterText.reset}</PanelButton>
+                    <PanelButton variant="primary" onClick={applyGiftCardFilters}>{historyFilterText.apply}</PanelButton>
+                  </PanelFooter>
+              </SidePanel>
             )}
 
 
             {showHistoryFilters && billingTab === 'history' && (
-              <div className="billing-filter-modal-backdrop" onMouseDown={() => setShowHistoryFilters(false)} role="presentation">
-                <div className="billing-filter-modal" onMouseDown={(e) => e.stopPropagation()}>
-                  <div className="billing-filter-modal__header">
-                    <h3>{historyFilterText.title}</h3>
-                    <button type="button" className="billing-filter-modal__close" onClick={() => setShowHistoryFilters(false)} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
-                  </div>
+              <SidePanel
+                open
+                onClose={() => setShowHistoryFilters(false)}
+                ariaLabel={historyFilterText.title}
+                size="sm"
+              >
+                  <PanelHeader
+                    title={historyFilterText.title}
+                    onClose={() => setShowHistoryFilters(false)}
+                    closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+                  />
+                  <PanelBody>
                   <div className="billing-filter-modal__body">
                     <label>
                       <span>{historyFilterText.from}</span>
@@ -10009,29 +10217,30 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       </DesktopSelect>
                     </label>
                   </div>
-                  <div className="billing-filter-modal__footer">
-                    <button type="button" className="secondary" onClick={resetHistoryFilterDraft}>{historyFilterText.reset}</button>
-                    <button type="button" className="primary" onClick={applyHistoryFilters}>{historyFilterText.apply}</button>
-                  </div>
-                </div>
-              </div>
+                  </PanelBody>
+                  <PanelFooter>
+                    <PanelButton onClick={resetHistoryFilterDraft}>{historyFilterText.reset}</PanelButton>
+                    <PanelButton variant="primary" onClick={applyHistoryFilters}>{historyFilterText.apply}</PanelButton>
+                  </PanelFooter>
+              </SidePanel>
             )}
           </Card>
       </div>
 
       {detailGiftCard && (
-        <div className="modal-backdrop booking-side-panel-backdrop billing-bill-modal-backdrop" onMouseDown={() => setDetailGiftCard(null)} role="presentation">
-          <div className="modal large-modal booking-side-panel billing-open-detail-panel billing-bill-modal" onMouseDown={(e) => e.stopPropagation()}>
-            <div className="billing-bill-modal-header">
-              <div>
-                <div className="billing-bill-modal-title-row">
-                  <h2>{voucherTypeLabel(detailGiftCard)}</h2>
-                  <span className={`billing-bill-modal-status billing-status-pill billing-status-pill--${giftCardStatusClass(detailGiftCard.status)}`}>{giftCardStatusLabel(detailGiftCard.status)}</span>
-                </div>
-                <p>{detailGiftCard.giftCardNumber || `DB-${detailGiftCard.id}`} · {detailGiftCard.code || '—'}</p>
-              </div>
-              <button type="button" className="billing-bill-modal-close" onClick={() => setDetailGiftCard(null)} aria-label="Close">×</button>
-            </div>
+        <SidePanel
+          open
+          onClose={closeGiftCardPanel}
+          ariaLabel={voucherTypeLabel(detailGiftCard)}
+          size="lg"
+        >
+            <PanelHeader
+              title={voucherTypeLabel(detailGiftCard)}
+              subtitle={`${detailGiftCard.giftCardNumber || ('DB-' + detailGiftCard.id)} · ${detailGiftCard.code || '—'}`}
+              onClose={closeGiftCardPanel}
+              closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+            />
+            <PanelBody>
             <div className="billing-bill-modal-body stack gap-md">
               <div className="billing-modern-stats billing-modern-stats--two">
                 {isServiceVoucher(detailGiftCard) ? (
@@ -10070,32 +10279,32 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <div><span className="muted">{locale === 'sl' ? 'Ugodnost' : 'Product'}</span><strong>{detailGiftCard.productName || '—'}</strong></div>
               </div>
             </div>
-            <div className="billing-bill-modal-footer">
-              <div />
-              <div className="billing-bill-modal-footer-actions">
-                <button type="button" className="secondary" onClick={() => downloadGiftCardPdf(detailGiftCard)}>{locale === 'sl' ? 'Prenesi PDF' : 'Download PDF'}</button>
-                <button type="button" className="secondary" onClick={() => printGiftCardPdf(detailGiftCard)} disabled={printingGiftCardId === detailGiftCard.id}>{printingGiftCardId === detailGiftCard.id ? (locale === 'sl' ? 'Tiskanje…' : 'Printing…') : (locale === 'sl' ? 'Natisni' : 'Print')}</button>
-                <button type="button" className="primary" onClick={() => sendGiftCardAgain(detailGiftCard)} disabled={sendingGiftCardId === detailGiftCard.id}>{sendingGiftCardId === detailGiftCard.id ? (locale === 'sl' ? 'Pošiljam…' : 'Sending…') : (locale === 'sl' ? 'Pošlji po e-pošti' : 'Send by email')}</button>
-              </div>
-            </div>
-          </div>
-        </div>
+            </PanelBody>
+            <PanelFooter>
+                <PanelButton onClick={() => downloadGiftCardPdf(detailGiftCard)}>{locale === 'sl' ? 'Prenesi PDF' : 'Download PDF'}</PanelButton>
+                <PanelButton onClick={() => printGiftCardPdf(detailGiftCard)} disabled={printingGiftCardId === detailGiftCard.id}>{printingGiftCardId === detailGiftCard.id ? (locale === 'sl' ? 'Tiskanje…' : 'Printing…') : (locale === 'sl' ? 'Natisni' : 'Print')}</PanelButton>
+                <PanelButton variant="primary" onClick={() => sendGiftCardAgain(detailGiftCard)} disabled={sendingGiftCardId === detailGiftCard.id}>{sendingGiftCardId === detailGiftCard.id ? (locale === 'sl' ? 'Pošiljam…' : 'Sending…') : (locale === 'sl' ? 'Pošlji po e-pošti' : 'Send by email')}</PanelButton>
+            </PanelFooter>
+        </SidePanel>
       )}
 
-      {editorOnlyMode && !detailOpenBill && (
-        <div className="modal-backdrop booking-side-panel-backdrop billing-bill-modal-backdrop" role="presentation">
-          <div className="modal large-modal booking-side-panel billing-open-detail-panel billing-open-detail-panel--invoice-editor billing-bill-modal billing-open-detail-panel--loading">
-            <div className="billing-bill-modal-header">
-              <div>
-                <div className="billing-bill-modal-title-row">
-                  <h2>{locale === 'sl' ? 'Uredi neizdan račun' : 'Edit unissued invoice'}</h2>
-                </div>
-                <p>{locale === 'sl' ? 'Nalaganje podatkov računa…' : 'Loading bill data…'}</p>
-              </div>
-              <button type="button" className="billing-bill-modal-close" onClick={closeDetailOpenBill} aria-label="Close">×</button>
-            </div>
-          </div>
-        </div>
+      {(embeddedOpenBillMode || openBillDrawerOpen) && !detailOpenBill && (
+        <SidePanel
+          open
+          onClose={closeDetailOpenBill}
+          ariaLabel={locale === 'sl' ? 'Uredi neizdan račun' : 'Edit unissued invoice'}
+          size="xl"
+        >
+          <PanelHeader
+            title={locale === 'sl' ? 'Uredi neizdan račun' : 'Edit unissued invoice'}
+            subtitle={locale === 'sl' ? 'Nalaganje podatkov računa…' : 'Loading bill data…'}
+            onClose={closeDetailOpenBill}
+            closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+          />
+          <PanelBody>
+            <p>{locale === 'sl' ? 'Nalaganje podatkov računa…' : 'Loading bill data…'}</p>
+          </PanelBody>
+        </SidePanel>
       )}
 
       {detailOpenBill && (() => {
@@ -10146,58 +10355,59 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             || Object.prototype.hasOwnProperty.call(openBillDetailsEdits, entry.id)
             || Object.prototype.hasOwnProperty.call(openBillPaymentEdits, entry.id))
         return (
-          <div className="modal-backdrop booking-side-panel-backdrop billing-bill-modal-backdrop" onMouseDown={onDetailOpenBillBackdropMouseDown} role="presentation">
-            <div className="modal large-modal booking-side-panel billing-open-detail-panel billing-open-detail-panel--invoice-editor billing-bill-modal" onMouseDown={(e) => e.stopPropagation()}>
-              <div className="billing-bill-modal-header">
-                <div>
-                  <div className="billing-bill-modal-title-row">
-                    <h2>{locale === 'sl' ? 'Uredi neizdan račun' : 'Edit unissued invoice'}</h2>
-                  </div>
-                </div>
-                <button type="button" className="billing-bill-modal-close" onClick={closeDetailOpenBill} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
-                <details className="billing-open-detail-actions-menu">
-                  <summary aria-label={locale === 'sl' ? 'Več dejanj' : 'More actions'}>⋮</summary>
-                  <div className="billing-open-detail-actions-popover" role="menu">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={(event) => {
-                        event.currentTarget.closest('details')?.removeAttribute('open')
-                        openOpenBillPreviewChoice(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)
-                      }}
-                      disabled={Boolean(detailEntitlementSettlement) || previewingOpenBillId === detailActionOpenBill.id || emailingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
-                    >
-                      {locale === 'sl' ? 'Predogled računa' : 'Invoice preview'}
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={(event) => {
-                        event.currentTarget.closest('details')?.removeAttribute('open')
-                        void saveOpenBillEditorSet(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : detailRelatedOpenBills, detailOnePayeeForAll)
-                      }}
-                      disabled={!hasUnsavedOpenBillChanges && !detailOnePayeeForAll}
-                    >
-                      {locale === 'sl' ? 'Shrani spremembe' : 'Save changes'}
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="billing-open-detail-actions-delete"
-                      onClick={(event) => {
-                        event.currentTarget.closest('details')?.removeAttribute('open')
-                        void deleteOpenBill(detailOpenBill)
-                      }}
-                      disabled={deletingOpenId === detailOpenBill.id}
-                    >
-                      {deletingOpenId === detailOpenBill.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
-                    </button>
-                  </div>
-                  {renderOpenBillPreviewChoicePopover(detailActionOpenBill)}
-                </details>
-              </div>
-
+          <>
+          <SidePanel
+            open
+            onClose={closeDetailOpenBill}
+            ariaLabel={locale === 'sl' ? 'Uredi neizdan račun' : 'Edit unissued invoice'}
+            size="xl"
+            closeOnScrimClick={false}
+            className="billing-open-detail-panel billing-open-detail-panel--invoice-editor"
+          >
+              <PanelHeader
+                title={locale === 'sl' ? 'Uredi neizdan račun' : 'Edit unissued invoice'}
+                onClose={closeDetailOpenBill}
+                closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+                overflow={
+                  <PanelOverflowMenu label={locale === 'sl' ? 'Več dejanj' : 'More actions'}>
+                    {(closeMenu) => (
+                      <>
+                        <PanelMenuItem
+                          disabled={Boolean(detailEntitlementSettlement) || previewingOpenBillId === detailActionOpenBill.id || emailingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
+                          onClick={() => {
+                            closeMenu()
+                            openOpenBillPreviewChoice(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)
+                          }}
+                        >
+                          {locale === 'sl' ? 'Predogled računa' : 'Invoice preview'}
+                        </PanelMenuItem>
+                        <PanelMenuItem
+                          disabled={!hasUnsavedOpenBillChanges && !detailOnePayeeForAll}
+                          onClick={() => {
+                            closeMenu()
+                            void saveOpenBillEditorSet(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : detailRelatedOpenBills, detailOnePayeeForAll)
+                          }}
+                        >
+                          {locale === 'sl' ? 'Shrani spremembe' : 'Save changes'}
+                        </PanelMenuItem>
+                        <PanelMenuItem
+                          danger
+                          disabled={deletingOpenId === detailOpenBill.id}
+                          onClick={() => {
+                            closeMenu()
+                            void deleteOpenBill(detailOpenBill)
+                          }}
+                        >
+                          {deletingOpenId === detailOpenBill.id ? (locale === 'sl' ? 'Brisanje…' : 'Deleting…') : (locale === 'sl' ? 'Izbriši' : 'Delete')}
+                        </PanelMenuItem>
+                      </>
+                    )}
+                  </PanelOverflowMenu>
+                }
+              />
+              <PanelBody>
               {renderModernOpenBillEditor(detailOpenBill)}
+              </PanelBody>
 
               <div className="billing-bill-modal-footer billing-bill-modal-footer--open-edit">
                 <section className="billing-invoice-totals-card billing-invoice-totals-card--open-footer billing-invoice-totals-card--edit-footer" aria-label={locale === 'sl' ? 'Povzetek odprtega računa' : 'Open bill summary'}>
@@ -10307,21 +10517,27 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
+          </SidePanel>
+          {renderOpenBillPayeeEditorDialog()}
+          {renderAddOpenBillDialog()}
+          </>
         )
       })()}
 
-      {showWorkspaceBills && (
-        <div className="billing-payee-modal-backdrop billing-workspace-history-backdrop" onMouseDown={() => setShowWorkspaceBills(false)} role="presentation">
-          <div className="billing-workspace-history-modal" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Računi vseh enot' : 'Invoices from all units'}>
-            <div className="billing-payee-modal-head">
-              <div>
-                <h3>{locale === 'sl' ? 'Računi vseh dostopnih enot' : 'Invoices from all accessible units'}</h3>
-                <p>{locale === 'sl' ? 'Združeni pregled je samo za branje. Račun ostane vezan na prvotno enoto, lokacijo, izdajatelja in serijo.' : 'This consolidated view is read-only. Every invoice remains owned by its original unit, location, issuer and series.'}</p>
-              </div>
-              <button type="button" className="billing-bill-modal-close" onClick={() => setShowWorkspaceBills(false)} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
-            </div>
+      {workspaceBillsPanelOpen && (
+        <SidePanel
+          open
+          onClose={closeWorkspaceBillsPanel}
+          ariaLabel={locale === 'sl' ? 'Računi vseh enot' : 'Invoices from all units'}
+          size="xl"
+        >
+            <PanelHeader
+              title={locale === 'sl' ? 'Računi vseh dostopnih enot' : 'Invoices from all accessible units'}
+              subtitle={locale === 'sl' ? 'Združeni pregled je samo za branje. Račun ostane vezan na prvotno enoto, lokacijo, izdajatelja in serijo.' : 'This consolidated view is read-only. Every invoice remains owned by its original unit, location, issuer and series.'}
+              onClose={closeWorkspaceBillsPanel}
+              closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+            />
+            <PanelBody>
             <div className="billing-workspace-history-body">
               {workspaceBillsLoading ? (
                 <p className="billing-workspace-history-empty">{locale === 'sl' ? 'Nalaganje računov…' : 'Loading invoices…'}</p>
@@ -10362,11 +10578,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 </div>
               )}
             </div>
-          </div>
-        </div>
+            </PanelBody>
+        </SidePanel>
       )}
 
-      {showCreateBillModal && (() => {
+      {createBillPanelOpen && (() => {
         const createSubtotalGross = estimateGross(billForm.items)
         const createDiscountedItems = applyDiscountToItemsForVat(billForm.items, createBillDiscountDraft)
         const createVatRows = vatBreakdownRowsForItems(createDiscountedItems)
@@ -10401,30 +10617,22 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       ? (locale === 'sl' ? 'Izbrana predplačila niso veljavna.' : 'The selected advances are not valid.')
                       : undefined)
         return (
-          <div className={`modal-backdrop booking-side-panel-backdrop billing-bill-modal-backdrop${isCreateAdvanceBill ? ' billing-bill-modal-backdrop--advance-create' : ''}`} onMouseDown={onCreateBillBackdropMouseDown} role="presentation">
-            <div className={`modal large-modal booking-side-panel billing-create-panel billing-bill-modal${isCreateAdvanceBill ? ' billing-create-panel--advance' : ' billing-create-panel--open'}`} onMouseDown={(e) => e.stopPropagation()}>
-              <div className="billing-bill-modal-header">
-                {isCreateAdvanceBill && (
-                  <button
-                    type="button"
-                    className="billing-bill-modal-mobile-back"
-                    onClick={closeCreateBillModal}
-                    aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}
-                  >
-                    ‹
-                  </button>
-                )}
-                <div>
-                  <div className="billing-bill-modal-title-row">
-                    <h2>{isCreateAdvanceBill ? (locale === 'sl' ? 'Novo predplačilo' : 'New advance') : (locale === 'sl' ? 'Nov neizdan račun' : 'New unissued invoice')}</h2>
-                    {isCreateAdvanceBill && (
-                      <span className="billing-bill-modal-status billing-bill-modal-status--draft">{billingCopy.billTypeAdvance}</span>
-                    )}
-                  </div>
-                  {isCreateAdvanceBill && <p>{createRecipientLabel}</p>}
-                </div>
-                <button type="button" className="billing-bill-modal-close" onClick={closeCreateBillModal} aria-label="Close">×</button>
-              </div>
+          <>
+          <SidePanel
+            open
+            onClose={closeCreateBillModal}
+            ariaLabel={isCreateAdvanceBill ? (locale === 'sl' ? 'Novo predplačilo' : 'New advance') : (locale === 'sl' ? 'Nov neizdan račun' : 'New unissued invoice')}
+            size="xl"
+            closeOnScrimClick={false}
+            className={isCreateAdvanceBill ? 'billing-create-panel billing-create-panel--advance' : 'billing-create-panel billing-create-panel--open'}
+          >
+              <PanelHeader
+                title={isCreateAdvanceBill ? (locale === 'sl' ? 'Novo predplačilo' : 'New advance') : (locale === 'sl' ? 'Nov neizdan račun' : 'New unissued invoice')}
+                subtitle={isCreateAdvanceBill ? createRecipientLabel : undefined}
+                onClose={closeCreateBillModal}
+                closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+              />
+              <PanelBody>
 
               <div className={`billing-invoice-modern-body billing-invoice-modern-body--create billing-invoice-modern-body--advance-create${isCreateAdvanceBill ? '' : ' billing-invoice-modern-body--open-create'}`}>
                 <section className={`billing-invoice-management-card${!isCreateAdvanceBill ? ' billing-invoice-management-card--open-create-compact' : ''}`}>
@@ -10573,8 +10781,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--purple">€</span><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(createGross)}</strong></div>
                   <div><span className="billing-invoice-summary-icon billing-invoice-summary-icon--red">▤</span><span>{locale === 'sl' ? 'Neplačano' : 'Unpaid'}</span><strong>{currency(createGross)}</strong></div>
                 </section>
-                {renderCreateBillPayeeDialog()}
               </div>
+              </PanelBody>
 
               <div className={`billing-bill-modal-footer${mobileKeyboardOpen ? ' billing-bill-modal-footer--keyboard-hidden' : ''}`}>
                 {!isCreateAdvanceBill && (
@@ -10692,29 +10900,25 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   </div>
                 )}
               </div>
-            </div>
-          </div>
+          </SidePanel>
+          {renderCreateBillPayeeDialog()}
+          </>
         )
       })()}
 
 
       {printFormatChoice ? (
-        <div
-          className="billing-print-format-backdrop"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target !== event.currentTarget) return
+        <SidePanel
+          open
+          placement="center"
+          size="sm"
+          onClose={() => {
             closePdfActionWindow(printFormatChoice.preparedWindow)
             setPrintFormatChoice(null)
           }}
+          ariaLabel={locale === 'sl' ? 'Izberite obliko tiskanja' : locale === 'sr' ? 'Izaberite format štampe' : 'Choose print format'}
         >
-          <div
-            className="billing-print-format-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="billing-print-format-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
+          <div className="billing-print-format-dialog">
             <button
               type="button"
               className="billing-print-format-close"
@@ -10786,7 +10990,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               {locale === 'sl' ? 'Prekliči' : locale === 'sr' ? 'Otkaži' : 'Cancel'}
             </button>
           </div>
-        </div>
+        </SidePanel>
       ) : null}
 
       {renderAdvancePaymentModal()}
@@ -10794,18 +10998,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       {renderEntitlementPaymentModal()}
 
 
-      {showAddClientModal && (isBillingMobileOrTablet ? (
-        <div
-          className="modal-backdrop billing-client-create-popup-backdrop clients-action-workspace-backdrop clients-simple-create-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeAddClientModal()
-          }}
-          role="presentation"
+      {showAddClientModal && (
+        <SidePanel
+          open
+          onClose={closeAddClientModal}
+          ariaLabel={billingCopy.newClientTitle}
+          size="lg"
         >
-          <div
-            className="modal large-modal billing-client-create-popup clients-tab-client-detail-modal clients-action-workspace-modal clients-client-create-modal clients-simple-create-modal"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
+          {isBillingMobileOrTablet ? (
             <SimpleClientCreatePage
               title={billingCopy.newClientTitle}
               closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
@@ -10841,20 +11041,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 if (!creatingClientInline && newClientFirstName.trim() && newClientLastName.trim()) void createClientInline()
               }}
             />
-          </div>
-        </div>
-      ) : (
-        <div className="modal-backdrop billing-add-company-modal-backdrop" onClick={closeAddClientModal}>
-          <div className="modal billing-add-company-modal billing-add-client-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="billing-bill-modal-header">
-              <div>
-                <div className="billing-bill-modal-title-row">
-                  <h2>{billingCopy.newClientTitle}</h2>
-                </div>
-                <p>{billingCopy.newClientSubtitle}</p>
-              </div>
-              <button type="button" className="billing-bill-modal-close" onClick={closeAddClientModal} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
-            </div>
+          ) : (
+            <>
+            <PanelHeader
+              title={billingCopy.newClientTitle}
+              subtitle={billingCopy.newClientSubtitle}
+              onClose={closeAddClientModal}
+              closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+            />
+            <PanelBody>
             <div className="billing-add-company-modal-body">
               <div className="form-grid">
                 <Field label={billingCopy.clientFirstName}>
@@ -10872,39 +11067,37 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               </div>
               {newClientInlineError ? <div className="error">{newClientInlineError}</div> : null}
             </div>
-            <div className="billing-add-company-modal-footer">
-              <button
-                type="button"
-                className="billing-bill-modal-save-btn"
-                onClick={createClientInline}
+            </PanelBody>
+            <PanelFooter>
+              <PanelButton onClick={closeAddClientModal}>{t('cancel')}</PanelButton>
+              <PanelButton
+                variant="primary"
+                icon={<GuestConfigSaveIcon />}
+                onClick={() => void createClientInline()}
                 disabled={creatingClientInline || !newClientFirstName.trim() || !newClientLastName.trim()}
               >
-                <span className="billing-bill-modal-save-btn__icon" aria-hidden>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
-                    <path d="M17 21v-8H7v8" />
-                    <path d="M7 3v5h8" />
-                  </svg>
-                </span>
-                <span>{creatingClientInline ? billingCopy.creating : billingCopy.create}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      ))}
+                {creatingClientInline ? billingCopy.creating : billingCopy.create}
+              </PanelButton>
+            </PanelFooter>
+            </>
+          )}
+        </SidePanel>
+      )}
 
       {showAddCompanyModal && (
-        <div className="modal-backdrop billing-add-company-modal-backdrop" onClick={closeAddCompanyModal}>
-          <div className="modal billing-add-company-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="billing-bill-modal-header">
-              <div>
-                <div className="billing-bill-modal-title-row">
-                  <h2>{billingCopy.newCompanyTitle}</h2>
-                </div>
-                <p>{billingCopy.newCompanySubtitle}</p>
-              </div>
-              <button type="button" className="billing-bill-modal-close" onClick={closeAddCompanyModal} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
-            </div>
+        <SidePanel
+          open
+          onClose={closeAddCompanyModal}
+          ariaLabel={billingCopy.newCompanyTitle}
+          size="lg"
+        >
+            <PanelHeader
+              title={billingCopy.newCompanyTitle}
+              subtitle={billingCopy.newCompanySubtitle}
+              onClose={closeAddCompanyModal}
+              closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+            />
+            <PanelBody>
             <div className="billing-add-company-modal-body">
               <div className="form-grid">
                 <Field label={billingCopy.companyName}>
@@ -10918,182 +11111,88 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 </Field>
               </div>
             </div>
-            <div className="billing-add-company-modal-footer">
-              <button
-                type="button"
-                className="billing-bill-modal-save-btn"
-                onClick={createCompanyInline}
+            </PanelBody>
+            <PanelFooter>
+              <PanelButton onClick={closeAddCompanyModal}>{t('cancel')}</PanelButton>
+              <PanelButton
+                variant="primary"
+                icon={<GuestConfigSaveIcon />}
+                onClick={() => void createCompanyInline()}
                 disabled={creatingCompany || !newCompanyName.trim()}
               >
-                <span className="billing-bill-modal-save-btn__icon" aria-hidden>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
-                    <path d="M17 21v-8H7v8" />
-                    <path d="M7 3v5h8" />
-                  </svg>
-                </span>
-                <span>{creatingCompany ? billingCopy.creating : billingCopy.create}</span>
-              </button>
-            </div>
-          </div>
-        </div>
+                {creatingCompany ? billingCopy.creating : billingCopy.create}
+              </PanelButton>
+            </PanelFooter>
+        </SidePanel>
       )}
 
-      {bankTransferQrMissingModal && (
-        <div
-          className="billing-entitlement-modal-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setBankTransferQrMissingModal(null)
-          }}
-          role="presentation"
+      <ConfirmDialog
+        open={bankTransferQrMissingModal != null}
+        onClose={() => setBankTransferQrMissingModal(null)}
+        title={locale === 'sl' ? 'Manjkajoči podatki za bančno nakazilo' : 'Missing bank transfer data'}
+        text={locale === 'sl'
+          ? 'Računa z bančnim nakazilom in UPN QR kodo ni mogoče zaključiti, dokler niso izpolnjeni vsi obvezni podatki podjetja.'
+          : 'An invoice with bank transfer and UPN QR cannot be closed until all required company data is filled in.'}
+        confirmLabel={locale === 'sl' ? 'Odpri podatke podjetja' : 'Open company details'}
+        cancelLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+        onConfirm={() => {
+          setBankTransferQrMissingModal(null)
+          navigate('/configuration?tab=company')
+        }}
+      >
+        {bankTransferQrMissingModal ? (
+          <ul className="billing-bank-transfer-settings-list">
+            {bankTransferQrMissingModal.missingKeys.map((key) => (
+              <li key={key}>{BANK_TRANSFER_QR_FIELD_LABELS[key]?.[locale] || key}</li>
+            ))}
+          </ul>
+        ) : null}
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={stripeSetupMissingModal != null}
+        onClose={() => setStripeSetupMissingModal(null)}
+        title={locale === 'sl' ? 'Stripe ni nastavljen' : 'Stripe is not set up'}
+        text={stripeSetupMissingModal?.rawMessage
+          || (locale === 'sl'
+            ? 'Računa s plačilom Kartica ni mogoče zaključiti, dokler Stripe ni povezan in omogočen za plačila. Odprite Konfiguracija → Obračun → Stripe in dokončajte povezavo računa.'
+            : 'An invoice with Card payment cannot be closed until Stripe is connected and enabled for payments. Open Configuration → Billing → Stripe and finish connecting the account.')}
+        confirmLabel={locale === 'sl' ? 'Odpri Stripe nastavitve' : 'Open Stripe settings'}
+        cancelLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+        onConfirm={() => {
+          setStripeSetupMissingModal(null)
+          navigate('/configuration?tab=billing&subtab=stripe')
+        }}
+      />
+
+      {(billDrawerOpen || fiscalLogBill || detailFolioBill) && (
+        <SidePanel
+          open
+          onClose={closeFolioPanel}
+          ariaLabel={detailFolioBill ? `Folio #${detailFolioBill.billNumber || detailFolioBill.id}` : 'Folio'}
+          size="lg"
         >
-          <div className="billing-entitlement-modal billing-bank-transfer-settings-modal" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="billing-entitlement-modal-head">
-              <div>
-                <h3>{locale === 'sl' ? 'Manjkajoči podatki za bančno nakazilo' : 'Missing bank transfer data'}</h3>
-                <p>
-                  {locale === 'sl'
-                    ? 'Računa z bančnim nakazilom in UPN QR kodo ni mogoče zaključiti, dokler niso izpolnjeni vsi obvezni podatki podjetja.'
-                    : 'An invoice with bank transfer and UPN QR cannot be closed until all required company data is filled in.'}
-                </p>
-              </div>
-              <button type="button" className="billing-bill-modal-close" onClick={() => setBankTransferQrMissingModal(null)} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
-            </div>
-            <div className="billing-entitlement-result billing-entitlement-result--error">
-              <strong>{locale === 'sl' ? 'Dopolnite naslednja polja:' : 'Fill in these fields:'}</strong>
-              <span>
-                {locale === 'sl'
-                  ? 'Podatke uredite v Konfiguracija → Upravljanje računa → Podjetje.'
-                  : 'Edit the data in Configuration → Account management → Company.'}
-              </span>
-            </div>
-            <ul className="billing-bank-transfer-settings-list">
-              {bankTransferQrMissingModal.missingKeys.map((key) => (
-                <li key={key}>{BANK_TRANSFER_QR_FIELD_LABELS[key]?.[locale] || key}</li>
-              ))}
-            </ul>
-            <div className="form-actions billing-bank-transfer-settings-actions">
-              <button type="button" className="secondary" onClick={() => setBankTransferQrMissingModal(null)}>
-                {locale === 'sl' ? 'Zapri' : 'Close'}
-              </button>
-              <button
-                type="button"
-                className="primary"
-                onClick={() => {
-                  setBankTransferQrMissingModal(null)
-                  navigate('/configuration?tab=company')
-                }}
-              >
-                {locale === 'sl' ? 'Odpri podatke podjetja' : 'Open company details'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            <PanelHeader
+              title={detailFolioBill ? `Folio #${detailFolioBill.billNumber || detailFolioBill.id}` : 'Folio'}
+              subtitle={detailFolioBill
+                ? `${detailFolioBill.billingTarget === 'COMPANY'
+                  ? (detailFolioBill.recipientCompany?.name || '—')
+                  : (detailFolioBill.client ? fullName(detailFolioBill.client) : '—')} · ${formatDate(detailFolioBill.issueDate || '')}`
+                : undefined}
+              onClose={closeFolioPanel}
+              closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+            />
+            <PanelTabs
+              label={locale === 'sl' ? 'Podrobnosti računa' : 'Invoice details'}
+              activeId={folioPanelTab}
+              onSelect={(id) => setFolioPanelTab(id === 'fiscal' ? 'fiscal' : 'invoice')}
+              tabs={[
+                { id: 'invoice', label: locale === 'sl' ? 'Račun' : 'Invoice' },
+                { id: 'fiscal', label: locale === 'sl' ? 'Davčno potrjevanje' : 'Tax confirmation', hidden: !fiscalCashRegisterEnabled },
+              ]}
+            />
 
-      {stripeSetupMissingModal && (
-        <div
-          className="billing-entitlement-modal-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setStripeSetupMissingModal(null)
-          }}
-          role="presentation"
-        >
-          <div className="billing-entitlement-modal billing-stripe-setup-modal" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="billing-entitlement-modal-head">
-              <div>
-                <h3>{locale === 'sl' ? 'Stripe ni nastavljen' : 'Stripe is not set up'}</h3>
-                <p>
-                  {locale === 'sl'
-                    ? 'Računa s plačilom Kartica ni mogoče zaključiti, dokler Stripe ni povezan in omogočen za plačila.'
-                    : 'An invoice with Card payment cannot be closed until Stripe is connected and enabled for payments.'}
-                </p>
-              </div>
-              <button type="button" className="billing-bill-modal-close" onClick={() => setStripeSetupMissingModal(null)} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
-            </div>
-            <div className="billing-entitlement-result billing-entitlement-result--error">
-              <strong>{locale === 'sl' ? 'Dokončajte Stripe nastavitev.' : 'Finish Stripe setup.'}</strong>
-              <span>
-                {stripeSetupMissingModal.rawMessage || (locale === 'sl'
-                  ? 'Odprite Konfiguracija → Obračun → Stripe in dokončajte povezavo računa.'
-                  : 'Open Configuration → Billing → Stripe and finish connecting the account.')}
-              </span>
-            </div>
-            <div className="form-actions billing-bank-transfer-settings-actions">
-              <button type="button" className="secondary" onClick={() => setStripeSetupMissingModal(null)}>
-                {locale === 'sl' ? 'Zapri' : 'Close'}
-              </button>
-              <button
-                type="button"
-                className="primary"
-                onClick={() => {
-                  setStripeSetupMissingModal(null)
-                  navigate('/configuration?tab=billing&subtab=stripe')
-                }}
-              >
-                {locale === 'sl' ? 'Odpri Stripe nastavitve' : 'Open Stripe settings'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {fiscalLogBill && (
-        <div
-          className="modal-backdrop billing-folio-modal-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setFiscalLogBill(null)
-              setDetailFolioBill(null)
-            }
-          }}
-          role="presentation"
-        >
-          <div className="modal billing-folio-detail-modal" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="billing-folio-detail-head">
-              <div>
-                <h2>{detailFolioBill ? `Folio #${detailFolioBill.billNumber || detailFolioBill.id}` : 'Folio'}</h2>
-                <p>
-                  {detailFolioBill?.billingTarget === 'COMPANY'
-                    ? (detailFolioBill?.recipientCompany?.name || '—')
-                    : (detailFolioBill?.client ? fullName(detailFolioBill.client) : '—')}
-                  {' · '}
-                  {formatDate(detailFolioBill?.issueDate || '')}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="billing-folio-detail-close"
-                onClick={() => { setFiscalLogBill(null); setDetailFolioBill(null) }}
-                aria-label={locale === 'sl' ? 'Zapri' : 'Close'}
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="billing-folio-tabs" role="tablist" aria-label={locale === 'sl' ? 'Podrobnosti računa' : 'Invoice details'}>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={folioPanelTab === 'invoice'}
-                className={folioPanelTab === 'invoice' ? 'billing-folio-tab billing-folio-tab--active' : 'billing-folio-tab'}
-                onClick={() => setFolioPanelTab('invoice')}
-              >
-                {locale === 'sl' ? 'Račun' : 'Invoice'}
-              </button>
-              {fiscalCashRegisterEnabled ? (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={folioPanelTab === 'fiscal'}
-                  className={folioPanelTab === 'fiscal' ? 'billing-folio-tab billing-folio-tab--active' : 'billing-folio-tab'}
-                  onClick={() => setFolioPanelTab('fiscal')}
-                >
-                  {locale === 'sl' ? 'Davčno potrjevanje' : 'Tax confirmation'}
-                </button>
-              ) : null}
-            </div>
-
+            <PanelBody>
             <div className="billing-folio-modal-body">
               {folioPanelTab === 'invoice' ? (
                 detailFolioBill ? (
@@ -11263,8 +11362,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 </div>
               )}
             </div>
-          </div>
-        </div>
+            </PanelBody>
+        </SidePanel>
       )}
     </div>
   )

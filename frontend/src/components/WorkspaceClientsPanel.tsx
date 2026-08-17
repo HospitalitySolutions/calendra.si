@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { api, getApiErrorMessage } from '../api'
 import { useAuthenticatedUser } from '../authUserContext'
 import { useLocale } from '../locale'
+import { PanelBody, PanelHeader, PanelTabs, SidePanel, useConfirm } from './panel'
 import type {
   WorkspaceClient,
   WorkspaceClientActivity,
@@ -18,7 +18,7 @@ type Props = {
   onChanged?: () => void | Promise<void>
 }
 
-type PanelTab = 'search' | 'duplicates'
+type WorkspaceTab = 'search' | 'duplicates'
 
 function name(client: Pick<WorkspaceClient, 'firstName' | 'lastName'>) {
   return `${client.firstName || ''} ${client.lastName || ''}`.trim()
@@ -30,6 +30,7 @@ function countTotal(client: WorkspaceClient, key: 'bookingCount' | 'invoiceCount
 
 export function WorkspaceClientsPanel({ open, onClose, onChanged }: Props) {
   const { locale } = useLocale()
+  const confirm = useConfirm()
   const user = useAuthenticatedUser()
   const copy = locale === 'sl' ? {
     title: 'Skupna baza strank',
@@ -153,7 +154,7 @@ export function WorkspaceClientsPanel({ open, onClose, onChanged }: Props) {
     created: (count: number) => count === 1 ? 'Found 1 new suggestion.' : `Found ${count} new suggestions.`,
   }
 
-  const [tab, setTab] = useState<PanelTab>('search')
+  const [tab, setTab] = useState<WorkspaceTab>('search')
   const [query, setQuery] = useState('')
   const [clients, setClients] = useState<WorkspaceClient[]>([])
   const [loading, setLoading] = useState(false)
@@ -172,15 +173,6 @@ export function WorkspaceClientsPanel({ open, onClose, onChanged }: Props) {
     activity?.client.units.forEach((unit) => map.set(unit.unitId, unit.unitName))
     return map
   }, [activity])
-
-  useEffect(() => {
-    if (!open) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
 
   useEffect(() => {
     if (!open || tab !== 'search') return
@@ -265,7 +257,7 @@ export function WorkspaceClientsPanel({ open, onClose, onChanged }: Props) {
   }
 
   async function merge(candidate: WorkspaceClientDuplicateCandidate, targetWorkspaceClientId: number) {
-    if (!window.confirm(copy.mergeConfirm)) return
+    if (!(await confirm({ title: copy.mergeConfirm }))) return
     setActionId(candidate.id)
     setError('')
     try {
@@ -293,7 +285,7 @@ export function WorkspaceClientsPanel({ open, onClose, onChanged }: Props) {
   }
 
   async function unlink(client: WorkspaceClient, unit: WorkspaceClientUnit) {
-    if (!window.confirm(copy.unlinkConfirm)) return
+    if (!(await confirm({ title: copy.unlinkConfirm, tone: 'danger' }))) return
     setActionId(unit.clientId)
     setError('')
     try {
@@ -309,26 +301,24 @@ export function WorkspaceClientsPanel({ open, onClose, onChanged }: Props) {
 
   if (!open) return null
 
-  const body = (
-    <div className="workspace-clients-overlay" role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose()
-    }}>
-      <section className="workspace-clients-panel" role="dialog" aria-modal="true" aria-labelledby="workspace-clients-title">
-        <header className="workspace-clients-header">
-          <div>
-            <h2 id="workspace-clients-title">{copy.title}</h2>
-            <p>{copy.subtitle}</p>
-          </div>
-          <button type="button" className="workspace-clients-close" onClick={onClose} aria-label={copy.close}>×</button>
-        </header>
-
-        <div className="workspace-clients-tabs" role="tablist">
-          <button type="button" className={tab === 'search' ? 'active' : ''} onClick={() => setTab('search')}>{copy.searchTab}</button>
-          <button type="button" className={tab === 'duplicates' ? 'active' : ''} onClick={() => setTab('duplicates')}>
-            {copy.duplicatesTab}{duplicates.length > 0 ? <span>{duplicates.length}</span> : null}
-          </button>
-        </div>
-
+  return (
+    <SidePanel open onClose={onClose} ariaLabel={copy.title} size="xl">
+      <PanelHeader
+        title={copy.title}
+        subtitle={copy.subtitle}
+        onClose={onClose}
+        closeLabel={copy.close}
+      />
+      <PanelTabs
+        label={copy.title}
+        activeId={tab}
+        onSelect={(id) => setTab(id as WorkspaceTab)}
+        tabs={[
+          { id: 'search', label: copy.searchTab },
+          { id: 'duplicates', label: duplicates.length > 0 ? `${copy.duplicatesTab} (${duplicates.length})` : copy.duplicatesTab },
+        ]}
+      />
+      <PanelBody>
         {error && <div className="workspace-clients-alert workspace-clients-alert--error">{error}</div>}
         {notice && <div className="workspace-clients-alert workspace-clients-alert--success">{notice}</div>}
 
@@ -448,11 +438,9 @@ export function WorkspaceClientsPanel({ open, onClose, onChanged }: Props) {
             )}
           </div>
         )}
-      </section>
-    </div>
+      </PanelBody>
+    </SidePanel>
   )
-
-  return createPortal(body, document.body)
 }
 
 function Stat({ label, value }: { label: string; value: number }) {

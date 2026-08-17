@@ -1,7 +1,19 @@
 import { DesktopSelect } from '../../../components/DesktopSelect'
-import { useEffect, useMemo, useState } from 'react'
+import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { api } from '../../../api'
 import type { CalendarServiceDraft, CalendarServiceSegment } from '../calendarTypes'
+import {
+  PanelBody,
+  PanelButton,
+  PanelEmpty,
+  PanelField,
+  PanelFooter,
+  PanelHeader,
+  PanelRow,
+  PanelSection,
+  SidePanel,
+} from '../../../components/panel'
+import { CalendarSectionIcon } from './CalendarIcons'
 
 function formatMinutes(totalMinutes: number, locale: string) {
   const minutes = Math.max(0, Math.round(totalMinutes || 0))
@@ -23,7 +35,8 @@ function serviceName(type: any, locale: string) {
   return internal ? `${visible} — ${internal}` : visible
 }
 
-function serviceDescription(type: any, locale: string) {
+/** Plain service label, without the internal description. Used for collapsed summaries. */
+export function serviceDescription(type: any, locale: string) {
   const description = String(type?.description || '').trim()
   const name = String(type?.name || '').trim()
   return description || name || (locale === 'sl' ? 'Izberite storitev' : locale === 'sr' ? 'Izaberite uslugu' : 'Select service')
@@ -62,6 +75,12 @@ function labels(locale: string) {
       serviceName: 'Ime storitve',
       editServiceTitle: 'Uredi storitev',
       reorder: 'Premakni storitev',
+      consumables: 'Porabni material',
+      editConsumables: 'Uredi',
+      defaultItems: 'privzeti artikli',
+      loading: 'Nalaganje …',
+      noConsumables: 'Za storitev ni nastavljenega porabnega materiala.',
+      consumablesHint: 'Privzeto iz storitve. Za ta termin lahko količine prilagodite.',
     }
   }
   if (locale === 'sr') {
@@ -96,6 +115,12 @@ function labels(locale: string) {
       serviceName: 'Naziv usluge',
       editServiceTitle: 'Uredi uslugu',
       reorder: 'Pomeri uslugu',
+      consumables: 'Potrošni materijal',
+      editConsumables: 'Uredi',
+      defaultItems: 'artikla',
+      loading: 'Učitavanje …',
+      noConsumables: 'Za uslugu nije podešen potrošni materijal.',
+      consumablesHint: 'Podrazumevano iz usluge. Za ovaj termin količine možete prilagoditi.',
     }
   }
   return {
@@ -129,6 +154,12 @@ function labels(locale: string) {
     serviceName: 'Service name',
     editServiceTitle: 'Edit service',
     reorder: 'Reorder service',
+    consumables: 'Consumables',
+    editConsumables: 'Edit',
+    defaultItems: 'default items',
+    loading: 'Loading…',
+    noConsumables: 'No consumables are configured for this service.',
+    consumablesHint: 'Defaults from the service. Quantities can be adjusted for this appointment.',
   }
 }
 
@@ -253,6 +284,7 @@ export function CalendarServiceChainEditor({
   defaultSpaceId = null,
   multipleServicesEnabled = false,
   allowServiceEdit = true,
+  showServiceEditButton = false,
   showSessionMaxParticipants = false,
   sessionMaxParticipants = null,
   onSessionMaxParticipantsChange,
@@ -263,6 +295,12 @@ export function CalendarServiceChainEditor({
   resetSessionConsumablesToDefaults = false,
   sessionConsumablesOverridden = false,
   onSessionConsumablesChange,
+  sectionSummary,
+  sectionAction,
+  sectionClassName,
+  sectionCollapsible = true,
+  sectionDefaultOpen = true,
+  children,
 }: {
   locale: string
   services: CalendarServiceDraft[]
@@ -278,6 +316,7 @@ export function CalendarServiceChainEditor({
   defaultSpaceId?: number | null
   multipleServicesEnabled?: boolean
   allowServiceEdit?: boolean
+  showServiceEditButton?: boolean
   showSessionMaxParticipants?: boolean
   sessionMaxParticipants?: number | null
   onSessionMaxParticipantsChange?: (value: number | null) => void
@@ -288,6 +327,17 @@ export function CalendarServiceChainEditor({
   resetSessionConsumablesToDefaults?: boolean
   sessionConsumablesOverridden?: boolean
   onSessionConsumablesChange?: (rows: SessionConsumableDraft[] | null, resetToDefaults: boolean) => void
+  /** Collapsed summary for the Storitev card. */
+  sectionSummary?: ReactNode
+  /** Header control for the Storitev card, e.g. the online toggle. */
+  sectionAction?: ReactNode
+  /** Feature-scoped class for the outer service section. */
+  sectionClassName?: string
+  /** Allows desktop flows to keep the section permanently expanded while mobile keeps disclosures. */
+  sectionCollapsible?: boolean
+  sectionDefaultOpen?: boolean
+  /** Extra rows rendered at the bottom of the Storitev card, e.g. consultant and space. */
+  children?: ReactNode
 }) {
   const copy = labels(locale)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -310,7 +360,7 @@ export function CalendarServiceChainEditor({
   const count = services.filter((service) => service.typeId != null).length
   const isMultiMode = count > 1
   const canAddServices = multipleServicesEnabled === true
-  const showSingleEditButton = count === 1 && services[0]?.typeId != null && allowServiceEdit
+  const showSingleEditButton = count === 1 && services[0]?.typeId != null && (allowServiceEdit || showServiceEditButton)
   const singleServiceGross = count === 1 && services[0]?.typeId != null
     ? segments[0]?.grossPrice ?? services[0]?.grossPriceOverride ?? null
     : null
@@ -603,8 +653,24 @@ export function CalendarServiceChainEditor({
     })
   }
 
-  return (
-    <>
+  const consumablesCountLabel = `${consumablePreview.length} ${copy.defaultItems}`
+  const consumablesBody = consumablesLoading ? (
+    <div className="calendar-consumables-summary__empty">{copy.loading}</div>
+  ) : consumablePreview.length > 0 ? (
+    <div className="calendar-consumables-summary__list">
+      {consumablePreview.slice(0, 4).map((row) => (
+        <div key={row.consumableId}>
+          <span>{row.itemName}</span>
+          <strong>{Number(row.quantity).toLocaleString(locale === 'sl' ? 'sl-SI' : undefined)} {row.unit}</strong>
+        </div>
+      ))}
+      {consumablePreview.length > 4 ? <small>+{consumablePreview.length - 4}</small> : null}
+    </div>
+  ) : (
+    <div className="calendar-consumables-summary__empty">{copy.noConsumables}</div>
+  )
+
+  const chain = (
       <section className={`calendar-service-chain ${isMultiMode ? 'calendar-service-chain--multi' : 'calendar-service-chain--single'}`} aria-label={isMultiMode ? copy.services : copy.service}>
         {isMultiMode ? (
           <>
@@ -732,18 +798,7 @@ export function CalendarServiceChainEditor({
             <div className={`calendar-service-chain__single-row${canAddServices ? '' : ' calendar-service-chain__single-row--single-only'}${showSingleEditButton ? ' calendar-service-chain__single-row--with-edit' : ''}`}>
               <div className={`calendar-service-chain__single-select-wrap${singleServiceGross != null ? ' calendar-service-chain__single-select-wrap--with-price' : ''}`}>
                 <DesktopSelect
-                  className="calendar-service-chain__single-select calendar-service-chain__single-select--desktop"
-                  value={services[0]?.typeId ?? ''}
-                  aria-label={copy.service}
-                  onChange={(event) => updateAt(0, { typeId: event.target.value ? Number(event.target.value) : null })}
-                >
-                  <option value="">{copy.choose}</option>
-                  {sortedSessionTypes.map((entry) => (
-                    <option key={entry.id} value={entry.id}>{serviceName(entry, locale)}</option>
-                  ))}
-                </DesktopSelect>
-                <DesktopSelect
-                  className="calendar-service-chain__single-select calendar-service-chain__single-select--mobile"
+                  className="calendar-service-chain__single-select"
                   value={services[0]?.typeId ?? ''}
                   aria-label={copy.service}
                   onChange={(event) => updateAt(0, { typeId: event.target.value ? Number(event.target.value) : null })}
@@ -763,6 +818,7 @@ export function CalendarServiceChainEditor({
                   className="secondary client-add-btn calendar-client-picker__add-btn calendar-service-chain__head-add calendar-service-chain__single-edit"
                   aria-label={copy.edit}
                   title={copy.edit}
+                  disabled={!allowServiceEdit}
                   onClick={() => openEditService(0)}
                 >
                   <span aria-hidden><PencilIcon /></span>
@@ -783,53 +839,59 @@ export function CalendarServiceChainEditor({
           </label>
         )}
 
-        {consumablesEnabled && primaryTypeId ? (
-          <div className="calendar-consumables-summary">
-            <div className="calendar-consumables-summary__header">
-              <div>
-                <strong>{locale === 'sl' ? 'Porabni material' : locale === 'sr' ? 'Potrošni materijal' : 'Consumables'}</strong>
-                <span>{consumablePreview.length} {locale === 'sl' ? 'privzeti artikli' : locale === 'sr' ? 'artikla' : 'default items'}</span>
-              </div>
-              {canEditConsumables ? <button type="button" className="secondary slim-btn" onClick={openConsumablesEditor}>
-                {locale === 'sl' ? 'Uredi' : locale === 'sr' ? 'Uredi' : 'Edit'}
-              </button> : null}
-            </div>
-            {consumablesLoading ? (
-              <div className="calendar-consumables-summary__empty">{locale === 'sl' ? 'Nalaganje …' : 'Loading…'}</div>
-            ) : consumablePreview.length > 0 ? (
-              <div className="calendar-consumables-summary__list">
-                {consumablePreview.slice(0, 4).map((row) => (
-                  <div key={row.consumableId}>
-                    <span>{row.itemName}</span>
-                    <strong>{Number(row.quantity).toLocaleString(locale === 'sl' ? 'sl-SI' : undefined)} {row.unit}</strong>
-                  </div>
-                ))}
-                {consumablePreview.length > 4 ? <small>+{consumablePreview.length - 4}</small> : null}
-              </div>
-            ) : (
-              <div className="calendar-consumables-summary__empty">{locale === 'sl' ? 'Za storitev ni nastavljenega porabnega materiala.' : 'No consumables are configured for this service.'}</div>
-            )}
-            <p>{locale === 'sl' ? 'Privzeto iz storitve. Za ta termin lahko količine prilagodite.' : 'Defaults from the service. Quantities can be adjusted for this appointment.'}</p>
-          </div>
-        ) : null}
-
         {warnings && warnings.length > 0 ? (
           <div className="calendar-service-chain__warning" role="alert">
             {warnings.map((warning) => <span key={warning}>{warning}</span>)}
           </div>
         ) : null}
       </section>
+  )
+
+  return (
+    <>
+      <PanelSection
+        title={isMultiMode ? copy.services : copy.service}
+        className={sectionClassName}
+        icon={<CalendarSectionIcon name="service" />}
+        summary={sectionSummary}
+        action={sectionAction}
+        collapsible={sectionCollapsible}
+        defaultOpen={sectionDefaultOpen}
+      >
+        {chain}
+        {children}
+      </PanelSection>
+      {consumablesEnabled && primaryTypeId ? (
+        <PanelSection
+          title={copy.consumables}
+          icon={<CalendarSectionIcon name="consumables" />}
+          badge={consumablesCountLabel}
+          defaultOpen={false}
+          action={canEditConsumables ? (
+            <button type="button" className="secondary slim-btn" onClick={openConsumablesEditor}>
+              {copy.editConsumables}
+            </button>
+          ) : null}
+        >
+          {consumablesBody}
+          <p className="calendar-consumables-summary__hint">{copy.consumablesHint}</p>
+        </PanelSection>
+      ) : null}
 
       {consumablesOpen && canEditConsumables ? (
-        <div className="calendar-service-picker-backdrop calendar-consumables-editor-backdrop" onClick={() => setConsumablesOpen(false)}>
-          <div className="calendar-consumables-editor" role="dialog" aria-modal="true" aria-label={locale === 'sl' ? 'Uredi porabni material' : 'Edit consumables'} onClick={(event) => event.stopPropagation()}>
-            <div className="calendar-consumables-editor__header">
-              <div>
-                <h3>{locale === 'sl' ? 'Uredi porabni material' : locale === 'sr' ? 'Uredi potrošni materijal' : 'Edit consumables'}</h3>
-                <p>{locale === 'sl' ? 'Prilagodite porabni material za ta termin.' : 'Adjust consumables for this appointment.'}</p>
-              </div>
-              <button type="button" className="calendar-service-picker-modal__close" onClick={() => setConsumablesOpen(false)}><CloseIcon /></button>
-            </div>
+        <SidePanel
+          open
+          onClose={() => setConsumablesOpen(false)}
+          ariaLabel={locale === 'sl' ? 'Uredi porabni material' : 'Edit consumables'}
+          size="lg"
+        >
+          <PanelHeader
+            title={locale === 'sl' ? 'Uredi porabni material' : locale === 'sr' ? 'Uredi potrošni materijal' : 'Edit consumables'}
+            subtitle={locale === 'sl' ? 'Prilagodite porabni material za ta termin.' : 'Adjust consumables for this appointment.'}
+            onClose={() => setConsumablesOpen(false)}
+            closeLabel={copy.close}
+          />
+          <PanelBody>
             <div className="calendar-consumables-editor__toolbar">
               <div className="calendar-consumables-editor__add">
                 <DesktopSelect value={consumableToAdd} onChange={(event) => setConsumableToAdd(event.target.value)}>
@@ -866,144 +928,129 @@ export function CalendarServiceChainEditor({
               ))}
             </div>
             <div className="calendar-consumables-editor__note">ⓘ {locale === 'sl' ? 'Spremembe veljajo samo za ta termin in ne spremenijo privzetih nastavitev storitve.' : 'Changes apply only to this appointment and do not change the service defaults.'}</div>
-            <div className="calendar-consumables-editor__footer">
-              <button type="button" className="secondary" onClick={() => setConsumablesOpen(false)}>{locale === 'sl' ? 'Prekliči' : 'Cancel'}</button>
-              <button type="button" className="primary" onClick={saveConsumablesEditor}>{locale === 'sl' ? 'Shrani spremembe' : 'Save changes'}</button>
-            </div>
-          </div>
-        </div>
+          </PanelBody>
+          <PanelFooter>
+            <PanelButton variant="ghost" onClick={() => setConsumablesOpen(false)}>
+              {locale === 'sl' ? 'Prekliči' : 'Cancel'}
+            </PanelButton>
+            <PanelButton variant="primary" onClick={saveConsumablesEditor}>
+              {locale === 'sl' ? 'Shrani spremembe' : 'Save changes'}
+            </PanelButton>
+          </PanelFooter>
+        </SidePanel>
       ) : null}
 
       {pickerOpen ? (
-        <div className="calendar-service-picker-backdrop" onClick={closePicker}>
-          <div className="calendar-service-picker-modal" role="dialog" aria-modal="true" aria-label={copy.pickerTitle} onClick={(event) => event.stopPropagation()}>
-            <div className="calendar-service-picker-modal__header">
-              <div className="calendar-service-picker-modal__heading">
-                <h3>{pickerReplaceIndex != null ? copy.change : copy.pickerTitle}</h3>
-                <p>{copy.pickerDescription}</p>
-              </div>
-              <button type="button" className="calendar-service-picker-modal__close" onClick={closePicker} aria-label={copy.close}>
-                <CloseIcon />
-              </button>
-            </div>
+        <SidePanel open onClose={closePicker} ariaLabel={copy.pickerTitle} size="sm">
+          <PanelHeader
+            title={pickerReplaceIndex != null ? copy.change : copy.pickerTitle}
+            subtitle={copy.pickerDescription}
+            onClose={closePicker}
+            closeLabel={copy.close}
+          />
+          <PanelBody>
+            <label className="cp-field">
+              <span className="cp-sr-only">{copy.searchPlaceholder}</span>
+              <input
+                type="search"
+                value={pickerQuery}
+                placeholder={copy.searchPlaceholder}
+                aria-label={copy.searchPlaceholder}
+                autoComplete="off"
+                onChange={(event) => setPickerQuery(event.target.value)}
+              />
+            </label>
 
-            <div className="calendar-service-picker-modal__toolbar">
-              <label className="calendar-service-picker-modal__search">
-                <span aria-hidden><SearchIcon /></span>
-                <input
-                  type="search"
-                  value={pickerQuery}
-                  placeholder={copy.searchPlaceholder}
-                  aria-label={copy.searchPlaceholder}
-                  autoComplete="off"
-                  onChange={(event) => setPickerQuery(event.target.value)}
-                />
-              </label>
-            </div>
-
-            <div className="calendar-service-picker-modal__list">
+            <div className="cp-stack cp-stack--tight">
               {filteredSessionTypes.length === 0 ? (
-                <div className="calendar-service-picker-modal__empty">{copy.pickerEmpty}</div>
+                <PanelEmpty>{copy.pickerEmpty}</PanelEmpty>
               ) : filteredSessionTypes.map((entry) => (
-                <button
+                <PanelRow
                   key={entry.id}
-                  type="button"
-                  className="calendar-service-picker-modal__item"
-                  onClick={() => addOrReplaceService(Number(entry.id))}
-                >
-                  <div className="calendar-service-picker-modal__item-copy">
-                    <strong>{serviceName(entry, locale)}</strong>
-                    <span className="calendar-service-picker-modal__duration">
-                      <ClockIcon />
+                  title={serviceName(entry, locale)}
+                  meta={
+                    <>
                       {formatMinutes(Number(entry?.durationMinutes ?? 0), locale)}
                       {Number.isFinite(Number(entry?.priceGross)) ? ` • ${currency(Number(entry.priceGross))}` : ''}
-                    </span>
-                  </div>
-                  <span className="calendar-service-picker-modal__item-action">{copy.addAction}</span>
-                </button>
+                    </>
+                  }
+                  leading={<ClockIcon />}
+                  onClick={() => addOrReplaceService(Number(entry.id))}
+                />
               ))}
             </div>
-          </div>
-        </div>
+          </PanelBody>
+        </SidePanel>
       ) : null}
 
       {editingServiceIndex != null ? (
-        <div className="calendar-service-edit-backdrop" onClick={closeEditService}>
-          <div className="calendar-service-edit-modal" role="dialog" aria-modal="true" aria-label={copy.editServiceTitle} onClick={(event) => event.stopPropagation()}>
-            <div className="calendar-service-edit-modal__header">
-              <button type="button" className="calendar-service-edit-modal__close" onClick={closeEditService} aria-label={copy.close}>
-                <CloseIcon />
-              </button>
-              <div className="calendar-service-edit-modal__heading">
-                <h3>{copy.editServiceTitle}</h3>
+        <SidePanel open onClose={closeEditService} ariaLabel={copy.editServiceTitle} size="sm">
+          <PanelHeader title={copy.editServiceTitle} onClose={closeEditService} closeLabel={copy.close} />
+          <PanelBody>
+            <PanelField label={copy.serviceName}>
+              <input
+                type="text"
+                readOnly
+                value={serviceDescription(sessionTypes.find((entry) => Number(entry?.id) === Number(services[editingServiceIndex]?.typeId)), locale)}
+              />
+            </PanelField>
+            <PanelField label={copy.duration} as="div">
+              <DesktopSelect value={editingServiceDuration} onChange={(event) => setEditingServiceDuration(event.target.value)}>
+                {durationOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </DesktopSelect>
+              <div className="calendar-service-edit-modal__duration-stepper" role="group" aria-label={copy.duration}>
+                <button
+                  type="button"
+                  aria-label={copy.decreaseDuration}
+                  disabled={Number(editingServiceDuration) <= 5}
+                  onClick={() => changeEditingServiceDuration(-5)}
+                >
+                  <MinusIcon />
+                </button>
+                <strong>{formatMinutes(Number(editingServiceDuration) || 0, locale)}</strong>
+                <button
+                  type="button"
+                  aria-label={copy.increaseDuration}
+                  disabled={Number(editingServiceDuration) >= 720}
+                  onClick={() => changeEditingServiceDuration(5)}
+                >
+                  <PlusIcon />
+                </button>
               </div>
-              <span className="calendar-service-edit-modal__header-spacer" aria-hidden />
-            </div>
-            <div className="calendar-service-edit-modal__body">
-              <label className="calendar-service-edit-modal__field">
-                <span>{copy.serviceName}</span>
+            </PanelField>
+            <PanelField label={copy.price}>
+              <div className="calendar-service-edit-modal__price-wrap">
                 <input
                   type="text"
-                  readOnly
-                  value={serviceDescription(sessionTypes.find((entry) => Number(entry?.id) === Number(services[editingServiceIndex]?.typeId)), locale)}
+                  inputMode="decimal"
+                  value={editingServicePrice}
+                  onChange={(event) => setEditingServicePrice(event.target.value)}
                 />
-              </label>
-              <label className="calendar-service-edit-modal__field">
-                <span>{copy.duration}</span>
-                <DesktopSelect className="calendar-service-edit-modal__duration-select" value={editingServiceDuration} onChange={(event) => setEditingServiceDuration(event.target.value)}>
-                  {durationOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </DesktopSelect>
-                <div className="calendar-service-edit-modal__duration-stepper" role="group" aria-label={copy.duration}>
-                  <button
-                    type="button"
-                    aria-label={copy.decreaseDuration}
-                    disabled={Number(editingServiceDuration) <= 5}
-                    onClick={() => changeEditingServiceDuration(-5)}
-                  >
-                    <MinusIcon />
-                  </button>
-                  <strong>{formatMinutes(Number(editingServiceDuration) || 0, locale)}</strong>
-                  <button
-                    type="button"
-                    aria-label={copy.increaseDuration}
-                    disabled={Number(editingServiceDuration) >= 720}
-                    onClick={() => changeEditingServiceDuration(5)}
-                  >
-                    <PlusIcon />
-                  </button>
-                </div>
-              </label>
-              <label className="calendar-service-edit-modal__field">
-                <span>{copy.price}</span>
-                <div className="calendar-service-edit-modal__price-wrap">
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={editingServicePrice}
-                    onChange={(event) => setEditingServicePrice(event.target.value)}
-                  />
-                  <span>€</span>
-                </div>
-              </label>
-              {showSessionMaxParticipants ? (
-                <label className="calendar-service-edit-modal__field">
-                  <span>{copy.maxParticipants}</span>
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    inputMode="numeric"
-                    value={editingSessionMaxParticipants}
-                    onChange={(event) => setEditingSessionMaxParticipants(event.target.value)}
-                  />
-                </label>
-              ) : null}
-            </div>
-            <div className="calendar-service-edit-modal__footer">
-              <button type="button" className="primary" onClick={saveEditService}>{copy.saveChanges}</button>
-            </div>
-          </div>
-        </div>
+                <span>€</span>
+              </div>
+            </PanelField>
+            {showSessionMaxParticipants ? (
+              <PanelField label={copy.maxParticipants}>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  value={editingSessionMaxParticipants}
+                  onChange={(event) => setEditingSessionMaxParticipants(event.target.value)}
+                />
+              </PanelField>
+            ) : null}
+          </PanelBody>
+          <PanelFooter>
+            <PanelButton variant="ghost" onClick={closeEditService}>
+              {copy.close}
+            </PanelButton>
+            <PanelButton variant="primary" onClick={saveEditService}>
+              {copy.saveChanges}
+            </PanelButton>
+          </PanelFooter>
+        </SidePanel>
       ) : null}
     </>
   )

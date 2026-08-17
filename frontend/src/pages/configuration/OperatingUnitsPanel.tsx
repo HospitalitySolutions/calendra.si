@@ -2,6 +2,7 @@ import { DesktopSelect } from '../../components/DesktopSelect'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '../../api'
 import { useToast } from '../../components/Toast'
+import { useConfirm } from '../../components/panel'
 import type { InvoiceIssuerOption } from '../../lib/types'
 import { GuestSwitch, GuestUploadDropzone } from './ConfigurationVisualComponents'
 import './operating-units.css'
@@ -188,6 +189,7 @@ export function OperatingUnitsPanel({
 }: OperatingUnitsPanelProps) {
   const sl = locale === 'sl'
   const { showToast } = useToast()
+  const confirm = useConfirm()
   const [locations, setLocations] = useState<OperatingLocation[]>([])
   const [issuers, setIssuers] = useState<InvoiceIssuerOption[]>(issuerOptions)
   const [spaces, setSpaces] = useState<Space[]>([])
@@ -334,7 +336,8 @@ export function OperatingUnitsPanel({
 
   const deleteLocation = async () => {
     if (!selectedLocation || selectedLocation.defaultLocation) return
-    if (!window.confirm(sl ? `Izbrišem lokacijo ${selectedLocation.name}?` : `Delete location ${selectedLocation.name}?`)) return
+    const title = sl ? `Izbrišem lokacijo ${selectedLocation.name}?` : `Delete location ${selectedLocation.name}?`
+    if (!(await confirm({ title, tone: 'danger' }))) return
     try {
       await api.delete(`/locations/${selectedLocation.id}`)
       await load(null)
@@ -425,7 +428,8 @@ export function OperatingUnitsPanel({
   }
 
   const deleteSpace = async (space: Space) => {
-    if (!window.confirm(sl ? `Izbrišem prostor ${space.name}?` : `Delete room ${space.name}?`)) return
+    const title = sl ? `Izbrišem prostor ${space.name}?` : `Delete room ${space.name}?`
+    if (!(await confirm({ title, tone: 'danger' }))) return
     try {
       await api.delete(`/spaces/${space.id}`)
       await load(selectedLocation?.id ?? null)

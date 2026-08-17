@@ -7,6 +7,7 @@ import { getStoredUser } from '../auth'
 import { useSelectedLocationId } from '../lib/locationContext'
 import { Card, Field } from '../components/ui'
 import { useLocale } from '../locale'
+import { urlForEditForm } from './calendarFormRoutes'
 
 type ScanClient = {
   id: number
@@ -164,7 +165,7 @@ export function WalletScannerPage() {
   const paymentClientId = Number(query.get('paymentClientId') || query.get('clientId'))
   const scannerPaymentClientId = Number.isFinite(paymentClientId) && paymentClientId > 0 ? paymentClientId : null
   const autoStartCamera = query.get('autoStart') === '1' || query.get('camera') === '1'
-  const returnTo = query.get('returnTo') || (scannerPaymentBookingId ? `/calendar/booking/${scannerPaymentBookingId}` : scannerGroupBookingId ? `/calendar/booking/${scannerGroupBookingId}` : null)
+  const returnTo = query.get('returnTo') || (scannerPaymentBookingId ? urlForEditForm('booking', scannerPaymentBookingId) : scannerGroupBookingId ? urlForEditForm('booking', scannerGroupBookingId) : null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const controlsRef = useRef<IScannerControls | null>(null)
   const qrReaderRef = useRef<BrowserQRCodeReader | null>(null)

@@ -5,16 +5,29 @@ import {
   useEffect,
   useImperativeHandle,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
 } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { EmptyState, Field } from '../components/ui'
 import { GuestConfigSaveIcon } from '../components/GuestConfigSaveIcon'
 import { ServiceConfigDeleteButton, ServiceConfigEditButton, ServiceConfigTableFooter } from '../components/ServiceConfigTableUi'
 import { useToast } from '../components/Toast'
 import { useLocale } from '../locale'
+import {
+  PanelBody,
+  PanelButton,
+  PanelFooter,
+  PanelHeader,
+  PanelSection,
+  PanelSectionIcon,
+  SidePanel,
+  useConfirm,
+} from '../components/panel'
+import { SESSION_TYPES_DRAWERS, useDrawerRoute } from '../lib/drawerRoutes'
 
 type CourseMediaType = 'VIDEO' | 'AUDIO'
 type CourseStatus = 'DRAFT' | 'PROCESSING' | 'ACTIVE' | 'HIDDEN'
@@ -88,6 +101,7 @@ export type CoursesSectionProps = {
   searchQuery: string
   activeFilter: 'active' | 'inactive'
   onFilteredCountChange?: (count: number) => void
+  listHidden?: boolean
 }
 
 function base64Utf8(value: string): string {
@@ -244,16 +258,29 @@ function formatCourseUploadSize(bytes: number): string {
 }
 
 export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionProps>(function CoursesSection(
-  { searchQuery, activeFilter, onFilteredCountChange },
+  { searchQuery, activeFilter, onFilteredCountChange, listHidden = false },
   ref,
 ) {
   const { locale } = useLocale()
   const { showToast } = useToast()
+  const confirm = useConfirm()
+  const [searchParams] = useSearchParams()
+  const { match: drawerMatch, isOpen: isDrawerOpen, open: openDrawer, close: closeDrawerRoute } = useDrawerRoute()
+  const pageSearch = useMemo(() => {
+    const subtab = searchParams.get('subtab')
+    return subtab ? `subtab=${encodeURIComponent(subtab)}` : ''
+  }, [searchParams])
+  const closeDrawer = useCallback(
+    () => closeDrawerRoute({ search: pageSearch }),
+    [closeDrawerRoute, pageSearch],
+  )
+  const courseDrawerOpen =
+    isDrawerOpen(SESSION_TYPES_DRAWERS.newCourse) ||
+    isDrawerOpen(SESSION_TYPES_DRAWERS.course)
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState<CourseFormState>(defaultCourseForm)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadingId, setUploadingId] = useState<number | null>(null)
@@ -278,13 +305,9 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
 
   useImperativeHandle(ref, () => ({
     openNew: () => {
-      setEditingId(null)
-      setForm(defaultCourseForm())
-      setUploadFile(null)
-      setDeleteOldMediaOnReplace(true)
-      setShowModal(true)
+      openDrawer(SESSION_TYPES_DRAWERS.newCourse, { search: pageSearch })
     },
-  }), [])
+  }), [openDrawer, pageSearch])
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -302,7 +325,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
     onFilteredCountChange?.(filtered.length)
   }, [filtered.length, onFilteredCountChange])
 
-  const openEdit = (course: Course) => {
+  const hydrateCourse = (course: Course) => {
     setEditingId(course.id)
     setForm({
       title: course.title || '',
@@ -318,7 +341,13 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
     })
     setUploadFile(null)
     setDeleteOldMediaOnReplace(true)
-    setShowModal(true)
+  }
+
+  const openEdit = (course: Course) => {
+    openDrawer(SESSION_TYPES_DRAWERS.course, {
+      params: { id: String(course.id) },
+      search: pageSearch,
+    })
   }
 
   const editingCourse = useMemo(
@@ -355,7 +384,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
         ? await api.put<Course>(`/courses/${editingId}`, payload)
         : await api.post<Course>('/courses', payload)
       if (uploadFile) await uploadMedia(res.data.id, uploadFile, Boolean(editingId && editingCourseHasMedia && deleteOldMediaOnReplace))
-      setShowModal(false)
+      closeDrawer()
       await load()
       showToast('success', locale === 'sl' ? 'Tečaj je shranjen.' : 'Course saved.')
     } catch (err: any) {
@@ -429,7 +458,7 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
       : (locale === 'sl'
         ? `Izbrisati tečaj "${course.title}"? Tega ni mogoče razveljaviti.`
         : `Delete course "${course.title}"? This cannot be undone.`)
-    if (!window.confirm(message)) return
+    if (!(await confirm({ title: message, tone: 'danger' }))) return
     setDeletingId(course.id)
     try {
       await api.delete(`/courses/${course.id}`)
@@ -442,7 +471,38 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
     }
   }
 
+  const seededCourseDrawerRef = useRef('')
+  const courseDrawerName = drawerMatch?.descriptor.name ?? ''
+  const courseDrawerId = drawerMatch?.params.id ?? ''
+  const courseDrawerKey =
+    courseDrawerName === SESSION_TYPES_DRAWERS.newCourse.name ||
+    courseDrawerName === SESSION_TYPES_DRAWERS.course.name
+      ? `${courseDrawerName}:${courseDrawerId}`
+      : ''
+
+  useEffect(() => {
+    if (!courseDrawerKey) {
+      seededCourseDrawerRef.current = ''
+      return
+    }
+    if (seededCourseDrawerRef.current === courseDrawerKey) return
+    if (courseDrawerName === SESSION_TYPES_DRAWERS.newCourse.name) {
+      setEditingId(null)
+      setForm(defaultCourseForm())
+      setUploadFile(null)
+      setDeleteOldMediaOnReplace(true)
+      seededCourseDrawerRef.current = courseDrawerKey
+      return
+    }
+    const row = courses.find((course) => String(course.id) === courseDrawerId)
+    if (!row) return
+    hydrateCourse(row)
+    seededCourseDrawerRef.current = courseDrawerKey
+  }, [courseDrawerId, courseDrawerKey, courseDrawerName, courses])
+
   return (
+    <>
+      {!listHidden && (
     <div className="service-config-table-wrap">
       {loading ? (
         <div className="muted" style={{ padding: 24 }}>{locale === 'sl' ? 'Nalaganje tečajev…' : 'Loading courses…'}</div>
@@ -610,44 +670,26 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
           />
         </div>
       )}
+      </div>
+      )}
 
-      {showModal && (
-        <div
-          className="modal-backdrop booking-side-panel-backdrop session-type-config-modal-backdrop course-edit-modal-backdrop"
-          role="presentation"
-          onMouseDown={() => setShowModal(false)}
-        >
-          <div
-            className="modal large-modal booking-side-panel session-type-config-modal course-edit-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="course-edit-modal-title"
-            onMouseDown={(e) => e.stopPropagation()}
+      <SidePanel
+        open={courseDrawerOpen}
+        onClose={closeDrawer}
+        ariaLabel={editingId ? (locale === 'sl' ? 'Uredi tečaj' : 'Edit course') : (locale === 'sl' ? 'Nov tečaj' : 'New course')}
+        size="lg"
+      >
+        <PanelHeader
+          title={editingId ? (locale === 'sl' ? 'Uredi tečaj' : 'Edit course') : (locale === 'sl' ? 'Nov tečaj' : 'New course')}
+          onClose={closeDrawer}
+          closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+        />
+        <PanelBody as="form" id="course-edit-form" onSubmit={submit} sectioned>
+          <PanelSection
+            title={locale === 'sl' ? 'Tečaj' : 'Course'}
+            icon={<PanelSectionIcon name="course" />}
+            collapsible={false}
           >
-            <div className="session-type-config-modal-header course-edit-modal-header">
-              <div className="session-type-config-modal-heading course-edit-modal-heading">
-                <span className="session-type-config-modal-icon course-edit-modal-icon" aria-hidden><CourseModalIcon /></span>
-                <div>
-                  <h2 id="course-edit-modal-title">
-                    {editingId ? (locale === 'sl' ? 'Uredi tečaj' : 'Edit course') : (locale === 'sl' ? 'Nov tečaj' : 'New course')}
-                  </h2>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="secondary session-type-config-modal-close course-edit-modal-close"
-                aria-label={locale === 'sl' ? 'Zapri' : 'Close'}
-                onClick={() => setShowModal(false)}
-              >
-                ×
-              </button>
-            </div>
-            <form
-              id="course-edit-form"
-              className="booking-side-panel-body config-type-panel-form session-type-config-modal-body course-edit-modal-body"
-              onSubmit={submit}
-            >
-              <section className="session-type-config-section course-edit-card">
                 <div className="form-grid two course-edit-grid course-edit-grid--two">
                   <Field label={locale === 'sl' ? 'Naslov tečaja *' : 'Course title *'}>
                     <input
@@ -764,23 +806,27 @@ export const CoursesSection = forwardRef<CoursesSectionHandle, CoursesSectionPro
                     <span className="course-edit-character-count">{form.description.length} / 1000</span>
                   </span>
                 </Field>
-
-              </section>
-            </form>
-            <div className="booking-side-panel-footer session-type-config-modal-footer course-edit-modal-footer">
-              <button
-                form="course-edit-form"
-                type="submit"
-                className="gapp-primary-button course-edit-save-button"
-                disabled={saving || uploadingId != null}
-              >
-                <GuestConfigSaveIcon />
-                {saving || uploadingId != null ? (uploadProgress != null ? `${locale === 'sl' ? 'Nalaganje' : 'Uploading'} ${uploadProgress.toFixed(0)}%` : (locale === 'sl' ? 'Shranjevanje…' : 'Saving…')) : (editingId ? (locale === 'sl' ? 'Shrani spremembe' : 'Save changes') : (locale === 'sl' ? 'Ustvari tečaj' : 'Create course'))}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+          </PanelSection>
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={closeDrawer}>{locale === 'sl' ? 'Prekliči' : 'Cancel'}</PanelButton>
+          <PanelButton
+            type="submit"
+            form="course-edit-form"
+            variant="primary"
+            icon={<GuestConfigSaveIcon />}
+            disabled={saving || uploadingId != null}
+          >
+            {saving || uploadingId != null
+              ? (uploadProgress != null
+                ? `${locale === 'sl' ? 'Nalaganje' : 'Uploading'} ${uploadProgress.toFixed(0)}%`
+                : (locale === 'sl' ? 'Shranjevanje…' : 'Saving…'))
+              : (editingId
+                ? (locale === 'sl' ? 'Shrani spremembe' : 'Save changes')
+                : (locale === 'sl' ? 'Ustvari tečaj' : 'Create course'))}
+          </PanelButton>
+        </PanelFooter>
+      </SidePanel>
+    </>
   )
 })

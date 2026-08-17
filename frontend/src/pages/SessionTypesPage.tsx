@@ -3,7 +3,6 @@ import '../styles/features/clients-and-detail.css'
 import '../styles/features/guest-app.css'
 import '../styles/features.booking.css'
 import '../styles/features/cards-membership-popup.css'
-import '../styles/features/booking-side-panel.css'
 import '../styles/features/modern-clients.css'
 import { DesktopSelect } from "../components/DesktopSelect";
 import {
@@ -15,7 +14,6 @@ import {
   useState,
   type CSSProperties,
   type FormEvent,
-  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
@@ -40,6 +38,18 @@ import {
 } from "../components/ui";
 import { currency } from "../lib/format";
 import { useLocale, type AppLocale } from "../locale";
+import {
+  PanelBody,
+  PanelButton,
+  PanelFooter,
+  PanelHeader,
+  PanelSection,
+  PanelSectionIcon,
+  PanelTabs,
+  SidePanel,
+  useConfirm,
+} from "../components/panel";
+import { SESSION_TYPES_DRAWERS, useDrawerRoute } from "../lib/drawerRoutes";
 import {
   GUEST_APP_SETTINGS_KEY,
   parseGuestAppSettings,
@@ -135,7 +145,6 @@ type TypeConsumableLine = {
   notes?: string;
 };
 
-type ServiceTypeModalTab = "basic" | "services" | "booking" | "group";
 type LinkedEntityModalTab = "existing" | "create";
 type LinkedEntityModalAction = "link" | "edit" | "linked-price";
 
@@ -339,6 +348,38 @@ type TypeFormState = {
   serviceLines: TypeServiceLine[];
   consumableLines: TypeConsumableLine[];
 };
+
+function emptyTypeForm(
+  breakMinutes: number,
+  websiteWidgetEnabled: boolean,
+  guestAppEnabled: boolean,
+): TypeFormState {
+  return {
+    name: "",
+    description: "",
+    internalDescription: "",
+    billingGrossPrice: "0.00",
+    billingTaxRate: "VAT_22",
+    color: SERVICE_TYPE_DEFAULT_COLOR,
+    durationMinutes: 60,
+    breakMinutes,
+    breakMinutesOverridden: false,
+    maxParticipantsPerSession: "",
+    groupBookingEnabled: false,
+    guestBookingMode: normalizeGuestBookingModeForModules(
+      "ALL",
+      websiteWidgetEnabled,
+      guestAppEnabled,
+    ),
+    priceCalculationMode: "PER_CLIENT",
+    guestLimitUserEmailsText: "",
+    serviceGroupId: "",
+    availableAllLocations: true,
+    locationIds: [],
+    serviceLines: [],
+    consumableLines: [],
+  };
+}
 
 function typeFormsEqual(a: TypeFormState, b: TypeFormState): boolean {
   if (a.name !== b.name) return false;
@@ -799,6 +840,7 @@ export function SessionTypesPage() {
   const [selectedLocationId] = useSelectedLocationId(activeUnitId);
   const isAdmin = me.role === "ADMIN" || me.role === "SUPER_ADMIN";
   const { t, locale } = useLocale();
+  const confirm = useConfirm();
   const [searchParams, setSearchParams] = useSearchParams();
   const showServiceGroupsParam =
     searchParams.get("subtab") === SESSION_TYPES_SUBTAB_GROUPS;
@@ -835,8 +877,38 @@ export function SessionTypesPage() {
     [setSearchParams],
   );
 
+  /*
+   * The open editor is the URL. Closing returns to `/session-types` with the
+   * current `?subtab=` so the page tab survives; seed params on the drawer
+   * itself are dropped.
+   */
+  const { match: drawerMatch, isOpen: isDrawerOpen, open: openDrawer, close: closeDrawerRoute } = useDrawerRoute();
+  const pageSearch = useMemo(() => {
+    const subtab = searchParams.get("subtab");
+    return subtab ? `subtab=${encodeURIComponent(subtab)}` : "";
+  }, [searchParams]);
+  const closeDrawer = useCallback(
+    () => closeDrawerRoute({ search: pageSearch }),
+    [closeDrawerRoute, pageSearch],
+  );
+  const typeDrawerOpen =
+    isDrawerOpen(SESSION_TYPES_DRAWERS.newType) ||
+    isDrawerOpen(SESSION_TYPES_DRAWERS.type);
+  const groupDrawerOpen =
+    isDrawerOpen(SESSION_TYPES_DRAWERS.newGroup) ||
+    isDrawerOpen(SESSION_TYPES_DRAWERS.group);
+  const serviceDrawerOpen =
+    isDrawerOpen(SESSION_TYPES_DRAWERS.newService) ||
+    isDrawerOpen(SESSION_TYPES_DRAWERS.service);
+  const workspaceDrawerOpen = isDrawerOpen(SESSION_TYPES_DRAWERS.workspaceServices);
+  const cardDrawerOpen =
+    isDrawerOpen(SESSION_TYPES_DRAWERS.newCard) ||
+    isDrawerOpen(SESSION_TYPES_DRAWERS.card);
+  const courseDrawerOpen =
+    isDrawerOpen(SESSION_TYPES_DRAWERS.newCourse) ||
+    isDrawerOpen(SESSION_TYPES_DRAWERS.course);
+
   const [boot, setBoot] = useState(true);
-  const [showWorkspaceServiceManager, setShowWorkspaceServiceManager] = useState(false);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const defaultServiceBreakMinutes = Math.max(
     0,
@@ -877,7 +949,6 @@ export function SessionTypesPage() {
   const guestAppClientsLoadedRef = useRef(false);
   const guestAppClientsLoadPromiseRef = useRef<Promise<void> | null>(null);
   const [editingType, setEditingType] = useState<SessionTypeT | null>(null);
-  const [showTypeModal, setShowTypeModal] = useState(false);
   const [editingGroup, setEditingGroup] = useState<ServiceGroup | null>(null);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupForm, setGroupForm] = useState({ name: "", description: "", active: true });
@@ -887,8 +958,6 @@ export function SessionTypesPage() {
     useState<LinkedEntityModalAction>("link");
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const [groupPickerQuery, setGroupPickerQuery] = useState("");
-  const [typeModalActiveTab, setTypeModalActiveTab] =
-    useState<ServiceTypeModalTab>("basic");
   const [editingServiceId, setEditingServiceId] = useState<number | null>(null);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [serviceModalTab, setServiceModalTab] =
@@ -1183,11 +1252,11 @@ export function SessionTypesPage() {
   }, []);
 
   useEffect(() => {
-    if (!showTypeModal) {
+    if (!typeDrawerOpen) {
       setGuestBookingPickerOpen(false);
       setPriceCalculationPickerOpen(false);
     }
-  }, [showTypeModal]);
+  }, [typeDrawerOpen]);
 
   useEffect(() => {
     if (!showServiceModal) setTaxRatePickerOpen(false);
@@ -1201,9 +1270,9 @@ export function SessionTypesPage() {
   }, []);
 
   useLayoutEffect(() => {
-    if (!showTypeModal || typeModalActiveTab !== "basic") return;
+    if (!typeDrawerOpen) return;
     syncSessionTypeDescriptionHeight();
-  }, [showTypeModal, typeModalActiveTab, typeForm.description, syncSessionTypeDescriptionHeight]);
+  }, [typeDrawerOpen, typeForm.description, syncSessionTypeDescriptionHeight]);
 
   useEffect(() => {
     if (!guestBookingPickerOpen) return;
@@ -1404,8 +1473,7 @@ export function SessionTypesPage() {
 
   useEffect(() => {
     if (
-      showTypeModal &&
-      typeModalActiveTab === "group" &&
+      typeDrawerOpen &&
       typeForm.groupBookingEnabled &&
       guestAppModuleEnabled
     ) {
@@ -1414,9 +1482,8 @@ export function SessionTypesPage() {
   }, [
     guestAppModuleEnabled,
     loadGuestAppClients,
-    showTypeModal,
+    typeDrawerOpen,
     typeForm.groupBookingEnabled,
-    typeModalActiveTab,
   ]);
 
   useEffect(() => {
@@ -1752,7 +1819,6 @@ export function SessionTypesPage() {
 
   useEffect(() => {
     if (groupBookingModuleEnabled) return;
-    setTypeModalActiveTab((prev) => (prev === "group" ? "basic" : prev));
     setTypeForm((prev) => {
       if (
         prev.groupBookingEnabled !== true &&
@@ -1945,7 +2011,7 @@ export function SessionTypesPage() {
       setTypeFormSnapshot(null);
       setGuestLimitPickerOpen(false);
       setGuestLimitClientQuery("");
-      setShowTypeModal(false);
+      closeDrawer();
       void load();
     } catch (err) {
       window.alert(readApiMessage(err, "Failed to save service type."));
@@ -1954,7 +2020,7 @@ export function SessionTypesPage() {
 
   const removeType = async (id: number) => {
     if (!isAdmin) return;
-    if (!window.confirm("Delete this type?")) return;
+    if (!(await confirm({ title: t("confirmDeleteType"), tone: "danger" }))) return;
     try {
       await api.delete(`/types/${id}`);
       void load();
@@ -1986,7 +2052,11 @@ export function SessionTypesPage() {
           serviceGroupId: String(savedGroup.id),
         }));
       }
-      setShowGroupModal(false);
+      if (showGroupModal) {
+        setShowGroupModal(false);
+      } else {
+        closeDrawer();
+      }
       setEditingGroup(null);
       setGroupForm({ name: "", description: "", active: true });
       setGroupPickerQuery("");
@@ -2055,7 +2125,7 @@ export function SessionTypesPage() {
     const message = locale === "sl"
       ? `Izbrišem skupino »${group.name}«? Dodeljene storitve bodo ostale in bodo premaknjene med storitve brez skupine.`
       : `Delete “${group.name}”? Assigned services will remain and become ungrouped.`;
-    if (!window.confirm(message)) return;
+    if (!(await confirm({ title: message, tone: "danger" }))) return;
     try {
       await api.delete(`/service-groups/${group.id}`);
       if (typeGroupFilter === String(group.id)) setTypeGroupFilter("all");
@@ -2304,7 +2374,11 @@ export function SessionTypesPage() {
         noShow: false,
       });
       setServiceFormSnapshot(null);
-      setShowServiceModal(false);
+      if (showServiceModal) {
+        setShowServiceModal(false);
+      } else {
+        closeDrawer();
+      }
       setSelectedBillingServiceId(null);
       setServicePickerQuery("");
       void load();
@@ -2315,7 +2389,7 @@ export function SessionTypesPage() {
 
   const deleteService = async (id: number) => {
     if (!isAdmin) return;
-    if (!window.confirm("Delete this transaction service?")) return;
+    if (!(await confirm({ title: t("confirmDeleteTransactionService"), tone: "danger" }))) return;
     try {
       await api.delete(`/billing/services/${id}`);
       const nextAdvanceIds = new Set(advanceDeductionIds);
@@ -2389,15 +2463,14 @@ export function SessionTypesPage() {
     [types],
   );
 
-  if (!isAdmin) {
-    return <Navigate to={getDefaultAllowedRoute(me.packageType)} replace />;
-  }
+  const resetTypeEditor = useCallback(() => {
+    setEditingType(null);
+    setTypeFormSnapshot(null);
+    setGuestLimitPickerOpen(false);
+    setGuestLimitClientQuery("");
+  }, []);
 
-  if (boot) {
-    return <div className="stack gap-lg" aria-busy="true" />;
-  }
-
-  const openTypeEdit = async (type: SessionTypeT) => {
+  const hydrateTypeEditor = useCallback(async (type: SessionTypeT) => {
     setEditingType(type);
     const primaryLink = type.linkedServices?.[0] ?? null;
     const primaryBillingService = primaryLink
@@ -2504,30 +2577,170 @@ export function SessionTypesPage() {
       serviceLines: next.serviceLines.map((l) => ({ ...l })),
       consumableLines: next.consumableLines.map((l) => ({ ...l })),
     });
-    setTypeModalActiveTab("basic");
     setGuestLimitPickerOpen(false);
     setGuestLimitClientQuery("");
-    setShowTypeModal(true);
+  }, [
+    consumablesCapabilityEnabled,
+    groupBookingModuleEnabled,
+    guestAppModuleEnabled,
+    selectedLocationId,
+    services,
+    websiteWidgetModuleEnabled,
+  ]);
+
+  const seededDrawerRef = useRef("");
+  const drawerName = drawerMatch?.descriptor.name ?? "";
+  const drawerId = drawerMatch?.params.id ?? "";
+  const drawerKey = drawerName ? `${drawerName}:${drawerId}` : "";
+
+  useEffect(() => {
+    if (!drawerKey) {
+      seededDrawerRef.current = "";
+      resetTypeEditor();
+      return;
+    }
+    if (seededDrawerRef.current === drawerKey) return;
+    const seeded = () => {
+      seededDrawerRef.current = drawerKey;
+    };
+
+    if (drawerName === SESSION_TYPES_DRAWERS.newType.name) {
+      const empty = emptyTypeForm(
+        defaultServiceBreakMinutes,
+        websiteWidgetModuleEnabled,
+        guestAppModuleEnabled,
+      );
+      setEditingType(null);
+      setTypeForm(empty);
+      setTypeFormSnapshot({ ...empty, serviceLines: [], consumableLines: [] });
+      setGuestLimitPickerOpen(false);
+      setGuestLimitClientQuery("");
+      seeded();
+      return;
+    }
+    if (drawerName === SESSION_TYPES_DRAWERS.type.name) {
+      const row = types.find((candidate) => String(candidate.id) === drawerId);
+      if (!row) return;
+      void hydrateTypeEditor(row).then(seeded);
+      return;
+    }
+    if (drawerName === SESSION_TYPES_DRAWERS.newGroup.name) {
+      setEditingGroup(null);
+      setGroupForm({ name: "", description: "", active: true });
+      setGroupModalAction("edit");
+      setGroupModalTab("create");
+      setSelectedGroupId("");
+      setGroupPickerQuery("");
+      seeded();
+      return;
+    }
+    if (drawerName === SESSION_TYPES_DRAWERS.group.name) {
+      const row = groups.find((candidate) => String(candidate.id) === drawerId);
+      if (!row) return;
+      setEditingGroup(row);
+      setGroupForm({
+        name: row.name,
+        description: row.description || "",
+        active: row.active !== false,
+      });
+      setGroupModalAction("edit");
+      setGroupModalTab("create");
+      setSelectedGroupId(String(row.id));
+      setGroupPickerQuery("");
+      seeded();
+      return;
+    }
+    if (drawerName === SESSION_TYPES_DRAWERS.newService.name) {
+      const empty: ServiceFormState = {
+        description: "",
+        taxRate: "VAT_22",
+        grossPrice: "0.00",
+        advanceDeduction: false,
+        noShow: false,
+      };
+      setEditingLinkedServiceIndex(null);
+      setEditingServiceId(null);
+      setServiceForm(empty);
+      setServiceFormSnapshot({ ...empty });
+      setServiceModalAction("edit");
+      setServiceModalTab("create");
+      setSelectedBillingServiceId(null);
+      setServicePickerQuery("");
+      seeded();
+      return;
+    }
+    if (drawerName === SESSION_TYPES_DRAWERS.service.name) {
+      const row = services.find((candidate) => String(candidate.id) === drawerId);
+      if (!row) return;
+      const next: ServiceFormState = {
+        description: row.description,
+        taxRate: row.taxRate,
+        grossPrice: grossPriceStringFromNet(Number(row.netPrice), row.taxRate),
+        advanceDeduction: advanceDeductionIds.has(row.id),
+        noShow: noShowModuleEnabled && configuredNoShowServiceId === row.id,
+      };
+      setEditingLinkedServiceIndex(null);
+      setEditingServiceId(row.id);
+      setServiceForm(next);
+      setServiceFormSnapshot({ ...next });
+      setServiceModalAction("edit");
+      setServiceModalTab("create");
+      setSelectedBillingServiceId(row.id);
+      setServicePickerQuery("");
+      seeded();
+      return;
+    }
+    // Card, course and workspace drawers seed in their own components.
+    seeded();
+  }, [
+    advanceDeductionIds,
+    configuredNoShowServiceId,
+    defaultServiceBreakMinutes,
+    drawerId,
+    drawerKey,
+    drawerName,
+    groups,
+    guestAppModuleEnabled,
+    hydrateTypeEditor,
+    noShowModuleEnabled,
+    resetTypeEditor,
+    services,
+    types,
+    websiteWidgetModuleEnabled,
+  ]);
+
+  if (!isAdmin) {
+    return <Navigate to={getDefaultAllowedRoute(me.packageType)} replace />;
+  }
+
+  if (boot) {
+    return <div className="stack gap-lg" aria-busy="true" />;
+  }
+
+  const openTypeEdit = (type: SessionTypeT) => {
+    openDrawer(SESSION_TYPES_DRAWERS.type, {
+      params: { id: type.id },
+      search: pageSearch,
+    });
     setOpenTypeMenuId(null);
   };
 
+  const openRoutedGroupEdit = (group: ServiceGroup) => {
+    openDrawer(SESSION_TYPES_DRAWERS.group, {
+      params: { id: String(group.id) },
+      search: pageSearch,
+    });
+  };
+
+  const openRoutedNewGroup = () => {
+    openDrawer(SESSION_TYPES_DRAWERS.newGroup, { search: pageSearch });
+  };
+
   const openServiceEdit = (s: BillingService) => {
-    setEditingLinkedServiceIndex(null);
-    setEditingServiceId(s.id);
-    const next: ServiceFormState = {
-      description: s.description,
-      taxRate: s.taxRate,
-      grossPrice: grossPriceStringFromNet(Number(s.netPrice), s.taxRate),
-      advanceDeduction: advanceDeductionIds.has(s.id),
-      noShow: noShowModuleEnabled && configuredNoShowServiceId === s.id,
-    };
-    setServiceForm(next);
-    setServiceFormSnapshot({ ...next });
-    setServiceModalAction("edit");
-    setServiceModalTab("create");
-    setSelectedBillingServiceId(s.id);
-    setServicePickerQuery("");
-    setShowServiceModal(true);
+    openDrawer(SESSION_TYPES_DRAWERS.service, {
+      params: { id: String(s.id) },
+      search: pageSearch,
+    });
     setOpenServiceMenuId(null);
   };
 
@@ -2673,8 +2886,8 @@ export function SessionTypesPage() {
               className="clients-mobile-card service-config-mobile-card"
               role="button"
               tabIndex={0}
-              onClick={() => openGroupEdit(group)}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openGroupEdit(group); } }}
+              onClick={() => openRoutedGroupEdit(group)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openRoutedGroupEdit(group); } }}
             >
               <div className="clients-mobile-card-head">
                 <ServiceConfigNameCell
@@ -2685,7 +2898,7 @@ export function SessionTypesPage() {
                 <button
                   type="button"
                   className="secondary clients-card-menu-trigger service-config-menu-trigger"
-                  onClick={(e) => { e.stopPropagation(); openGroupEdit(group); }}
+                  onClick={(e) => { e.stopPropagation(); openRoutedGroupEdit(group); }}
                   aria-label={locale === "sl" ? "Dejanja skupine" : "Group actions"}
                 >
                   ⋮
@@ -2712,7 +2925,7 @@ export function SessionTypesPage() {
             </tr></thead>
             <tbody>
               {filteredGroups.map((group, index) => (
-                <tr key={group.id} className="clients-row clients-row--clickable" onClick={() => openGroupEdit(group)}>
+                <tr key={group.id} className="clients-row clients-row--clickable" onClick={() => openRoutedGroupEdit(group)}>
                   <td><ServiceConfigNameCell title={group.name} subtitle={`ID #${group.id}`} visual={serviceConfigVisual(index)} /></td>
                   <td className="clients-muted">{group.description?.trim() || "—"}</td>
                   <td className="clients-muted">{group.serviceCount ?? 0}</td>
@@ -2723,7 +2936,7 @@ export function SessionTypesPage() {
                       label={locale === "sl" ? "Uredi" : "Edit"}
                       onClick={(e) => {
                         e.stopPropagation();
-                        openGroupEdit(group);
+                        openRoutedGroupEdit(group);
                       }}
                     />
                     <ServiceConfigDeleteButton
@@ -3282,38 +3495,7 @@ export function SessionTypesPage() {
   };
 
   const openNewTypeModal = () => {
-    setEditingType(null);
-    const empty: TypeFormState = {
-      name: "",
-      description: "",
-      internalDescription: "",
-      billingGrossPrice: "0.00",
-      billingTaxRate: "VAT_22",
-      color: SERVICE_TYPE_DEFAULT_COLOR,
-      durationMinutes: 60,
-      breakMinutes: defaultServiceBreakMinutes,
-      breakMinutesOverridden: false,
-      maxParticipantsPerSession: "",
-      groupBookingEnabled: false,
-      guestBookingMode: normalizeGuestBookingModeForModules(
-        "ALL",
-        websiteWidgetModuleEnabled,
-        guestAppModuleEnabled,
-      ),
-      priceCalculationMode: "PER_CLIENT",
-      guestLimitUserEmailsText: "",
-      serviceGroupId: "",
-      availableAllLocations: true,
-      locationIds: [],
-      serviceLines: [],
-      consumableLines: [],
-    };
-    setTypeForm(empty);
-    setTypeFormSnapshot({ ...empty, serviceLines: [], consumableLines: [] });
-    setTypeModalActiveTab("basic");
-    setGuestLimitPickerOpen(false);
-    setGuestLimitClientQuery("");
-    setShowTypeModal(true);
+    openDrawer(SESSION_TYPES_DRAWERS.newType, { search: pageSearch });
   };
 
   const prepareNewServiceModal = (action: LinkedEntityModalAction) => {
@@ -3335,8 +3517,9 @@ export function SessionTypesPage() {
     setShowServiceModal(true);
   };
 
-  // Used by the legacy standalone billing-services fallback when Storitve is disabled.
-  const openNewServiceModal = () => prepareNewServiceModal("edit");
+  const openNewServiceModal = () => {
+    openDrawer(SESSION_TYPES_DRAWERS.newService, { search: pageSearch });
+  };
 
   // Used inside the unified Storitve editor and links the new billing service immediately.
   const openNewLinkedServiceModal = () => prepareNewServiceModal("link");
@@ -3419,14 +3602,7 @@ export function SessionTypesPage() {
     setServiceFormSnapshot(null);
   };
 
-  const dismissTypeModal = () => {
-    setShowTypeModal(false);
-    setEditingType(null);
-    setTypeFormSnapshot(null);
-    setTypeModalActiveTab("basic");
-    setGuestLimitPickerOpen(false);
-    setGuestLimitClientQuery("");
-  };
+  const dismissTypeModal = () => closeDrawer();
 
   const dismissGroupModal = () => {
     setShowGroupModal(false);
@@ -3434,6 +3610,11 @@ export function SessionTypesPage() {
     setSelectedGroupId("");
     setGroupPickerQuery("");
     setGroupForm({ name: "", description: "", active: true });
+  };
+
+  const closeGroupPanel = () => {
+    if (showGroupModal) dismissGroupModal();
+    else closeDrawer();
   };
 
   const dismissServiceModal = () => {
@@ -3445,18 +3626,10 @@ export function SessionTypesPage() {
     setServicePickerQuery("");
   };
 
-  /** Close only when the press starts on the dimmed overlay, not when a click is synthesized
-   *  after text selection (mousedown in the form, mouseup on the backdrop — common on wide screens). */
-  const onTypeModalBackdropMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) dismissTypeModal();
+  const closeServicePanel = () => {
+    if (showServiceModal) dismissServiceModal();
+    else closeDrawer();
   };
-
-  const onServiceModalBackdropMouseDown = (
-    e: ReactMouseEvent<HTMLDivElement>,
-  ) => {
-    if (e.target === e.currentTarget) dismissServiceModal();
-  };
-
 
   const resetServiceConfigFilterDraft = () => {
     setServiceConfigFilterDraft({
@@ -3470,6 +3643,21 @@ export function SessionTypesPage() {
       typeDuration: "all",
       typeVisibility: "all",
     });
+  };
+
+  const openServiceConfigFilters = () => {
+    setServiceConfigFilterDraft({
+      typeStatus: typeActiveFilter,
+      groupStatus: groupActiveFilter,
+      typeGroup: typeGroupFilter,
+      serviceStatus: serviceActiveFilter,
+      cardsStatus: cardsActiveFilter,
+      coursesStatus: coursesActiveFilter,
+      typeCategory: typeCategoryFilter,
+      typeDuration: typeDurationFilter,
+      typeVisibility: typeVisibilityFilter,
+    });
+    setShowServiceConfigFilters(true);
   };
 
   const applyServiceConfigFilters = () => {
@@ -3690,6 +3878,16 @@ export function SessionTypesPage() {
               {cardServiceFilterControl}
             </div>
             <div className="clients-toolbar-actions service-config-toolbar-trailing">
+              {isSessionTypesNarrow ? (
+                <button
+                  type="button"
+                  className="clients-modern-new-btn service-config-filter-btn"
+                  onClick={openServiceConfigFilters}
+                >
+                  <ServiceConfigTabIcon name="filter" />
+                  <span>{locale === "sl" ? "Filtri" : "Filters"}</span>
+                </button>
+              ) : null}
               <div
                 className="clients-session-tabs clients-filter-tabs"
                 style={{ marginBottom: 0 }}
@@ -3724,7 +3922,11 @@ export function SessionTypesPage() {
                 <button
                   type="button"
                   className="clients-modern-new-btn service-config-new-btn"
-                  onClick={() => setShowWorkspaceServiceManager(true)}
+                  onClick={() =>
+                    openDrawer(SESSION_TYPES_DRAWERS.workspaceServices, {
+                      search: pageSearch,
+                    })
+                  }
                   title={locale === "sl" ? "Skupne storitve in kopiranje nastavitev" : "Workspace services and configuration copy"}
                 >
                   <ServiceConfigTabIcon name="services" />
@@ -3738,7 +3940,7 @@ export function SessionTypesPage() {
                   showCourses
                     ? () => coursesRef.current?.openNew()
                     : showServiceGroups
-                      ? openNewGroupModal
+                      ? openRoutedNewGroup
                     : showCardsMemberships
                       ? () => cardsMembershipsRef.current?.openNew()
                       : showTransactionServices
@@ -3907,6 +4109,16 @@ export function SessionTypesPage() {
               {cardServiceFilterControl}
             </div>
             <div className="clients-toolbar-actions service-config-toolbar-trailing">
+              {isSessionTypesNarrow ? (
+                <button
+                  type="button"
+                  className="clients-modern-new-btn service-config-filter-btn"
+                  onClick={openServiceConfigFilters}
+                >
+                  <ServiceConfigTabIcon name="filter" />
+                  <span>{locale === "sl" ? "Filtri" : "Filters"}</span>
+                </button>
+              ) : null}
               <div
                 className="clients-session-tabs clients-filter-tabs"
                 style={{ marginBottom: 0 }}
@@ -3941,7 +4153,11 @@ export function SessionTypesPage() {
                 <button
                   type="button"
                   className="clients-modern-new-btn service-config-new-btn"
-                  onClick={() => setShowWorkspaceServiceManager(true)}
+                  onClick={() =>
+                    openDrawer(SESSION_TYPES_DRAWERS.workspaceServices, {
+                      search: pageSearch,
+                    })
+                  }
                   title={locale === "sl" ? "Skupne storitve in kopiranje nastavitev" : "Workspace services and configuration copy"}
                 >
                   <ServiceConfigTabIcon name="services" />
@@ -3994,418 +4210,134 @@ export function SessionTypesPage() {
         </Card>
       )}
 
-      {showServiceConfigFilters && (
-        <div
-          className="service-config-filter-modal-backdrop"
-          onMouseDown={() => setShowServiceConfigFilters(false)}
-          role="presentation"
-        >
-          <div
-            className="service-config-filter-modal"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="service-config-filter-modal__header">
-              <h3>{locale === "sl" ? "Filtri" : "Filters"}</h3>
-              <button
-                type="button"
-                className="service-config-filter-modal__close"
-                onClick={() => setShowServiceConfigFilters(false)}
-                aria-label={locale === "sl" ? "Zapri" : "Close"}
-              >
-                ×
-              </button>
-            </div>
-            <div className="service-config-filter-modal__body">
+      {!showCardsMemberships && cardDrawerOpen ? (
+        <CardsMembershipsSection
+          listHidden
+          sessionTypes={activeTypes}
+          coursesEnabled={coursesModuleEnabled}
+          giftCardsEnabled={giftCardsModuleEnabled}
+          searchQuery={cardSearch}
+          activeFilter={cardsActiveFilter}
+          typeFilter={cardTypeFilter}
+          serviceFilter={cardServiceFilter}
+        />
+      ) : null}
+      {!showCourses && courseDrawerOpen ? (
+        <CoursesSection
+          listHidden
+          searchQuery={courseSearch}
+          activeFilter={coursesActiveFilter}
+        />
+      ) : null}
+
+      <SidePanel
+        open={showServiceConfigFilters}
+        onClose={() => setShowServiceConfigFilters(false)}
+        ariaLabel={locale === "sl" ? "Filtri" : "Filters"}
+        size="sm"
+      >
+        <PanelHeader
+          title={locale === "sl" ? "Filtri" : "Filters"}
+          onClose={() => setShowServiceConfigFilters(false)}
+          closeLabel={locale === "sl" ? "Zapri" : "Close"}
+        />
+        <PanelBody sectioned>
+          <PanelSection title={locale === "sl" ? "Filtri" : "Filters"} icon={<PanelSectionIcon name="settings" />} collapsible={false}>
               {showCourses ? (
-                <label>
-                  <span>{locale === "sl" ? "Status" : "Status"}</span>
+                <Field label={locale === "sl" ? "Status" : "Status"}>
                   <DesktopSelect value={serviceConfigFilterDraft.coursesStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, coursesStatus: e.target.value as "active" | "inactive" }))}>
                     <option value="active">{locale === "sl" ? "Aktivna" : "Active"}</option>
                     <option value="inactive">{locale === "sl" ? "Neaktivna" : "Inactive"}</option>
                   </DesktopSelect>
-                </label>
+                </Field>
               ) : showCardsMemberships ? (
-                <label>
-                  <span>{locale === "sl" ? "Status" : "Status"}</span>
+                <Field label={locale === "sl" ? "Status" : "Status"}>
                   <DesktopSelect value={serviceConfigFilterDraft.cardsStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, cardsStatus: e.target.value as "active" | "inactive" }))}>
                     <option value="active">{locale === "sl" ? "Aktivna" : "Active"}</option>
                     <option value="inactive">{locale === "sl" ? "Neaktivna" : "Inactive"}</option>
                   </DesktopSelect>
-                </label>
+                </Field>
               ) : showServiceGroups ? (
-                <label>
-                  <span>{locale === "sl" ? "Status" : "Status"}</span>
+                <Field label={locale === "sl" ? "Status" : "Status"}>
                   <DesktopSelect value={serviceConfigFilterDraft.groupStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, groupStatus: e.target.value as "active" | "inactive" }))}>
                     <option value="active">{locale === "sl" ? "Aktivna" : "Active"}</option>
                     <option value="inactive">{locale === "sl" ? "Neaktivna" : "Inactive"}</option>
                   </DesktopSelect>
-                </label>
+                </Field>
               ) : showTransactionServices ? (
-                <label>
-                  <span>{locale === "sl" ? "Status" : "Status"}</span>
+                <Field label={locale === "sl" ? "Status" : "Status"}>
                   <DesktopSelect value={serviceConfigFilterDraft.serviceStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, serviceStatus: e.target.value as "active" | "inactive" }))}>
                     <option value="active">{locale === "sl" ? "Aktivna" : "Active"}</option>
                     <option value="inactive">{locale === "sl" ? "Neaktivna" : "Inactive"}</option>
                   </DesktopSelect>
-                </label>
+                </Field>
               ) : (
                 <>
-                  <label>
-                    <span>{locale === "sl" ? "Status" : "Status"}</span>
+                  <Field label={locale === "sl" ? "Status" : "Status"}>
                     <DesktopSelect value={serviceConfigFilterDraft.typeStatus} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeStatus: e.target.value as "active" | "inactive" }))}>
                       <option value="active">{locale === "sl" ? "Aktivna" : "Active"}</option>
                       <option value="inactive">{locale === "sl" ? "Neaktivna" : "Inactive"}</option>
                     </DesktopSelect>
-                  </label>
+                  </Field>
                   {serviceGroupsModuleEnabled ? (
-                    <label>
-                      <span>{locale === "sl" ? "Skupina" : "Group"}</span>
+                    <Field label={locale === "sl" ? "Skupina" : "Group"}>
                       <DesktopSelect value={serviceConfigFilterDraft.typeGroup} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeGroup: e.target.value }))}>
                         <option value="all">{locale === "sl" ? "Vse skupine" : "All groups"}</option>
                         <option value="ungrouped">{locale === "sl" ? "Brez skupine" : "Ungrouped"}</option>
                         {groups.map((group) => <option key={group.id} value={String(group.id)}>{group.name}</option>)}
                       </DesktopSelect>
-                    </label>
+                    </Field>
                   ) : null}
-                  <label>
-                    <span>{locale === "sl" ? "Kategorija" : "Category"}</span>
+                  <Field label={locale === "sl" ? "Kategorija" : "Category"}>
                     <DesktopSelect value={serviceConfigFilterDraft.typeCategory} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeCategory: e.target.value }))}>
                       <option value="all">{locale === "sl" ? "Vse kategorije" : "All categories"}</option>
                       {typeCategoryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                     </DesktopSelect>
-                  </label>
-                  <label>
-                    <span>{locale === "sl" ? "Trajanje" : "Duration"}</span>
+                  </Field>
+                  <Field label={locale === "sl" ? "Trajanje" : "Duration"}>
                     <DesktopSelect value={serviceConfigFilterDraft.typeDuration} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeDuration: e.target.value }))}>
                       <option value="all">{locale === "sl" ? "Vse" : "All"}</option>
                       {typeDurationOptions.map((option) => <option key={option} value={option}>{option} min</option>)}
                     </DesktopSelect>
-                  </label>
-                  <label className="service-config-filter-modal__field--wide">
-                    <span>{locale === "sl" ? "Vidnost" : "Visibility"}</span>
+                  </Field>
+                  <Field label={locale === "sl" ? "Vidnost" : "Visibility"}>
                     <DesktopSelect value={serviceConfigFilterDraft.typeVisibility} onChange={(e) => setServiceConfigFilterDraft((value) => ({ ...value, typeVisibility: e.target.value as "all" | GuestBookingMode }))}>
                       <option value="all">{locale === "sl" ? "Vse" : "All"}</option>
                       {guestBookingOptions.map((option) => <option key={option.value} value={option.value}>{option.line}</option>)}
                     </DesktopSelect>
-                  </label>
+                  </Field>
                 </>
               )}
-            </div>
-            <div className="service-config-filter-modal__footer">
-              <button type="button" className="secondary" onClick={resetServiceConfigFilterDraft}>{locale === "sl" ? "Ponastavi" : "Reset"}</button>
-              <button type="button" className="primary" onClick={applyServiceConfigFilters}>{locale === "sl" ? "Uporabi filtre" : "Apply filters"}</button>
-            </div>
-          </div>
-        </div>
-      )}
+          </PanelSection>
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={resetServiceConfigFilterDraft}>{locale === "sl" ? "Ponastavi" : "Reset"}</PanelButton>
+          <PanelButton variant="primary" onClick={applyServiceConfigFilters}>{locale === "sl" ? "Uporabi filtre" : "Apply filters"}</PanelButton>
+        </PanelFooter>
+      </SidePanel>
 
-      {showGroupModal ? (
-        <div
-          className="modal-backdrop booking-side-panel-backdrop session-type-config-modal-backdrop linked-entity-modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) dismissGroupModal();
-          }}
-          role="presentation"
-        >
-          <div
-            className="modal booking-side-panel service-group-config-modal linked-entity-modal"
-            onMouseDown={(e) => e.stopPropagation()}
+      <SidePanel
+        open={typeDrawerOpen}
+        onClose={dismissTypeModal}
+        ariaLabel={editingType ? t("Edit type") : t("New type")}
+        size="xl"
+      >
+        <PanelHeader
+          title={editingType ? t("Edit type") : t("New type")}
+          onClose={dismissTypeModal}
+          closeLabel={locale === "sl" ? "Zapri" : "Close"}
+        />
+        <PanelBody as="form" id="session-type-edit-form" onSubmit={submitType} sectioned>
+          <PanelSection
+            title={locale === "sl" ? "Osnovni podatki" : "Basic information"}
+            icon={<PanelSectionIcon name="service" />}
+            description={
+              locale === "sl"
+                ? "Uredite osnovne informacije o storitvi."
+                : "Edit the basic service information."
+            }
+            summary={typeForm.description.trim() || "—"}
           >
-            <div className="session-type-config-modal-header">
-              <div className="session-type-config-modal-heading">
-                <span className="session-type-config-modal-icon linked-entity-modal-icon--group" aria-hidden>
-                  <ServiceConfigTabIcon name="group" />
-                </span>
-                <div>
-                  <h2>
-                    {groupModalAction === "edit"
-                      ? locale === "sl"
-                        ? "Uredi skupino storitev"
-                        : "Edit service group"
-                      : locale === "sl"
-                        ? "Skupina storitve"
-                        : "Service group"}
-                  </h2>
-                  <p>
-                    {groupModalAction === "edit"
-                      ? locale === "sl"
-                        ? "Posodobite obstoječe podatke skupine."
-                        : "Update the existing group details."
-                      : locale === "sl"
-                        ? "Dodajte obstoječo skupino ali ustvarite novo."
-                        : "Add an existing group or create a new one."}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="secondary session-type-config-modal-close"
-                onClick={dismissGroupModal}
-                aria-label={locale === "sl" ? "Zapri" : "Close"}
-              >
-                ×
-              </button>
-            </div>
-
-            {groupModalAction === "link" ? (
-              <div className="linked-entity-modal-tabs" role="tablist">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={groupModalTab === "existing"}
-                  className={groupModalTab === "existing" ? "is-active" : ""}
-                  onClick={() => {
-                    setGroupModalTab("existing");
-                    setEditingGroup(null);
-                    setGroupForm({ name: "", description: "", active: true });
-                  }}
-                >
-                  {locale === "sl" ? "Dodaj obstoječo" : "Add existing"}
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={groupModalTab === "create"}
-                  className={groupModalTab === "create" ? "is-active" : ""}
-                  onClick={() => {
-                    setGroupModalTab("create");
-                    setEditingGroup(null);
-                    setGroupForm({ name: "", description: "", active: true });
-                  }}
-                >
-                  {locale === "sl" ? "Ustvari novo" : "Create new"}
-                </button>
-              </div>
-            ) : null}
-
-            {groupModalTab === "existing" && groupModalAction === "link" ? (
-              <div className="booking-side-panel-body linked-entity-picker-body">
-                <div className="linked-entity-search">
-                  <ServiceConfigTabIcon name="search" />
-                  <input
-                    type="search"
-                    value={groupPickerQuery}
-                    onChange={(event) => setGroupPickerQuery(event.target.value)}
-                    placeholder={
-                      locale === "sl"
-                        ? "Išči skupino storitve ..."
-                        : "Search service groups ..."
-                    }
-                  />
-                </div>
-                <div className="linked-entity-option-list" role="radiogroup">
-                  {groupPickerOptions.length === 0 ? (
-                    <EmptyState
-                      title={locale === "sl" ? "Ni skupin" : "No groups"}
-                      text={
-                        locale === "sl"
-                          ? "Ustvarite novo skupino storitev."
-                          : "Create a new service group."
-                      }
-                    />
-                  ) : (
-                    groupPickerOptions.map((group) => {
-                      const selected = selectedGroupId === String(group.id);
-                      return (
-                        <button
-                          key={group.id}
-                          type="button"
-                          role="radio"
-                          aria-checked={selected}
-                          className={`linked-entity-option${selected ? " is-selected" : ""}`}
-                          onClick={() => setSelectedGroupId(String(group.id))}
-                        >
-                          <span className="linked-entity-radio" aria-hidden>
-                            {selected ? <span /> : null}
-                          </span>
-                          <span className="linked-entity-option-icon linked-entity-option-icon--group" aria-hidden>
-                            <ServiceConfigTabIcon name="group" />
-                          </span>
-                          <span className="linked-entity-option-copy">
-                            <strong>{group.name}</strong>
-                            <span>
-                              {group.description?.trim() ||
-                                (locale === "sl"
-                                  ? `${group.serviceCount ?? 0} storitev`
-                                  : `${group.serviceCount ?? 0} services`)}
-                            </span>
-                          </span>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            ) : (
-              <form
-                id="service-group-edit-form"
-                className="booking-side-panel-body service-group-config-form"
-                onSubmit={submitGroup}
-              >
-                <Field label={locale === "sl" ? "Naziv skupine" : "Group name"}>
-                  <input
-                    autoFocus
-                    required
-                    maxLength={120}
-                    value={groupForm.name}
-                    onChange={(e) =>
-                      setGroupForm({ ...groupForm, name: e.target.value })
-                    }
-                    placeholder={locale === "sl" ? "npr. Masaža" : "e.g. Massage"}
-                  />
-                </Field>
-                <Field label={locale === "sl" ? "Opis" : "Description"}>
-                  <textarea
-                    rows={4}
-                    value={groupForm.description}
-                    onChange={(e) =>
-                      setGroupForm({ ...groupForm, description: e.target.value })
-                    }
-                  />
-                </Field>
-                <label className="transaction-service-switch-row service-group-active-switch">
-                  <span className="transaction-service-switch-copy">
-                    <strong>
-                      {locale === "sl" ? "Aktivna skupina" : "Active group"}
-                    </strong>
-                    <span>
-                      {locale === "sl"
-                        ? "Neaktivna skupina se v widgetu in aplikaciji za goste ne prikazuje kot skupina; njene storitve ostanejo aktivne."
-                        : "Inactive groups are not shown as group headings in guest booking; their services remain available."}
-                    </span>
-                  </span>
-                  <span className="session-type-config-switch transaction-service-option-switch">
-                    <input
-                      type="checkbox"
-                      checked={groupForm.active}
-                      onChange={(e) =>
-                        setGroupForm({ ...groupForm, active: e.target.checked })
-                      }
-                    />
-                    <span className="session-type-config-switch-track" aria-hidden>
-                      <span className="session-type-config-switch-thumb">
-                        {groupForm.active ? "✓" : ""}
-                      </span>
-                    </span>
-                  </span>
-                </label>
-              </form>
-            )}
-
-            <div className="form-actions booking-side-panel-footer session-type-config-modal-footer linked-entity-modal-footer">
-              {groupModalAction !== "edit" ? (
-                <button type="button" className="secondary" onClick={dismissGroupModal}>
-                  {locale === "sl" ? "Nazaj" : "Back"}
-                </button>
-              ) : null}
-              {groupModalTab === "existing" && groupModalAction === "link" ? (
-                <button
-                  type="button"
-                  className="gapp-primary-button"
-                  disabled={!selectedGroupId}
-                  onClick={linkSelectedGroup}
-                >
-                  <ServiceConfigTabIcon name="plus" />
-                  {locale === "sl" ? "Dodaj skupino" : "Add group"}
-                </button>
-              ) : (
-                <button
-                  form="service-group-edit-form"
-                  type="submit"
-                  className="gapp-primary-button"
-                  disabled={!groupForm.name.trim()}
-                >
-                  <GuestConfigSaveIcon />
-                  {editingGroup
-                    ? locale === "sl"
-                      ? "Shrani spremembe"
-                      : "Save changes"
-                    : locale === "sl"
-                      ? "Ustvari in dodaj"
-                      : "Create and add"}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {showTypeModal ? (
-        <div
-          className="modal-backdrop booking-side-panel-backdrop session-type-config-modal-backdrop"
-          onMouseDown={onTypeModalBackdropMouseDown}
-          role="presentation"
-        >
-          <div
-            className="modal large-modal booking-side-panel session-type-config-modal"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div className="session-type-config-modal-header">
-              {isTypeEditorMobileTablet ? (
-                <>
-                  <button
-                    type="button"
-                    className="session-type-config-modal-mobile-close"
-                    onClick={dismissTypeModal}
-                    aria-label={locale === "sl" ? "Zapri" : "Close"}
-                  >
-                    ×
-                  </button>
-                  <h2 className="session-type-config-modal-mobile-title">
-                    {editingType ? t("Edit type") : t("New type")}
-                  </h2>
-                  <span
-                    className="session-type-config-modal-mobile-more"
-                    aria-hidden="true"
-                  >
-                    ⋮
-                  </span>
-                </>
-              ) : (
-                <>
-                  <div className="session-type-config-modal-heading">
-                    <span className="session-type-config-modal-icon" aria-hidden>
-                      <ServiceConfigTabIcon name="types" />
-                    </span>
-                    <div>
-                      <h2>{editingType ? t("Edit type") : t("New type")}</h2>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="secondary session-type-config-modal-close"
-                    onClick={dismissTypeModal}
-                    aria-label={locale === "sl" ? "Zapri" : "Close"}
-                  >
-                    ×
-                  </button>
-                </>
-              )}
-            </div>
-
-            <form
-              id="session-type-edit-form"
-              className="booking-side-panel-body config-type-panel-form session-type-config-modal-body"
-              onSubmit={submitType}
-            >
-              <section className="session-type-config-section session-type-config-section--tab-panel session-type-config-unified">
-                <div className="session-type-config-unified-card session-type-config-unified-card--basic">
-                  <div className="session-type-config-section-title">
-                    <span className="session-type-config-section-icon" aria-hidden>
-                      <ServiceConfigTabIcon name="types" />
-                    </span>
-                    <div>
-                      <h3>
-                        {locale === "sl" ? "Osnovni podatki" : "Basic information"}
-                      </h3>
-                      <p>
-                        {locale === "sl"
-                          ? "Uredite osnovne informacije o storitvi."
-                          : "Edit the basic service information."}
-                      </p>
-                    </div>
-                  </div>
-
                   <div className="session-type-config-grid session-type-config-grid--two session-type-config-description-grid">
                     <Field
                       label={
@@ -4619,45 +4551,30 @@ export function SessionTypesPage() {
                         : "The selected color will be used for this service on the calendar."}
                     </p>
                   </div>
-                </div>
+          </PanelSection>
 
                 {serviceGroupsModuleEnabled ? (
-                  <div className="session-type-config-unified-card session-type-config-unified-card--group">
-                    <div className="session-type-config-unified-card-header">
-                      <div className="session-type-config-section-title">
-                        <span className="session-type-config-section-icon session-type-config-section-icon--group" aria-hidden>
-                          <ServiceConfigTabIcon name="group" />
-                        </span>
-                        <div>
-                          <h3>
-                            {locale === "sl" ? "Skupina storitve" : "Service group"}
-                          </h3>
-                          <p>
-                            {locale === "sl"
-                              ? "Povežite različna trajanja ali različice iste storitve."
-                              : "Group related durations or variants of the same service."}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="session-type-config-unified-actions">
-                        <button
-                          type="button"
-                          className="secondary small-btn"
-                          onClick={openGroupLinkModal}
-                        >
-                          <ServiceConfigTabIcon name="plus" />
-                          {locale === "sl" ? "Dodaj obstoječo" : "Add existing"}
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary small-btn"
-                          onClick={openNewGroupModal}
-                        >
-                          <ServiceConfigTabIcon name="plus" />
-                          {locale === "sl" ? "Ustvari novo" : "Create new"}
-                        </button>
-                      </div>
-                    </div>
+          <PanelSection
+            title={locale === "sl" ? "Skupina storitve" : "Service group"}
+            icon={<PanelSectionIcon name="group" />}
+            description={
+              locale === "sl"
+                ? "Povežite različna trajanja ali različice iste storitve."
+                : "Group related durations or variants of the same service."
+            }
+            defaultOpen={false}
+            summary={selectedTypeServiceGroup?.name?.trim() || "—"}
+            action={
+              <span className="session-type-config-unified-actions">
+                <PanelButton size="sm" onClick={openGroupLinkModal}>
+                  {locale === "sl" ? "Dodaj obstoječo" : "Add existing"}
+                </PanelButton>
+                <PanelButton size="sm" onClick={openNewGroupModal}>
+                  {locale === "sl" ? "Ustvari novo" : "Create new"}
+                </PanelButton>
+              </span>
+            }
+          >
 
                     {selectedTypeServiceGroup ? (
                       <div className="session-type-linked-card">
@@ -4694,36 +4611,37 @@ export function SessionTypesPage() {
                           : "This service is not linked to a group."}
                       </div>
                     )}
-                  </div>
+          </PanelSection>
                 ) : null}
 
                 {consumablesCapabilityEnabled ? (
-                  <div className="session-type-config-unified-card session-type-config-unified-card--consumables">
-                    <div className="session-type-config-unified-card-header">
-                      <div className="session-type-config-section-title">
-                        <span className="session-type-config-section-icon session-type-config-section-icon--consumables" aria-hidden>
-                          <ServiceConfigTabIcon name="services" />
-                        </span>
-                        <div>
-                          <h3>{locale === "sl" ? "Porabni materiali" : "Consumables"}</h3>
-                          <p>
-                            {locale === "sl"
-                              ? "Povežite porabni material, ki se privzeto uporabi pri izvedbi te storitve."
-                              : "Link the consumables used by default when this service is delivered."}
-                          </p>
-                        </div>
-                      </div>
-                      {canEditConsumables && <div className="session-type-config-unified-actions">
-                        <button type="button" className="secondary small-btn" onClick={() => setConsumableEditorMode("existing")}>
-                          <ServiceConfigTabIcon name="plus" />
-                          {locale === "sl" ? "Dodaj obstoječe" : "Add existing"}
-                        </button>
-                        <button type="button" className="secondary small-btn" onClick={() => setConsumableEditorMode("create")}>
-                          <ServiceConfigTabIcon name="plus" />
-                          {locale === "sl" ? "Ustvari novo" : "Create new"}
-                        </button>
-                      </div>}
-                    </div>
+          <PanelSection
+            title={locale === "sl" ? "Porabni materiali" : "Consumables"}
+            icon={<PanelSectionIcon name="consumables" />}
+            description={
+              locale === "sl"
+                ? "Povežite porabni material, ki se privzeto uporabi pri izvedbi te storitve."
+                : "Link the consumables used by default when this service is delivered."
+            }
+            defaultOpen={false}
+            summary={
+              locale === "sl"
+                ? `${typeForm.consumableLines.length} privzeti`
+                : `${typeForm.consumableLines.length} default`
+            }
+            action={
+              canEditConsumables ? (
+                <span className="session-type-config-unified-actions">
+                  <PanelButton size="sm" onClick={() => setConsumableEditorMode("existing")}>
+                    {locale === "sl" ? "Dodaj obstoječe" : "Add existing"}
+                  </PanelButton>
+                  <PanelButton size="sm" onClick={() => setConsumableEditorMode("create")}>
+                    {locale === "sl" ? "Ustvari novo" : "Create new"}
+                  </PanelButton>
+                </span>
+              ) : undefined
+            }
+          >
 
                     {canEditConsumables && consumableEditorMode ? (
                       <div className="session-type-consumable-add-panel">
@@ -4797,20 +4715,27 @@ export function SessionTypesPage() {
                         })}
                       </div>
                     )}
-                  </div>
+          </PanelSection>
                 ) : null}
 
                 {locations.length > 1 ? (
-                  <div className="session-type-config-unified-card session-type-config-location-section">
-                    <div className="session-type-config-section-title">
-                      <span className="session-type-config-section-icon" aria-hidden>
-                        <ServiceConfigTabIcon name="types" />
-                      </span>
-                      <div>
-                        <h3>{locale === "sl" ? "Razpoložljivost po lokacijah" : locale === "sr" ? "Dostupnost po lokacijama" : "Location availability"}</h3>
-                        <p>{locale === "sl" ? "Določite, v katerih fizičnih lokacijah je storitev na voljo." : locale === "sr" ? "Odredite na kojim fizičkim lokacijama je usluga dostupna." : "Choose the physical locations where this service is available."}</p>
-                      </div>
-                    </div>
+          <PanelSection
+            title={locale === "sl" ? "Razpoložljivost po lokacijah" : locale === "sr" ? "Dostupnost po lokacijama" : "Location availability"}
+            icon={<PanelSectionIcon name="location" />}
+            description={
+              locale === "sl"
+                ? "Določite, v katerih fizičnih lokacijah je storitev na voljo."
+                : locale === "sr"
+                  ? "Odredite na kojim fizičkim lokacijama je usluga dostupna."
+                  : "Choose the physical locations where this service is available."
+            }
+            defaultOpen={false}
+            summary={
+              typeForm.availableAllLocations
+                ? (locale === "sl" ? "Vse lokacije" : locale === "sr" ? "Sve lokacije" : "All locations")
+                : `${typeForm.locationIds.length}`
+            }
+          >
                     <label className="session-type-break-override">
                       <input
                         type="checkbox"
@@ -4845,19 +4770,19 @@ export function SessionTypesPage() {
                         })}
                       </div>
                     ) : null}
-                  </div>
+          </PanelSection>
                 ) : null}
 
-                <div className="session-type-config-unified-card session-type-config-booking-section">
-                <div className="session-type-config-section-title">
-                  <span
-                    className="session-type-config-section-icon"
-                    aria-hidden
-                  >
-                    <ServiceConfigTabIcon name="cards" />
-                  </span>
-                  <h3>{locale === "sl" ? "Pravila rezervacij" : "Booking rules"}</h3>
-                </div>
+          <PanelSection
+            title={locale === "sl" ? "Pravila rezervacij" : "Booking rules"}
+            icon={<PanelSectionIcon name="schedule" />}
+            defaultOpen={false}
+            summary={
+              typeForm.guestBookingMode === "DISABLED"
+                ? (locale === "sl" ? "Gostje OFF" : "Guests OFF")
+                : (locale === "sl" ? "Gostje ON" : "Guests ON")
+            }
+          >
                 {multipleClientsPerSessionEnabled ? (
                   <Field label={locale === "sl" ? "Cena na terminu" : "Session price"}>
                     <div
@@ -5035,77 +4960,39 @@ export function SessionTypesPage() {
                     </div>
                   </Field>
                 ) : null}
-                </div>
+          </PanelSection>
 
                 {groupBookingModuleEnabled ? (
-                <div
-                  className={`session-type-config-unified-card session-type-config-group-card${typeForm.groupBookingEnabled ? " is-on" : ""}`}
-                >
-                  <label className="session-type-config-group-toggle">
-                    <span
-                      className="session-type-config-group-icon"
-                      aria-hidden
-                    >
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                      >
-                        <path
-                          d="M16 11a3 3 0 1 0-2.9-3.7"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                        />
-                        <path
-                          d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        />
-                        <path
-                          d="M2.8 19c.6-3.1 2.4-4.7 5.2-4.7s4.6 1.6 5.2 4.7"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                        />
-                        <path
-                          d="M13.5 15c2.1.3 3.4 1.6 3.9 4"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    </span>
-                    <span className="session-type-config-group-copy">
-                      <strong>
-                        {locale === "sl" ? "Skupina" : locale === "sr" ? "Grupa" : "Group"}
-                      </strong>
-                      <span>
-                        {locale === "sl"
-                          ? "Ko je vklopljeno, je to storitev mogoče izbrati za skupinske termine, ki jih ustvarja osebje."
-                          : "When on, this type can be selected for staff-created group booked sessions."}
-                      </span>
-                    </span>
-                    <span className="session-type-config-switch">
-                      <input
-                        type="checkbox"
-                        checked={typeForm.groupBookingEnabled}
-                        onChange={(e) =>
-                          setTypeForm({
-                            ...typeForm,
-                            groupBookingEnabled: e.target.checked,
-                          })
-                        }
-                      />
-                      <span className="session-type-config-switch-track">
-                        <span className="session-type-config-switch-thumb">
-                          {typeForm.groupBookingEnabled ? "✓" : ""}
-                        </span>
-                      </span>
-                    </span>
-                  </label>
-
+          <PanelSection
+            title={locale === "sl" ? "Skupinska rezervacija" : locale === "sr" ? "Grupna rezervacija" : "Group booking"}
+            icon={<PanelSectionIcon name="group" />}
+            description={
+              locale === "sl"
+                ? "Ko je vklopljeno, je to storitev mogoče izbrati za skupinske termine, ki jih ustvarja osebje."
+                : "When on, this type can be selected for staff-created group booked sessions."
+            }
+            defaultOpen={false}
+            summary={typeForm.groupBookingEnabled ? "ON" : "OFF"}
+            action={
+              <label className="session-type-config-switch" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={typeForm.groupBookingEnabled}
+                  onChange={(e) =>
+                    setTypeForm({
+                      ...typeForm,
+                      groupBookingEnabled: e.target.checked,
+                    })
+                  }
+                />
+                <span className="session-type-config-switch-track">
+                  <span className="session-type-config-switch-thumb">
+                    {typeForm.groupBookingEnabled ? "✓" : ""}
+                  </span>
+                </span>
+              </label>
+            }
+          >
                   {typeForm.groupBookingEnabled ? (
                     <div className="session-type-config-conditional-grid">
                       <div className="session-type-config-conditional-single">
@@ -5333,147 +5220,297 @@ export function SessionTypesPage() {
                       </div>
                     </div>
                   ) : null}
-                </div>
+          </PanelSection>
                 ) : null}
-              </section>
+        </PanelBody>
+        {(!isTypeEditorMobileTablet || !typeEditorKeyboardOpen) ? (
+          <PanelFooter>
+            <PanelButton onClick={dismissTypeModal}>
+              {locale === "sl" ? "Prekliči" : "Cancel"}
+            </PanelButton>
+            <PanelButton
+              type="submit"
+              form="session-type-edit-form"
+              variant="primary"
+              icon={<GuestConfigSaveIcon />}
+              disabled={!isTypeFormDirty}
+            >
+              {editingType ? t("formSaveChanges") : t("Create type")}
+            </PanelButton>
+          </PanelFooter>
+        ) : null}
+      </SidePanel>
 
-
-            </form>
-
-            {(!isTypeEditorMobileTablet || !typeEditorKeyboardOpen) ? (
-              <div className="form-actions booking-side-panel-footer session-type-config-modal-footer">
-                <button
-                  form="session-type-edit-form"
-                  type="submit"
-                  className="gapp-primary-button"
-                  disabled={!isTypeFormDirty}
-                >
-                  <GuestConfigSaveIcon />
-                  {editingType ? t("formSaveChanges") : t("Create type")}
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
-      {showServiceModal ? (
-        <div
-          className="modal-backdrop booking-side-panel-backdrop transaction-service-modal-backdrop linked-entity-modal-backdrop"
-          onMouseDown={onServiceModalBackdropMouseDown}
-          role="presentation"
-        >
-          <div
-            className="modal large-modal booking-side-panel transaction-service-modal linked-entity-modal"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div className="transaction-service-modal-header">
-              <div className="transaction-service-modal-heading">
-                <span className="transaction-service-modal-icon" aria-hidden>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M6.75 3.75h10.5A1.75 1.75 0 0 1 19 5.5v13a1.75 1.75 0 0 1-1.75 1.75H6.75A1.75 1.75 0 0 1 5 18.5v-13a1.75 1.75 0 0 1 1.75-1.75Z"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M8.5 8.25h7M8.5 12h7M8.5 15.75h4.25"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </span>
-                <div>
-                  <h2>
-                    {serviceModalAction === "linked-price"
-                      ? locale === "sl"
-                        ? "Cena obračunske storitve"
-                        : "Billing service price"
-                      : editingServiceId
-                        ? t("sessionTypesTxModalEditTitle")
-                        : serviceModalAction === "link"
-                          ? locale === "sl"
-                            ? "Obračunska storitev"
-                            : "Billing service"
-                          : t("sessionTypesTxModalNewTitle")}
-                  </h2>
-                  <p>
-                    {serviceModalAction === "linked-price"
-                      ? locale === "sl"
-                        ? "Ta cena velja samo za izbrano storitev. Osnovna obračunska storitev se ne spremeni."
-                        : "This price applies only to the selected service. The base billing service is not changed."
-                      : editingServiceId
-                        ? locale === "sl"
-                          ? "Posodobite podatke obračunske storitve."
-                          : "Update the billing service details."
-                        : serviceModalAction === "link"
-                          ? locale === "sl"
-                            ? "Dodajte obstoječo obračunsko storitev ali ustvarite novo."
-                            : "Add an existing billing service or create a new one."
-                          : locale === "sl"
-                            ? "Ustvarite novo obračunsko storitev."
-                            : "Create a new billing service."}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="secondary transaction-service-modal-close"
-                onClick={dismissServiceModal}
-                aria-label="Close"
-              >
-                ×
-              </button>
+      <SidePanel
+        open={groupDrawerOpen || showGroupModal}
+        onClose={closeGroupPanel}
+        ariaLabel={
+          showGroupModal && groupModalAction === "link"
+            ? (locale === "sl" ? "Skupina storitve" : "Service group")
+            : editingGroup
+              ? (locale === "sl" ? "Uredi skupino storitev" : "Edit service group")
+              : (locale === "sl" ? "Nova skupina storitev" : "New service group")
+        }
+        size="lg"
+      >
+        <PanelHeader
+          title={
+            showGroupModal && groupModalAction === "link"
+              ? (locale === "sl" ? "Skupina storitve" : "Service group")
+              : editingGroup
+                ? (locale === "sl" ? "Uredi skupino storitev" : "Edit service group")
+                : (locale === "sl" ? "Nova skupina storitev" : "New service group")
+          }
+          subtitle={
+            showGroupModal && groupModalAction === "link"
+              ? (locale === "sl"
+                  ? "Dodajte obstoječo skupino ali ustvarite novo."
+                  : "Add an existing group or create a new one.")
+              : editingGroup
+                ? (locale === "sl"
+                    ? "Posodobite obstoječe podatke skupine."
+                    : "Update the existing group details.")
+                : undefined
+          }
+          onClose={closeGroupPanel}
+          closeLabel={locale === "sl" ? "Zapri" : "Close"}
+        />
+        {showGroupModal && groupModalAction === "link" ? (
+          <PanelTabs
+            label={locale === "sl" ? "Način skupine" : "Group mode"}
+            activeId={groupModalTab}
+            onSelect={(id) => {
+              setGroupModalTab(id as LinkedEntityModalTab)
+              setEditingGroup(null)
+              setGroupForm({ name: "", description: "", active: true })
+            }}
+            tabs={[
+              { id: "existing", label: locale === "sl" ? "Dodaj obstoječo" : "Add existing" },
+              { id: "create", label: locale === "sl" ? "Ustvari novo" : "Create new" },
+            ]}
+          />
+        ) : null}
+        {groupModalTab === "existing" && groupModalAction === "link" && showGroupModal ? (
+          <PanelBody>
+            <div className="linked-entity-search">
+              <ServiceConfigTabIcon name="search" />
+              <input
+                type="search"
+                value={groupPickerQuery}
+                onChange={(event) => setGroupPickerQuery(event.target.value)}
+                placeholder={
+                  locale === "sl"
+                    ? "Išči skupino storitve ..."
+                    : "Search service groups ..."
+                }
+              />
             </div>
+            <div className="linked-entity-option-list" role="radiogroup">
+              {groupPickerOptions.length === 0 ? (
+                <EmptyState
+                  title={locale === "sl" ? "Ni skupin" : "No groups"}
+                  text={
+                    locale === "sl"
+                      ? "Ustvarite novo skupino storitev."
+                      : "Create a new service group."
+                  }
+                />
+              ) : (
+                groupPickerOptions.map((group) => {
+                  const selected = selectedGroupId === String(group.id)
+                  return (
+                    <button
+                      key={group.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      className={`linked-entity-option${selected ? " is-selected" : ""}`}
+                      onClick={() => setSelectedGroupId(String(group.id))}
+                    >
+                      <span className="linked-entity-radio" aria-hidden>
+                        {selected ? <span /> : null}
+                      </span>
+                      <span className="linked-entity-option-icon linked-entity-option-icon--group" aria-hidden>
+                        <ServiceConfigTabIcon name="group" />
+                      </span>
+                      <span className="linked-entity-option-copy">
+                        <strong>{group.name}</strong>
+                        <span>
+                          {group.description?.trim() ||
+                            (locale === "sl"
+                              ? `${group.serviceCount ?? 0} storitev`
+                              : `${group.serviceCount ?? 0} services`)}
+                        </span>
+                      </span>
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          </PanelBody>
+        ) : (
+          <PanelBody as="form" id="service-group-edit-form" onSubmit={submitGroup} sectioned>
+            <PanelSection
+              title={locale === "sl" ? "Podatki skupine" : "Group details"}
+              icon={<PanelSectionIcon name="group" />}
+              collapsible={false}
+            >
+              <Field label={locale === "sl" ? "Naziv skupine" : "Group name"}>
+                <input
+                  autoFocus
+                  required
+                  maxLength={120}
+                  value={groupForm.name}
+                  onChange={(e) =>
+                    setGroupForm({ ...groupForm, name: e.target.value })
+                  }
+                  placeholder={locale === "sl" ? "npr. Masaža" : "e.g. Massage"}
+                />
+              </Field>
+              <Field label={locale === "sl" ? "Opis" : "Description"}>
+                <textarea
+                  rows={4}
+                  value={groupForm.description}
+                  onChange={(e) =>
+                    setGroupForm({ ...groupForm, description: e.target.value })
+                  }
+                />
+              </Field>
+              <label className="transaction-service-switch-row service-group-active-switch">
+                <span className="transaction-service-switch-copy">
+                  <strong>
+                    {locale === "sl" ? "Aktivna skupina" : "Active group"}
+                  </strong>
+                  <span>
+                    {locale === "sl"
+                      ? "Neaktivna skupina se v widgetu in aplikaciji za goste ne prikazuje kot skupina; njene storitve ostanejo aktivne."
+                      : "Inactive groups are not shown as group headings in guest booking; their services remain available."}
+                  </span>
+                </span>
+                <span className="session-type-config-switch transaction-service-option-switch">
+                  <input
+                    type="checkbox"
+                    checked={groupForm.active}
+                    onChange={(e) =>
+                      setGroupForm({ ...groupForm, active: e.target.checked })
+                    }
+                  />
+                  <span className="session-type-config-switch-track" aria-hidden>
+                    <span className="session-type-config-switch-thumb">
+                      {groupForm.active ? "✓" : ""}
+                    </span>
+                  </span>
+                </span>
+              </label>
+            </PanelSection>
+          </PanelBody>
+        )}
+        <PanelFooter>
+          <PanelButton onClick={closeGroupPanel}>
+            {locale === "sl" ? "Prekliči" : "Cancel"}
+          </PanelButton>
+          {groupModalTab === "existing" && groupModalAction === "link" && showGroupModal ? (
+            <PanelButton
+              variant="primary"
+              disabled={!selectedGroupId}
+              onClick={linkSelectedGroup}
+            >
+              {locale === "sl" ? "Dodaj skupino" : "Add group"}
+            </PanelButton>
+          ) : (
+            <PanelButton
+              type="submit"
+              form="service-group-edit-form"
+              variant="primary"
+              icon={<GuestConfigSaveIcon />}
+              disabled={!groupForm.name.trim()}
+            >
+              {editingGroup
+                ? (locale === "sl" ? "Shrani spremembe" : "Save changes")
+                : groupModalAction === "link"
+                  ? (locale === "sl" ? "Ustvari in dodaj" : "Create and add")
+                  : (locale === "sl" ? "Ustvari skupino" : "Create group")}
+            </PanelButton>
+          )}
+        </PanelFooter>
+      </SidePanel>
 
-            {serviceModalAction === "link" ? (
-              <div className="linked-entity-modal-tabs" role="tablist">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={serviceModalTab === "existing"}
-                  className={serviceModalTab === "existing" ? "is-active" : ""}
-                  onClick={() => {
-                    setServiceModalTab("existing");
-                    setEditingServiceId(null);
-                    setSelectedBillingServiceId(null);
-                  }}
-                >
-                  {locale === "sl" ? "Dodaj obstoječo" : "Add existing"}
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={serviceModalTab === "create"}
-                  className={serviceModalTab === "create" ? "is-active" : ""}
-                  onClick={() => {
-                    const empty: ServiceFormState = {
-                      description: "",
-                      taxRate: "VAT_22",
-                      grossPrice: "0.00",
-                      advanceDeduction: false,
-                      noShow: false,
-                    };
-                    setServiceModalTab("create");
-                    setEditingServiceId(null);
-                    setServiceForm(empty);
-                    setServiceFormSnapshot({ ...empty });
-                  }}
-                >
-                  {locale === "sl" ? "Ustvari novo" : "Create new"}
-                </button>
-              </div>
-            ) : null}
-
+      <SidePanel
+        open={serviceDrawerOpen || showServiceModal}
+        onClose={closeServicePanel}
+        ariaLabel={
+          serviceModalAction === "linked-price"
+            ? (locale === "sl" ? "Cena za to storitev" : "Price for this service")
+            : editingServiceId
+              ? t("sessionTypesTxModalEditTitle")
+              : serviceModalAction === "link"
+                ? (locale === "sl" ? "Obračunska storitev" : "Billing service")
+                : t("sessionTypesTxModalNewTitle")
+        }
+        size="lg"
+      >
+        <PanelHeader
+          title={
+            serviceModalAction === "linked-price"
+              ? (locale === "sl" ? "Cena za to storitev" : "Price for this service")
+              : editingServiceId
+                ? t("sessionTypesTxModalEditTitle")
+                : serviceModalAction === "link"
+                  ? (locale === "sl" ? "Obračunska storitev" : "Billing service")
+                  : t("sessionTypesTxModalNewTitle")
+          }
+          subtitle={
+            serviceModalAction === "linked-price"
+              ? (locale === "sl"
+                  ? "Ta cena velja samo za izbrano storitev. Osnovna obračunska storitev se ne spremeni."
+                  : "This price applies only to the selected service. The base billing service is not changed.")
+              : editingServiceId
+                ? (locale === "sl"
+                    ? "Posodobite podatke obračunske storitve."
+                    : "Update the billing service details.")
+                : serviceModalAction === "link"
+                  ? (locale === "sl"
+                      ? "Dodajte obstoječo obračunsko storitev ali ustvarite novo."
+                      : "Add an existing billing service or create a new one.")
+                  : (locale === "sl"
+                      ? "Ustvarite novo obračunsko storitev."
+                      : "Create a new billing service.")
+          }
+          onClose={closeServicePanel}
+          closeLabel={locale === "sl" ? "Zapri" : "Close"}
+        />
+        {serviceModalAction === "link" && showServiceModal ? (
+          <PanelTabs
+            label={locale === "sl" ? "Način storitve" : "Service mode"}
+            activeId={serviceModalTab}
+            onSelect={(id) => {
+              if (id === "existing") {
+                setServiceModalTab("existing")
+                setEditingServiceId(null)
+                setSelectedBillingServiceId(null)
+                return
+              }
+              const empty: ServiceFormState = {
+                description: "",
+                taxRate: "VAT_22",
+                grossPrice: "0.00",
+                advanceDeduction: false,
+                noShow: false,
+              }
+              setServiceModalTab("create")
+              setEditingServiceId(null)
+              setServiceForm(empty)
+              setServiceFormSnapshot({ ...empty })
+            }}
+            tabs={[
+              { id: "existing", label: locale === "sl" ? "Dodaj obstoječo" : "Add existing" },
+              { id: "create", label: locale === "sl" ? "Ustvari novo" : "Create new" },
+            ]}
+          />
+        ) : null}
             {serviceModalAction === "linked-price" ? (
-              <form
-                id="transaction-service-edit-form"
-                className="transaction-service-modal-body"
-                onSubmit={serviceSubmit}
-              >
+              <PanelBody as="form" id="transaction-service-edit-form" onSubmit={serviceSubmit} sectioned>
+              <PanelSection title={locale === "sl" ? "Cena" : "Price"} icon={<PanelSectionIcon name="pricing" />} collapsible={false}>
                 <div className="transaction-service-modal-grid transaction-service-modal-grid--two">
                   <Field label={locale === "sl" ? "Obračunska storitev" : "Billing service"}>
                     <input
@@ -5504,10 +5541,11 @@ export function SessionTypesPage() {
                     />
                   </Field>
                 </div>
-              </form>
+              </PanelSection>
+              </PanelBody>
             ) : serviceModalTab === "existing" &&
             serviceModalAction === "link" ? (
-              <div className="transaction-service-modal-body linked-entity-picker-body">
+              <PanelBody>
                 <div className="linked-entity-search">
                   <ServiceConfigTabIcon name="search" />
                   <input
@@ -5607,13 +5645,10 @@ export function SessionTypesPage() {
                     })
                   )}
                 </div>
-              </div>
+              </PanelBody>
             ) : (
-            <form
-              id="transaction-service-edit-form"
-              className="transaction-service-modal-body"
-              onSubmit={serviceSubmit}
-            >
+            <PanelBody as="form" id="transaction-service-edit-form" onSubmit={serviceSubmit} sectioned>
+              <PanelSection title={locale === "sl" ? "Obračunska storitev" : "Billing service"} icon={<PanelSectionIcon name="pricing" />} collapsible={false}>
               <div className="transaction-service-modal-grid transaction-service-modal-grid--two">
                 <Field label={t("sessionTypesTxLabelDescription")}>
                   <input
@@ -5823,60 +5858,57 @@ export function SessionTypesPage() {
                   />
                 </Field>
               </div>
-            </form>
+            </PanelSection>
+            </PanelBody>
             )}
 
-            <div className="form-actions booking-side-panel-footer transaction-service-modal-footer linked-entity-modal-footer">
-              {serviceModalAction === "linked-price" ? (
-                <button
-                  form="transaction-service-edit-form"
-                  type="submit"
-                  className="gapp-primary-button"
-                  disabled={
-                    selectedBillingServiceId == null ||
-                    (editingLinkedServiceIndex != null && !isServiceFormDirty)
-                  }
-                >
-                  <GuestConfigSaveIcon />
-                  {editingLinkedServiceIndex != null
-                    ? locale === "sl" ? "Shrani ceno" : "Save price"
-                    : locale === "sl" ? "Dodaj storitev" : "Add service"}
-                </button>
-              ) : serviceModalTab === "existing" &&
-              serviceModalAction === "link" ? (
-                <button
-                  type="button"
-                  className="gapp-primary-button"
-                  disabled={selectedBillingServiceId == null}
-                  onClick={linkSelectedBillingService}
-                >
-                  <ServiceConfigTabIcon name="plus" />
-                  {locale === "sl" ? "Dodaj storitev" : "Add service"}
-                </button>
-              ) : (
-                <button
-                  form="transaction-service-edit-form"
-                  type="submit"
-                  className="gapp-primary-button"
-                  disabled={!isServiceFormDirty}
-                >
-                  <GuestConfigSaveIcon />
-                  {editingServiceId
-                    ? t("sessionTypesTxModalSaveService")
-                    : serviceModalAction === "link"
-                      ? locale === "sl"
-                        ? "Ustvari in dodaj"
-                        : "Create and add"
-                      : t("sessionTypesTxModalCreateService")}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
+        <PanelFooter>
+          <PanelButton onClick={closeServicePanel}>
+            {locale === "sl" ? "Prekliči" : "Cancel"}
+          </PanelButton>
+          {serviceModalAction === "linked-price" ? (
+            <PanelButton
+              type="submit"
+              form="transaction-service-edit-form"
+              variant="primary"
+              icon={<GuestConfigSaveIcon />}
+              disabled={
+                selectedBillingServiceId == null ||
+                (editingLinkedServiceIndex != null && !isServiceFormDirty)
+              }
+            >
+              {editingLinkedServiceIndex != null
+                ? (locale === "sl" ? "Shrani ceno" : "Save price")
+                : (locale === "sl" ? "Dodaj storitev" : "Add service")}
+            </PanelButton>
+          ) : serviceModalTab === "existing" && serviceModalAction === "link" ? (
+            <PanelButton
+              variant="primary"
+              disabled={selectedBillingServiceId == null}
+              onClick={linkSelectedBillingService}
+            >
+              {locale === "sl" ? "Dodaj storitev" : "Add service"}
+            </PanelButton>
+          ) : (
+            <PanelButton
+              type="submit"
+              form="transaction-service-edit-form"
+              variant="primary"
+              icon={<GuestConfigSaveIcon />}
+              disabled={!isServiceFormDirty}
+            >
+              {editingServiceId
+                ? t("sessionTypesTxModalSaveService")
+                : serviceModalAction === "link"
+                  ? (locale === "sl" ? "Ustvari in dodaj" : "Create and add")
+                  : t("sessionTypesTxModalCreateService")}
+            </PanelButton>
+          )}
+        </PanelFooter>
+      </SidePanel>
       {isWorkspaceRolloutEnabled(me, 'SHARED_SERVICES') && <WorkspaceServiceManager
-        open={showWorkspaceServiceManager}
-        onClose={() => setShowWorkspaceServiceManager(false)}
+        open={workspaceDrawerOpen}
+        onClose={closeDrawer}
         sessionTypes={types}
         currentUnitId={me.activeUnitId ?? me.companyId}
         locale={locale}

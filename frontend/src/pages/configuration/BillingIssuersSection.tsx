@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '../../api'
 import { useAuthenticatedUser } from '../../authUserContext'
 import { useToast } from '../../components/Toast'
+import { useConfirm } from '../../components/panel'
 
 export type LegalEntityResponse = {
   id: number
@@ -156,6 +157,7 @@ export function BillingIssuersSection({
   const companiesOnly = mode === 'companies'
   const me = useAuthenticatedUser()
   const { showToast } = useToast()
+  const confirm = useConfirm()
   const [issuers, setIssuers] = useState<LegalEntityResponse[]>([])
   const [series, setSeries] = useState<InvoiceSeriesResponse[]>([])
   const [locations, setLocations] = useState<LocationOption[]>([])
@@ -379,11 +381,13 @@ export function BillingIssuersSection({
   }
 
   const deleteIssuer = async (issuer: LegalEntityResponse) => {
-    const confirmed = window.confirm(
-      sl
-        ? `Ali želite izbrisati podjetje »${issuer.name}«? Podjetja, ki je povezano z lokacijo, računom ali serijo, ni mogoče izbrisati.`
-        : `Delete “${issuer.name}”? A company linked to a location, invoice, or series cannot be deleted.`,
-    )
+    const confirmed = await confirm({
+      title: sl ? `Ali želite izbrisati podjetje »${issuer.name}«?` : `Delete “${issuer.name}”?`,
+      text: sl
+        ? 'Podjetja, ki je povezano z lokacijo, računom ali serijo, ni mogoče izbrisati.'
+        : 'A company linked to a location, invoice, or series cannot be deleted.',
+      tone: 'danger',
+    })
     if (!confirmed) return
     setBusy(true)
     try {

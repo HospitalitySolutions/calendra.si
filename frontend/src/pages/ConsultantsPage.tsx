@@ -3,11 +3,10 @@ import '../styles/features/clients-and-detail.css'
 import '../styles/features/guest-app.css'
 import '../styles/features.booking.css'
 import '../styles/features/employee-roles.css'
-import '../styles/features/booking-side-panel.css'
 import '../styles/features/modern-clients.css'
 import { DesktopSelect } from '../components/DesktopSelect'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import '../styles/features/employees-popup.css'
 import { api } from '../api'
@@ -48,6 +47,8 @@ const EMPLOYEE_DAY_LABEL_KEY: Record<DayOfWeek, string> = {
   SUNDAY: 'employeesDaySunday',
 }
 import { useLocale, type AppLocale } from '../locale'
+import { ConfirmDialog, PanelBody, PanelButton, PanelFooter, PanelHeader, PanelMenuItem, PanelOverflowMenu, SidePanel, useConfirm } from '../components/panel'
+import { CONSULTANTS_DRAWERS, useDrawerRoute } from '../lib/drawerRoutes'
 import { useMobileKeyboardOpen } from '../hooks/useMobileKeyboardOpen'
 
 function EmployeeModernIcon({ name }: { name: 'search' | 'plus' }) {
@@ -362,6 +363,23 @@ function consultantFormsEqual(a: ConsultantForm, b: ConsultantForm): boolean {
   )
 }
 
+type EmployeesPageTab = 'employees' | 'roles'
+
+function parseEmployeesTab(
+  search: string,
+  canViewEmployees: boolean,
+  canViewRoles: boolean,
+): EmployeesPageTab {
+  const tab = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search).get('tab')
+  if (tab === 'roles' && canViewRoles) return 'roles'
+  if (canViewEmployees) return 'employees'
+  return canViewRoles ? 'roles' : 'employees'
+}
+
+function employeesTabSearch(tab: EmployeesPageTab): string {
+  return tab === 'roles' ? 'tab=roles' : ''
+}
+
 export type ConsultantsPageProps = {
   /** Consultant: edit own profile (same form as admin employee editor, limited fields). */
   selfService?: boolean
@@ -369,7 +387,10 @@ export type ConsultantsPageProps = {
 
 export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const { t, locale } = useLocale()
+  const confirm = useConfirm()
   const navigate = useNavigate()
+  const location = useLocation()
+  const { match: drawerMatch, isOpen: isDrawerOpen, open: openDrawer, close: closeDrawerRoute } = useDrawerRoute()
   const user = getStoredUser()
   const activeUnitId = user?.activeUnitId ?? user?.companyId
   const queryClient = useQueryClient()
@@ -378,6 +399,11 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const canCreateEmployees = hasEmployeePermission(user, 'EMPLOYEES_CREATE')
   const canEditEmployees = hasEmployeePermission(user, 'EMPLOYEES_EDIT')
   const canDeleteEmployees = hasEmployeePermission(user, 'EMPLOYEES_DELETE')
+  const consultantsPageDrawers = !selfService && (drawerMatch == null || drawerMatch.descriptor.page === '/consultants')
+  const newEmployeeOpen = consultantsPageDrawers && isDrawerOpen(CONSULTANTS_DRAWERS.newEmployee)
+  const employeeDrawerOpen = consultantsPageDrawers && isDrawerOpen(CONSULTANTS_DRAWERS.employee)
+  const roleMembersOpen = consultantsPageDrawers && isDrawerOpen(CONSULTANTS_DRAWERS.roleMembers)
+  const employeeDrawerId = employeeDrawerOpen ? Number(drawerMatch?.params.id) : NaN
   const [consultants, setConsultants] = useState<Consultant[]>([])
   const [locations, setLocations] = useState<LocationOption[]>([])
   const [accessRoleOptions, setAccessRoleOptions] = useState<AccessRoleOption[]>([])
@@ -408,13 +434,35 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const formBaselineRef = useRef<ConsultantForm | null>(null)
   const [loadingSelfProfile, setLoadingSelfProfile] = useState(false)
   const [activatingEmployeeId, setActivatingEmployeeId] = useState<number | null>(null)
-  const [employeesTab, setEmployeesTab] = useState<'employees' | 'roles'>(() => canViewEmployeesTab ? 'employees' : 'roles')
+  const [employeesReady, setEmployeesReady] = useState(false)
+  const [employeesTab, setEmployeesTab] = useState<EmployeesPageTab>(() =>
+    parseEmployeesTab(
+      typeof window !== 'undefined' ? window.location.search : '',
+      canViewEmployeesTab,
+      canViewRolesTab,
+    ),
+  )
+  const formSeedKeyRef = useRef<string | null>(null)
+  const formPanelOpen = selfService ? showFormPanel : newEmployeeOpen || employeeDrawerOpen
+  const pageSearch = employeesTabSearch(roleMembersOpen ? 'roles' : 'employees')
+  const closeConsultantsDrawer = () => closeDrawerRoute({ search: pageSearch })
 
   useEffect(() => {
     if (selfService) return
     if (employeesTab === 'employees' && !canViewEmployeesTab && canViewRolesTab) setEmployeesTab('roles')
     if (employeesTab === 'roles' && !canViewRolesTab && canViewEmployeesTab) setEmployeesTab('employees')
   }, [canViewEmployeesTab, canViewRolesTab, employeesTab, selfService])
+
+  useEffect(() => {
+    if (selfService) return
+    setEmployeesTab(parseEmployeesTab(location.search, canViewEmployeesTab, canViewRolesTab))
+  }, [canViewEmployeesTab, canViewRolesTab, location.search, selfService])
+
+  useEffect(() => {
+    if (selfService) return
+    if (newEmployeeOpen || employeeDrawerOpen) setEmployeesTab('employees')
+    if (roleMembersOpen) setEmployeesTab('roles')
+  }, [employeeDrawerOpen, newEmployeeOpen, roleMembersOpen, selfService])
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 450px)')
@@ -443,6 +491,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   async function loadConsultants(force = true) {
     if (!canViewEmployeesTab) {
       setConsultants([])
+      setEmployeesReady(true)
       if (!canViewRolesTab) setErrorMessage(locale === 'sl' ? 'Nimate dovoljenja za ogled zaposlenih.' : 'You do not have permission to view employees.')
       return
     }
@@ -475,6 +524,8 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       } else {
         setErrorMessage(locale === 'sl' ? 'Zaposlenih ni bilo mogoče naložiti.' : 'Failed to load employees.')
       }
+    } finally {
+      setEmployeesReady(true)
     }
   }
 
@@ -613,11 +664,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     )
   }, [consultants, search, activeFilter, roleFilter, employeeSort, locale, t])
 
-  const startCreate = () => {
-    if (hasReachedUserQuota(userQuota)) {
-      void showEmployeeLimitPopup(userQuota)
-      return
-    }
+  const seedNewEmployeeForm = () => {
     setEditing(null)
     const defaultAccessRole = accessRoleOptions.find(
       (role) => role.name.trim().toLowerCase() === DEFAULT_EMPLOYEE_ACCESS_ROLE_NAME.toLowerCase() && role.customRoleId != null,
@@ -634,7 +681,19 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     setSuccessMessage('')
     setFormSectionTab('workingHours')
     setPasswordVisible(false)
-    setShowFormPanel(true)
+  }
+
+  const startCreate = () => {
+    if (hasReachedUserQuota(userQuota)) {
+      void showEmployeeLimitPopup(userQuota)
+      return
+    }
+    if (selfService) {
+      seedNewEmployeeForm()
+      setShowFormPanel(true)
+      return
+    }
+    openDrawer(CONSULTANTS_DRAWERS.newEmployee, { search: employeesTabSearch('employees') })
   }
 
   const populateFormFromConsultant = (c: Consultant) => {
@@ -677,22 +736,57 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   }
 
   const startEdit = (c: Consultant) => {
-    populateFormFromConsultant(c)
-    setShowFormPanel(true)
+    if (selfService) {
+      populateFormFromConsultant(c)
+      setShowFormPanel(true)
+      return
+    }
+    openDrawer(CONSULTANTS_DRAWERS.employee, {
+      params: { id: c.id },
+      search: employeesTabSearch('employees'),
+    })
   }
 
   const isFormDirty = useMemo(() => {
-    if (!showFormPanel || !formBaselineRef.current) return false
+    if (!formPanelOpen || !formBaselineRef.current) return false
     return !consultantFormsEqual(form, formBaselineRef.current)
-  }, [form, showFormPanel])
+  }, [form, formPanelOpen])
+
+  useEffect(() => {
+    if (selfService) return
+    if (newEmployeeOpen) {
+      const key = 'new'
+      if (formSeedKeyRef.current === key) return
+      formSeedKeyRef.current = key
+      seedNewEmployeeForm()
+      return
+    }
+    if (employeeDrawerOpen && Number.isFinite(employeeDrawerId)) {
+      const key = `employee:${employeeDrawerId}`
+      if (formSeedKeyRef.current === key) return
+      const consultant = consultants.find((item) => item.id === employeeDrawerId)
+      if (!consultant) return
+      formSeedKeyRef.current = key
+      populateFormFromConsultant(consultant)
+      return
+    }
+    formSeedKeyRef.current = null
+  }, [consultants, employeeDrawerId, employeeDrawerOpen, newEmployeeOpen, selfService])
+
+  useEffect(() => {
+    if (selfService || !employeeDrawerOpen || !employeesReady) return
+    if (!Number.isFinite(employeeDrawerId) || !consultants.some((item) => item.id === employeeDrawerId)) {
+      closeDrawerRoute({ search: pageSearch })
+    }
+  }, [closeDrawerRoute, consultants, employeeDrawerId, employeeDrawerOpen, employeesReady, pageSearch, selfService])
 
   const removeConsultant = async (consultant: Consultant) => {
     if (!canDeleteEmployees || consultant.tenantOwner) return
-    const confirmed = window.confirm(
-      locale === 'sl'
-        ? `Izbrišem zaposlenega ${fullName(consultant)}? Tega dejanja ni mogoče razveljaviti.`
-        : `Delete employee ${fullName(consultant)}? This cannot be undone.`,
-    )
+    const confirmed = await confirm({
+      title: locale === 'sl' ? `Izbrišem zaposlenega ${fullName(consultant)}?` : `Delete employee ${fullName(consultant)}?`,
+      text: t('confirmCannotBeUndone'),
+      tone: 'danger',
+    })
     if (!confirmed) return
     setDeleting(true)
     setErrorMessage('')
@@ -700,9 +794,13 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     try {
       await api.delete(`/users/${consultant.id}`)
       if (editing?.id === consultant.id) {
-        setShowFormPanel(false)
-        setEditing(null)
-        setForm(emptyForm)
+        if (selfService) {
+          setShowFormPanel(false)
+          setEditing(null)
+          setForm(emptyForm)
+        } else {
+          closeConsultantsDrawer()
+        }
       }
       await loadConsultants()
       window.dispatchEvent(new Event('users-updated'))
@@ -800,7 +898,8 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
 
       setEditing(null)
       setForm(emptyForm)
-      setShowFormPanel(false)
+      if (selfService) setShowFormPanel(false)
+      else closeConsultantsDrawer()
       await loadConsultants()
       window.dispatchEvent(new Event('users-updated'))
     } catch (error: any) {
@@ -842,8 +941,12 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   }
 
   const dismissFormPanel = () => {
-    setShowFormPanel(false)
-    if (selfService) navigate('/calendar')
+    if (selfService) {
+      setShowFormPanel(false)
+      navigate('/calendar')
+      return
+    }
+    closeConsultantsDrawer()
   }
 
   const setDayHours = (day: DayOfWeek, patch: { start?: string; end?: string } | null) => {
@@ -960,7 +1063,6 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const activeStatusLabel = locale === 'sl' ? 'Aktivna' : 'Active'
   const inactiveStatusLabel = locale === 'sl' ? 'Neaktivna' : 'Inactive'
   const formTitle = selfService ? t('myProfileTitle') : editing ? (locale === 'sl' ? 'Uredi zaposlenega' : 'Edit employee') : (locale === 'sl' ? 'Novi zaposleni' : 'New employee')
-  const isNewEmployeeForm = !selfService && !editing
   const closeLabel = locale === 'sl' ? 'Zapri' : 'Close'
   const formPrimaryLabel = saving ? t('employeesFormSaving') : editing ? t('employeesFormSaveChanges') : (locale === 'sl' ? 'Ustvari' : 'Create')
   const formPrimaryDisabled = saving || deleting || (!!editing && !isFormDirty)
@@ -981,7 +1083,8 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     : 'The tenant owner must always keep the Administrator role.'
   const openSubscriptionSettings = () => {
     setEmployeeLimitDialog(null)
-    setShowFormPanel(false)
+    if (selfService) setShowFormPanel(false)
+    else if (formPanelOpen) closeConsultantsDrawer()
     navigate('/configuration?tab=company&subtab=subscription')
   }
 
@@ -1024,6 +1127,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
             onClick={() => {
               setEmployeesTab('employees')
               void loadConsultants(false)
+              navigate('/consultants')
             }}
           >
             <EmployeePageTabIcon name="employees" />
@@ -1037,7 +1141,10 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
             role="tab"
             aria-selected={employeesTab === 'roles'}
             className={`clients-session-tab employee-page-tab${employeesTab === 'roles' ? ' active employee-page-tab--active' : ''}`}
-            onClick={() => setEmployeesTab('roles')}
+            onClick={() => {
+              setEmployeesTab('roles')
+              navigate('/consultants?tab=roles')
+            }}
           >
             <EmployeePageTabIcon name="roles" />
             <span>{t('employeesSubtabRolesPermissions')}</span>
@@ -1053,12 +1160,12 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       {selfService && loadingSelfProfile && <div className="muted">{t('employeesSelfProfileLoading')}</div>}
       {selfService && !loadingSelfProfile && !showFormPanel && errorMessage && <div className="error">{errorMessage}</div>}
       {!selfService && (employeesTab === 'roles' || isConsultantsMobile) && employeeTabs}
-      {!selfService && canViewRolesTab && employeesTab === 'roles' && (
+      {!selfService && canViewRolesTab && (employeesTab === 'roles' || roleMembersOpen) && (
         <div className="employees-tab-panel employees-roles-tab-panel">
           <EmployeeRolesPermissionsTab />
         </div>
       )}
-      {!selfService && canViewEmployeesTab && employeesTab === 'employees' && (
+      {!selfService && canViewEmployeesTab && !roleMembersOpen && (employeesTab === 'employees' || newEmployeeOpen || employeeDrawerOpen) && (
         <div className="employees-tab-panel employees-list-tab-panel">
           <Card data-onboarding-panel="employees" className={`clients-modern-card employees-modern-card${isConsultantsMobile ? ' clients-mobile-shell' : ''}`}>
             {!isConsultantsMobile && employeeTabs}
@@ -1154,7 +1261,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                 </button>}
               </div>
             </div>
-            {errorMessage && !showFormPanel && <div className="error">{errorMessage}</div>}
+            {errorMessage && !formPanelOpen && <div className="error">{errorMessage}</div>}
             {filteredConsultants.length === 0 ? (
               <EmptyState title={t('employeesEmptyTitle')} text={t('employeesEmptyText')} />
             ) : (
@@ -1331,31 +1438,42 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
           </Card>
         </div>
       )}
-      {showFormPanel && (
-        <div
-          className={`modal-backdrop booking-side-panel-backdrop employees-form-popup-backdrop${isNewEmployeeForm ? ' employees-form-popup-backdrop--create' : ''}`}
-          onClick={dismissFormPanel}
+      {formPanelOpen && (
+        <SidePanel
+          open
+          size="xl"
+          onClose={dismissFormPanel}
+          ariaLabel={formTitle}
+          closeOnScrimClick={false}
         >
-          <div
-            className={`modal large-modal booking-side-panel employees-form-popup${isNewEmployeeForm ? ' employees-form-popup--create' : ''}`}
-            role="dialog"
-            aria-modal="true"
-            aria-label={formTitle}
-            onClick={(e) => e.stopPropagation()}
+          <PanelHeader
+            title={formTitle}
+            onClose={dismissFormPanel}
+            closeLabel={closeLabel}
+            overflow={
+              editing && !selfService && !isEditingTenantOwner && canDeleteEmployees ? (
+                <PanelOverflowMenu label={t('employeesFormDelete')}>
+                  {(closeMenu) => (
+                    <PanelMenuItem
+                      danger
+                      onClick={() => {
+                        closeMenu()
+                        void removeEditing()
+                      }}
+                    >
+                      {deleting ? t('employeesFormDeleting') : t('employeesFormDelete')}
+                    </PanelMenuItem>
+                  )}
+                </PanelOverflowMenu>
+              ) : undefined
+            }
+          />
+          <PanelBody
+            as="form"
+            id="consultant-edit-form"
+            onSubmit={handleSubmit}
+            className="form-grid booking-side-panel-body employees-form-popup-body"
           >
-            <div className="booking-side-panel-header employees-form-popup-header">
-              <div className="employees-form-title-wrap">
-                <span className="employees-form-title-icon" aria-hidden>
-                  <EmployeeFormIcon name="person" />
-                </span>
-                <h2>{formTitle}</h2>
-              </div>
-              <button type="button" className="secondary booking-side-panel-close employees-form-close" onClick={dismissFormPanel} aria-label={closeLabel}>
-                ×
-              </button>
-            </div>
-            <div className="consultant-panel-stack employees-form-popup-stack">
-              <form id="consultant-edit-form" className="form-grid booking-side-panel-body employees-form-popup-body" onSubmit={handleSubmit}>
                 {errorMessage && <div className="error full-span employees-form-alert">{errorMessage}</div>}
                 <Field label={t('signupFirstName')}>
                   <input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} placeholder={locale === 'sl' ? 'Vnesite ime' : 'Enter first name'} />
@@ -1763,48 +1881,44 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                 )}
 
                 {successMessage && <div className="success full-span employees-form-alert">{successMessage}</div>}
-              </form>
-              {!mobileKeyboardOpen && (
-                <div className="form-actions booking-side-panel-footer consultant-form-footer employees-form-popup-footer">
-                  <div className="employees-form-footer-left">
-                    {editing && !selfService && !isEditingTenantOwner && canDeleteEmployees ? (
-                      <button type="button" className="danger secondary employees-form-delete-btn" disabled={saving || deleting} onClick={() => void removeEditing()}>
-                        <EmployeeFormIcon name="trash" />
-                        {deleting ? t('employeesFormDeleting') : t('employeesFormDelete')}
-                      </button>
-                    ) : null}
-                  </div>
-                  {(!isConsultantsMobile || !editing || isFormDirty || saving) && (
-                    <button form="consultant-edit-form" type="submit" className="gapp-primary-button" disabled={formPrimaryDisabled}>
-                      <GuestConfigSaveIcon />
-                      {formPrimaryLabel}
-                    </button>
-                  )}
-                </div>
+          </PanelBody>
+          {!mobileKeyboardOpen && (
+            <PanelFooter>
+              <PanelButton onClick={dismissFormPanel}>{closeLabel}</PanelButton>
+              {(!isConsultantsMobile || !editing || isFormDirty || saving) && (
+                <PanelButton
+                  variant="primary"
+                  type="submit"
+                  form="consultant-edit-form"
+                  disabled={formPrimaryDisabled}
+                  busy={saving}
+                  icon={<GuestConfigSaveIcon />}
+                >
+                  {formPrimaryLabel}
+                </PanelButton>
               )}
-            </div>
-          </div>
-        </div>
+            </PanelFooter>
+          )}
+        </SidePanel>
       )}
-      {employeeLimitDialog && (
-        <div className="modal-backdrop employees-limit-backdrop" onClick={() => setEmployeeLimitDialog(null)}>
-          <div className="modal employees-limit-modal" role="dialog" aria-modal="true" aria-labelledby="employees-limit-title" onClick={(e) => e.stopPropagation()}>
-            <div className="employees-limit-icon" aria-hidden>
-              <EmployeeFormIcon name="person" />
-            </div>
-            <h2 id="employees-limit-title">{employeeLimitTitle}</h2>
-            <p>{employeeLimitText}</p>
-            <div className="employees-limit-usage-card">
-              <span>{locale === 'sl' ? 'Aktivni uporabniki' : 'Active users'}</span>
-              <strong>{employeeLimitDialog.activeUsers} / {employeeLimitDialog.maxUsers ?? '∞'}</strong>
-            </div>
-            <div className="employees-limit-actions">
-              <button type="button" className="secondary" onClick={() => setEmployeeLimitDialog(null)}>{employeeLimitCloseLabel}</button>
-              <button type="button" className="gapp-primary-button" onClick={openSubscriptionSettings}>{employeeLimitButtonLabel}</button>
-            </div>
+      <ConfirmDialog
+        open={employeeLimitDialog != null}
+        onClose={() => setEmployeeLimitDialog(null)}
+        title={employeeLimitTitle}
+        text={employeeLimitText}
+        tone="warning"
+        icon={<EmployeeFormIcon name="person" />}
+        onConfirm={openSubscriptionSettings}
+        confirmLabel={employeeLimitButtonLabel}
+        cancelLabel={employeeLimitCloseLabel}
+      >
+        {employeeLimitDialog && (
+          <div className="employees-limit-usage-card">
+            <span>{locale === 'sl' ? 'Aktivni uporabniki' : 'Active users'}</span>
+            <strong>{employeeLimitDialog.activeUsers} / {employeeLimitDialog.maxUsers ?? '∞'}</strong>
           </div>
-        </div>
-      )}
+        )}
+      </ConfirmDialog>
     </div>
   )
 }

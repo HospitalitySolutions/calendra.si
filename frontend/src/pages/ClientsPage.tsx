@@ -5,12 +5,10 @@ import '../styles/features.booking.css'
 import '../styles/features/workspace-clients.css'
 import '../styles/features/modern-clients.css'
 import { DesktopSelect } from '../components/DesktopSelect'
-import './clients/group-session-sync-dialog.css'
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type FormEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { isNativeAndroid } from '../lib/platform'
 import { api, getApiErrorMessage } from '../api'
 import { useAuthenticatedUser } from '../authUserContext'
 import { useLocale } from '../locale'
@@ -18,6 +16,7 @@ import { useMediaMaxWidth } from '../hooks/useCalendarResponsiveLayout'
 import type { Client, ClientGroup, Company, CompanyBillSummary, CustomFieldAppliesTo, CustomFieldDefinition, CustomFieldType, Location as BusinessLocation, SessionType, StoredFile, User } from '../lib/types'
 import { Card, EmptyState } from '../components/ui'
 import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
+import { urlForEditForm } from './calendarFormRoutes'
 import { WorkspaceClientsPanel } from '../components/WorkspaceClientsPanel'
 import { currency, formatDate, formatDateTime, fullName } from '../lib/format'
 import { isWorkspaceRolloutEnabled } from '../lib/workspaceRollout'
@@ -29,10 +28,42 @@ import { inboxCapabilitiesQueryOptions } from '../queries/remainingQueryOptions'
 import { queryKeys } from '../queries/queryKeys'
 import { clientMutationErrorMessage, skipConflictToastHeaders } from '../lib/clientErrors'
 import { useToast } from '../components/Toast'
+import { ConfirmDialog, PanelBody, PanelButton, PanelFooter, PanelHeader, PanelTabs, SidePanel, useConfirm } from '../components/panel'
+import { BILLING_DRAWERS, CLIENTS_DRAWERS, buildDrawerUrl, useDrawerRoute } from '../lib/drawerRoutes'
+import { GuestConfigSaveIcon } from '../components/GuestConfigSaveIcon'
 
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
 type ConsultantSummary = UserSummary & { consultant?: boolean }
 type EntityTab = 'clients' | 'companies' | 'groups'
+type ClientDetailView = 'sessions' | 'wallet' | 'files' | 'settings'
+
+function parseEntityTab(search: string): EntityTab {
+  const tab = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search).get('tab')
+  if (tab === 'companies' || tab === 'groups') return tab
+  return 'clients'
+}
+
+function entityTabSearch(tab: EntityTab): string {
+  return tab === 'clients' ? '' : `tab=${tab}`
+}
+
+function parseClientDetailView(search: string): ClientDetailView {
+  const view = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search).get('view')
+  if (view === 'wallet' || view === 'files' || view === 'settings') return view
+  return 'sessions'
+}
+
+function mergeSearch(...parts: Array<string | undefined>): string {
+  const params = new URLSearchParams()
+  for (const part of parts) {
+    if (!part) continue
+    new URLSearchParams(part.startsWith('?') ? part.slice(1) : part).forEach((value, key) => {
+      if (value) params.set(key, value)
+    })
+  }
+  return params.toString()
+}
+
 type SessionTab = 'future' | 'past' | 'cancelled'
 type SortDirection = 'asc' | 'desc'
 type SortState<K extends string> = { key: K | null; direction: SortDirection }
@@ -994,6 +1025,60 @@ function ClientsMobileCardActionIcon({
 
 type ClientWorkspaceIconName = 'sessions' | 'wallet' | 'files' | 'settings' | 'members' | 'chevronDown'
 
+
+function ClientProfileSectionIcon({ name }: { name: 'person' | 'email' | 'phone' }) {
+  const common = {
+    width: 20,
+    height: 20,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.9,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  }
+  if (name === 'email') {
+    return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>
+  }
+  if (name === 'phone') {
+    return <svg {...common}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.92Z" /></svg>
+  }
+  return <svg {...common}><circle cx="12" cy="7" r="4" /><path d="M5.5 21a6.5 6.5 0 0 1 13 0" /></svg>
+}
+
+function ClientSettingsCardIcon({ name }: { name: 'company' | 'employees' | 'wallet' | 'emailOff' | 'lock' | 'location' | 'message' }) {
+  const common = {
+    width: 20,
+    height: 20,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.9,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  }
+  if (name === 'company') {
+    return <svg {...common}><path d="M3 21h18" /><path d="M5 21V7.8A1.8 1.8 0 0 1 6.8 6h5.4A1.8 1.8 0 0 1 14 7.8V21" /><path d="M14 21V4.8A1.8 1.8 0 0 1 15.8 3H20a1 1 0 0 1 1 1v17" /><path d="M8 10h3" /><path d="M8 14h3" /><path d="M17 8h1" /><path d="M17 12h1" /></svg>
+  }
+  if (name === 'employees') {
+    return <svg {...common}><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="9.5" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+  }
+  if (name === 'wallet') {
+    return <svg {...common}><rect x="3" y="6" width="18" height="12" rx="2.5" /><path d="M16 12h5" /><circle cx="16.5" cy="12" r=".85" fill="currentColor" stroke="none" /></svg>
+  }
+  if (name === 'emailOff') {
+    return <svg {...common}><path d="m3 6 9 6 9-6" /><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 5 18 14" /></svg>
+  }
+  if (name === 'lock') {
+    return <svg {...common}><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+  }
+  if (name === 'message') {
+    return <svg {...common}><path d="M4 6h16v9a2 2 0 0 1-2 2H9l-5 4V8a2 2 0 0 1 2-2Z" /></svg>
+  }
+  return <svg {...common}><path d="M3 7h18" /><path d="M7 3v4" /><path d="M17 3v4" /><rect x="4" y="5" width="16" height="15" rx="2.5" /></svg>
+}
 function ClientWorkspaceIcon({ name }: { name: ClientWorkspaceIconName }) {
   const common = {
     width: 18,
@@ -1073,8 +1158,26 @@ type ClientsPageProps = {
 export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, onEmbeddedClose, onEmbeddedSaved }: ClientsPageProps = {}) {
   useClientsMobileKeyboardVisibility()
   const { t, locale } = useLocale()
+  const confirm = useConfirm()
   const location = useLocation()
   const navigate = useNavigate()
+  const { match: drawerMatch, isOpen: isDrawerOpen, open: openDrawer, close: closeDrawerRoute } = useDrawerRoute()
+  const entityTab = parseEntityTab(location.search)
+  const pageSearch = entityTabSearch(entityTab)
+  const closeDrawer = useCallback(
+    () => closeDrawerRoute({ search: pageSearch }),
+    [closeDrawerRoute, pageSearch],
+  )
+  const newClientOpen = isDrawerOpen(CLIENTS_DRAWERS.newClient)
+  const clientDrawerOpen = isDrawerOpen(CLIENTS_DRAWERS.client)
+  const newCompanyOpen = isDrawerOpen(CLIENTS_DRAWERS.newCompany)
+  const companyDrawerOpen = isDrawerOpen(CLIENTS_DRAWERS.company)
+  const newGroupOpen = isDrawerOpen(CLIENTS_DRAWERS.newGroup)
+  const groupDrawerOpen = isDrawerOpen(CLIENTS_DRAWERS.group)
+  const workspaceClientsDrawerOpen = isDrawerOpen(CLIENTS_DRAWERS.workspaceClients)
+  const drawerName = drawerMatch?.descriptor.name ?? ''
+  const drawerId = drawerMatch?.params.id ?? ''
+  const drawerKey = drawerName ? `${drawerName}:${drawerId}` : ''
   const embeddedClientDetailIdRaw = Number(embeddedClientId ?? 0)
   const embeddedClientDetailId = Number.isInteger(embeddedClientDetailIdRaw) && embeddedClientDetailIdRaw > 0 ? embeddedClientDetailIdRaw : null
   const embeddedGroupDetailIdRaw = Number(embeddedGroupId ?? 0)
@@ -1082,6 +1185,15 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const embeddedClientDetailMode = embeddedClientDetailId != null
   const embeddedGroupDetailMode = embeddedGroupDetailId != null
   const embeddedDetailMode = embeddedClientDetailMode || embeddedGroupDetailMode
+  const selectEntityTab = useCallback((tab: EntityTab) => {
+    if (embeddedDetailMode) return
+    const search = entityTabSearch(tab)
+    if (drawerMatch) {
+      closeDrawerRoute({ search })
+      return
+    }
+    navigate(search ? `/clients?${search}` : '/clients', { replace: true })
+  }, [closeDrawerRoute, drawerMatch, embeddedDetailMode, navigate])
   const isClientCreatePage = useMediaMaxWidth(1024)
   const isClientsDesktop = !useMediaMaxWidth(1100)
   const clientsCopy = locale === 'sl' ? {
@@ -1153,7 +1265,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     yesAnonymize: 'Da, anonimiziraj',
     confirmAnonymizeClient: 'Ali želite anonimizirati to stranko? Osebni podatki bodo izbrisani.',
     confirmAnonymizeOk: 'V redu',
-    anonymizeConfirmDialogAria: 'Potrditev anonimizacije stranke',
     confirmDeleteClient: 'Ali želite izbrisati to stranko?',
     confirmDeleteCompany: 'Ali želite izbrisati to podjetje?',
     confirmDeleteGroup: 'Ali želite izbrisati to skupino?',
@@ -1330,7 +1441,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     yesAnonymize: 'Yes, anonymize',
     confirmAnonymizeClient: 'Anonymize this client? Personal details will be cleared.',
     confirmAnonymizeOk: 'OK',
-    anonymizeConfirmDialogAria: 'Confirm client anonymization',
     confirmDeleteClient: 'Delete this client?',
     confirmDeleteCompany: 'Delete this company?',
     confirmDeleteGroup: 'Delete this group?',
@@ -1476,8 +1586,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }, [queryClient])
   const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN'
   const sharedWorkspaceUnitCount = (me.units ?? []).filter((unit) => unit.workspaceId === me.workspaceId).length
-  const [workspaceClientsOpen, setWorkspaceClientsOpen] = useState(false)
-  const [entityTab, setEntityTab] = useState<EntityTab>('clients')
   const [clients, setClients] = useState<Client[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [businessLocations, setBusinessLocations] = useState<BusinessLocation[]>([])
@@ -1486,8 +1594,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [detailClientFiles, setDetailClientFiles] = useState<StoredFile[]>([])
   const [detailCompanyFiles, setDetailCompanyFiles] = useState<StoredFile[]>([])
   const [consultants, setConsultants] = useState<ConsultantSummary[]>([])
-  const [showModal, setShowModal] = useState(false)
-  const [showCompanyModal, setShowCompanyModal] = useState(false)
   const [search, setSearch] = useState('')
   const [companySearch, setCompanySearch] = useState('')
   const [form, setForm] = useState<ClientForm>(emptyClientForm)
@@ -1567,7 +1673,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     assignedLocationIds: [],
   })
   const [savingDetailEdit, setSavingDetailEdit] = useState(false)
-  const [companyDetailEditField, setCompanyDetailEditField] = useState<'name' | 'address' | 'postalCode' | 'city' | 'vatId' | 'iban' | 'email' | 'telephone' | null>(null)
   const [companyDetailEditDraft, setCompanyDetailEditDraft] = useState<CompanyForm>(emptyCompanyForm)
   const [savingCompanyDetailEdit, setSavingCompanyDetailEdit] = useState(false)
   const [uploadingClientFile, setUploadingClientFile] = useState(false)
@@ -1589,11 +1694,10 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [deletingWalletEntitlementId, setDeletingWalletEntitlementId] = useState<number | null>(null)
   const clientFilesDropDepth = useRef(0)
   const companyFilesDropDepth = useRef(0)
-  const walletPurchaseDrawerRef = useRef<HTMLElement | null>(null)
   const [isClientsMobile, setIsClientsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 1024px)').matches : false,
   )
-  const mobileCreateHistoryEntityRef = useRef<EntityTab | null>(null)
+  const seededDrawerRef = useRef('')
   const [openClientMenuId, setOpenClientMenuId] = useState<number | null>(null)
   const [openCompanyMenuId, setOpenCompanyMenuId] = useState<number | null>(null)
   const [openGroupMenuId, setOpenGroupMenuId] = useState<number | null>(null)
@@ -1628,7 +1732,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [loadingGroups, setLoadingGroups] = useState(false)
   const [groupErrorMessage, setGroupErrorMessage] = useState('')
   const [groupActiveFilter, setGroupActiveFilter] = useState<'active' | 'inactive'>('active')
-  const [showGroupModal, setShowGroupModal] = useState(false)
   const [groupForm, setGroupForm] = useState<{ name: string; email: string; assignedLocationIds: number[] }>({ name: '', email: '', assignedLocationIds: [] })
   const [savingGroup, setSavingGroup] = useState(false)
   const [detailGroup, setDetailGroup] = useState<ClientGroup | null>(null)
@@ -1637,7 +1740,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [groupSessionTab, setGroupSessionTab] = useState<SessionTab>('future')
   const [groupSessionPageByTab, setGroupSessionPageByTab] = useState<Record<SessionTab, number>>(() => ({ ...INITIAL_SESSION_PAGES }))
   const [groupDetailMainTab, setGroupDetailMainTab] = useState<'sessions' | 'members' | 'settings'>('sessions')
-  const [groupDetailEditField, setGroupDetailEditField] = useState<'name' | 'email' | 'billingCompanyId' | 'defaultSessionTypeId' | null>(null)
   const [groupDetailEditDraft, setGroupDetailEditDraft] = useState<{
     name: string
     email: string
@@ -1810,34 +1912,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     apply()
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
-  }, [])
-
-  useEffect(() => {
-    const onPopState = () => {
-      const entity = mobileCreateHistoryEntityRef.current
-      if (!entity) return
-
-      mobileCreateHistoryEntityRef.current = null
-      if (entity === 'clients') {
-        setShowModal(false)
-        setForm(emptyClientForm)
-        setClientCustomValues({})
-        setErrorMessage('')
-      } else if (entity === 'companies') {
-        setShowCompanyModal(false)
-        setCompanyForm(emptyCompanyForm)
-        setCompanyCustomValues({})
-        setCompanyErrorMessage('')
-      } else {
-        setShowGroupModal(false)
-        setGroupForm({ name: '', email: '', assignedLocationIds: [] })
-        setGroupCustomValues({})
-        setGroupErrorMessage('')
-      }
-    }
-
-    window.addEventListener('popstate', onPopState)
-    return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
   useEffect(() => {
@@ -2278,14 +2352,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     void loadWalletProducts(detailClient.id)
   }, [detailClient, entitlementsFeatureEnabled, loadWalletProducts])
 
-  useEffect(() => {
-    if (!walletPurchaseDrawerOpen || !isClientsMobile) return
-    const frame = window.requestAnimationFrame(() => {
-      walletPurchaseDrawerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [walletPurchaseDrawerOpen, isClientsMobile])
-
   const closeWalletPurchaseDrawer = useCallback(() => {
     setWalletPurchaseDrawerOpen(false)
     setWalletPurchaseError('')
@@ -2294,6 +2360,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setGiftCardRecipientName('')
     setGiftCardMessage('')
   }, [])
+
+  const clientDetailPanelOpen = embeddedClientDetailMode ? Boolean(detailClient) : clientDrawerOpen
+
+  useEffect(() => {
+    if (clientDetailPanelOpen) return
+    setWalletPurchaseDrawerOpen(false)
+    setGiftCardPersonalizationOpen(false)
+  }, [clientDetailPanelOpen])
 
   const createWalletPurchaseOpenBill = useCallback(async (giftCardDetails?: { to?: string; text?: string }) => {
     if (!detailClient || !selectedWalletProduct) return
@@ -2317,7 +2391,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       setWalletPurchaseDrawerOpen(false)
       setDetailClient(null)
       if (openBillId) {
-        navigate(`/billing/open-bills/${openBillId}/edit`)
+        navigate(buildDrawerUrl(BILLING_DRAWERS.openBill, { params: { id: String(openBillId) } }))
       } else {
         navigate('/billing')
       }
@@ -2350,7 +2424,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
   const deleteWalletEntitlement = useCallback(async (entitlement: ClientWalletEntitlement) => {
     if (!detailClient || deletingWalletEntitlementId != null) return
-    if (!window.confirm(clientsCopy.walletDeleteEntitlementConfirm)) return
+    if (!(await confirm({ title: clientsCopy.walletDeleteEntitlementConfirm, tone: 'danger' }))) return
     setDeletingWalletEntitlementId(entitlement.id)
     setDetailWalletError('')
     try {
@@ -2369,7 +2443,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     } finally {
       setDeletingWalletEntitlementId(null)
     }
-  }, [clientsCopy.walletDeleteEntitlementConfirm, clientsCopy.walletDeleteEntitlementError, deletingWalletEntitlementId, detailClient, loadDetailWallet])
+  }, [clientsCopy.walletDeleteEntitlementConfirm, clientsCopy.walletDeleteEntitlementError, confirm, deletingWalletEntitlementId, detailClient, loadDetailWallet])
 
   const assignedOwnerOptions = useMemo(() => {
     const byId = new Map<number, UserSummary>()
@@ -2586,33 +2660,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       || !customFieldMapsEqual(detailCompanyCustomValues, detailCompany.customFieldValues)
   }, [detailCompany, companyDetailEditDraft, detailCompanyCustomValues])
 
-  const pushMobileCreateHistoryEntry = (entity: EntityTab) => {
-    if (!isClientCreatePage || embeddedDetailMode || mobileCreateHistoryEntityRef.current) return
-    const currentState = typeof location.state === 'object' && location.state !== null
-      ? location.state
-      : {}
-    navigate(`${location.pathname}${location.search}${location.hash}`, {
-      state: { ...currentState, calendraClientsCreateModal: entity },
-    })
-    mobileCreateHistoryEntityRef.current = entity
-  }
-
-  const releaseMobileCreateHistoryEntry = () => {
-    if (!mobileCreateHistoryEntityRef.current) return
-    mobileCreateHistoryEntityRef.current = null
-    navigate(-1)
-  }
-
-  const openNewModal = () => {
-    setForm(emptyClientForm)
-    setClientCustomValues({})
-    setErrorMessage('')
-    pushMobileCreateHistoryEntry('clients')
-    setShowModal(true)
-  }
-
-  const openDetailModal = (c: Client, initialTab: 'sessions' | 'wallet' | 'files' | 'settings' = 'sessions') => {
-    setDetailClient(c);
+  const hydrateClientDetail = (c: Client, initialTab: ClientDetailView = 'sessions') => {
+    setDetailClient(c)
     setDetailEditField(null)
     setDetailClientCustomValues(normalizeCustomFieldValues(c.customFieldValues))
     setDetailEditDraft({
@@ -2641,38 +2690,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setWalletPurchaseError('')
   }
 
-  useEffect(() => {
-    const params = new URLSearchParams(location.search)
-    const clientId = embeddedClientDetailId ?? Number(params.get('clientId'))
-    const initialTab = params.get('tab') === 'wallet' ? 'wallet' : 'sessions'
-    const entitlementId = Number(params.get('entitlementId'))
-    setHighlightedEntitlementId(Number.isFinite(entitlementId) && entitlementId > 0 ? entitlementId : null)
-    if (!Number.isFinite(clientId) || clientId <= 0) return
-    if (detailClient?.id === clientId) {
-      setClientDetailMainTab(initialTab)
-      return
-    }
-    const existing = clients.find((client) => client.id === clientId)
-    if (existing) {
-      openDetailModal(existing, initialTab)
-      return
-    }
-    let cancelled = false
-    api
-      .get<Client>(`/clients/${clientId}`)
-      .then((res) => {
-        if (!cancelled && res.data) openDetailModal(res.data, initialTab)
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [location.search, clients, detailClient?.id, embeddedClientDetailId])
-
-  const openCompanyDetailModal = (company: Company) => {
+  const hydrateCompanyDetail = (company: Company) => {
     setDetailCompany(company)
     setDetailCompanyCustomValues(normalizeCustomFieldValues(company.customFieldValues))
-    setCompanyDetailEditField(null)
     setCompanyDetailMainTab('datoteke')
     setCompanyDetailDatotekeSubTab('splosno')
     setCompanyDetailEditDraft({
@@ -2691,10 +2711,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setCompanyFileSearch('')
   }
 
-  const openGroupDetailModal = (group: ClientGroup) => {
+  const hydrateGroupDetail = (group: ClientGroup) => {
     setDetailGroup(group)
     setDetailGroupCustomValues(normalizeCustomFieldValues(group.customFieldValues))
-    setGroupDetailEditField(null)
     setGroupDetailEditDraft({
       name: group.name ?? '',
       email: group.email ?? '',
@@ -2712,42 +2731,217 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setPendingGroupMemberIds([])
   }
 
-  const closeGroupDetailModal = () => {
-    setDetailGroup(null)
-    setDetailGroupSessions([])
-    setGroupDetailEditField(null)
-    setGroupMemberSearch('')
-    setGroupMemberDropdownOpen(false)
-    setPendingGroupMemberIds([])
-    setPendingGroupSessionSync(null)
-    if (embeddedGroupDetailMode) {
-      onEmbeddedClose?.()
-    } else if (new URLSearchParams(location.search).has('groupId')) {
-      navigate('/clients', { replace: true })
+  const openNewModal = () => {
+    if (embeddedDetailMode) return
+    openDrawer(CLIENTS_DRAWERS.newClient, { search: pageSearch })
+  }
+
+  const openDetailModal = (c: Client, initialTab: ClientDetailView = 'sessions') => {
+    if (embeddedClientDetailMode) {
+      hydrateClientDetail(c, initialTab)
+      return
     }
+    openDrawer(CLIENTS_DRAWERS.client, {
+      params: { id: String(c.id) },
+      search: mergeSearch(pageSearch, initialTab !== 'sessions' ? `view=${initialTab}` : undefined),
+    })
+  }
+
+  const openCompanyDetailModal = (company: Company) => {
+    if (embeddedDetailMode) return
+    openDrawer(CLIENTS_DRAWERS.company, {
+      params: { id: String(company.id) },
+      search: mergeSearch(pageSearch, 'tab=companies'),
+    })
+  }
+
+  const openGroupDetailModal = (group: ClientGroup) => {
+    if (embeddedGroupDetailMode) {
+      hydrateGroupDetail(group)
+      return
+    }
+    openDrawer(CLIENTS_DRAWERS.group, {
+      params: { id: String(group.id) },
+      search: mergeSearch(pageSearch, 'tab=groups'),
+    })
+  }
+
+  const closeGroupDetailModal = () => {
+    if (embeddedGroupDetailMode) {
+      setDetailGroup(null)
+      setDetailGroupSessions([])
+        setGroupMemberSearch('')
+      setGroupMemberDropdownOpen(false)
+      setPendingGroupMemberIds([])
+      setPendingGroupSessionSync(null)
+      onEmbeddedClose?.()
+      return
+    }
+    closeDrawer()
   }
 
   useEffect(() => {
+    if (embeddedDetailMode || drawerMatch) return
+    if (location.pathname !== '/clients' && location.pathname !== '/clients/') return
     const params = new URLSearchParams(location.search)
-    const groupId = embeddedGroupDetailId ?? Number(params.get('groupId'))
-    if (!Number.isFinite(groupId) || groupId <= 0) return
-    if (detailGroup?.id === groupId) return
-    const existing = groups.find((group) => group.id === groupId)
+    const clientId = Number(params.get('clientId'))
+    const groupId = Number(params.get('groupId'))
+    if (Number.isFinite(clientId) && clientId > 0) {
+      const walletView = params.get('tab') === 'wallet' || params.get('view') === 'wallet'
+      const entitlementId = params.get('entitlementId')
+      const next = new URLSearchParams()
+      if (walletView) next.set('view', 'wallet')
+      if (entitlementId) next.set('entitlementId', entitlementId)
+      navigate(buildDrawerUrl(CLIENTS_DRAWERS.client, { params: { id: String(clientId) }, search: next.toString() }), { replace: true })
+      return
+    }
+    if (Number.isFinite(groupId) && groupId > 0) {
+      navigate(buildDrawerUrl(CLIENTS_DRAWERS.group, { params: { id: String(groupId) }, search: 'tab=groups' }), { replace: true })
+    }
+  }, [drawerMatch, embeddedDetailMode, location.pathname, location.search, navigate])
+
+  useEffect(() => {
+    if (!embeddedClientDetailId) return
+    if (detailClient?.id === embeddedClientDetailId) return
+    const existing = clients.find((client) => client.id === embeddedClientDetailId)
     if (existing) {
-      openGroupDetailModal(existing)
+      hydrateClientDetail(existing)
       return
     }
     let cancelled = false
     api
-      .get<ClientGroup>(`/groups/${groupId}`)
+      .get<Client>(`/clients/${embeddedClientDetailId}`)
       .then((res) => {
-        if (!cancelled && res.data) openGroupDetailModal(res.data)
+        if (!cancelled && res.data) hydrateClientDetail(res.data)
       })
       .catch(() => undefined)
     return () => {
       cancelled = true
     }
-  }, [location.search, groups, detailGroup?.id, embeddedGroupDetailId])
+  }, [clients, detailClient?.id, embeddedClientDetailId])
+
+  useEffect(() => {
+    if (!embeddedGroupDetailId) return
+    if (detailGroup?.id === embeddedGroupDetailId) return
+    const existing = groups.find((group) => group.id === embeddedGroupDetailId)
+    if (existing) {
+      hydrateGroupDetail(existing)
+      return
+    }
+    let cancelled = false
+    api
+      .get<ClientGroup>(`/groups/${embeddedGroupDetailId}`)
+      .then((res) => {
+        if (!cancelled && res.data) hydrateGroupDetail(res.data)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [detailGroup?.id, embeddedGroupDetailId, groups])
+
+  useEffect(() => {
+    if (embeddedDetailMode) return
+    if (!drawerKey) {
+      seededDrawerRef.current = ''
+      return
+    }
+    if (seededDrawerRef.current === drawerKey) return
+    const seeded = () => {
+      seededDrawerRef.current = drawerKey
+    }
+    const view = parseClientDetailView(location.search)
+    const entitlementId = Number(new URLSearchParams(location.search).get('entitlementId'))
+    setHighlightedEntitlementId(Number.isFinite(entitlementId) && entitlementId > 0 ? entitlementId : null)
+
+    if (drawerName === CLIENTS_DRAWERS.newClient.name) {
+      setForm(emptyClientForm)
+      setClientCustomValues({})
+      setErrorMessage('')
+      seeded()
+      return
+    }
+    if (drawerName === CLIENTS_DRAWERS.client.name) {
+      const existing = clients.find((client) => String(client.id) === drawerId)
+      if (existing) {
+        hydrateClientDetail(existing, view)
+        seeded()
+        return
+      }
+      let cancelled = false
+      api
+        .get<Client>(`/clients/${drawerId}`)
+        .then((res) => {
+          if (!cancelled && res.data) {
+            hydrateClientDetail(res.data, view)
+            seeded()
+          }
+        })
+        .catch(() => undefined)
+      return () => {
+        cancelled = true
+      }
+    }
+    if (drawerName === CLIENTS_DRAWERS.newCompany.name) {
+      setCompanyForm(emptyCompanyForm)
+      setCompanyCustomValues({})
+      setCompanyErrorMessage('')
+      seeded()
+      return
+    }
+    if (drawerName === CLIENTS_DRAWERS.company.name) {
+      const existing = companies.find((company) => String(company.id) === drawerId)
+      if (existing) {
+        hydrateCompanyDetail(existing)
+        seeded()
+        return
+      }
+      let cancelled = false
+      api
+        .get<Company>(`/companies/${drawerId}`)
+        .then((res) => {
+          if (!cancelled && res.data) {
+            hydrateCompanyDetail(res.data)
+            seeded()
+          }
+        })
+        .catch(() => undefined)
+      return () => {
+        cancelled = true
+      }
+    }
+    if (drawerName === CLIENTS_DRAWERS.newGroup.name) {
+      setGroupForm({ name: '', email: '', assignedLocationIds: [] })
+      setGroupCustomValues({})
+      setGroupErrorMessage('')
+      seeded()
+      return
+    }
+    if (drawerName === CLIENTS_DRAWERS.group.name) {
+      const existing = groups.find((group) => String(group.id) === drawerId)
+      if (existing) {
+        hydrateGroupDetail(existing)
+        seeded()
+        return
+      }
+      let cancelled = false
+      api
+        .get<ClientGroup>(`/groups/${drawerId}`)
+        .then((res) => {
+          if (!cancelled && res.data) {
+            hydrateGroupDetail(res.data)
+            seeded()
+          }
+        })
+        .catch(() => undefined)
+      return () => {
+        cancelled = true
+      }
+    }
+    if (drawerName === CLIENTS_DRAWERS.workspaceClients.name) {
+      seeded()
+    }
+  }, [clients, companies, drawerId, drawerKey, drawerName, embeddedDetailMode, groups, location.search])
 
   const saveDetailGroupInline = async () => {
     if (!detailGroup || savingGroupDetailEdit) return
@@ -2951,7 +3145,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }
 
   const deleteGroupById = async (groupId: number) => {
-    if (!window.confirm(clientsCopy.confirmDeleteGroup)) return
+    if (!(await confirm({ title: clientsCopy.confirmDeleteGroup, tone: 'danger' }))) return
     setDeletingGroupId(groupId)
     setGroupErrorMessage('')
     try {
@@ -2969,26 +3163,26 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }
 
   const closeDetailModal = () => {
-    setDetailClient(null)
-    setDetailSessions([])
-    setDetailClientFiles([])
-    setDetailSessionsError('')
-    setDetailClientFilesError('')
-    setDetailEditField(null)
-    setAssignedEmployeeSearch('')
-    setHighlightedEntitlementId(null)
-    setClientFileSearch('')
-    setWalletFilter('all')
     setWalletPurchaseDrawerOpen(false)
     setWalletProductSearch('')
     setWalletPurchaseError('')
-    if (embeddedClientDetailMode) {
-      onEmbeddedClose?.()
-    } else if (new URLSearchParams(location.search).has('clientId')) {
-      navigate('/clients', { replace: true })
-    }
     clientFilesDropDepth.current = 0
     setClientFilesDropActive(false)
+    if (embeddedClientDetailMode) {
+      setDetailClient(null)
+      setDetailSessions([])
+      setDetailClientFiles([])
+      setDetailSessionsError('')
+      setDetailClientFilesError('')
+      setDetailEditField(null)
+      setAssignedEmployeeSearch('')
+      setHighlightedEntitlementId(null)
+      setClientFileSearch('')
+      setWalletFilter('all')
+      onEmbeddedClose?.()
+      return
+    }
+    closeDrawer()
   }
 
   const saveDetailClientInline = async () => {
@@ -3077,8 +3271,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         assignedLocationIds: (response.data.assignedLocations ?? []).map((item) => item.id),
       })
       setCompanies((prev) => prev.map((c) => (c.id === response.data.id ? response.data : c)))
-      setCompanyDetailEditField(null)
-    } catch (error: any) {
+      } catch (error: any) {
       setCompanyErrorMessage(error?.response?.data?.message || 'Failed to save company.')
     } finally {
       setSavingCompanyDetailEdit(false)
@@ -3086,15 +3279,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }
 
   const closeCompanyDetailModal = () => {
-    setDetailCompany(null)
-    setCompanyBills([])
-    setDetailCompanyFiles([])
-    setDetailCompanyError('')
-    setDetailCompanyFilesError('')
-    setCompanyDetailEditField(null)
-    setCompanyFileSearch('')
     companyFilesDropDepth.current = 0
     setCompanyFilesDropActive(false)
+    closeDrawer()
   }
 
   const assignedEmployeeById = useMemo(() => {
@@ -3194,34 +3381,36 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   ) => {
     if (key === 'assignedToId' && !isAdmin) return null
     const isEditing = detailEditField === key
+    const iconName = key === 'billingCompanyId' ? 'company' : 'employees'
+    const value = key === 'billingCompanyId'
+      ? (detailClient?.billingCompany?.name || '—')
+      : key === 'assignedToId'
+        ? renderAssignedEmployeeSummary(selectedAssignedEmployees.length > 0 ? selectedAssignedEmployees : assignedUsersForClient(detailClient), true)
+        : ((detailClient?.[key as 'firstName' | 'lastName' | 'email' | 'phone'] as string | undefined) || '—')
     return (
       <div
-        className={`clients-detail-field-card${wide ? ' clients-detail-field-card--wide' : ''}${isEditing ? ' clients-detail-field-card--editing' : ''}`}
+        className={`clients-settings-linked-card${wide ? ' clients-settings-linked-card--wide' : ''}${isEditing ? ' is-editing' : ''}`}
         data-field-key={key}
-        onClick={() => {
-          if (detailEditField !== key) setDetailEditField(key)
-        }}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key !== 'Enter' && e.key !== ' ') return
-          // Do not preventDefault while editing — space would be swallowed in the input.
-          if (detailEditField === key) return
-          e.preventDefault()
-          setDetailEditField(key)
-        }}
       >
-        <span>{label}</span>
-        {!isEditing ? (
-          <strong>
-            {key === 'billingCompanyId'
-              ? (detailClient?.billingCompany?.name || '—')
-              : key === 'assignedToId'
-                ? renderAssignedEmployeeSummary(assignedUsersForClient(detailClient), true)
-                : ((detailClient?.[key as 'firstName' | 'lastName' | 'email' | 'phone'] as string | undefined) || '—')}
-          </strong>
-        ) : (
-          <div className="clients-detail-inline-edit" onClick={(e) => e.stopPropagation()}>
+        <div className="clients-settings-linked-head">
+          <span className="clients-settings-card-icon" aria-hidden><ClientSettingsCardIcon name={iconName} /></span>
+          <div className="clients-settings-linked-copy">
+            <span className="clients-settings-linked-label">{label}</span>
+            {!isEditing ? <strong className="clients-settings-linked-value">{value}</strong> : null}
+          </div>
+          {!isEditing ? (
+            <button
+              type="button"
+              className="clients-settings-linked-chevron"
+              onClick={() => setDetailEditField(key)}
+              aria-label={label}
+            >
+              ›
+            </button>
+          ) : null}
+        </div>
+        {isEditing ? (
+          <div className="clients-settings-linked-editor" onClick={(e) => e.stopPropagation()}>
             {key === 'billingCompanyId' ? (
               <DesktopSelect
                 autoFocus
@@ -3290,31 +3479,58 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   })}
                 </div>
               </div>
-            ) : (
-              <input
-                autoFocus
-                {...mobileAutofillGuardProps(
-                  `calendra-edit-client-${key}`,
-                  key === 'firstName' || key === 'lastName' ? 'words' : 'none',
-                )}
-                type={key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text'}
-                inputMode={key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text'}
-                value={detailEditDraft[key as 'firstName' | 'lastName' | 'email' | 'phone'] ?? ''}
-                onChange={(e) => setDetailEditDraft({ ...detailEditDraft, [key]: e.target.value })}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    void saveDetailClientInline()
-                  } else if (e.key === 'Escape') {
-                    e.preventDefault()
-                    setDetailEditField(null)
-                  }
-                }}
-              />
-            )}
+            ) : null}
           </div>
-        )}
+        ) : null}
       </div>
+    )
+  }
+
+  const renderClientSettingToggleRow = (
+    stateKey: 'batchPaymentEnabled' | 'suppressInvoiceEmails' | 'onlineBookingBlocked' | 'whatsappOptIn',
+    label: string,
+    iconName: 'wallet' | 'emailOff' | 'lock' | 'message',
+  ) => (
+    <div className="clients-settings-toggle-row">
+      <div className="clients-settings-toggle-main">
+        <span className="clients-settings-card-icon" aria-hidden><ClientSettingsCardIcon name={iconName} /></span>
+        <span className="clients-settings-toggle-label">{label}</span>
+      </div>
+      <button
+        type="button"
+        className={`clients-batch-switch${detailEditDraft[stateKey] ? ' clients-batch-switch--on' : ''}`}
+        onClick={() => setDetailEditDraft({ ...detailEditDraft, [stateKey]: !detailEditDraft[stateKey] })}
+        aria-pressed={detailEditDraft[stateKey]}
+        aria-label={label}
+      >
+        {detailEditDraft[stateKey] ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+      </button>
+    </div>
+  )
+
+  const renderClientProfileInput = (
+    key: 'firstName' | 'lastName' | 'email' | 'phone',
+    label: string,
+    wide = false,
+    inputType: 'text' | 'email' | 'tel' = 'text',
+  ) => {
+    const required = key === 'firstName' || key === 'lastName'
+    return (
+      <label className={`clients-standard-profile-field${wide ? ' clients-standard-profile-field--wide' : ''}`}>
+        {(key === 'firstName' || key === 'lastName') && <span>{label}{required ? ' *' : ''}</span>}
+        <input
+          required={required}
+          type={inputType}
+          {...mobileAutofillGuardProps(
+            `calendra-edit-client-${key}`,
+            key === 'firstName' || key === 'lastName' ? 'words' : 'none',
+          )}
+          inputMode={inputType === 'email' ? 'email' : inputType === 'tel' ? 'tel' : 'text'}
+          value={detailEditDraft[key] ?? ''}
+          placeholder={label}
+          onChange={(e) => setDetailEditDraft((current) => ({ ...current, [key]: e.target.value }))}
+        />
+      </label>
     )
   }
 
@@ -3323,52 +3539,23 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     label: string,
     wide = false,
   ) => {
-    const isEditing = companyDetailEditField === key
-    const value = companyDetailEditDraft[key] ?? ''
+    const inputType = key === 'email' ? 'email' : key === 'telephone' ? 'tel' : 'text'
     return (
-      <div
-        className={`clients-detail-field-card${wide ? ' clients-detail-field-card--wide' : ''}${isEditing ? ' clients-detail-field-card--editing' : ''}`}
-        data-field-key={key}
-        onClick={() => {
-          if (companyDetailEditField !== key) setCompanyDetailEditField(key)
-        }}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key !== 'Enter' && e.key !== ' ') return
-          if (companyDetailEditField === key) return
-          e.preventDefault()
-          setCompanyDetailEditField(key)
-        }}
-      >
-        <span>{label}</span>
-        {!isEditing ? (
-          <strong>{(detailCompany?.[key] as string | undefined) || '—'}</strong>
-        ) : (
-          <div className="clients-detail-inline-edit" onClick={(e) => e.stopPropagation()}>
-            <input
-              autoFocus
-              {...mobileAutofillGuardProps(
-                `calendra-edit-company-${key}`,
-                key === 'name' || key === 'address' || key === 'city' ? 'words' : 'none',
-              )}
-              type={key === 'email' ? 'email' : key === 'telephone' ? 'tel' : 'text'}
-              inputMode={key === 'email' ? 'email' : key === 'telephone' ? 'tel' : 'text'}
-              value={value}
-              onChange={(e) => setCompanyDetailEditDraft({ ...companyDetailEditDraft, [key]: e.target.value })}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  void saveDetailCompanyInline()
-                } else if (e.key === 'Escape') {
-                  e.preventDefault()
-                  setCompanyDetailEditField(null)
-                }
-              }}
-            />
-          </div>
-        )}
-      </div>
+      <label className={`clients-standard-entity-field${wide ? ' clients-standard-entity-field--wide' : ''}`}>
+        <span>{label}{key === 'name' ? ' *' : ''}</span>
+        <input
+          required={key === 'name'}
+          {...mobileAutofillGuardProps(
+            `calendra-edit-company-${key}`,
+            key === 'name' || key === 'address' || key === 'city' ? 'words' : 'none',
+          )}
+          type={inputType}
+          inputMode={inputType === 'email' ? 'email' : inputType === 'tel' ? 'tel' : 'text'}
+          value={companyDetailEditDraft[key] ?? ''}
+          placeholder={label}
+          onChange={(e) => setCompanyDetailEditDraft({ ...companyDetailEditDraft, [key]: e.target.value })}
+        />
+      </label>
     )
   }
 
@@ -3406,82 +3593,55 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     label: string,
     wide = false,
   ) => {
-    const isEditing = groupDetailEditField === key
+    if (key === 'billingCompanyId') {
+      return (
+        <label className={`clients-standard-entity-field${wide ? ' clients-standard-entity-field--wide' : ''}`}>
+          <span>{label}</span>
+          <DesktopSelect
+            value={groupDetailEditDraft.billingCompanyId ?? ''}
+            onChange={(e) => setGroupDetailEditDraft({ ...groupDetailEditDraft, billingCompanyId: e.target.value ? Number(e.target.value) : null })}
+          >
+            <option value="">{clientsCopy.noLinkedCompany}</option>
+            {companiesForGroupBillingSelect.map((company) => (
+              <option key={company.id} value={company.id}>{company.name}</option>
+            ))}
+          </DesktopSelect>
+        </label>
+      )
+    }
+    if (key === 'defaultSessionTypeId') {
+      return (
+        <label className={`clients-standard-entity-field${wide ? ' clients-standard-entity-field--wide' : ''}`}>
+          <span>{label}</span>
+          <DesktopSelect
+            value={groupDetailEditDraft.defaultSessionTypeId ?? ''}
+            onChange={(e) => setGroupDetailEditDraft({
+              ...groupDetailEditDraft,
+              defaultSessionTypeId: e.target.value ? Number(e.target.value) : null,
+            })}
+          >
+            <option value="">{locale === 'sl' ? 'Brez privzete storitve' : 'No default service'}</option>
+            {groupBookingServiceOptions.map((type) => (
+              <option key={type.id} value={type.id}>{type.name}{type.active === false ? (locale === 'sl' ? ' (neaktivna)' : ' (inactive)') : ''}</option>
+            ))}
+          </DesktopSelect>
+        </label>
+      )
+    }
+    const inputType = key === 'email' ? 'email' : 'text'
     return (
-      <div
-        className={`clients-detail-field-card${wide ? ' clients-detail-field-card--wide' : ''}${isEditing ? ' clients-detail-field-card--editing' : ''}`}
-        data-field-key={key}
-        onClick={() => { if (groupDetailEditField !== key) setGroupDetailEditField(key) }}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key !== 'Enter' && e.key !== ' ') return
-          if (groupDetailEditField === key) return
-          e.preventDefault()
-          setGroupDetailEditField(key)
-        }}
-      >
-        <span>{label}</span>
-        {!isEditing ? (
-          <strong>
-            {key === 'billingCompanyId'
-              ? (detailGroup?.billingCompany?.name || '—')
-              : key === 'defaultSessionTypeId'
-                ? (detailGroup?.defaultSessionType?.name || '—')
-                : ((detailGroup?.[key as 'name' | 'email'] as string | undefined) || '—')}
-          </strong>
-        ) : (
-          <div className="clients-detail-inline-edit" onClick={(e) => e.stopPropagation()}>
-            {key === 'billingCompanyId' ? (
-              <DesktopSelect
-                autoFocus
-                value={groupDetailEditDraft.billingCompanyId ?? ''}
-                onChange={(e) => setGroupDetailEditDraft({ ...groupDetailEditDraft, billingCompanyId: e.target.value ? Number(e.target.value) : null })}
-              >
-                <option value="">{clientsCopy.noLinkedCompany}</option>
-                {companiesForGroupBillingSelect.map((company) => (
-                  <option key={company.id} value={company.id}>{company.name}</option>
-                ))}
-              </DesktopSelect>
-            ) : key === 'defaultSessionTypeId' ? (
-              <DesktopSelect
-                autoFocus
-                value={groupDetailEditDraft.defaultSessionTypeId ?? ''}
-                onChange={(e) => setGroupDetailEditDraft({
-                  ...groupDetailEditDraft,
-                  defaultSessionTypeId: e.target.value ? Number(e.target.value) : null,
-                })}
-              >
-                <option value="">{locale === 'sl' ? 'Brez privzete storitve' : 'No default service'}</option>
-                {groupBookingServiceOptions.map((type) => (
-                  <option key={type.id} value={type.id}>{type.name}{type.active === false ? (locale === 'sl' ? ' (neaktivna)' : ' (inactive)') : ''}</option>
-                ))}
-              </DesktopSelect>
-            ) : (
-              <input
-                autoFocus
-                {...mobileAutofillGuardProps(
-                  `calendra-edit-group-${key}`,
-                  key === 'name' ? 'words' : 'none',
-                )}
-                type={key === 'email' ? 'email' : 'text'}
-                inputMode={key === 'email' ? 'email' : 'text'}
-                value={(groupDetailEditDraft[key as 'name' | 'email'] as string) ?? ''}
-                onChange={(e) => setGroupDetailEditDraft({ ...groupDetailEditDraft, [key]: e.target.value })}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    void saveDetailGroupInline()
-                  } else if (e.key === 'Escape') {
-                    e.preventDefault()
-                    setGroupDetailEditField(null)
-                  }
-                }}
-              />
-            )}
-          </div>
-        )}
-      </div>
+      <label className={`clients-standard-entity-field${wide ? ' clients-standard-entity-field--wide' : ''}`}>
+        <span>{label}{key === 'name' ? ' *' : ''}</span>
+        <input
+          required={key === 'name'}
+          {...mobileAutofillGuardProps(`calendra-edit-group-${key}`, key === 'name' ? 'words' : 'none')}
+          type={inputType}
+          inputMode={key === 'email' ? 'email' : 'text'}
+          value={(groupDetailEditDraft[key] as string) ?? ''}
+          placeholder={label}
+          onChange={(e) => setGroupDetailEditDraft({ ...groupDetailEditDraft, [key]: e.target.value })}
+        />
+      </label>
     )
   }
 
@@ -3575,11 +3735,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     definitions.map((field) => <td key={field.id} className="clients-muted">{displayCustomFieldValue(field, values)}</td>)
 
   const closeModal = () => {
-    setShowModal(false)
-    setForm(emptyClientForm)
-    setClientCustomValues({})
-    setErrorMessage('')
-    releaseMobileCreateHistoryEntry()
+    closeDrawer()
   }
 
   const anonymizeClientById = async (clientId: number) => {
@@ -3619,7 +3775,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }
 
   const deleteClientById = async (clientId: number) => {
-    if (!window.confirm(clientsCopy.confirmDeleteClient)) return
+    if (!(await confirm({ title: clientsCopy.confirmDeleteClient, tone: 'danger' }))) return
     setDeletingClientId(clientId)
     setErrorMessage('')
     try {
@@ -3659,38 +3815,19 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }
 
   const openNewCompanyModal = () => {
-    setCompanyForm(emptyCompanyForm)
-    setCompanyCustomValues({})
-    setCompanyErrorMessage('')
-    pushMobileCreateHistoryEntry('companies')
-    setShowCompanyModal(true)
+    if (embeddedDetailMode) return
+    openDrawer(CLIENTS_DRAWERS.newCompany, { search: mergeSearch(pageSearch, 'tab=companies') })
   }
 
   const closeCompanyModal = () => {
-    setShowCompanyModal(false)
-    setCompanyForm(emptyCompanyForm)
-    setCompanyCustomValues({})
-    setCompanyErrorMessage('')
-    releaseMobileCreateHistoryEntry()
+    closeDrawer()
   }
 
   const closeGroupModal = () => {
-    setShowGroupModal(false)
-    setGroupForm({ name: '', email: '', assignedLocationIds: [] })
-    setGroupCustomValues({})
-    setGroupErrorMessage('')
-    releaseMobileCreateHistoryEntry()
+    closeDrawer()
   }
 
-  /**
-   * Close only when the press starts on the dimmed overlay, not when a click is synthesized after
-   * text selection (mousedown in the form, mouseup on the backdrop). Matches SessionTypes transaction services modals.
-   */
-  const onSidePanelBackdropMouseDown = (close: () => void) => (e: ReactMouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) close()
-  }
-
-  async function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     setErrorMessage('')
     setSaving(true)
@@ -3731,7 +3868,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     }
   }
 
-  async function submitCompanyForm(event: React.FormEvent) {
+  async function submitCompanyForm(event: FormEvent) {
     event.preventDefault()
     setSavingCompany(true)
     setCompanyErrorMessage('')
@@ -3783,7 +3920,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }
 
   const deleteCompanyById = async (companyId: number) => {
-    if (!window.confirm(clientsCopy.confirmDeleteCompany)) return
+    if (!(await confirm({ title: clientsCopy.confirmDeleteCompany, tone: 'danger' }))) return
     setDeletingCompanyId(companyId)
     setCompanyErrorMessage('')
     try {
@@ -3950,7 +4087,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
   const removeClientFile = async (file: StoredFile) => {
     if (!detailClient || deletingClientFileId != null) return
-    if (!window.confirm(clientsCopy.deleteFileConfirm)) return
+    if (!(await confirm({ title: clientsCopy.deleteFileConfirm, tone: 'danger' }))) return
     setDeletingClientFileId(file.id)
     setDetailClientFilesError('')
     try {
@@ -3965,7 +4102,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
   const removeCompanyFile = async (file: StoredFile) => {
     if (!detailCompany || deletingCompanyFileId != null) return
-    if (!window.confirm(clientsCopy.deleteFileConfirm)) return
+    if (!(await confirm({ title: clientsCopy.deleteFileConfirm, tone: 'danger' }))) return
     setDeletingCompanyFileId(file.id)
     setDetailCompanyFilesError('')
     try {
@@ -4170,11 +4307,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const createCurrentEntity = () => {
     if (entityTab === 'clients') return openNewModal()
     if (entityTab === 'companies') return openNewCompanyModal()
-    setGroupForm({ name: '', email: '', assignedLocationIds: [] })
-    setGroupCustomValues({})
-    setGroupErrorMessage('')
-    pushMobileCreateHistoryEntry('groups')
-    setShowGroupModal(true)
+    if (embeddedDetailMode) return
+    openDrawer(CLIENTS_DRAWERS.newGroup, { search: mergeSearch(pageSearch, 'tab=groups') })
   }
 
   return (
@@ -4184,18 +4318,18 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         <div className={`clients-page-header${isClientsMobile ? ' clients-page-header--sticky-mobile' : ''}`}>
           <div className="clients-page-header__entity clients-entity-tabs-shell">
             <div className="clients-session-tabs clients-entity-tabs" style={{ marginBottom: 0 }} role="tablist" aria-label={locale === 'sl' ? 'Zavihki upravljanja podatkov' : 'Data management tabs'}>
-              <button type="button" role="tab" aria-selected={entityTab === 'clients'} className={entityTab === 'clients' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setEntityTab('clients')}>
+              <button type="button" role="tab" aria-selected={entityTab === 'clients'} className={entityTab === 'clients' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => selectEntityTab('clients')}>
                 <ClientsModernIcon name="clients" />
                 <span>{t('clientsTabClients')}</span>
                 <strong className="clients-tab-count">{clientTabCount}</strong>
               </button>
-              <button type="button" role="tab" aria-selected={entityTab === 'companies'} className={entityTab === 'companies' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setEntityTab('companies')}>
+              <button type="button" role="tab" aria-selected={entityTab === 'companies'} className={entityTab === 'companies' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => selectEntityTab('companies')}>
                 <ClientsModernIcon name="companies" />
                 <span>{t('clientsTabCompanies')}</span>
                 <strong className="clients-tab-count">{companyTabCount}</strong>
               </button>
               {groupBookingEnabled && (
-                <button type="button" role="tab" aria-selected={entityTab === 'groups'} className={entityTab === 'groups' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setEntityTab('groups')}>
+                <button type="button" role="tab" aria-selected={entityTab === 'groups'} className={entityTab === 'groups' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => selectEntityTab('groups')}>
                   <ClientsModernIcon name="groups" />
                   <span>{clientsCopy.groupsTab}</span>
                   <strong className="clients-tab-count">{groupTabCount}</strong>
@@ -4341,7 +4475,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 <button
                   type="button"
                   className="clients-workspace-button"
-                  onClick={() => setWorkspaceClientsOpen(true)}
+                  onClick={() => openDrawer(CLIENTS_DRAWERS.workspaceClients, { search: pageSearch })}
                 >
                   <span aria-hidden>⌘</span>
                   <span>{locale === 'sl' ? 'Vse lokacije' : locale === 'sr' ? 'Sve lokacije' : 'All locations'}</span>
@@ -4357,7 +4491,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
         {entityTab === 'clients' ? (
           <>
-            {errorMessage && !showModal && <div className="error">{errorMessage}</div>}
+            {errorMessage && !newClientOpen && <div className="error">{errorMessage}</div>}
             {loading ? (
               <div className="muted clients-modern-state">{tableEmptyLoadingText}</div>
             ) : filteredClients.length === 0 ? (
@@ -4482,7 +4616,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           </>
         ) : entityTab === 'companies' ? (
           <>
-            {companyErrorMessage && !showCompanyModal && <div className="error">{companyErrorMessage}</div>}
+            {companyErrorMessage && !newCompanyOpen && <div className="error">{companyErrorMessage}</div>}
             {loadingCompanies ? (
               <div className="muted clients-modern-state">{tableEmptyLoadingText}</div>
             ) : filteredCompanies.length === 0 ? (
@@ -4590,7 +4724,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           </>
         ) : entityTab === 'groups' && groupBookingEnabled ? (
           <>
-            {groupErrorMessage && !showGroupModal && <div className="error">{groupErrorMessage}</div>}
+            {groupErrorMessage && !newGroupOpen && <div className="error">{groupErrorMessage}</div>}
             {loadingGroups ? (
               <div className="muted clients-modern-state">{tableEmptyLoadingText}</div>
             ) : filteredGroups.length === 0 ? (
@@ -4706,150 +4840,97 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       </Card>
       )}
 
-      {detailClient && (
-        <div
-          className={`modal-backdrop clients-action-workspace-backdrop${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
-          onMouseDown={(e) => {
-            e.stopPropagation()
-            if (e.target === e.currentTarget) closeDetailModal()
-          }}
-          onMouseUp={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-          onTouchStart={(e) => e.stopPropagation()}
-          role="presentation"
-        >
-          <div
-            className="modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-client-detail-modal"
-            onMouseDown={(e) => e.stopPropagation()}
-            onMouseUp={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
-          >
-            <div className="clients-action-workspace-header">
-              <div className="clients-action-workspace-mobile-heading">
-                <h2>{clientsCopy.editClientTitle}</h2>
-                <p>{clientsCopy.editClientSubtitle}</p>
-              </div>
-              <div className="clients-action-workspace-client">
-                <div className="clients-name-stack clients-action-workspace-title-stack">
-                  <span className="clients-name">
-                    {fullName(detailClient)}
-                    {detailClient.guestAppLinked ? (
-                      <span className="clients-guest-app-badge" aria-label={clientsCopy.guestAppBadge}>
-                        {clientsCopy.guestAppBadge}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="clients-id">
-                    <span className="clients-action-workspace-id-label">ID #{detailClient.id}</span>
-                    <span className={`clients-action-workspace-status${detailClient.active === false ? ' clients-action-workspace-status--inactive' : ''}`}>
-                      <span className="clients-action-workspace-status-dot" />
-                      {detailClient.active === false ? inactiveStatusLabel : activeStatusLabel}
-                    </span>
-                  </span>
-                </div>
-              </div>
-              <button type="button" className="secondary clients-action-workspace-close" onClick={closeDetailModal} aria-label={t('mobileNavClose')}>
-                ×
-              </button>
-            </div>
-            <div className="clients-action-workspace-body">
+      <SidePanel
+        open={clientDetailPanelOpen}
+        onClose={closeDetailModal}
+        ariaLabel={clientsCopy.editClientTitle}
+        size="xl"
+        className="clients-standard-customer-panel clients-standard-customer-panel--edit"
+      >
+        <PanelHeader
+          title={clientsCopy.editClientTitle}
+          subtitle={detailClient ? `${fullName(detailClient)} · ID #${detailClient.id}` : undefined}
+          onClose={closeDetailModal}
+          closeLabel={t('mobileNavClose')}
+        />
+        <PanelTabs
+          label={clientsCopy.clientDetailMainTabsAria}
+          activeId={clientDetailMainTab}
+          onSelect={(id) => setClientDetailMainTab(id as ClientDetailView)}
+          tabs={[
+            { id: 'sessions', label: clientsCopy.sessions, icon: <ClientWorkspaceIcon name="sessions" /> },
+            { id: 'wallet', label: clientsCopy.clientDetailTabWallet, icon: <ClientWorkspaceIcon name="wallet" />, hidden: !entitlementsFeatureEnabled },
+            { id: 'files', label: clientsCopy.files, icon: <ClientWorkspaceIcon name="files" /> },
+            { id: 'settings', label: clientsCopy.clientDetailTabSettings, icon: <ClientWorkspaceIcon name="settings" /> },
+          ]}
+        />
+        <PanelBody>
+          {detailClient ? (
               <div className="clients-detail-shell clients-action-workspace-shell">
-                <div className="clients-detail-fields clients-action-workspace-profile-fields" onClick={(e) => e.stopPropagation()}>
-                  {renderClientEditableField('firstName', clientsCopy.firstName)}
-                  {renderClientEditableField('lastName', clientsCopy.lastName)}
-                  {renderClientEditableField('email', clientsCopy.email, true)}
-                  {renderClientEditableField('phone', clientsCopy.phone, true)}
-                  {renderCustomFieldInputs(clientCustomFieldDefs, detailClientCustomValues, (fieldId, value) =>
-                    setDetailClientCustomValues((prev) => ({ ...prev, [fieldId]: value }))
-                  )}
-                </div>
-
-                <div className="clients-detail-main-tabs clients-action-workspace-tabs" onClick={(e) => e.stopPropagation()}>
-                  <div className="clients-session-tabs clients-detail-main-tabs-inner clients-action-workspace-tabs-inner" role="tablist" aria-label={clientsCopy.clientDetailMainTabsAria}>
-                    <button
-                      type="button"
-                      role="tab"
-                      className={clientDetailMainTab === 'sessions' ? 'clients-session-tab active' : 'clients-session-tab'}
-                      aria-selected={clientDetailMainTab === 'sessions'}
-                      onClick={() => setClientDetailMainTab('sessions')}
-                    >
-                      <ClientWorkspaceIcon name="sessions" />
-                      {clientsCopy.sessions}
-                    </button>
-                    {entitlementsFeatureEnabled ? (
-                      <button
-                        type="button"
-                        role="tab"
-                        className={clientDetailMainTab === 'wallet' ? 'clients-session-tab active' : 'clients-session-tab'}
-                        aria-selected={clientDetailMainTab === 'wallet'}
-                        onClick={() => setClientDetailMainTab('wallet')}
-                      >
-                        <ClientWorkspaceIcon name="wallet" />
-                        {clientsCopy.clientDetailTabWallet}
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      role="tab"
-                      className={clientDetailMainTab === 'files' ? 'clients-session-tab active' : 'clients-session-tab'}
-                      aria-selected={clientDetailMainTab === 'files'}
-                      onClick={() => setClientDetailMainTab('files')}
-                    >
-                      <ClientWorkspaceIcon name="files" />
-                      {clientsCopy.files}
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      className={clientDetailMainTab === 'settings' ? 'clients-session-tab active' : 'clients-session-tab'}
-                      aria-selected={clientDetailMainTab === 'settings'}
-                      onClick={() => setClientDetailMainTab('settings')}
-                    >
-                      <ClientWorkspaceIcon name="settings" />
-                      {clientsCopy.clientDetailTabSettings}
-                    </button>
-                  </div>
+                <div className="clients-standard-customer-profile">
+                  <section className="clients-standard-customer-section clients-standard-customer-section--person">
+                    <h3><ClientProfileSectionIcon name="person" /><span>{locale === 'sl' ? 'Osebni podatki' : 'Personal details'}</span></h3>
+                    <div className="clients-standard-profile-grid">
+                      {renderClientProfileInput('firstName', clientsCopy.firstName)}
+                      {renderClientProfileInput('lastName', clientsCopy.lastName)}
+                    </div>
+                  </section>
+                  <section className="clients-standard-customer-section">
+                    <h3><ClientProfileSectionIcon name="email" /><span>{clientsCopy.email}</span></h3>
+                    {renderClientProfileInput('email', clientsCopy.email, true, 'email')}
+                  </section>
+                  <section className="clients-standard-customer-section">
+                    <h3><ClientProfileSectionIcon name="phone" /><span>{clientsCopy.phone}</span></h3>
+                    {renderClientProfileInput('phone', clientsCopy.phone, true, 'tel')}
+                  </section>
+                  {clientCustomFieldDefs.length > 0 ? (
+                    <div className="clients-standard-customer-extra-fields clients-detail-fields">
+                      {renderCustomFieldInputs(clientCustomFieldDefs, detailClientCustomValues, (fieldId, value) =>
+                        setDetailClientCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                      )}
+                    </div>
+                  ) : null}
                 </div>
 
                 {entitlementsFeatureEnabled && clientDetailMainTab === 'wallet' && (
-                  <div className={`clients-detail-sessions-card clients-detail-wallet-card${walletPurchaseDrawerOpen ? ' clients-detail-wallet-card--drawer-open' : ''}`} role="tabpanel">
+                  <div className="clients-detail-sessions-card clients-detail-wallet-card clients-standard-detail-card clients-standard-wallet-tab" role="tabpanel">
                     {detailWalletError && <div className="error">{detailWalletError}</div>}
                     {detailWalletLoading ? (
                       <div className="muted">{clientsCopy.walletLoading}</div>
                     ) : (
                       <div className="clients-wallet-purchase-layout">
                         <div className="clients-wallet-main-pane">
-                          <div className="clients-wallet-action-bar">
-                            <button type="button" className="clients-wallet-buy-button" onClick={openWalletPurchaseDrawer}>
-                              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                                <circle cx="9" cy="21" r="1" />
-                                <circle cx="20" cy="21" r="1" />
-                                <path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h8.9a2 2 0 0 0 2-1.6L23 6H6" />
-                              </svg>
-                              {locale === 'sl' ? 'Kupi ugodnost' : 'Buy entitlement'}
-                            </button>
-                          </div>
-
                           <div className="clients-wallet-toolbar clients-wallet-toolbar--with-actions">
-                            <div className="clients-session-tabs clients-wallet-filters" role="tablist" aria-label={clientsCopy.clientDetailTabWallet}>
-                              <button type="button" className={walletFilter === 'all' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('all')}>
-                                {locale === 'sl' ? 'Vse' : 'All'}
-                              </button>
-                              <button type="button" className={walletFilter === 'packs' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('packs')}>
-                                {locale === 'sl' ? 'Paketi' : 'Packs'}
-                              </button>
-                              <button type="button" className={walletFilter === 'memberships' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('memberships')}>
-                                {locale === 'sl' ? 'Članstva' : 'Memberships'}
-                              </button>
-                              <button type="button" className={walletFilter === 'courses' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('courses')}>
-                                {locale === 'sl' ? 'Tečaji' : 'Courses'}
-                              </button>
-                              {giftCardsFeatureEnabled && (
-                                <button type="button" className={walletFilter === 'giftCards' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('giftCards')}>
-                                  {locale === 'sl' ? 'Boni' : 'Vouchers'}
+                            <div className="clients-wallet-toolbar-main">
+                              <div className="clients-session-tabs clients-wallet-filters" role="tablist" aria-label={clientsCopy.clientDetailTabWallet}>
+                                <button type="button" className={walletFilter === 'all' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('all')}>
+                                  {locale === 'sl' ? 'Vse' : 'All'}
                                 </button>
-                              )}
+                                <button type="button" className={walletFilter === 'packs' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('packs')}>
+                                  {locale === 'sl' ? 'Paketi' : 'Packs'}
+                                </button>
+                                <button type="button" className={walletFilter === 'memberships' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('memberships')}>
+                                  {locale === 'sl' ? 'Članstva' : 'Memberships'}
+                                </button>
+                                <button type="button" className={walletFilter === 'courses' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('courses')}>
+                                  {locale === 'sl' ? 'Tečaji' : 'Courses'}
+                                </button>
+                                {giftCardsFeatureEnabled && (
+                                  <button type="button" className={walletFilter === 'giftCards' ? 'clients-session-tab active' : 'clients-session-tab'} onClick={() => setWalletFilter('giftCards')}>
+                                    {locale === 'sl' ? 'Boni' : 'Vouchers'}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="clients-wallet-action-bar">
+                                <button type="button" className="clients-wallet-buy-button" onClick={openWalletPurchaseDrawer}>
+                                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                    <circle cx="9" cy="21" r="1" />
+                                    <circle cx="20" cy="21" r="1" />
+                                    <path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h8.9a2 2 0 0 0 2-1.6L23 6H6" />
+                                  </svg>
+                                  {locale === 'sl' ? 'Kupi ugodnost' : 'Buy entitlement'}
+                                </button>
+                              </div>
                             </div>
                             <div className="clients-wallet-summary">
                               <span className="clients-wallet-summary-pill clients-wallet-summary-pill--active">
@@ -4937,136 +5018,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                             </div>
                           )}
                         </div>
-
-                        {walletPurchaseDrawerOpen && (
-                          <aside ref={walletPurchaseDrawerRef} className="clients-wallet-purchase-drawer" aria-label={locale === 'sl' ? 'Nakup ugodnosti' : 'Entitlement purchase'}>
-                            <div className="clients-wallet-purchase-drawer-header">
-                              <h3>{locale === 'sl' ? 'Nakup ugodnosti' : 'Entitlement purchase'}</h3>
-                              <button type="button" className="clients-wallet-drawer-close" onClick={closeWalletPurchaseDrawer} aria-label={t('mobileNavClose')}>×</button>
-                            </div>
-                            <div className="clients-wallet-stepper" aria-hidden>
-                              <div className="clients-wallet-step clients-wallet-step--active"><span>1</span><strong>{locale === 'sl' ? 'Izbira ugodnosti' : 'Select entitlement'}</strong></div>
-                              <div className="clients-wallet-step-line" />
-                              <div className="clients-wallet-step"><span>2</span><strong>{locale === 'sl' ? 'Račun' : 'Bill'}</strong></div>
-                            </div>
-                            <label className="clients-wallet-product-search">
-                              <ClientsModernIcon name="search" />
-                              <input value={walletProductSearch} onChange={(e) => setWalletProductSearch(e.target.value)} placeholder={locale === 'sl' ? 'Išči ugodnost...' : 'Search entitlement...'} />
-                            </label>
-                            {walletPurchaseError && <div className="error clients-wallet-purchase-error">{walletPurchaseError}</div>}
-                            <div className="clients-wallet-product-list">
-                              {walletProductsLoading ? (
-                                <div className="muted clients-wallet-product-loading">{locale === 'sl' ? 'Nalaganje ugodnosti…' : 'Loading entitlements…'}</div>
-                              ) : filteredWalletProducts.length === 0 ? (
-                                <div className="clients-wallet-product-empty">{locale === 'sl' ? 'Ni ustvarjenih aktivnih kart, paketov, članarin, tečajev ali bonov.' : 'No active cards, packs, memberships, courses or vouchers are configured.'}</div>
-                              ) : (
-                                filteredWalletProducts.map((product) => {
-                                  const selected = selectedWalletProduct?.id === product.id
-                                  const tone = walletProductTypeTone(product.productType)
-                                  return (
-                                    <button
-                                      key={product.id}
-                                      type="button"
-                                      className={`clients-wallet-product-row${selected ? ' clients-wallet-product-row--selected' : ''}`}
-                                      onClick={() => setSelectedWalletProductId(product.id)}
-                                    >
-                                      <span className="clients-wallet-radio" aria-hidden>{selected ? '●' : ''}</span>
-                                      <span className="clients-wallet-product-name">{product.name}</span>
-                                      <span className={`clients-wallet-product-badge clients-wallet-product-badge--${tone}`}>{walletProductTypeLabel(product.productType, locale, product.voucherRedemptionMode)}</span>
-                                      <strong>{currency(walletProductPrice(product))}</strong>
-                                    </button>
-                                  )
-                                })
-                              )}
-                            </div>
-                            <div className="clients-wallet-purchase-summary">
-                              <h4>{locale === 'sl' ? 'Povzetek' : 'Summary'}</h4>
-                              <div className="clients-wallet-summary-line"><span>{locale === 'sl' ? 'Izbrana ugodnost' : 'Selected entitlement'}</span><strong>{selectedWalletProduct?.name ?? '—'}</strong></div>
-                              <div className="clients-wallet-summary-line"><span>{locale === 'sl' ? 'Cena' : 'Price'}</span><strong>{selectedWalletProduct ? currency(walletProductPrice(selectedWalletProduct)) : '—'}</strong></div>
-                              <div className="clients-wallet-summary-info"><span aria-hidden>i</span>{locale === 'sl' ? 'Račun se odpre v novem obrazcu odprtega računa z možnostjo Zaključi račun.' : 'The bill opens in the open-bill form with the option to close the bill.'}</div>
-                            </div>
-                            <div className="clients-wallet-drawer-footer clients-wallet-drawer-footer--single-action">
-                              <button type="button" className="clients-wallet-open-bill-button" onClick={continueWalletPurchaseOpenBill} disabled={!selectedWalletProduct || walletProductsLoading || creatingWalletOpenBill}>
-                                {creatingWalletOpenBill ? (locale === 'sl' ? 'Odpiram…' : 'Opening…') : (locale === 'sl' ? 'Odpri nov račun' : 'Open new bill')}
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                                  <path d="M7 17 17 7" />
-                                  <path d="M8 7h9v9" />
-                                </svg>
-                              </button>
-                            </div>
-                          </aside>
-                        )}
-                        {giftCardPersonalizationOpen && selectedWalletProduct && (
-                          <div className="clients-wallet-gift-card-overlay" role="dialog" aria-modal="true" aria-label={walletProductTypeLabel(selectedWalletProduct.productType, locale, selectedWalletProduct.voucherRedemptionMode)}>
-                            <div className="clients-wallet-gift-card-modal">
-                              <div className="clients-wallet-gift-card-modal-header">
-                                <span className="clients-wallet-product-badge clients-wallet-product-badge--gift">{walletProductTypeLabel(selectedWalletProduct.productType, locale, selectedWalletProduct.voucherRedemptionMode)}</span>
-                                <button
-                                  type="button"
-                                  className="clients-wallet-drawer-close"
-                                  onClick={() => setGiftCardPersonalizationOpen(false)}
-                                  aria-label={t('mobileNavClose')}
-                                  disabled={creatingWalletOpenBill}
-                                >
-                                  ×
-                                </button>
-                              </div>
-                              <h3>{locale === 'sl' ? 'Podatki za bon' : 'Voucher details'}</h3>
-                              <p>
-                                {locale === 'sl'
-                                  ? 'Vnesite neobvezne podatke, ki se bodo prikazali na bonu. Če polje pustite prazno, se ne bo prikazalo.'
-                                  : 'Enter the optional details that should appear on the voucher. Blank fields will be hidden.'}
-                              </p>
-                              <div className="clients-wallet-gift-card-summary">
-                                <span>{selectedWalletProduct.name}</span>
-                                <strong>
-                                  {selectedWalletProduct.voucherRedemptionMode === 'SERVICE'
-                                    ? walletVoucherScopeLabel(selectedWalletProduct.voucherServiceScope, selectedWalletProduct.voucherSessionTypeNames, locale)
-                                    : currency(Number(selectedWalletProduct.voucherFaceValueGross ?? walletProductPrice(selectedWalletProduct)))}
-                                </strong>
-                              </div>
-                              <div className="clients-wallet-gift-card-fields">
-                                {giftCardDisplaySettings.showTo && (
-                                  <label>
-                                    <span>{locale === 'sl' ? 'Za' : 'To'}</span>
-                                    <input
-                                      value={giftCardRecipientName}
-                                      onChange={(event) => setGiftCardRecipientName(event.target.value.slice(0, 120))}
-                                      placeholder={locale === 'sl' ? 'Ime prejemnika' : 'Recipient name'}
-                                      autoFocus
-                                    />
-                                  </label>
-                                )}
-                                {giftCardDisplaySettings.showText && (
-                                  <label>
-                                    <span>{locale === 'sl' ? 'Besedilo' : 'Text'}</span>
-                                    <textarea
-                                      value={giftCardMessage}
-                                      onChange={(event) => setGiftCardMessage(event.target.value.slice(0, 300))}
-                                      placeholder={locale === 'sl' ? 'Osebno sporočilo' : 'Personal message'}
-                                      rows={4}
-                                    />
-                                  </label>
-                                )}
-                              </div>
-                              <div className="clients-wallet-gift-card-actions">
-                                <button type="button" className="secondary" onClick={() => setGiftCardPersonalizationOpen(false)} disabled={creatingWalletOpenBill}>
-                                  {locale === 'sl' ? 'Nazaj' : 'Back'}
-                                </button>
-                                <button type="button" className="clients-wallet-open-bill-button" onClick={submitGiftCardPersonalization} disabled={creatingWalletOpenBill}>
-                                  {creatingWalletOpenBill ? (locale === 'sl' ? 'Odpiram…' : 'Opening…') : (locale === 'sl' ? 'Nadaljuj na račun' : 'Continue to bill')}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
                 )}
 
                 {clientDetailMainTab === 'files' && (
-                  <div className="clients-detail-sessions-card clients-detail-file-manager-card clients-detail-datoteke-card" role="tabpanel">
+                  <div className="clients-detail-sessions-card clients-detail-file-manager-card clients-detail-datoteke-card clients-standard-detail-card clients-standard-files-tab" role="tabpanel">
                     <div className="clients-detail-datoteke-sub-tabs">
                       <div className="clients-session-tabs clients-detail-main-tabs-inner" role="tablist" aria-label={clientsCopy.companyDatotekeSubTabsAria}>
                         <button
@@ -5230,72 +5188,28 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 )}
 
                 {clientDetailMainTab === 'settings' && (
-                  <div className="clients-action-workspace-settings" onClick={(e) => e.stopPropagation()} role="tabpanel">
-                    <div className="clients-detail-fields clients-action-workspace-settings-grid">
+                  <div className="clients-action-workspace-settings clients-standard-settings-tab" onClick={(e) => e.stopPropagation()} role="tabpanel">
+                    <div className="clients-standard-settings-list">
                       {renderClientEditableField('billingCompanyId', clientsCopy.linkedCompany, true)}
                       {renderClientEditableField('assignedToId', clientsCopy.assignedConsultant, true)}
-                      <AssignedLocationsPicker
-                        locations={businessLocations}
-                        selectedIds={detailEditDraft.assignedLocationIds}
-                        onChange={(assignedLocationIds) => setDetailEditDraft((current) => ({ ...current, assignedLocationIds }))}
-                        locale={locale}
-                      />
-                    </div>
-                    <div className="clients-detail-fields clients-action-workspace-settings-grid clients-action-workspace-settings-switches">
-                      {globalWhatsAppEnabled && (
-                        <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
-                          <span>{clientsCopy.whatsappOptIn}</span>
-                          <button
-                            type="button"
-                            className={`clients-batch-switch${detailEditDraft.whatsappOptIn ? ' clients-batch-switch--on' : ''}`}
-                            onClick={() => setDetailEditDraft({ ...detailEditDraft, whatsappOptIn: !detailEditDraft.whatsappOptIn })}
-                            aria-pressed={detailEditDraft.whatsappOptIn}
-                          >
-                            {detailEditDraft.whatsappOptIn ? clientsCopy.toggleOn : clientsCopy.toggleOff}
-                          </button>
+                      {businessLocations.length > 1 ? (
+                        <div className="clients-settings-location-shell">
+                          <div className="clients-settings-location-head">
+                            <span className="clients-settings-card-icon" aria-hidden><ClientSettingsCardIcon name="location" /></span>
+                            <span className="clients-settings-toggle-label">{locale === 'sl' ? 'Dodeljene poslovalnice' : 'Assigned locations'}</span>
+                          </div>
+                          <AssignedLocationsPicker
+                            locations={businessLocations}
+                            selectedIds={detailEditDraft.assignedLocationIds}
+                            onChange={(assignedLocationIds) => setDetailEditDraft((current) => ({ ...current, assignedLocationIds }))}
+                            locale={locale}
+                          />
                         </div>
-                      )}
-                      <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
-                        <span>{clientsCopy.batchPayment}</span>
-                        <button
-                          type="button"
-                          className={`clients-batch-switch${detailEditDraft.batchPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
-                          onClick={() =>
-                            setDetailEditDraft({ ...detailEditDraft, batchPaymentEnabled: !detailEditDraft.batchPaymentEnabled })
-                          }
-                          aria-pressed={detailEditDraft.batchPaymentEnabled}
-                        >
-                          {detailEditDraft.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
-                        </button>
-                      </div>
-                      {invoiceEmailDeliveryEnabled && (
-                        <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
-                          <span>{clientsCopy.suppressInvoiceEmails}</span>
-                          <button
-                            type="button"
-                            className={`clients-batch-switch${detailEditDraft.suppressInvoiceEmails ? ' clients-batch-switch--on' : ''}`}
-                            onClick={() =>
-                              setDetailEditDraft({ ...detailEditDraft, suppressInvoiceEmails: !detailEditDraft.suppressInvoiceEmails })
-                            }
-                            aria-pressed={detailEditDraft.suppressInvoiceEmails}
-                          >
-                            {detailEditDraft.suppressInvoiceEmails ? clientsCopy.toggleOn : clientsCopy.toggleOff}
-                          </button>
-                        </div>
-                      )}
-                      <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
-                        <span>{clientsCopy.onlineBookingBlocked}</span>
-                        <button
-                          type="button"
-                          className={`clients-batch-switch${detailEditDraft.onlineBookingBlocked ? ' clients-batch-switch--on' : ''}`}
-                          onClick={() =>
-                            setDetailEditDraft({ ...detailEditDraft, onlineBookingBlocked: !detailEditDraft.onlineBookingBlocked })
-                          }
-                          aria-pressed={detailEditDraft.onlineBookingBlocked}
-                        >
-                          {detailEditDraft.onlineBookingBlocked ? clientsCopy.toggleOn : clientsCopy.toggleOff}
-                        </button>
-                      </div>
+                      ) : null}
+                      {globalWhatsAppEnabled ? renderClientSettingToggleRow('whatsappOptIn', clientsCopy.whatsappOptIn, 'message') : null}
+                      {renderClientSettingToggleRow('batchPaymentEnabled', clientsCopy.batchPayment, 'wallet')}
+                      {invoiceEmailDeliveryEnabled ? renderClientSettingToggleRow('suppressInvoiceEmails', clientsCopy.suppressInvoiceEmails, 'emailOff') : null}
+                      {renderClientSettingToggleRow('onlineBookingBlocked', clientsCopy.onlineBookingBlocked, 'lock')}
                     </div>
                   </div>
                 )}
@@ -5363,13 +5277,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                             <article
                               key={s.id}
                               className="clients-modern-session-row"
-                              onClick={() => navigate(`/calendar/booking/${s.id}`)}
+                              onClick={() => navigate(urlForEditForm('booking', s.id))}
                               role="button"
                               tabIndex={0}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' || e.key === ' ') {
                                   e.preventDefault()
-                                  navigate(`/calendar/booking/${s.id}`)
+                                  navigate(urlForEditForm('booking', s.id))
                                 }
                               }}
                             >
@@ -5442,95 +5356,206 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   </div>
                 )}
               </div>
-            </div>
-            {clientDetailHasChanges && (
-              <div className="clients-action-workspace-footer">
-                <button
-                  type="button"
-                  className="clients-gapp-save-button"
-                  onClick={() => void saveDetailClientInline()}
-                  disabled={savingDetailEdit}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                    <path d="M17 21v-8H7v8" />
-                    <path d="M7 3v5h8" />
-                  </svg>
-                  {savingDetailEdit ? clientsCopy.savingChanges : clientsCopy.saveChanges}
-                </button>
-              </div>
+          ) : null}
+        </PanelBody>
+        <PanelFooter>
+          {detailClient ? (
+            <PanelButton
+              variant="danger"
+              onClick={() => void deleteClientById(detailClient.id)}
+              disabled={deletingClientId === detailClient.id || detailClient.removalBlocked}
+            >
+              {locale === 'sl' ? 'Izbriši stranko' : 'Delete client'}
+            </PanelButton>
+          ) : null}
+          <PanelButton
+            variant="primary"
+            icon={<GuestConfigSaveIcon />}
+            onClick={() => void saveDetailClientInline()}
+            disabled={!detailClient || savingDetailEdit || !clientDetailHasChanges}
+          >
+            {savingDetailEdit ? clientsCopy.savingChanges : clientsCopy.saveChanges}
+          </PanelButton>
+        </PanelFooter>
+      </SidePanel>
+
+      <SidePanel
+        open={clientDetailPanelOpen && walletPurchaseDrawerOpen}
+        onClose={closeWalletPurchaseDrawer}
+        ariaLabel={locale === 'sl' ? 'Nakup ugodnosti' : 'Entitlement purchase'}
+        size="lg"
+      >
+        <PanelHeader
+          title={locale === 'sl' ? 'Nakup ugodnosti' : 'Entitlement purchase'}
+          onClose={closeWalletPurchaseDrawer}
+          closeLabel={t('mobileNavClose')}
+        />
+        <PanelBody>
+          <div className="clients-wallet-stepper" aria-hidden>
+            <div className="clients-wallet-step clients-wallet-step--active"><span>1</span><strong>{locale === 'sl' ? 'Izbira ugodnosti' : 'Select entitlement'}</strong></div>
+            <div className="clients-wallet-step-line" />
+            <div className="clients-wallet-step"><span>2</span><strong>{locale === 'sl' ? 'Račun' : 'Bill'}</strong></div>
+          </div>
+          <label className="clients-wallet-product-search">
+            <ClientsModernIcon name="search" />
+            <input value={walletProductSearch} onChange={(e) => setWalletProductSearch(e.target.value)} placeholder={locale === 'sl' ? 'Išči ugodnost...' : 'Search entitlement...'} />
+          </label>
+          {walletPurchaseError && <div className="error clients-wallet-purchase-error">{walletPurchaseError}</div>}
+          <div className="clients-wallet-product-list">
+            {walletProductsLoading ? (
+              <div className="muted clients-wallet-product-loading">{locale === 'sl' ? 'Nalaganje ugodnosti…' : 'Loading entitlements…'}</div>
+            ) : filteredWalletProducts.length === 0 ? (
+              <div className="clients-wallet-product-empty">{locale === 'sl' ? 'Ni ustvarjenih aktivnih kart, paketov, članarin, tečajev ali bonov.' : 'No active cards, packs, memberships, courses or vouchers are configured.'}</div>
+            ) : (
+              filteredWalletProducts.map((product) => {
+                const selected = selectedWalletProduct?.id === product.id
+                const tone = walletProductTypeTone(product.productType)
+                return (
+                  <button
+                    key={product.id}
+                    type="button"
+                    className={`clients-wallet-product-row${selected ? ' clients-wallet-product-row--selected' : ''}`}
+                    onClick={() => setSelectedWalletProductId(product.id)}
+                  >
+                    <span className="clients-wallet-radio" aria-hidden>{selected ? '●' : ''}</span>
+                    <span className="clients-wallet-product-name">{product.name}</span>
+                    <span className={`clients-wallet-product-badge clients-wallet-product-badge--${tone}`}>{walletProductTypeLabel(product.productType, locale, product.voucherRedemptionMode)}</span>
+                    <strong>{currency(walletProductPrice(product))}</strong>
+                  </button>
+                )
+              })
             )}
           </div>
-        </div>
-      )}
-
-      {!embeddedDetailMode && detailCompany && (
-        <div
-          className={`modal-backdrop clients-action-workspace-backdrop${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
-          onMouseDown={onSidePanelBackdropMouseDown(closeCompanyDetailModal)}
-          role="presentation"
-        >
-          <div
-            className="modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-company-detail-modal"
-            onMouseDown={(e) => e.stopPropagation()}
+          <div className="clients-wallet-purchase-summary">
+            <h4>{locale === 'sl' ? 'Povzetek' : 'Summary'}</h4>
+            <div className="clients-wallet-summary-line"><span>{locale === 'sl' ? 'Izbrana ugodnost' : 'Selected entitlement'}</span><strong>{selectedWalletProduct?.name ?? '—'}</strong></div>
+            <div className="clients-wallet-summary-line"><span>{locale === 'sl' ? 'Cena' : 'Price'}</span><strong>{selectedWalletProduct ? currency(walletProductPrice(selectedWalletProduct)) : '—'}</strong></div>
+            <div className="clients-wallet-summary-info"><span aria-hidden>i</span>{locale === 'sl' ? 'Račun se odpre v novem obrazcu odprtega računa z možnostjo Zaključi račun.' : 'The bill opens in the open-bill form with the option to close the bill.'}</div>
+          </div>
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={closeWalletPurchaseDrawer}>{t('cancel')}</PanelButton>
+          <PanelButton
+            variant="primary"
+            onClick={continueWalletPurchaseOpenBill}
+            disabled={!selectedWalletProduct || walletProductsLoading || creatingWalletOpenBill}
           >
-            <div className="clients-action-workspace-header">
-              <div className="clients-action-workspace-mobile-heading">
-                <h2>{clientsCopy.editCompanyTitle}</h2>
-              </div>
-              <div className="clients-action-workspace-client">
-                <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>{(detailCompany.name?.[0] || 'C').toUpperCase()}</span>
-                <div className="clients-name-stack clients-action-workspace-title-stack">
-                  <span className="clients-name">{detailCompany.name}{detailCompany.active === false && <span className="clients-inactive-badge">{clientsCopy.inactive}</span>}</span>
-                  <span className="clients-id">ID #{detailCompany.id}</span>
-                </div>
-              </div>
-              <button type="button" className="secondary clients-action-workspace-close" onClick={closeCompanyDetailModal} aria-label={t('mobileNavClose')}>
-                ×
-              </button>
-            </div>
-            <div className="clients-action-workspace-body">
-              <div className="clients-detail-shell clients-action-workspace-shell">
-                <div className="clients-detail-fields clients-action-workspace-profile-fields">
-                  {renderCompanyEditableField('name', clientsCopy.companyName, true)}
-                  {renderCompanyEditableField('address', clientsCopy.address, true)}
-                  {renderCompanyEditableField('postalCode', clientsCopy.postalCode)}
-                  {renderCompanyEditableField('city', clientsCopy.city)}
-                  {renderCompanyEditableField('vatId', clientsCopy.vatId, true)}
-                  {renderCompanyEditableField('email', clientsCopy.email, true)}
-                  {renderCompanyEditableField('telephone', clientsCopy.telephone, true)}
-                  {renderCustomFieldInputs(companyCustomFieldDefs, detailCompanyCustomValues, (fieldId, value) =>
-                    setDetailCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
-                  )}
-                </div>
+            {creatingWalletOpenBill ? (locale === 'sl' ? 'Odpiram…' : 'Opening…') : (locale === 'sl' ? 'Odpri nov račun' : 'Open new bill')}
+          </PanelButton>
+        </PanelFooter>
+      </SidePanel>
 
-                <div className="clients-detail-main-tabs clients-action-workspace-tabs" onClick={(e) => e.stopPropagation()}>
-                  <div className="clients-session-tabs clients-detail-main-tabs-inner clients-action-workspace-tabs-inner clients-action-workspace-tabs-inner--two" role="tablist" aria-label={clientsCopy.companyDetailMainTabsAria}>
-                    <button
-                      type="button"
-                      role="tab"
-                      className={companyDetailMainTab === 'datoteke' ? 'clients-session-tab active' : 'clients-session-tab'}
-                      aria-selected={companyDetailMainTab === 'datoteke'}
-                      onClick={() => setCompanyDetailMainTab('datoteke')}
-                    >
-                      <ClientWorkspaceIcon name="files" />
-                      {clientsCopy.files}
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      className={companyDetailMainTab === 'nastavitve' ? 'clients-session-tab active' : 'clients-session-tab'}
-                      aria-selected={companyDetailMainTab === 'nastavitve'}
-                      onClick={() => setCompanyDetailMainTab('nastavitve')}
-                    >
-                      <ClientWorkspaceIcon name="settings" />
-                      {clientsCopy.clientDetailTabSettings}
-                    </button>
+      <SidePanel
+        open={clientDetailPanelOpen && walletPurchaseDrawerOpen && giftCardPersonalizationOpen && Boolean(selectedWalletProduct)}
+        onClose={() => { if (!creatingWalletOpenBill) setGiftCardPersonalizationOpen(false) }}
+        ariaLabel={selectedWalletProduct ? walletProductTypeLabel(selectedWalletProduct.productType, locale, selectedWalletProduct.voucherRedemptionMode) : (locale === 'sl' ? 'Podatki za bon' : 'Voucher details')}
+        size="sm"
+      >
+        <PanelHeader
+          title={locale === 'sl' ? 'Podatki za bon' : 'Voucher details'}
+          onClose={() => setGiftCardPersonalizationOpen(false)}
+          closeLabel={t('mobileNavClose')}
+        />
+        <PanelBody>
+          {selectedWalletProduct ? (
+            <>
+              <p>
+                {locale === 'sl'
+                  ? 'Vnesite neobvezne podatke, ki se bodo prikazali na bonu. Če polje pustite prazno, se ne bo prikazalo.'
+                  : 'Enter the optional details that should appear on the voucher. Blank fields will be hidden.'}
+              </p>
+              <div className="clients-wallet-gift-card-summary">
+                <span>{selectedWalletProduct.name}</span>
+                <strong>
+                  {selectedWalletProduct.voucherRedemptionMode === 'SERVICE'
+                    ? walletVoucherScopeLabel(selectedWalletProduct.voucherServiceScope, selectedWalletProduct.voucherSessionTypeNames, locale)
+                    : currency(Number(selectedWalletProduct.voucherFaceValueGross ?? walletProductPrice(selectedWalletProduct)))}
+                </strong>
+              </div>
+              <div className="clients-wallet-gift-card-fields">
+                {giftCardDisplaySettings.showTo && (
+                  <label>
+                    <span>{locale === 'sl' ? 'Za' : 'To'}</span>
+                    <input
+                      value={giftCardRecipientName}
+                      onChange={(event) => setGiftCardRecipientName(event.target.value.slice(0, 120))}
+                      placeholder={locale === 'sl' ? 'Ime prejemnika' : 'Recipient name'}
+                      autoFocus
+                    />
+                  </label>
+                )}
+                {giftCardDisplaySettings.showText && (
+                  <label>
+                    <span>{locale === 'sl' ? 'Besedilo' : 'Text'}</span>
+                    <textarea
+                      value={giftCardMessage}
+                      onChange={(event) => setGiftCardMessage(event.target.value.slice(0, 300))}
+                      placeholder={locale === 'sl' ? 'Osebno sporočilo' : 'Personal message'}
+                      rows={4}
+                    />
+                  </label>
+                )}
+              </div>
+            </>
+          ) : null}
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={() => setGiftCardPersonalizationOpen(false)} disabled={creatingWalletOpenBill}>
+            {locale === 'sl' ? 'Nazaj' : 'Back'}
+          </PanelButton>
+          <PanelButton variant="primary" onClick={submitGiftCardPersonalization} disabled={creatingWalletOpenBill}>
+            {creatingWalletOpenBill ? (locale === 'sl' ? 'Odpiram…' : 'Opening…') : (locale === 'sl' ? 'Nadaljuj na račun' : 'Continue to bill')}
+          </PanelButton>
+        </PanelFooter>
+      </SidePanel>
+
+      <SidePanel
+        open={!embeddedDetailMode && companyDrawerOpen}
+        onClose={closeCompanyDetailModal}
+        ariaLabel={clientsCopy.editCompanyTitle}
+        size="xl"
+        className="clients-standard-entity-panel clients-standard-company-panel clients-standard-entity-panel--edit"
+      >
+        <PanelHeader
+          title={<span className="clients-standard-entity-header-title"><ClientSettingsCardIcon name="company" /><span>{clientsCopy.editCompanyTitle}</span></span>}
+          subtitle={detailCompany ? `${detailCompany.name} · ID #${detailCompany.id}` : undefined}
+          onClose={closeCompanyDetailModal}
+          closeLabel={t('mobileNavClose')}
+        />
+        <PanelTabs
+          label={clientsCopy.companyDetailMainTabsAria}
+          activeId={companyDetailMainTab}
+          onSelect={(id) => setCompanyDetailMainTab(id as 'datoteke' | 'nastavitve')}
+          tabs={[
+            { id: 'datoteke', label: clientsCopy.files, icon: <ClientWorkspaceIcon name="files" /> },
+            { id: 'nastavitve', label: clientsCopy.clientDetailTabSettings, icon: <ClientWorkspaceIcon name="settings" /> },
+          ]}
+        />
+        <PanelBody>
+          {detailCompany ? (
+              <div className="clients-detail-shell clients-action-workspace-shell">
+                <section className="clients-standard-entity-profile clients-standard-company-profile">
+                  <h3><ClientSettingsCardIcon name="company" /><span>{locale === 'sl' ? 'Podatki o podjetju' : 'Company details'}</span></h3>
+                  <div className="clients-standard-entity-grid clients-standard-company-grid">
+                    {renderCompanyEditableField('name', clientsCopy.companyName, true)}
+                    {renderCompanyEditableField('vatId', clientsCopy.vatId, true)}
+                    {renderCompanyEditableField('email', clientsCopy.email)}
+                    {renderCompanyEditableField('telephone', clientsCopy.telephone)}
+                    {renderCompanyEditableField('address', clientsCopy.address, true)}
+                    {renderCompanyEditableField('postalCode', clientsCopy.postalCode)}
+                    {renderCompanyEditableField('city', clientsCopy.city)}
                   </div>
-                </div>
+                  {companyCustomFieldDefs.length > 0 ? (
+                    <div className="clients-standard-entity-custom-fields">
+                      {renderCustomFieldInputs(companyCustomFieldDefs, detailCompanyCustomValues, (fieldId, value) =>
+                        setDetailCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                      )}
+                    </div>
+                  ) : null}
+                </section>
 
                 {companyDetailMainTab === 'nastavitve' && (
-                  <div className="clients-action-workspace-settings" onClick={(e) => e.stopPropagation()} role="tabpanel">
+                  <div className="clients-action-workspace-settings clients-standard-entity-settings" onClick={(e) => e.stopPropagation()} role="tabpanel">
                     <div className="clients-detail-fields clients-action-workspace-settings-grid">
                       <AssignedLocationsPicker
                         locations={businessLocations}
@@ -5580,7 +5605,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
                 {companyDetailMainTab === 'datoteke' && (
                   <div
-                    className="clients-detail-sessions-card clients-detail-invoices-card clients-detail-datoteke-card"
+                    className="clients-detail-sessions-card clients-detail-invoices-card clients-detail-datoteke-card clients-standard-detail-card clients-standard-files-tab clients-standard-company-files"
                     role="tabpanel"
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -5746,40 +5771,38 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   </div>
                 )}
               </div>
-            </div>
-            {companyDetailHasChanges && (
-              <div className="clients-action-workspace-footer">
-                <button
-                  type="button"
-                  className="clients-gapp-save-button"
-                  onClick={() => void saveDetailCompanyInline()}
-                  disabled={savingCompanyDetailEdit}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                    <path d="M17 21v-8H7v8" />
-                    <path d="M7 3v5h8" />
-                  </svg>
-                  {savingCompanyDetailEdit ? clientsCopy.savingChanges : clientsCopy.saveChanges}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {!embeddedDetailMode && showModal && (
-        <div
-          className={`modal-backdrop clients-action-workspace-backdrop${isClientCreatePage ? ' clients-simple-create-backdrop' : ''}${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
-          onMouseDown={onSidePanelBackdropMouseDown(closeModal)}
-          role="presentation"
-        >
-          <div
-            className={`modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-client-create-modal${isClientCreatePage ? ' clients-simple-create-modal' : ''}`}
-            onMouseDown={(e) => e.stopPropagation()}
+          ) : null}
+        </PanelBody>
+        <PanelFooter>
+          {detailCompany ? (
+            <PanelButton
+              variant="danger"
+              onClick={() => void deleteCompanyById(detailCompany.id)}
+              disabled={deletingCompanyId === detailCompany.id}
+            >
+              {locale === 'sl' ? 'Izbriši podjetje' : 'Delete company'}
+            </PanelButton>
+          ) : null}
+          <PanelButton
+            variant="primary"
+            icon={<GuestConfigSaveIcon />}
+            onClick={() => void saveDetailCompanyInline()}
+            disabled={!detailCompany || savingCompanyDetailEdit || !companyDetailHasChanges}
           >
-            {isClientCreatePage ? (
-              <SimpleClientCreatePage
+            {savingCompanyDetailEdit ? clientsCopy.savingChanges : clientsCopy.saveChanges}
+          </PanelButton>
+        </PanelFooter>
+      </SidePanel>
+
+      <SidePanel
+        open={!embeddedDetailMode && newClientOpen}
+        onClose={closeModal}
+        ariaLabel={clientsCopy.newClientTitle}
+        size="lg"
+        className="clients-standard-customer-panel clients-standard-customer-panel--create"
+      >
+        {isClientCreatePage ? (
+          <SimpleClientCreatePage
                 title={clientsCopy.newClientTitle}
                 closeLabel={t('mobileNavClose')}
                 submitLabel={clientsCopy.createClient}
@@ -5807,25 +5830,31 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 />
               </SimpleClientCreatePage>
             ) : (
-              <form className="clients-create-modal-form" autoComplete="off" onSubmit={handleSubmit}>
-                <div className="clients-action-workspace-header">
-                  <div className="clients-action-workspace-client">
-                    <div className="clients-name-stack clients-action-workspace-title-stack">
-                      <span className="clients-name">{clientsCopy.newClientTitle}</span>
-                      <span className="clients-id">ID # — <span className="clients-action-workspace-status-dot" /> {activeStatusLabel}</span>
-                    </div>
-                  </div>
-                  <button type="button" className="secondary clients-action-workspace-close" onClick={closeModal} aria-label={t('mobileNavClose')}>
-                    ×
-                  </button>
-                </div>
-                <div className="clients-action-workspace-body">
-                  <div className="clients-detail-shell clients-action-workspace-shell">
-                    <div className="clients-detail-fields clients-create-fields">
-                      {renderNewClientEditableField('firstName', clientsCopy.firstName)}
-                      {renderNewClientEditableField('lastName', clientsCopy.lastName)}
+              <>
+                <PanelHeader
+                  title={clientsCopy.newClientTitle}
+                  subtitle={locale === 'sl' ? 'Dodaj novega uporabnika (stranko)' : 'Add a new customer'}
+                  onClose={closeModal}
+                  closeLabel={t('mobileNavClose')}
+                />
+                <PanelBody as="form" id="clients-new-client-form" onSubmit={handleSubmit}>
+                  <div className="clients-standard-customer-profile">
+                    <section className="clients-standard-customer-section clients-standard-customer-section--person">
+                      <h3><ClientProfileSectionIcon name="person" /><span>{locale === 'sl' ? 'Osebni podatki' : 'Personal details'}</span></h3>
+                      <div className="clients-standard-profile-grid">
+                        {renderNewClientEditableField('firstName', clientsCopy.firstName)}
+                        {renderNewClientEditableField('lastName', clientsCopy.lastName)}
+                      </div>
+                    </section>
+                    <section className="clients-standard-customer-section">
+                      <h3><ClientProfileSectionIcon name="email" /><span>{clientsCopy.email}</span></h3>
                       {renderNewClientEditableField('email', clientsCopy.email, true, 'email')}
+                    </section>
+                    <section className="clients-standard-customer-section">
+                      <h3><ClientProfileSectionIcon name="phone" /><span>{clientsCopy.phone}</span></h3>
                       {renderNewClientEditableField('phone', clientsCopy.phone, true, 'tel')}
+                    </section>
+                    <div className="clients-standard-customer-extra-fields">
                       <AssignedLocationsPicker
                         locations={businessLocations}
                         selectedIds={form.assignedLocationIds}
@@ -5833,34 +5862,31 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         locale={locale}
                       />
                     </div>
-                    {errorMessage && <div className="error">{errorMessage}</div>}
                   </div>
-                </div>
-                <div className="clients-action-workspace-footer">
-                  <button
+                  {errorMessage && <div className="error">{errorMessage}</div>}
+                </PanelBody>
+                <PanelFooter>
+                  <PanelButton
                     type="submit"
-                    className="clients-gapp-save-button"
+                    form="clients-new-client-form"
+                    variant="primary"
+                    icon={<GuestConfigSaveIcon />}
                     disabled={saving || !form.firstName.trim() || !form.lastName.trim()}
                   >
                     {saving ? clientsCopy.saving : clientsCopy.createClient}
-                  </button>
-                </div>
-              </form>
+                  </PanelButton>
+                </PanelFooter>
+              </>
             )}
-          </div>
-        </div>
-      )}
+      </SidePanel>
 
-      {!embeddedDetailMode && showCompanyModal && (
-        <div
-          className={`modal-backdrop clients-action-workspace-backdrop${isClientsMobile ? ' clients-simple-create-backdrop' : ''}${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
-          onMouseDown={onSidePanelBackdropMouseDown(closeCompanyModal)}
-          role="presentation"
-        >
-          <div
-            className={`modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-create-modal clients-company-create-modal${isClientsMobile ? ' clients-simple-create-modal' : ''}`}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
+      <SidePanel
+        open={!embeddedDetailMode && newCompanyOpen}
+        onClose={closeCompanyModal}
+        ariaLabel={clientsCopy.newCompanyTitle}
+        size="lg"
+        className="clients-standard-entity-panel clients-standard-company-panel clients-standard-entity-panel--create"
+      >
             {isClientsMobile ? (
               <form className="clients-create-modal-form clients-simple-create-form" autoComplete="off" onSubmit={submitCompanyForm}>
                 <div className="clients-simple-create-header">
@@ -5927,50 +5953,25 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 </div>
               </form>
             ) : (
-              <form className="clients-create-modal-form" onSubmit={submitCompanyForm}>
-                <div className="clients-action-workspace-header">
-                  <div className="clients-action-workspace-client">
-                    <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>N</span>
-                    <div className="clients-name-stack clients-action-workspace-title-stack">
-                      <span className="clients-name">{clientsCopy.newCompanyTitle}</span>
-                      <span className="clients-id">ID # — <span className="clients-action-workspace-status-dot" /> {locale === 'sl' ? 'Aktivno' : 'Active'}</span>
+              <>
+                <PanelHeader
+                  title={<span className="clients-standard-entity-header-title"><ClientSettingsCardIcon name="company" /><span>{clientsCopy.newCompanyTitle}</span></span>}
+                  onClose={closeCompanyModal}
+                  closeLabel={t('mobileNavClose')}
+                />
+                <PanelBody as="form" id="clients-new-company-form" onSubmit={submitCompanyForm}>
+                  <section className="clients-standard-entity-profile clients-standard-company-profile">
+                    <h3><ClientSettingsCardIcon name="company" /><span>{locale === 'sl' ? 'Podatki o podjetju' : 'Company details'}</span></h3>
+                    <div className="clients-standard-entity-grid clients-standard-company-grid">
+                      <label className="clients-standard-entity-field clients-standard-entity-field--wide"><span>{clientsCopy.companyName} *</span><input required placeholder={clientsCopy.companyName} value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} /></label>
+                      <label className="clients-standard-entity-field clients-standard-entity-field--wide"><span>{clientsCopy.vatId}</span><input placeholder={clientsCopy.vatId} value={companyForm.vatId} onChange={(e) => setCompanyForm({ ...companyForm, vatId: e.target.value })} /></label>
+                      <label className="clients-standard-entity-field"><span>{clientsCopy.email}</span><input type="email" placeholder={clientsCopy.email} value={companyForm.email} onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })} /></label>
+                      <label className="clients-standard-entity-field"><span>{clientsCopy.telephone}</span><input type="tel" placeholder={clientsCopy.telephone} value={companyForm.telephone} onChange={(e) => setCompanyForm({ ...companyForm, telephone: e.target.value })} /></label>
+                      <label className="clients-standard-entity-field clients-standard-entity-field--wide"><span>{clientsCopy.address}</span><input placeholder={clientsCopy.address} value={companyForm.address} onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })} /></label>
+                      <label className="clients-standard-entity-field"><span>{clientsCopy.postalCode}</span><input placeholder={clientsCopy.postalCode} value={companyForm.postalCode} onChange={(e) => setCompanyForm({ ...companyForm, postalCode: e.target.value })} /></label>
+                      <label className="clients-standard-entity-field"><span>{clientsCopy.city}</span><input placeholder={clientsCopy.city} value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} /></label>
                     </div>
-                  </div>
-                  <button type="button" className="secondary clients-action-workspace-close" onClick={closeCompanyModal} aria-label={t('mobileNavClose')}>
-                    ×
-                  </button>
-                </div>
-                <div className="clients-action-workspace-body">
-                  <div className="clients-detail-shell clients-action-workspace-shell">
-                    <div className="clients-detail-fields clients-create-fields">
-                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{clientsCopy.companyName}</span>
-                        <input required placeholder={clientsCopy.companyName} value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} />
-                      </label>
-                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{clientsCopy.vatId}</span>
-                        <input placeholder={clientsCopy.vatId} value={companyForm.vatId} onChange={(e) => setCompanyForm({ ...companyForm, vatId: e.target.value })} />
-                      </label>
-                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{clientsCopy.email}</span>
-                        <input type="email" placeholder={clientsCopy.email} value={companyForm.email} onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })} />
-                      </label>
-                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{clientsCopy.telephone}</span>
-                        <input placeholder={clientsCopy.telephone} value={companyForm.telephone} onChange={(e) => setCompanyForm({ ...companyForm, telephone: e.target.value })} />
-                      </label>
-                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{clientsCopy.address}</span>
-                        <input placeholder={clientsCopy.address} value={companyForm.address} onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })} />
-                      </label>
-                      <label className="clients-detail-field-card clients-create-field">
-                        <span>{clientsCopy.postalCode}</span>
-                        <input placeholder={clientsCopy.postalCode} value={companyForm.postalCode} onChange={(e) => setCompanyForm({ ...companyForm, postalCode: e.target.value })} />
-                      </label>
-                      <label className="clients-detail-field-card clients-create-field">
-                        <span>{clientsCopy.city}</span>
-                        <input placeholder={clientsCopy.city} value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} />
-                      </label>
+                    <div className="clients-standard-entity-custom-fields">
                       <AssignedLocationsPicker
                         locations={businessLocations}
                         selectedIds={companyForm.assignedLocationIds}
@@ -5981,96 +5982,67 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         setCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
                       )}
                     </div>
-                    {companyErrorMessage && <div className="error">{companyErrorMessage}</div>}
-                  </div>
-                </div>
-                <div className="clients-action-workspace-footer">
-                  <button
+                  </section>
+                  {companyErrorMessage && <div className="error">{companyErrorMessage}</div>}
+                </PanelBody>
+                <PanelFooter>
+                  <PanelButton
                     type="submit"
-                    className="clients-gapp-save-button"
+                    form="clients-new-company-form"
+                    variant="primary"
+                    icon={<GuestConfigSaveIcon />}
                     disabled={savingCompany || !companyForm.name.trim()}
                   >
                     {savingCompany ? clientsCopy.saving : clientsCopy.createCompany}
-                  </button>
-                </div>
-              </form>
+                  </PanelButton>
+                </PanelFooter>
+              </>
             )}
-          </div>
-        </div>
-      )}
+      </SidePanel>
 
-      {detailGroup && (
-        <div
-          className={`modal-backdrop clients-action-workspace-backdrop${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
-          onMouseDown={onSidePanelBackdropMouseDown(closeGroupDetailModal)}
-          role="presentation"
-        >
-          <div
-            className="modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-group-detail-modal"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div className="clients-action-workspace-header">
-              <div className="clients-action-workspace-mobile-heading">
-                <h2>{clientsCopy.editGroupTitle}</h2>
-              </div>
-              <div className="clients-action-workspace-client">
-                <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>{(detailGroup.name?.[0] || 'G').toUpperCase()}</span>
-                <div className="clients-name-stack clients-action-workspace-title-stack">
-                  <span className="clients-name">{detailGroup.name}{detailGroup.active === false && <span className="clients-inactive-badge">{clientsCopy.inactive}</span>}</span>
-                  <span className="clients-id">ID #{detailGroup.id}</span>
-                </div>
-              </div>
-              <button type="button" className="secondary clients-action-workspace-close" onClick={closeGroupDetailModal} aria-label="Close">
-                ×
-              </button>
-            </div>
-            <div className="clients-action-workspace-body">
+      <SidePanel
+        open={embeddedGroupDetailMode ? Boolean(detailGroup) : groupDrawerOpen}
+        onClose={closeGroupDetailModal}
+        ariaLabel={clientsCopy.editGroupTitle}
+        size="xl"
+        className="clients-standard-entity-panel clients-standard-group-panel clients-standard-entity-panel--edit"
+      >
+        <PanelHeader
+          title={<span className="clients-standard-entity-header-title"><ClientWorkspaceIcon name="members" /><span>{clientsCopy.editGroupTitle}</span></span>}
+          subtitle={detailGroup ? `${detailGroup.name} · ID #${detailGroup.id}` : undefined}
+          onClose={closeGroupDetailModal}
+          closeLabel={t('mobileNavClose')}
+        />
+        <PanelTabs
+          label={clientsCopy.groupDetailMainTabsAria}
+          activeId={groupDetailMainTab}
+          onSelect={(id) => setGroupDetailMainTab(id as 'sessions' | 'members' | 'settings')}
+          tabs={[
+            { id: 'sessions', label: clientsCopy.sessions, icon: <ClientWorkspaceIcon name="sessions" /> },
+            { id: 'members', label: clientsCopy.groupMembers, icon: <ClientWorkspaceIcon name="members" /> },
+            { id: 'settings', label: clientsCopy.clientDetailTabSettings, icon: <ClientWorkspaceIcon name="settings" /> },
+          ]}
+        />
+        <PanelBody>
+          {detailGroup ? (
               <div className="clients-detail-shell clients-action-workspace-shell">
-                <div className="clients-detail-fields clients-action-workspace-profile-fields">
-                  {renderGroupEditableField('name', clientsCopy.groupName, true)}
-                  {renderGroupEditableField('email', clientsCopy.groupEmail, true)}
-                  {renderCustomFieldInputs(groupCustomFieldDefs, detailGroupCustomValues, (fieldId, value) =>
-                    setDetailGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))
-                  )}
-                </div>
-
-                <div className="clients-detail-main-tabs clients-action-workspace-tabs" onClick={(e) => e.stopPropagation()}>
-                  <div className="clients-session-tabs clients-detail-main-tabs-inner clients-action-workspace-tabs-inner clients-action-workspace-tabs-inner--three" role="tablist" aria-label={clientsCopy.groupDetailMainTabsAria}>
-                    <button
-                      type="button"
-                      role="tab"
-                      className={groupDetailMainTab === 'sessions' ? 'clients-session-tab active' : 'clients-session-tab'}
-                      aria-selected={groupDetailMainTab === 'sessions'}
-                      onClick={() => setGroupDetailMainTab('sessions')}
-                    >
-                      <ClientWorkspaceIcon name="sessions" />
-                      {clientsCopy.sessions}
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      className={groupDetailMainTab === 'members' ? 'clients-session-tab active' : 'clients-session-tab'}
-                      aria-selected={groupDetailMainTab === 'members'}
-                      onClick={() => setGroupDetailMainTab('members')}
-                    >
-                      <ClientWorkspaceIcon name="members" />
-                      {clientsCopy.groupMembers}
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      className={groupDetailMainTab === 'settings' ? 'clients-session-tab active' : 'clients-session-tab'}
-                      aria-selected={groupDetailMainTab === 'settings'}
-                      onClick={() => setGroupDetailMainTab('settings')}
-                    >
-                      <ClientWorkspaceIcon name="settings" />
-                      {clientsCopy.clientDetailTabSettings}
-                    </button>
+                <section className="clients-standard-entity-profile clients-standard-group-profile">
+                  <h3><ClientWorkspaceIcon name="members" /><span>{locale === 'sl' ? 'Podatki o skupini' : 'Group details'}</span></h3>
+                  <div className="clients-standard-entity-grid clients-standard-group-grid">
+                    {renderGroupEditableField('name', clientsCopy.groupName, true)}
+                    {renderGroupEditableField('email', clientsCopy.groupEmail, true)}
                   </div>
-                </div>
+                  {groupCustomFieldDefs.length > 0 ? (
+                    <div className="clients-standard-entity-custom-fields">
+                      {renderCustomFieldInputs(groupCustomFieldDefs, detailGroupCustomValues, (fieldId, value) =>
+                        setDetailGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                      )}
+                    </div>
+                  ) : null}
+                </section>
 
                 {groupDetailMainTab === 'members' && (
-                  <div className="clients-detail-sessions-card group-members-tab-panel" role="tabpanel">
+                  <div className="clients-detail-sessions-card group-members-tab-panel clients-standard-group-members" role="tabpanel">
                     <div className="group-members-tab-header">
                       <h3>{clientsCopy.groupMembers} ({(detailGroup.members ?? []).length})</h3>
                       <span>{locale === 'sl' ? `${(detailGroup.members ?? []).length} članov` : `${(detailGroup.members ?? []).length} members`}</span>
@@ -6216,7 +6188,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 )}
 
                 {groupDetailMainTab === 'sessions' && (
-                  <div className="clients-detail-sessions-card clients-detail-sessions-card--modern clients-modern-sessions-panel" role="tabpanel">
+                  <div className="clients-detail-sessions-card clients-detail-sessions-card--modern clients-modern-sessions-panel clients-standard-group-sessions" role="tabpanel">
                     <div className="clients-detail-session-tabs-row clients-modern-sessions-header">
                       <div className="clients-session-tabs clients-modern-session-subtabs">
                           <button
@@ -6252,7 +6224,10 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                     {detailGroupSessionsLoading ? (
                       <div className="muted">{clientsCopy.loadingSessions}</div>
                     ) : currentGroupSessions.length === 0 ? (
-                        <div className="clients-detail-empty-card">
+                        <div className="clients-detail-empty-card clients-standard-group-sessions-empty">
+                          <div className="clients-standard-group-sessions-empty-icon" aria-hidden>
+                            <ClientWorkspaceIcon name="sessions" />
+                          </div>
                           <EmptyState
                             title={groupSessionTab === 'future' ? clientsCopy.noUpcomingSessionsTitle : groupSessionTab === 'past' ? clientsCopy.noPastSessionsTitle : clientsCopy.noCancelledSessionsTitle}
                             text={groupSessionTab === 'future' ? clientsCopy.noUpcomingSessionsText : groupSessionTab === 'past' ? clientsCopy.noPastSessionsText : clientsCopy.noCancelledSessionsText}
@@ -6277,13 +6252,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               <article
                                 key={s.id}
                                 className="clients-modern-session-row"
-                                onClick={() => navigate(`/calendar/booking/${s.id}`)}
+                                onClick={() => navigate(urlForEditForm('booking', s.id))}
                                 role="button"
                                 tabIndex={0}
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter' || e.key === ' ') {
                                     e.preventDefault()
-                                    navigate(`/calendar/booking/${s.id}`)
+                                    navigate(urlForEditForm('booking', s.id))
                                   }
                                 }}
                               >
@@ -6357,8 +6332,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 )}
 
                 {groupDetailMainTab === 'settings' && (
-                  <div className="clients-action-workspace-settings" onClick={(e) => e.stopPropagation()} role="tabpanel">
-                    <div className="clients-detail-fields clients-action-workspace-settings-grid clients-action-workspace-settings-switches">
+                  <div className="clients-action-workspace-settings clients-standard-entity-settings clients-standard-group-settings" onClick={(e) => e.stopPropagation()} role="tabpanel">
+                    <div className="clients-detail-fields clients-action-workspace-settings-grid clients-action-workspace-settings-switches clients-standard-group-settings-list">
                     {renderGroupEditableField('billingCompanyId', clientsCopy.linkedCompany, true)}
                     {renderGroupEditableField('defaultSessionTypeId', locale === 'sl' ? 'Privzeta storitev' : 'Default service', true)}
                     <AssignedLocationsPicker
@@ -6367,7 +6342,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                       onChange={(assignedLocationIds) => setGroupDetailEditDraft((current) => ({ ...current, assignedLocationIds }))}
                       locale={locale}
                     />
-                    <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
+                    <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide clients-standard-group-setting-toggle">
                       <span>{clientsCopy.batchPayment}</span>
                       <button
                         type="button"
@@ -6378,7 +6353,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         {groupDetailEditDraft.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
                       </button>
                     </div>
-                    <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
+                    <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide clients-standard-group-setting-toggle">
                       <span>{clientsCopy.individualPayment}</span>
                       <button
                         type="button"
@@ -6393,38 +6368,36 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   </div>
                 )}
               </div>
-            </div>
-            {groupDetailHasChanges && (
-              <div className="clients-action-workspace-footer">
-                <button
-                  type="button"
-                  className="clients-gapp-save-button"
-                  onClick={() => void saveDetailGroupInline()}
-                  disabled={savingGroupDetailEdit}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                    <path d="M17 21v-8H7v8" />
-                    <path d="M7 3v5h8" />
-                  </svg>
-                  {savingGroupDetailEdit ? clientsCopy.savingChanges : clientsCopy.saveChanges}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {!embeddedDetailMode && showGroupModal && (
-        <div
-          className={`modal-backdrop clients-action-workspace-backdrop${isClientsMobile ? ' clients-simple-create-backdrop' : ''}${embeddedDetailMode ? ' clients-action-workspace-backdrop--embedded' : ''}${isNativeAndroid ? ' modal-backdrop-center-android' : ''}`}
-          onMouseDown={onSidePanelBackdropMouseDown(closeGroupModal)}
-          role="presentation"
-        >
-          <div
-            className={`modal large-modal clients-tab-client-detail-modal clients-action-workspace-modal clients-create-modal clients-group-create-modal${isClientsMobile ? ' clients-simple-create-modal' : ''}`}
-            onMouseDown={(e) => e.stopPropagation()}
+          ) : null}
+        </PanelBody>
+        <PanelFooter>
+          {detailGroup ? (
+            <PanelButton
+              variant="danger"
+              onClick={() => void deleteGroupById(detailGroup.id)}
+              disabled={deletingGroupId === detailGroup.id}
+            >
+              {locale === 'sl' ? 'Izbriši skupino' : 'Delete group'}
+            </PanelButton>
+          ) : null}
+          <PanelButton
+            variant="primary"
+            icon={<GuestConfigSaveIcon />}
+            onClick={() => void saveDetailGroupInline()}
+            disabled={!detailGroup || savingGroupDetailEdit || !groupDetailHasChanges}
           >
+            {savingGroupDetailEdit ? clientsCopy.savingChanges : clientsCopy.saveChanges}
+          </PanelButton>
+        </PanelFooter>
+      </SidePanel>
+
+      <SidePanel
+        open={!embeddedDetailMode && newGroupOpen}
+        onClose={closeGroupModal}
+        ariaLabel={clientsCopy.newGroupTitle}
+        size="lg"
+        className="clients-standard-entity-panel clients-standard-group-panel clients-standard-entity-panel--create"
+      >
             {isClientsMobile ? (
               <form className="clients-create-modal-form clients-simple-create-form" autoComplete="off" onSubmit={(e) => { e.preventDefault(); handleCreateGroup() }}>
                 <div className="clients-simple-create-header">
@@ -6471,30 +6444,20 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 </div>
               </form>
             ) : (
-              <form className="clients-create-modal-form" onSubmit={(e) => { e.preventDefault(); handleCreateGroup() }}>
-                <div className="clients-action-workspace-header">
-                  <div className="clients-action-workspace-client">
-                    <span className="clients-name-avatar clients-detail-avatar clients-action-workspace-avatar" aria-hidden>N</span>
-                    <div className="clients-name-stack clients-action-workspace-title-stack">
-                      <span className="clients-name">{clientsCopy.newGroupTitle}</span>
-                      <span className="clients-id">ID # — <span className="clients-action-workspace-status-dot" /> {activeStatusLabel}</span>
+              <>
+                <PanelHeader
+                  title={<span className="clients-standard-entity-header-title"><ClientWorkspaceIcon name="members" /><span>{clientsCopy.newGroupTitle}</span></span>}
+                  onClose={closeGroupModal}
+                  closeLabel={t('mobileNavClose')}
+                />
+                <PanelBody as="form" id="clients-new-group-form" onSubmit={(e) => { e.preventDefault(); void handleCreateGroup() }}>
+                  <section className="clients-standard-entity-profile clients-standard-group-profile">
+                    <h3><ClientWorkspaceIcon name="members" /><span>{locale === 'sl' ? 'Podatki o skupini' : 'Group details'}</span></h3>
+                    <div className="clients-standard-entity-grid clients-standard-group-grid">
+                      <label className="clients-standard-entity-field clients-standard-entity-field--wide"><span>{clientsCopy.groupName} *</span><input required placeholder={clientsCopy.groupName} value={groupForm.name} onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })} /></label>
+                      <label className="clients-standard-entity-field clients-standard-entity-field--wide"><span>{clientsCopy.groupEmail}</span><input type="email" placeholder={clientsCopy.groupEmail} value={groupForm.email} onChange={(e) => setGroupForm({ ...groupForm, email: e.target.value })} /></label>
                     </div>
-                  </div>
-                  <button type="button" className="secondary clients-action-workspace-close" onClick={closeGroupModal} aria-label={t('mobileNavClose')}>
-                    ×
-                  </button>
-                </div>
-                <div className="clients-action-workspace-body">
-                  <div className="clients-detail-shell clients-action-workspace-shell">
-                    <div className="clients-detail-fields clients-create-fields">
-                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{clientsCopy.groupName}</span>
-                        <input required placeholder={clientsCopy.groupName} value={groupForm.name} onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })} />
-                      </label>
-                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{clientsCopy.groupEmail}</span>
-                        <input type="email" placeholder={clientsCopy.groupEmail} value={groupForm.email} onChange={(e) => setGroupForm({ ...groupForm, email: e.target.value })} />
-                      </label>
+                    <div className="clients-standard-entity-custom-fields">
                       <AssignedLocationsPicker
                         locations={businessLocations}
                         selectedIds={groupForm.assignedLocationIds}
@@ -6505,23 +6468,23 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         setGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))
                       )}
                     </div>
-                    {groupErrorMessage && <div className="error">{groupErrorMessage}</div>}
-                  </div>
-                </div>
-                <div className="clients-action-workspace-footer">
-                  <button
+                  </section>
+                  {groupErrorMessage && <div className="error">{groupErrorMessage}</div>}
+                </PanelBody>
+                <PanelFooter>
+                  <PanelButton
                     type="submit"
-                    className="clients-gapp-save-button"
+                    form="clients-new-group-form"
+                    variant="primary"
+                    icon={<GuestConfigSaveIcon />}
                     disabled={savingGroup || !groupForm.name.trim()}
                   >
                     {savingGroup ? clientsCopy.saving : clientsCopy.createGroup}
-                  </button>
-                </div>
-              </form>
+                  </PanelButton>
+                </PanelFooter>
+              </>
             )}
-          </div>
-        </div>
-      )}
+      </SidePanel>
 
       {portalClientMenuTarget != null &&
         clientMenuAnchorRect != null &&
@@ -6692,138 +6655,60 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           document.body
         )}
 
-      {pendingGroupSessionSync != null && (
-        <div
-          className="modal-backdrop clients-anonymize-confirm-backdrop clients-group-sync-confirm-backdrop"
-          onClick={() => { if (!syncingGroupSessions) setPendingGroupSessionSync(null) }}
-          role="presentation"
-        >
-          <div
-            className="clients-anonymize-confirm-dialog clients-group-sync-confirm-dialog"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="clients-group-sync-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 id="clients-group-sync-title" className="clients-group-sync-confirm-title">
-              {locale === 'sl' ? 'Posodobi termine skupine?' : 'Update group sessions?'}
-            </h3>
-            <p className="clients-anonymize-confirm-message clients-group-sync-confirm-message">
-              {locale === 'sl'
-                ? <>Skupina <strong>{pendingGroupSessionSync.groupName}</strong> je vključena v {slovenianUpcomingTerminPhrase(pendingGroupSessionSync.sessionCount)}.</>
-                : <>Group <strong>{pendingGroupSessionSync.groupName}</strong> is included in {pendingGroupSessionSync.sessionCount} upcoming sessions.</>}
-            </p>
-            <div className="clients-anonymize-confirm-actions clients-group-sync-confirm-actions">
-              <button
-                type="button"
-                className="clients-anonymize-confirm-ok"
-                disabled={syncingGroupSessions}
-                onClick={() => void syncPendingGroupSessions()}
-              >
-                {syncingGroupSessions
-                  ? (locale === 'sl' ? 'Posodabljam…' : 'Updating…')
-                  : (locale === 'sl'
-                    ? `Posodobi ${pendingGroupSessionSync.sessionCount} ${slovenianTerminAccusativeCountForm(pendingGroupSessionSync.sessionCount)}`
-                    : `Update ${pendingGroupSessionSync.sessionCount} sessions`)}
-              </button>
-              <button
-                type="button"
-                className="clients-anonymize-confirm-cancel"
-                disabled={syncingGroupSessions}
-                onClick={() => setPendingGroupSessionSync(null)}
-              >
-                {locale === 'sl' ? 'Samo spremeni skupino' : 'Only change group'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={pendingGroupSessionSync != null}
+        onClose={() => { if (!syncingGroupSessions) setPendingGroupSessionSync(null) }}
+        title={locale === 'sl' ? 'Posodobi termine skupine?' : 'Update group sessions?'}
+        onConfirm={() => void syncPendingGroupSessions()}
+        busy={syncingGroupSessions}
+        confirmLabel={syncingGroupSessions
+          ? (locale === 'sl' ? 'Posodabljam…' : 'Updating…')
+          : (locale === 'sl'
+            ? `Posodobi ${pendingGroupSessionSync?.sessionCount ?? 0} ${slovenianTerminAccusativeCountForm(pendingGroupSessionSync?.sessionCount ?? 0)}`
+            : `Update ${pendingGroupSessionSync?.sessionCount ?? 0} sessions`)}
+        cancelLabel={locale === 'sl' ? 'Samo spremeni skupino' : 'Only change group'}
+      >
+        {pendingGroupSessionSync != null && (locale === 'sl'
+          ? <p>Skupina <strong>{pendingGroupSessionSync.groupName}</strong> je vključena v {slovenianUpcomingTerminPhrase(pendingGroupSessionSync.sessionCount)}.</p>
+          : <p>Group <strong>{pendingGroupSessionSync.groupName}</strong> is included in {pendingGroupSessionSync.sessionCount} upcoming sessions.</p>)}
+      </ConfirmDialog>
 
-      {pendingDeactivation != null && (
-        <div
-          className="modal-backdrop clients-anonymize-confirm-backdrop"
-          onClick={() => setPendingDeactivation(null)}
-          role="presentation"
-        >
-          <div
-            className="clients-anonymize-confirm-dialog"
-            role="alertdialog"
-            aria-modal="true"
-            aria-label={deactivationCopy.aria}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="clients-anonymize-confirm-message">
-              {deactivationCopy[pendingDeactivation.kind]}
-            </p>
-            <div className="clients-anonymize-confirm-actions">
-              <button
-                type="button"
-                className="clients-anonymize-confirm-ok"
-                onClick={() => {
-                  const pending = pendingDeactivation
-                  setPendingDeactivation(null)
-                  if (pending.kind === 'client') void toggleClientActiveById(pending.id, true, true)
-                  else if (pending.kind === 'company') void toggleCompanyActiveById(pending.id, true, true)
-                  else void toggleGroupActiveById(pending.id, true, true)
-                }}
-              >
-                {deactivationCopy.yes}
-              </button>
-              <button
-                type="button"
-                className="clients-anonymize-confirm-cancel"
-                onClick={() => setPendingDeactivation(null)}
-              >
-                {deactivationCopy.no}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={pendingDeactivation != null}
+        onClose={() => setPendingDeactivation(null)}
+        title={pendingDeactivation ? deactivationCopy[pendingDeactivation.kind] : deactivationCopy.aria}
+        onConfirm={() => {
+          const pending = pendingDeactivation
+          if (!pending) return
+          setPendingDeactivation(null)
+          if (pending.kind === 'client') void toggleClientActiveById(pending.id, true, true)
+          else if (pending.kind === 'company') void toggleCompanyActiveById(pending.id, true, true)
+          else void toggleGroupActiveById(pending.id, true, true)
+        }}
+        confirmLabel={deactivationCopy.yes}
+        cancelLabel={deactivationCopy.no}
+      />
 
       {isWorkspaceRolloutEnabled(me, 'SHARED_CLIENTS') && <WorkspaceClientsPanel
-        open={workspaceClientsOpen}
-        onClose={() => setWorkspaceClientsOpen(false)}
+        open={workspaceClientsDrawerOpen}
+        onClose={closeDrawer}
         onChanged={loadClients}
       />}
 
-      {anonymizeConfirmClientId != null && (
-        <div
-          className="modal-backdrop clients-anonymize-confirm-backdrop"
-          onClick={() => setAnonymizeConfirmClientId(null)}
-          role="presentation"
-        >
-          <div
-            className="clients-anonymize-confirm-dialog"
-            role="alertdialog"
-            aria-modal="true"
-            aria-label={clientsCopy.anonymizeConfirmDialogAria}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="clients-anonymize-confirm-message">{clientsCopy.confirmAnonymizeClient}</p>
-            <div className="clients-anonymize-confirm-actions">
-              <button
-                type="button"
-                className="clients-anonymize-confirm-ok"
-                onClick={() => {
-                  const id = anonymizeConfirmClientId
-                  setAnonymizeConfirmClientId(null)
-                  void anonymizeClientById(id)
-                }}
-              >
-                {clientsCopy.confirmAnonymizeOk}
-              </button>
-              <button
-                type="button"
-                className="clients-anonymize-confirm-cancel"
-                onClick={() => setAnonymizeConfirmClientId(null)}
-              >
-                {t('cancel')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={anonymizeConfirmClientId != null}
+        onClose={() => setAnonymizeConfirmClientId(null)}
+        title={clientsCopy.confirmAnonymizeClient}
+        tone="danger"
+        onConfirm={() => {
+          const id = anonymizeConfirmClientId
+          if (id == null) return
+          setAnonymizeConfirmClientId(null)
+          void anonymizeClientById(id)
+        }}
+        confirmLabel={clientsCopy.confirmAnonymizeOk}
+        cancelLabel={t('cancel')}
+      />
     </div>
   )
 }

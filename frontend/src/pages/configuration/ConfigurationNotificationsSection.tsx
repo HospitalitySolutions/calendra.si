@@ -1,9 +1,18 @@
 import { DesktopSelect } from "../../components/DesktopSelect";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import type * as React from "react";
 import type { AppLocale } from "../../locale";
 import { GuestConfigSaveIcon as GuestSaveIcon } from "../../components/GuestConfigSaveIcon";
 import { GuestSwitch } from "./ConfigurationVisualComponents";
+import {
+  PanelBody,
+  PanelButton,
+  PanelFooter,
+  PanelHeader,
+  SidePanel,
+} from "../../components/panel";
+import { CONFIGURATION_DRAWERS, useDrawerRoute } from "../../lib/drawerRoutes";
 
 type NotificationChannel = "email" | "sms" | "guestApp";
 type NotificationTemplateVariant = "regular" | "online";
@@ -44,6 +53,7 @@ type ConfigurationNotificationsSectionProps = {
   t: (key: string) => string;
   locale: AppLocale;
   waitlistEnabled: boolean;
+  settingsLoaded?: boolean;
 };
 
 const escapeHtml = (value: string) =>
@@ -335,6 +345,31 @@ const invoiceDeliveryEvent: NotificationEventDefinition = {
   description: "Pošlje se, ko je račun pripravljen za dostavo.",
   icon: "mail",
 };
+
+function parseNotificationChannel(
+  value: string | null | undefined,
+): NotificationChannel | null {
+  if (value === "email" || value === "sms" || value === "guestApp") return value;
+  return null;
+}
+
+function parseNotificationEventId(
+  value: string | null | undefined,
+): NotificationEventKind | null {
+  if (!value) return null;
+  if (value === invoiceDeliveryEvent.id) return value;
+  return notificationEvents.some((event) => event.id === value)
+    ? (value as NotificationEventKind)
+    : null;
+}
+
+function notificationsPageSearch(): string {
+  return "tab=notifications";
+}
+
+function notificationTemplateSearch(channel: NotificationChannel): string {
+  return `tab=notifications&channel=${channel}`;
+}
 
 const reminderBeforeOptions = [
   "15 min pred terminom",
@@ -1578,10 +1613,18 @@ export function ConfigurationNotificationsSection({
   t,
   locale,
   waitlistEnabled,
+  settingsLoaded = true,
 }: ConfigurationNotificationsSectionProps) {
+  const location = useLocation();
+  const { match: drawerMatch, isOpen: isDrawerOpen, open: openDrawer, close: closeDrawer } =
+    useDrawerRoute();
+  const configurationPageDrawers =
+    drawerMatch == null || drawerMatch.descriptor.page === "/configuration";
+  const templateDrawerOpen =
+    configurationPageDrawers &&
+    isDrawerOpen(CONFIGURATION_DRAWERS.notificationTemplate);
+
   const [channel, setChannel] = useState<NotificationChannel>("email");
-  const [editingEvent, setEditingEvent] =
-    useState<NotificationEventKind | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState(false);
   const [openCategories, setOpenCategories] = useState<
     Record<NotificationEventDefinition["category"], boolean>
@@ -1601,7 +1644,6 @@ export function ConfigurationNotificationsSection({
   const [templateVariant, setTemplateVariant] =
     useState<NotificationTemplateVariant>("regular");
   const templateBodyRef = useRef<HTMLDivElement | null>(null);
-  const compactTemplateHistoryEntryRef = useRef(false);
 
   const channelCopy: Record<
     NotificationChannel,
@@ -1645,11 +1687,40 @@ export function ConfigurationNotificationsSection({
   const hasPendingNotificationChanges =
     notificationSettingsSnapshot !== lastSavedNotificationSnapshot;
 
+  const drawerEventId = templateDrawerOpen
+    ? parseNotificationEventId(drawerMatch?.params.eventId)
+    : null;
+  const selectedEvent = drawerEventId
+    ? visibleNotificationEvents.find((event) => event.id === drawerEventId) ||
+      null
+    : null;
+
   useEffect(() => {
-    if (!waitlistEnabled && editingEvent?.startsWith("waitlist")) {
-      setEditingEvent(null);
+    if (!templateDrawerOpen) return;
+    const eventId = parseNotificationEventId(drawerMatch?.params.eventId);
+    if (eventId === "invoiceDelivery") {
+      setChannel("email");
+      return;
     }
-  }, [editingEvent, waitlistEnabled]);
+    const fromUrl = parseNotificationChannel(
+      new URLSearchParams(location.search).get("channel"),
+    );
+    if (fromUrl) setChannel(fromUrl);
+  }, [templateDrawerOpen, drawerMatch?.params.eventId, location.search]);
+
+  useEffect(() => {
+    if (!templateDrawerOpen) return;
+    const eventId = parseNotificationEventId(drawerMatch?.params.eventId);
+    if (!eventId || (settingsLoaded && !waitlistEnabled && eventId.startsWith("waitlist"))) {
+      closeDrawer({ search: notificationsPageSearch(), replace: true });
+    }
+  }, [
+    templateDrawerOpen,
+    drawerMatch?.params.eventId,
+    waitlistEnabled,
+    settingsLoaded,
+    closeDrawer,
+  ]);
 
   useEffect(() => {
     if (availableChannels.length === 0) return;
@@ -1659,19 +1730,10 @@ export function ConfigurationNotificationsSection({
   }, [channelAvailability, availableChannels, channel]);
 
   useEffect(() => {
-    setEditingEvent(null);
     setPreviewTemplate(false);
     setTemplateVariant("regular");
-  }, [channel]);
+  }, [channel, drawerEventId]);
 
-  useEffect(() => {
-    setPreviewTemplate(false);
-    setTemplateVariant("regular");
-  }, [editingEvent]);
-
-  const selectedEvent = editingEvent
-    ? visibleNotificationEvents.find((event) => event.id === editingEvent) || null
-    : null;
   const selectedEventSupportsBookingManageTags =
     selectedEvent?.id === "newSession" || selectedEvent?.id === "sessionChanged";
   const onlineSessionBookingEnabled =
@@ -1742,25 +1804,36 @@ export function ConfigurationNotificationsSection({
   }, [onlineSessionBookingEnabled, selectedOnlineTemplateEnabled]);
 
   const closeTemplateEditor = useCallback(() => {
-    if (
-      isCompactNotificationsLayout &&
-      compactTemplateHistoryEntryRef.current &&
-      typeof window !== "undefined"
-    ) {
-      window.history.back();
-      return;
-    }
-    setEditingEvent(null);
-  }, [isCompactNotificationsLayout]);
+    closeDrawer({ search: notificationsPageSearch() });
+  }, [closeDrawer]);
 
-  useEffect(() => {
-    if (!selectedEvent) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeTemplateEditor();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [closeTemplateEditor, selectedEvent]);
+  const openTemplateEditor = useCallback(
+    (eventId: NotificationEventKind) => {
+      if (templateDrawerOpen && drawerMatch?.params.eventId === eventId) {
+        closeTemplateEditor();
+        return;
+      }
+      openDrawer(CONFIGURATION_DRAWERS.notificationTemplate, {
+        params: { eventId },
+        search: notificationTemplateSearch(channel),
+      });
+    },
+    [
+      channel,
+      closeTemplateEditor,
+      drawerMatch?.params.eventId,
+      openDrawer,
+      templateDrawerOpen,
+    ],
+  );
+
+  const selectNotificationChannel = useCallback(
+    (next: NotificationChannel) => {
+      if (templateDrawerOpen) closeTemplateEditor();
+      setChannel(next);
+    },
+    [closeTemplateEditor, templateDrawerOpen],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1776,43 +1849,6 @@ export function ConfigurationNotificationsSection({
     mediaQuery.addListener(syncCompactLayout);
     return () => mediaQuery.removeListener(syncCompactLayout);
   }, []);
-
-  useEffect(() => {
-    if (
-      !selectedEvent ||
-      !isCompactNotificationsLayout ||
-      typeof window === "undefined"
-    ) {
-      return;
-    }
-
-    const marker = `notification-template-${selectedEvent.id}-${Date.now()}`;
-    window.history.pushState(
-      { ...window.history.state, calendraNotificationTemplate: marker },
-      "",
-      window.location.href,
-    );
-    compactTemplateHistoryEntryRef.current = true;
-
-    const handlePopState = () => {
-      compactTemplateHistoryEntryRef.current = false;
-      setEditingEvent(null);
-    };
-
-    window.addEventListener("popstate", handlePopState);
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-    };
-  }, [isCompactNotificationsLayout, selectedEvent]);
-
-  useEffect(() => {
-    if (!selectedEvent || !isCompactNotificationsLayout) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [isCompactNotificationsLayout, selectedEvent]);
 
   const handleSave = async () => {
     await onSave();
@@ -2285,10 +2321,6 @@ export function ConfigurationNotificationsSection({
           display: grid;
           gap: 28px;
         }
-        .notif-layout.has-editor {
-          grid-template-columns: minmax(0, 0.96fr) minmax(390px, 0.82fr);
-          align-items: start;
-        }
         .notif-section-heading {
           margin-bottom: 24px;
         }
@@ -2330,10 +2362,6 @@ export function ConfigurationNotificationsSection({
           background: rgba(255,255,255,0.92);
           box-shadow: 0 8px 20px rgba(8, 23, 58, 0.035);
           transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-        }
-        .notif-layout.has-editor .notif-event-row {
-          grid-template-columns: 52px minmax(170px, 1fr) minmax(190px, 0.34fr) 68px auto;
-          gap: 14px;
         }
         .notif-event-row.is-editing {
           border-color: rgba(15, 98, 254, 0.46);
@@ -2464,33 +2492,6 @@ export function ConfigurationNotificationsSection({
           background-size: 6px 6px, 6px 6px;
           background-repeat: no-repeat;
         }
-        .notif-template-panel {
-          min-height: 100%;
-          padding-left: 30px;
-          border-left: 1px solid var(--notif-line);
-        }
-        .notif-template-card {
-          padding: 28px;
-          border: 1px solid rgba(220, 227, 239, 0.96);
-          border-radius: 20px;
-          background: rgba(255,255,255,0.94);
-          box-shadow: 0 18px 38px rgba(8, 23, 58, 0.06);
-        }
-        .notif-template-header {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 16px;
-          margin-bottom: 6px;
-        }
-        .notif-template-header h4 {
-          margin: 0;
-          color: var(--notif-ink);
-          font-size: 22px;
-          line-height: 1.18;
-          font-weight: 850;
-          letter-spacing: -0.035em;
-        }
         .notif-template-subtitle {
           margin: 0 0 24px;
           color: var(--notif-muted);
@@ -2521,6 +2522,9 @@ export function ConfigurationNotificationsSection({
         .notif-status-pill.is-off {
           background: #f3f4f6;
           color: #5b6475;
+        }
+        .cp-panel-header .notif-status-pill {
+          flex-shrink: 0;
         }
         .notif-template-tags {
           margin: 0 0 20px;
@@ -2757,13 +2761,6 @@ export function ConfigurationNotificationsSection({
           padding: 14px;
           background: #eef2f9;
         }
-        .notif-template-close {
-          display: none;
-          border: 0;
-          background: transparent;
-          color: #07173b;
-          cursor: pointer;
-        }
         .notif-savebar {
           display: flex;
           justify-content: flex-end;
@@ -2850,8 +2847,7 @@ export function ConfigurationNotificationsSection({
           border-radius: 14px;
           background: #fff;
         }
-        .notif-category-events .notif-event-row,
-        .notif-layout.has-editor .notif-category-events .notif-event-row {
+        .notif-category-events .notif-event-row {
           grid-template-columns: 52px minmax(220px, 1fr) minmax(180px, .32fr) 68px 24px;
           border: 0;
           border-radius: 0;
@@ -2876,17 +2872,6 @@ export function ConfigurationNotificationsSection({
           display: grid;
           place-items: center;
           color: #66758f;
-        }
-        @media (max-width: 1180px) {
-          .notif-layout.has-editor {
-            grid-template-columns: 1fr;
-          }
-          .notif-template-panel {
-            padding-left: 0;
-            padding-top: 24px;
-            border-left: 0;
-            border-top: 1px solid var(--notif-line);
-          }
         }
         @media (max-width: 1024px) {
           .notif-page-shell {
@@ -3009,8 +2994,7 @@ export function ConfigurationNotificationsSection({
           .notif-save-button:disabled {
             opacity: 0.72;
           }
-          .notif-event-row,
-          .notif-layout.has-editor .notif-event-row {
+          .notif-event-row {
             grid-template-columns: 48px minmax(0, 1fr) auto;
             gap: 14px;
           }
@@ -3021,108 +3005,6 @@ export function ConfigurationNotificationsSection({
           .notif-reminder-placeholder {
             grid-column: 2 / -1;
             grid-row: auto;
-          }
-          .notif-template-panel {
-            position: fixed;
-            inset: 0;
-            z-index: 10000;
-            display: block;
-            width: 100vw;
-            height: 100vh;
-            height: 100dvh;
-            padding: 0;
-            border: 0;
-            background: #ffffff;
-            overflow: hidden;
-            overscroll-behavior: contain;
-          }
-          .notif-template-card {
-            width: 100vw;
-            max-width: 100vw;
-            height: 100vh;
-            height: 100dvh;
-            min-height: 0;
-            max-height: 100dvh;
-            overflow-y: auto;
-            overflow-x: hidden;
-            overscroll-behavior-y: contain;
-            -webkit-overflow-scrolling: touch;
-            touch-action: pan-y;
-            padding: 0 24px calc(32px + env(safe-area-inset-bottom));
-            border: 0;
-            border-radius: 0;
-            background: #ffffff;
-            box-shadow: none;
-            animation: notif-template-fullscreen-in 160ms ease-out;
-          }
-          @keyframes notif-template-fullscreen-in {
-            from {
-              opacity: 0;
-              transform: translateY(8px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-          .notif-template-header {
-            position: sticky;
-            top: 0;
-            z-index: 5;
-            display: grid;
-            grid-template-columns: 52px minmax(0, 1fr);
-            align-items: center;
-            justify-content: start;
-            gap: 16px;
-            min-height: 96px;
-            margin: 0 -24px 24px;
-            padding: max(18px, env(safe-area-inset-top)) 24px 16px;
-            border-bottom: 0;
-            background: linear-gradient(135deg, #0b71ee 0%, #0865db 100%);
-            box-shadow: 0 10px 24px rgba(7, 75, 176, 0.18);
-          }
-          .notif-template-header h4 {
-            grid-column: 2;
-            grid-row: 1;
-            min-width: 0;
-            margin: 0;
-            color: #ffffff;
-            font-size: clamp(22px, 3vw, 30px);
-            line-height: 1.12;
-            font-weight: 850;
-            letter-spacing: -0.035em;
-          }
-          .notif-template-title-event {
-            display: none;
-          }
-          .notif-template-close {
-            position: static;
-            grid-column: 1;
-            grid-row: 1;
-            display: grid;
-            place-items: center;
-            width: 52px;
-            height: 52px;
-            margin: 0;
-            border: 1px solid rgba(255, 255, 255, 0.34);
-            border-radius: 15px;
-            color: #ffffff;
-            background: rgba(255, 255, 255, 0.08);
-            box-shadow: none;
-          }
-          .notif-template-close svg {
-            width: 24px;
-            height: 24px;
-          }
-          .notif-template-close:hover {
-            background: rgba(255, 255, 255, 0.16);
-          }
-          .notif-template-close:active {
-            transform: scale(0.98);
-          }
-          .notif-status-pill,
-          .notif-template-subtitle {
-            display: none;
           }
           .notif-online-toggle-row {
             margin-bottom: 14px;
@@ -3285,8 +3167,7 @@ export function ConfigurationNotificationsSection({
             color: var(--notif-blue);
             background: rgba(255, 255, 255, 0.78);
           }
-          .notif-layout,
-          .notif-layout.has-editor {
+          .notif-layout {
             display: grid;
             grid-template-columns: 1fr;
             gap: 16px;
@@ -3294,8 +3175,7 @@ export function ConfigurationNotificationsSection({
           .notif-event-list {
             gap: 14px;
           }
-          .notif-event-row,
-          .notif-layout.has-editor .notif-event-row {
+          .notif-event-row {
             display: grid;
             grid-template-columns: 48px minmax(0, 1fr) auto;
             grid-template-areas:
@@ -3452,8 +3332,7 @@ export function ConfigurationNotificationsSection({
             margin: 0 10px 10px;
             border-radius: 12px;
           }
-          .notif-category-events .notif-event-row,
-          .notif-layout.has-editor .notif-category-events .notif-event-row {
+          .notif-category-events .notif-event-row {
             grid-template-columns: 44px minmax(0, 1fr) auto 18px;
             grid-template-areas:
               'icon copy switch indicator'
@@ -3475,28 +3354,6 @@ export function ConfigurationNotificationsSection({
           .notif-category-events .notif-reminder-select-wrap {
             margin: 10px -12px -12px;
             padding: 0 12px;
-          }
-          .notif-template-card {
-            padding: 0 16px calc(28px + env(safe-area-inset-bottom));
-          }
-          .notif-template-header {
-            grid-template-columns: 46px minmax(0, 1fr);
-            gap: 13px;
-            min-height: 84px;
-            margin: 0 -16px 18px;
-            padding: max(14px, env(safe-area-inset-top)) 16px 14px;
-          }
-          .notif-template-header h4 {
-            font-size: 22px;
-          }
-          .notif-template-close {
-            width: 46px;
-            height: 46px;
-            border-radius: 14px;
-          }
-          .notif-template-close svg {
-            width: 22px;
-            height: 22px;
           }
           .notif-online-toggle-row {
             margin-bottom: 12px;
@@ -3570,7 +3427,7 @@ export function ConfigurationNotificationsSection({
                   className={
                     channel === id ? "notif-tab is-active" : "notif-tab"
                   }
-                  onClick={() => setChannel(id)}
+                  onClick={() => selectNotificationChannel(id)}
                   role="tab"
                   aria-selected={channel === id}
                 >
@@ -3599,11 +3456,7 @@ export function ConfigurationNotificationsSection({
             </div>
           ) : null}
           {availableChannels.length > 0 ? (
-            <div
-              className={
-                selectedEvent ? "notif-layout has-editor" : "notif-layout"
-              }
-            >
+            <div className="notif-layout">
               <div>
                 <div className="notif-event-list">
                   {isCompactNotificationsLayout
@@ -3691,9 +3544,7 @@ export function ConfigurationNotificationsSection({
                                     const isEditing =
                                       selectedEvent?.id === event.id;
                                     const openEditor = () =>
-                                      setEditingEvent((prev) =>
-                                        prev === event.id ? null : event.id,
-                                      );
+                                      openTemplateEditor(event.id);
 
                                     return (
                                       <div
@@ -3807,10 +3658,7 @@ export function ConfigurationNotificationsSection({
                             ? reminderAfterOptions
                             : reminderBeforeOptions;
                         const isEditing = selectedEvent?.id === event.id;
-                        const openEditor = () =>
-                          setEditingEvent((prev) =>
-                            prev === event.id ? null : event.id,
-                          );
+                        const openEditor = () => openTemplateEditor(event.id);
                         const previousCategory =
                           index > 0
                             ? visibleNotificationEvents[index - 1].category
@@ -3903,52 +3751,23 @@ export function ConfigurationNotificationsSection({
                       })}
                 </div>
               </div>
+            </div>
+          ) : null}
 
               {selectedEvent ? (
-                <aside
-                  className="notif-template-panel"
-                  aria-label={`${channelCopy[channel].editLabel}: ${selectedEvent.title}`}
-                  onClick={(event) => {
-                    if (event.currentTarget === event.target)
-                      closeTemplateEditor();
-                  }}
+                <SidePanel
+                  open
+                  size="xl"
+                  onClose={closeTemplateEditor}
+                  ariaLabel={`${channelCopy[channel].editLabel}: ${selectedEvent.title}`}
+                  closeOnScrimClick={false}
                 >
-                  <div
-                    className="notif-template-card"
-                    role="dialog"
-                    aria-modal="true"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <div className="notif-template-header">
-                      <button
-                        type="button"
-                        className="notif-template-close"
-                        aria-label="Nazaj na obvestila"
-                        onClick={closeTemplateEditor}
-                      >
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden
-                        >
-                          <path d="M18 6 6 18" />
-                          <path d="m6 6 12 12" />
-                        </svg>
-                      </button>
-                      <h4>
-                        <span className="notif-template-title-label">
-                          {channelCopy[channel].editLabel}
-                        </span>
-                        <span className="notif-template-title-event">
-                          : {selectedEvent.title}
-                        </span>
-                      </h4>
+                  <PanelHeader
+                    title={channelCopy[channel].editLabel}
+                    subtitle={selectedEvent.title}
+                    onClose={closeTemplateEditor}
+                    closeLabel={locale === "sl" ? "Zapri" : "Close"}
+                    actions={
                       <span
                         className={
                           getNotificationEnabled(
@@ -3968,7 +3787,9 @@ export function ConfigurationNotificationsSection({
                           ? "VKLOPLJENO"
                           : "IZKLOPLJENO"}
                       </span>
-                    </div>
+                    }
+                  />
+                  <PanelBody>
                     <p className="notif-template-subtitle">
                       {selectedEvent.id === "invoiceDelivery"
                         ? "Uredite vsebino e-pošte, ki bo poslana gostu ob dostavi računa."
@@ -4009,7 +3830,7 @@ export function ConfigurationNotificationsSection({
                           type="button"
                           className={
                             selectedTemplateVariant === "regular"
-                              ? "notif-template-variant-tab"
+                              ? "notif-template-variant-tab is-active"
                               : "notif-template-variant-tab"
                           }
                           onClick={() => {
@@ -4025,7 +3846,7 @@ export function ConfigurationNotificationsSection({
                           type="button"
                           className={
                             selectedTemplateVariant === "online"
-                              ? "notif-template-variant-tab"
+                              ? "notif-template-variant-tab is-active"
                               : "notif-template-variant-tab"
                           }
                           onClick={() => {
@@ -4339,11 +4160,24 @@ export function ConfigurationNotificationsSection({
                         </div>
                       </div>
                     </div>
-                  </div>
-                </aside>
+                  </PanelBody>
+                  <PanelFooter>
+                    <PanelButton onClick={closeTemplateEditor}>
+                      {locale === "sl" ? "Zapri" : "Close"}
+                    </PanelButton>
+                    <PanelButton
+                      variant="primary"
+                      onClick={() => void handleSave()}
+                      busy={savingSettings}
+                      icon={<GuestSaveIcon />}
+                    >
+                      {savingSettings
+                        ? t("formSaving")
+                        : t("configSaveConfiguration")}
+                    </PanelButton>
+                  </PanelFooter>
+                </SidePanel>
               ) : null}
-            </div>
-          ) : null}
           {channel === "email" && channelAvailability.email && customEmailSenderEnabled ? (
             <section className="notif-sender-card" aria-label="Pošiljatelj e-pošte">
               <div className="notif-sender-head">

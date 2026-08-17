@@ -5,6 +5,7 @@ import { api } from '../../../api'
 import { useToast } from '../../../components/Toast'
 import { subscribeBookingUpdates } from '../../../lib/bookingRealtime'
 import { bookingMatchesUnassignedDimensions, type UnassignedBookingDimension } from '../calendarUtils'
+import { pathForNewForm } from '../../calendarFormRoutes'
 
 type DashboardBlockKey = 'analytics' | 'tasks' | 'notifications' | 'clients' | 'waitlist' | 'openBill' | 'advance'
 type DiscountType = 'PERCENT' | 'AMOUNT'
@@ -762,7 +763,7 @@ export function CalendarDashboard(props: CalendarDashboardProps) {
         ) : null}
 
         <div className="calendar-day-dashboard__grid">
-          {blockVisible('tasks') ? <DashboardCard title="Opravila" icon="checkSquare" action={<button type="button" className="calendar-dashboard-link-button" onClick={() => navigate('/calendar/new/todo')}><Icon name="plus" size={15} /> Novo opravilo</button>}>
+          {blockVisible('tasks') ? <DashboardCard title="Opravila" icon="checkSquare" action={<button type="button" className="calendar-dashboard-link-button" onClick={() => navigate(pathForNewForm('todo'))}><Icon name="plus" size={15} /> Novo opravilo</button>}>
             {todos.length === 0 ? <EmptyState>Ni zamujenih ali današnjih opravil.</EmptyState> : <div className="calendar-dashboard-list">{todos.slice(0, 6).map((todo) => { const overdue = dateTimeMs(todo?.startTime) > 0 && dateTimeMs(todo?.startTime) < Date.now(); return <div className={`calendar-dashboard-task-row${overdue ? ' is-overdue' : ''}`} key={todo.id}><button type="button" className="calendar-dashboard-task-check" onClick={() => void completeTodo(Number(todo.id))} aria-label="Označi kot opravljeno"><span /></button><button type="button" className="calendar-dashboard-row-main" onClick={() => onOpenTodo(Number(todo.id))}><strong>{todo?.task || 'Opravilo'}</strong><span>{overdue ? 'Zamujeno · ' : ''}{timeLabel(todo?.startTime, locale)}</span></button>{overdue ? <span className="calendar-dashboard-status-dot tone-red">Zamujeno</span> : <span className="calendar-dashboard-status-dot tone-green">Danes</span>}</div>})}</div>}
           </DashboardCard> : null}
 
@@ -775,7 +776,7 @@ export function CalendarDashboard(props: CalendarDashboardProps) {
           </DashboardCard> : null}
 
           {waitlistEnabled && blockVisible('waitlist') ? <DashboardCard title="Čakalna vrsta" icon="queue" action={<button type="button" className="calendar-dashboard-link-button" onClick={() => navigate('/appointments')}>Prikaži vse <Icon name="chevron" size={14} /></button>}>
-            {waitlist.length === 0 ? <EmptyState>Za izbrani dan ni čakajočih strank.</EmptyState> : <div className="calendar-dashboard-list">{waitlist.slice(0, 6).map((request, index) => <button type="button" className="calendar-dashboard-waitlist-row" key={request.id} onClick={() => navigate(`/appointments?requestId=${request.id}`)}><span className="calendar-dashboard-waitlist-index">{index + 1}.</span><span className="calendar-dashboard-row-main"><strong>{request.clientName}</strong><span>{request.serviceName || request.serviceGroupName || 'Katerakoli storitev'} · {request.windows?.[0]?.timeFrom ? `${String(request.windows[0].timeFrom).slice(0, 5)}–${String(request.windows[0].timeTo || '').slice(0, 5)}` : 'fleksibilno'}</span></span><time>{request.joinedAt ? relativeTime(request.joinedAt, locale) : ''}</time></button>)}</div>}
+            {waitlist.length === 0 ? <EmptyState>Za izbrani dan ni čakajočih strank.</EmptyState> : <div className="calendar-dashboard-list">{waitlist.slice(0, 6).map((request, index) => <button type="button" className="calendar-dashboard-waitlist-row" key={request.id} onClick={() => navigate(`/appointments/drawer/request/${request.id}`)}><span className="calendar-dashboard-waitlist-index">{index + 1}.</span><span className="calendar-dashboard-row-main"><strong>{request.clientName}</strong><span>{request.serviceName || request.serviceGroupName || 'Katerakoli storitev'} · {request.windows?.[0]?.timeFrom ? `${String(request.windows[0].timeFrom).slice(0, 5)}–${String(request.windows[0].timeTo || '').slice(0, 5)}` : 'fleksibilno'}</span></span><time>{request.joinedAt ? relativeTime(request.joinedAt, locale) : ''}</time></button>)}</div>}
           </DashboardCard> : null}
 
           {blockVisible('openBill') ? <DashboardCard title="Odprti račun" icon="receipt" className="calendar-day-dashboard-card--wide" action={selectedSession && activeOpenBill ? <button type="button" className="calendar-dashboard-link-button" onClick={() => onOpenFullOpenBill(selectedStatus, Number(activeOpenBill.id))}>Odpri celoten račun <Icon name="external" size={14} /></button> : null}>

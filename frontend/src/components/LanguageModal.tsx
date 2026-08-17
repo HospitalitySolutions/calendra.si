@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { PageHeader } from './ui'
+import { PanelBody, PanelButton, PanelFooter, PanelHeader, PanelRow, SidePanel } from './panel'
 import { useLocale, type AppLocale } from '../locale'
 import type { ReactNode } from 'react'
 
@@ -103,36 +103,32 @@ export function LanguageModal({ onClose }: Props) {
   ]
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <PageHeader title={t('langTitle')} />
+    <SidePanel open onClose={onClose} placement="center" size="sm" ariaLabel={t('langTitle')}>
+      <PanelHeader title={t('langTitle')} onClose={onClose} closeLabel={t('mobileNavClose')} />
+      <PanelBody>
         <div className="language-modal-list">
           {rows.map((row) => (
-            <button
+            <PanelRow
               key={row.code}
-              type="button"
-              className={`language-modal-option${locale === row.code ? ' language-modal-option-active' : ''}`}
+              accent={locale === row.code}
+              leading={
+                <span className="language-modal-flag" aria-hidden>
+                  {row.flag}
+                </span>
+              }
+              title={row.title}
+              meta={row.hint}
               onClick={() => {
                 setLocale(row.code)
                 onClose()
               }}
-            >
-              <span className="language-modal-flag" aria-hidden>
-                {row.flag}
-              </span>
-              <span className="language-modal-text">
-                <span className="language-modal-title">{row.title}</span>
-                <span className="language-modal-desc muted">{row.hint}</span>
-              </span>
-            </button>
+            />
           ))}
         </div>
-        <div className="form-actions" style={{ marginTop: 12 }}>
-          <button type="button" className="secondary" onClick={onClose}>
-            {t('cancel')}
-          </button>
-        </div>
-      </div>
-    </div>
+      </PanelBody>
+      <PanelFooter>
+        <PanelButton onClick={onClose}>{t('cancel')}</PanelButton>
+      </PanelFooter>
+    </SidePanel>
   )
 }

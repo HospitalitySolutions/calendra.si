@@ -30,9 +30,7 @@
 .consumables-tabs button.active:after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 99px 99px 0 0; background: #0b75ff; }
 .consumables-filter-row { gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 .consumables-filter-row input,
-.consumables-filter-row select,
-.consumables-modal input,
-.consumables-modal select {
+.consumables-filter-row select {
   height: 40px; border: 1px solid rgba(20, 38, 71, 0.12); border-radius: 9px; background: #fff; padding: 0 13px; color: #17233f; outline: none; min-width: 170px; box-shadow: 0 1px 2px rgba(15,23,42,0.02);
 }
 .consumables-filter-row > input { min-width: 360px; flex: 1 1 320px; }
@@ -108,16 +106,10 @@
 .inventory-progress { border: 1px solid rgba(20, 38, 71, 0.10); border-radius: 13px; padding: 16px; margin-bottom: 14px; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .inventory-progress i { grid-column: 1 / -1; height: 8px; }
 .inventory-progress small { color: #64708a; }
-.consumables-modal-backdrop { position: fixed; inset: 0; z-index: 10000; background: rgba(15,23,42,0.35); display: grid; place-items: center; padding: 24px; }
-.consumables-modal { width: min(760px, 100%); background: #fff; border-radius: 16px; border: 1px solid rgba(20,38,71,0.12); box-shadow: 0 22px 80px rgba(15,23,42,0.30); padding: 0; overflow: hidden; }
-.consumables-modal header, .consumables-modal footer { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid rgba(20,38,71,0.08); }
-.consumables-modal footer { border-bottom: 0; border-top: 1px solid rgba(20,38,71,0.08); justify-content: flex-end; gap: 10px; }
-.consumables-modal h2 { margin: 0; font-size: 18px; }
-.consumables-modal header button { border: 0; background: transparent; font-size: 24px; cursor: pointer; color: #64708a; }
-.consumables-modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 20px; }
+/* Form blocks below render inside `.cp-panel` sections; see the bridge in panel.css. */
+.consumables-modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .consumables-modal-grid label { display: grid; gap: 6px; color: #51607d; font-size: 12px; font-weight: 750; }
-.consumables-modal input, .consumables-modal select { width: 100%; }
-.consumables-modal-switches { padding: 0 20px 18px; display: flex; gap: 20px; color: #465573; font-weight: 700; }
+.consumables-modal-switches { display: flex; gap: 20px; color: #465573; font-weight: 700; }
 .consumables-modal-switches input { width: auto; height: auto; min-width: 0; margin-right: 6px; }
 @media (max-width: 1180px) {
   .consumables-kpi-grid, .consumables-kpi-grid.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -133,30 +125,22 @@
 }
 
 /* Article-management workflow */
-.consumables-modal-wide { width: min(920px, 100%); }
-.consumables-modal header > div { min-width: 0; }
-.consumables-modal header p { margin: 4px 0 0; color: #6b7893; font-size: 12px; font-weight: 600; }
-.consumables-modal textarea {
-  width: 100%; min-height: 86px; resize: vertical; border: 1px solid rgba(20, 38, 71, 0.12); border-radius: 9px; background: #fff; padding: 10px 13px; color: #17233f; outline: none; font: inherit; box-sizing: border-box;
-}
 .consumables-modal-grid label.full { grid-column: 1 / -1; }
 .consumables-modal-grid label small { color: #7b879d; font-weight: 600; line-height: 1.35; }
-.consumables-modal input:disabled,
-.consumables-modal select:disabled { background: #f6f8fb; color: #7a879e; cursor: not-allowed; }
 .consumables-modal-switches.three { justify-content: flex-start; flex-wrap: wrap; }
 .consumables-row-actions { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .icon-btn.edit { color: #0b75ff; font-weight: 900; }
 .icon-btn.movement { color: #5b50d6; font-weight: 900; }
 .consumables-chip-row button.manage { margin-left: auto; color: #0b75ff; border-style: dashed; }
-.consumables-stock-preview { margin: 0 20px 18px; padding: 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; background: #f8fbff; border: 1px solid #dceaff; border-radius: 11px; }
+.consumables-stock-preview { margin-top: 14px; padding: 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; background: #f8fbff; border: 1px solid #dceaff; border-radius: 11px; }
 .consumables-stock-preview span { display: grid; gap: 4px; color: #6b7893; font-size: 11px; font-weight: 700; }
 .consumables-stock-preview strong { color: #17233f; font-size: 15px; }
-.consumables-inline-form { padding: 18px 20px; display: grid; grid-template-columns: minmax(220px, 1fr) 120px auto auto auto; gap: 12px; align-items: end; border-bottom: 1px solid rgba(20,38,71,0.08); }
+.consumables-inline-form { display: grid; grid-template-columns: minmax(220px, 1fr) 120px auto auto auto; gap: 12px; align-items: end; }
 .consumables-inline-form label { display: grid; gap: 6px; color: #51607d; font-size: 12px; font-weight: 750; }
 .consumables-inline-form label.check { display: flex; align-items: center; height: 40px; gap: 7px; white-space: nowrap; }
 .consumables-inline-form label.check input { width: 18px; min-width: 18px; height: 18px; }
 .consumables-inline-form input[type="color"] { min-width: 90px; padding: 5px; }
-.consumables-manager-list { max-height: 380px; overflow: auto; padding: 0 20px 20px; }
+.consumables-manager-list { overflow-x: auto; }
 .consumables-manager-list table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .consumables-manager-list th,
 .consumables-manager-list td { padding: 11px 10px; border-bottom: 1px solid rgba(20,38,71,0.08); text-align: left; }
@@ -166,7 +150,6 @@
 .consumables-card td > .consumables-row-actions { vertical-align: middle; }
 
 @media (max-width: 1024px) {
-  .consumables-modal-wide { width: 100%; }
   .consumables-stock-preview { grid-template-columns: 1fr; }
   .consumables-inline-form { grid-template-columns: 1fr; align-items: stretch; }
   .consumables-inline-form label.check { height: auto; padding: 4px 0; }
@@ -174,13 +157,7 @@
 }
 
 /* Procurement workflow */
-.consumables-modal-xl { width: min(1180px, 100%); max-height: calc(100vh - 36px); overflow: auto; }
 .procurement-header-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.procurement-lines-section,
-.procurement-receipts-section { margin: 0 20px 18px; border: 1px solid rgba(20,38,71,0.10); border-radius: 13px; overflow: hidden; background: #fff; }
-.procurement-section-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 16px; border-bottom: 1px solid rgba(20,38,71,0.08); background: #fbfcfe; }
-.procurement-section-header h3 { margin: 0; font-size: 15px; color: #17233f; }
-.procurement-section-header p { margin: 4px 0 0; color: #6b7893; font-size: 12px; }
 .procurement-lines-table-wrap { overflow-x: auto; }
 .procurement-lines-table { width: 100%; min-width: 940px; border-collapse: collapse; font-size: 12px; }
 .procurement-lines-table th,
@@ -194,16 +171,15 @@
 .money-input { display: flex; align-items: center; gap: 7px; }
 .quantity-with-unit span,
 .money-input span { color: #71809b; font-size: 11px; white-space: nowrap; }
-.procurement-totals { display: flex; justify-content: flex-end; gap: 26px; padding: 14px 16px; background: #fbfcfe; }
+.procurement-totals { display: flex; justify-content: flex-end; gap: 26px; margin-top: 14px; padding: 14px 16px; background: #fbfcfe; border: 1px solid rgba(20,38,71,0.08); border-radius: 11px; }
 .procurement-totals span { display: grid; gap: 3px; color: #68758e; font-size: 11px; min-width: 90px; text-align: right; }
 .procurement-totals strong { color: #17233f; font-size: 14px; }
-.procurement-receipt-list { display: grid; gap: 8px; padding: 12px; }
+.procurement-receipt-list { display: grid; gap: 8px; }
 .procurement-receipt-card { display: grid; grid-template-columns: minmax(180px, .8fr) 2fr; gap: 18px; padding: 12px 14px; background: #f8fbff; border: 1px solid #dceaff; border-radius: 10px; }
 .procurement-receipt-card > div { display: grid; gap: 4px; }
 .procurement-receipt-card small { color: #6b7893; }
 .procurement-receipt-card > div:last-child { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
-.procurement-receive-backdrop { z-index: 10020; background: rgba(15,23,42,0.48); }
-.procurement-receive-list { padding: 18px 20px; }
+.procurement-receive-list { overflow-x: auto; }
 .procurement-receive-list table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .procurement-receive-list th,
 .procurement-receive-list td { padding: 10px; border-bottom: 1px solid rgba(20,38,71,0.08); text-align: left; }
@@ -226,7 +202,7 @@
 }
 
 /* Inventory session workflow */
-.inventory-start-note { margin: 0 20px 18px; }
+.inventory-start-note { margin-top: 14px; }
 .inventory-session-banner {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 18px;
   border: 1px solid #dceaff; background: #f8fbff; border-radius: 13px; padding: 14px 16px; margin-bottom: 14px;
@@ -276,9 +252,8 @@
 
 /* Atomic stock-transfer workflow */
 .icon-btn.transfer { color: #0f8a72; font-weight: 900; }
-.stock-transfer-modal { width: min(860px, 100%); }
 .stock-transfer-preview {
-  margin: 0 20px 18px;
+  margin-top: 14px;
   padding: 16px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 110px minmax(0, 1fr);
@@ -325,33 +300,15 @@
 .procurement-section-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .barcode-workflow-banner {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  margin: 0 20px; padding: 12px 14px; border-radius: 11px; border: 1px solid #d7e8ff; background: #f7fbff;
+  margin-bottom: 14px; padding: 12px 14px; border-radius: 11px; border: 1px solid #d7e8ff; background: #f7fbff;
 }
 .barcode-workflow-banner > div { display: grid; gap: 3px; }
 .barcode-workflow-banner strong { color: #23334f; font-size: 12.5px; }
 .barcode-workflow-banner span { color: #687892; font-size: 11.5px; line-height: 1.4; }
 
-.consumables-barcode-backdrop {
-  position: fixed; inset: 0; z-index: 10120; display: grid; place-items: center; padding: 20px;
-  background: rgba(15, 23, 42, .58); backdrop-filter: blur(2px);
-}
-.consumables-barcode-modal {
-  width: min(640px, 100%); max-height: min(760px, calc(100vh - 32px)); overflow: auto;
-  border-radius: 18px; background: #fff; border: 1px solid rgba(20, 38, 71, .10);
-  box-shadow: 0 24px 70px rgba(15, 23, 42, .28);
-}
-.consumables-barcode-modal > header {
-  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px 14px;
-  border-bottom: 1px solid rgba(20, 38, 71, .08);
-}
-.consumables-barcode-modal > header h2 { margin: 0; color: #17233f; font-size: 19px; }
-.consumables-barcode-modal > header p { margin: 4px 0 0; color: #6b7893; font-size: 12px; line-height: 1.45; }
-.consumables-barcode-modal > header > button {
-  width: 34px; height: 34px; flex: 0 0 34px; border: 1px solid #e1e7f0; border-radius: 9px; background: #fff;
-  color: #65738c; font-size: 20px; cursor: pointer;
-}
+/* Barcode scanner: chrome comes from the centered cp- panel. */
 .consumables-barcode-camera {
-  position: relative; margin: 18px 20px 14px; min-height: 280px; overflow: hidden; border-radius: 14px;
+  position: relative; min-height: 280px; overflow: hidden; border-radius: 14px;
   background: #0f172a; border: 1px solid #1e293b;
 }
 .consumables-barcode-camera video { display: block; width: 100%; min-height: 280px; max-height: 360px; object-fit: cover; background: #0f172a; }
@@ -367,34 +324,22 @@
 }
 .consumables-barcode-camera-state.error { background: rgba(127,29,29,.84); color: #fee2e2; }
 .consumables-barcode-camera-state.active { background: rgba(6,78,59,.82); color: #d1fae5; }
-.consumables-barcode-manual { display: grid; gap: 6px; padding: 0 20px 14px; }
+.consumables-barcode-manual { display: grid; gap: 6px; margin-top: 14px; }
 .consumables-barcode-manual label { display: grid; gap: 6px; color: #51607d; font-size: 12px; font-weight: 750; }
 .consumables-barcode-manual label > div { display: flex; gap: 8px; }
 .consumables-barcode-manual input { min-width: 0; flex: 1; height: 40px; }
 .consumables-barcode-manual small { color: #7b879d; font-size: 10.5px; }
-.consumables-barcode-feedback { margin: 0 20px 14px; padding: 10px 12px; border-radius: 10px; font-size: 12px; font-weight: 700; }
+.consumables-barcode-feedback { margin-top: 14px; padding: 10px 12px; border-radius: 10px; font-size: 12px; font-weight: 700; }
 .consumables-barcode-feedback.success { color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; }
 .consumables-barcode-feedback.error { color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; }
-.consumables-barcode-modal > footer {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px 18px;
-  border-top: 1px solid rgba(20,38,71,.08); background: #fbfcfe;
-}
-.consumables-barcode-modal > footer > span { color: #71809a; font-size: 10.5px; }
-.consumables-barcode-modal > footer > div { display: flex; gap: 8px; }
 
 @media (max-width: 680px) {
   .barcode-field-row { align-items: stretch; flex-direction: column; }
   .barcode-field-button { width: 100%; }
   .barcode-workflow-banner { align-items: stretch; flex-direction: column; }
   .barcode-workflow-banner .btn { width: 100%; }
-  .consumables-barcode-backdrop { padding: 8px; }
-  .consumables-barcode-camera { margin: 12px; min-height: 230px; }
+  .consumables-barcode-camera { min-height: 230px; }
   .consumables-barcode-camera video { min-height: 230px; }
-  .consumables-barcode-manual { padding-inline: 12px; }
-  .consumables-barcode-feedback { margin-inline: 12px; }
-  .consumables-barcode-modal > footer { align-items: stretch; flex-direction: column; }
-  .consumables-barcode-modal > footer > div { width: 100%; }
-  .consumables-barcode-modal > footer .btn { flex: 1; }
 }
 
 /* Reports & export */

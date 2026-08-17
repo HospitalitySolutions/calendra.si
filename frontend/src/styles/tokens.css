@@ -29,6 +29,57 @@
     --sidebar-rail-expanded: min(228px, calc(100vw - 36px));
     --content-padding: 24px;
     --border: #e7e4df;
+
+    /* --- Stacking scale ---
+       One place to reason about what covers what. Legacy overlays still hardcode
+       values between 9999 and --z-legacy-max; until they are migrated, panels
+       deliberately sit inside that band so a legacy modal opened from a panel
+       (calendar payment manager, billing bill editor) still lands on top of it.
+       Dialogs sit above the whole band, because a confirmation must always be
+       the topmost surface no matter what raised it. */
+    --z-page-chrome: 100;   /* sticky toolbars, mobile save bars */
+    --z-popover: 1000;      /* anchored menus, credentials popover */
+    --z-panel: 10000;       /* .cp-scrim - side panels */
+    --z-legacy-max: 17000;  /* transitional: highest legacy modal in the app */
+    --z-dialog: 19000;      /* .cp-scrim--dialog - always topmost */
+    --z-toast: 20050;
+
+    /* --- Side panel (cp-) design system --- */
+    --panel-width-sm: 420px;
+    --panel-width-md: 520px;
+    --panel-width-lg: 680px;
+    --panel-width-xl: 880px;
+    --panel-header-h: 68px;
+    --panel-footer-h: 76px;
+    --panel-tabs-h: 44px;
+    --panel-pad: 24px;
+    --panel-pad-tight: 16px;
+    --panel-section-gap: 24px;
+    /* Card sections: tighter gap than loose sections, since each card has its own border. */
+    --section-gap: 12px;
+    --section-pad: 14px 16px;
+    --panel-scrim: rgba(15, 23, 42, 0.45);
+    --panel-surface: #ffffff;
+    --panel-surface-muted: #f6f7f9;
+    --panel-border: #e6e8ec;
+    --panel-shadow: -24px 0 64px rgba(15, 23, 42, 0.18);
+    --panel-radius: 12px;
+    --panel-ease: cubic-bezier(0.32, 0.72, 0, 1);
+    --panel-duration: 200ms;
+
+    --field-h: 44px;
+    --field-h-sm: 36px;
+    --field-radius: 10px;
+    --field-border: #d9dde4;
+    --field-bg: #ffffff;
+    --field-ring: 0 0 0 3px var(--color-primary-soft);
+
+    --fs-title: 1.25rem;
+    --fs-subtitle: 0.8125rem;
+    --fs-section: 0.9375rem;
+    --fs-body: 0.9375rem;
+    --fs-label: 0.8125rem;
+    --fs-hint: 0.75rem;
 }
 
 /* --- Dark theme --- */
@@ -51,4 +102,13 @@
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
     --border: #1e293b;
+
+    --panel-scrim: rgba(2, 6, 23, 0.6);
+    --panel-surface: #10182b;
+    --panel-surface-muted: #16203a;
+    --panel-border: #23304d;
+    --panel-shadow: -24px 0 64px rgba(0, 0, 0, 0.5);
+
+    --field-border: #2b3958;
+    --field-bg: #16203a;
 }

@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthenticatedUser } from '../authUserContext'
+import { INBOX_DRAWERS, useDrawerRoute } from '../lib/drawerRoutes'
 import { hasEmployeePermission } from '../lib/employeePermissions'
 import { useLocale } from '../locale'
 import { settingsQueryOptions } from '../queries/sharedQueryOptions'
@@ -57,12 +58,21 @@ export function InboxPage({ inboxModuleEnabled = true }: InboxPageProps) {
   const queryClient = useQueryClient()
   const location = useLocation()
   const navigate = useNavigate()
+  const { match: drawerMatch, isOpen: isDrawerOpen } = useDrawerRoute()
   const { locale } = useLocale()
   const canViewMessages = inboxModuleEnabled && hasEmployeePermission(me, 'INBOX_MESSAGES_VIEW')
   const canViewDeliveryLogs = hasEmployeePermission(me, 'DELIVERY_LOGS_VIEW')
+  const inboxPageDrawers = drawerMatch == null || drawerMatch.descriptor.page === '/inbox'
+  const deliveryLogDrawerOpen = inboxPageDrawers && isDrawerOpen(INBOX_DRAWERS.deliveryLog)
+  const scheduledDrawerOpen = inboxPageDrawers && isDrawerOpen(INBOX_DRAWERS.scheduled)
   const requestedTab: InboxSection = new URLSearchParams(location.search).get('tab') === 'deliveryLogs'
     ? 'deliveryLogs'
     : 'messages'
+  const activeTab: InboxSection = deliveryLogDrawerOpen
+    ? 'deliveryLogs'
+    : scheduledDrawerOpen
+      ? 'messages'
+      : requestedTab
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [messagingProviders, setMessagingProviders] = useState<MessagingProviderCapabilities>({})
   const [messagingProvidersLoaded, setMessagingProvidersLoaded] = useState(false)
@@ -92,10 +102,16 @@ export function InboxPage({ inboxModuleEnabled = true }: InboxPageProps) {
   if (!canViewMessages && !canViewDeliveryLogs) {
     return <Navigate to="/" replace />
   }
-  if (requestedTab === 'deliveryLogs' && !canViewDeliveryLogs) {
+  if (deliveryLogDrawerOpen && !canViewDeliveryLogs) {
     return <Navigate to="/inbox" replace />
   }
-  if (requestedTab === 'messages' && !canViewMessages) {
+  if (scheduledDrawerOpen && !canViewMessages) {
+    return <Navigate to="/inbox?tab=deliveryLogs" replace />
+  }
+  if (requestedTab === 'deliveryLogs' && !canViewDeliveryLogs && !deliveryLogDrawerOpen) {
+    return <Navigate to="/inbox" replace />
+  }
+  if (requestedTab === 'messages' && !canViewMessages && !scheduledDrawerOpen) {
     return <Navigate to="/inbox?tab=deliveryLogs" replace />
   }
 
@@ -116,9 +132,9 @@ export function InboxPage({ inboxModuleEnabled = true }: InboxPageProps) {
           <button
             type="button"
             role="tab"
-            aria-selected={requestedTab === 'messages'}
-            className={`inbox-page-tab${requestedTab === 'messages' ? ' active' : ''}`}
-            aria-current={requestedTab === 'messages' ? 'page' : undefined}
+            aria-selected={activeTab === 'messages'}
+            className={`inbox-page-tab${activeTab === 'messages' ? ' active' : ''}`}
+            aria-current={activeTab === 'messages' ? 'page' : undefined}
             onClick={() => openTab('messages')}
           >
             <span className="inbox-page-tab-icon" aria-hidden><InboxPageTabIcon name="messages" /></span>
@@ -127,9 +143,9 @@ export function InboxPage({ inboxModuleEnabled = true }: InboxPageProps) {
           <button
             type="button"
             role="tab"
-            aria-selected={requestedTab === 'deliveryLogs'}
-            className={`inbox-page-tab${requestedTab === 'deliveryLogs' ? ' active' : ''}`}
-            aria-current={requestedTab === 'deliveryLogs' ? 'page' : undefined}
+            aria-selected={activeTab === 'deliveryLogs'}
+            className={`inbox-page-tab${activeTab === 'deliveryLogs' ? ' active' : ''}`}
+            aria-current={activeTab === 'deliveryLogs' ? 'page' : undefined}
             onClick={() => openTab('deliveryLogs')}
           >
             <span className="inbox-page-tab-icon" aria-hidden><InboxPageTabIcon name="deliveryLogs" /></span>
@@ -138,7 +154,7 @@ export function InboxPage({ inboxModuleEnabled = true }: InboxPageProps) {
         </nav>
       ) : null}
 
-      {requestedTab === 'deliveryLogs' ? (
+      {canViewDeliveryLogs && (activeTab === 'deliveryLogs' || deliveryLogDrawerOpen) ? (
         <div className="inbox-page-delivery-logs" data-onboarding-panel="delivery-logs">
           <ConfigurationDeliveryLogsSection
             settings={settings}
@@ -146,9 +162,10 @@ export function InboxPage({ inboxModuleEnabled = true }: InboxPageProps) {
             messagingProvidersLoaded={messagingProvidersLoaded}
           />
         </div>
-      ) : (
+      ) : null}
+      {canViewMessages && (activeTab === 'messages' || scheduledDrawerOpen) && !deliveryLogDrawerOpen ? (
         <AnalyticsInboxTab />
-      )}
+      ) : null}
     </div>
   )
 }

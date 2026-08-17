@@ -1,10 +1,11 @@
 import '../styles/features.booking.css'
 import '../styles/security-center.css'
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react'
+import { ReactNode, useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import { api } from '../api'
 import { PageHeader } from '../components/ui'
 import { useLocale } from '../locale'
+import { ConfirmDialog, useConfirm } from '../components/panel'
 import { createPasskeyFromOptions, supportsWebAuthn } from '../lib/webauthn'
 import { clearAuthStoragePreservingTheme } from '../theme'
 
@@ -322,6 +323,7 @@ function SecurityToggle({ checked, onChange }: { checked: boolean; onChange: (ch
 
 export function SecurityPage({ embedded = false }: SecurityPageProps) {
   const { t, locale } = useLocale()
+  const confirm = useConfirm()
   const sl = locale === 'sl'
   const securityCopy = {
     loadError: sl ? 'Pregleda varnosti ni bilo mogoče naložiti.' : 'Could not load your security overview.',
@@ -551,8 +553,7 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
     setReauthRequest({ title, execute: action })
   }
 
-  const submitReauth = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
+  const submitReauth = async () => {
     if (!reauthRequest) return
     setReauthBusy(true)
     setReauthError('')
@@ -625,7 +626,7 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
   }
 
   const removePasskey = async (credentialId: string, label: string) => {
-    if (!window.confirm(`${securityCopy.removeConfirm} “${label}”?`)) return
+    if (!(await confirm({ title: `${securityCopy.removeConfirm} “${label}”?`, tone: 'danger' }))) return
     await runProtected(securityCopy.confirmRemovePasskey, async (token) => {
       await withBusy(async () => {
         await api.delete(`/security/passkeys/${encodeURIComponent(credentialId)}`, {
@@ -665,7 +666,7 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
 
   const revokeSession = async (session: SessionRow) => {
     const copy = session.current ? securityCopy.signOutThisDeviceConfirm : `${securityCopy.signOutSessionConfirm} ${session.label}?`
-    if (!window.confirm(copy)) return
+    if (!(await confirm({ title: copy, tone: 'danger' }))) return
     await runProtected(securityCopy.confirmSignOutSession, async (token) => {
       await withBusy(async () => {
         await api.delete(`/security/sessions/${encodeURIComponent(session.sessionKey)}`, {
@@ -683,7 +684,7 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
   }
 
   const revokeOtherSessions = async () => {
-    if (!window.confirm(securityCopy.signOutOtherSessionsConfirm)) return
+    if (!(await confirm({ title: securityCopy.signOutOtherSessionsConfirm, tone: 'danger' }))) return
     await runProtected(securityCopy.confirmSignOutOtherSessions, async (token) => {
       await withBusy(async () => {
         await api.post('/security/sessions/revoke-others', undefined, {
@@ -1106,44 +1107,37 @@ export function SecurityPage({ embedded = false }: SecurityPageProps) {
 
       {tabContent}
 
-      {reauthRequest && (
-        <div className="security-modal-backdrop" role="presentation">
-          <div className="card security-reauth-card" role="dialog" aria-modal="true" aria-labelledby="security-reauth-title">
-            <h3 id="security-reauth-title">{securityCopy.confirmItsYou}</h3>
-            <p className="muted">{reauthRequest.title}</p>
-            {reauthError && <div className="error">{reauthError}</div>}
-            <form onSubmit={submitReauth} className="security-reauth-form">
-              <label className="field">
-                <span className="field-label">{securityCopy.password}</span>
-                <input
-                  type="password"
-                  autoFocus
-                  value={reauthPassword}
-                  onChange={(e) => setReauthPassword(e.target.value)}
-                  placeholder={securityCopy.enterPassword}
-                />
-              </label>
-              <div className="security-row-actions">
-                <button type="submit" className="security-primary-button" disabled={reauthBusy || !reauthPassword.trim()}>
-                  {reauthBusy ? securityCopy.checking : securityCopy.continue}
-                </button>
-                <button
-                  type="button"
-                  className="security-soft-button"
-                  onClick={() => {
-                    setReauthRequest(null)
-                    setReauthError('')
-                    setReauthPassword('')
-                  }}
-                  disabled={reauthBusy}
-                >
-                  {securityCopy.cancel}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={reauthRequest != null}
+        onClose={() => {
+          setReauthRequest(null)
+          setReauthError('')
+          setReauthPassword('')
+        }}
+        title={securityCopy.confirmItsYou}
+        text={reauthRequest?.title}
+        onConfirm={() => void submitReauth()}
+        busy={reauthBusy}
+        confirmDisabled={!reauthPassword.trim()}
+        confirmLabel={reauthBusy ? securityCopy.checking : securityCopy.continue}
+        cancelLabel={securityCopy.cancel}
+      >
+        {reauthError && <div className="error">{reauthError}</div>}
+        <label className="field">
+          <span className="field-label">{securityCopy.password}</span>
+          <input
+            type="password"
+            value={reauthPassword}
+            onChange={(e) => setReauthPassword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' || reauthBusy || !reauthPassword.trim()) return
+              e.preventDefault()
+              void submitReauth()
+            }}
+            placeholder={securityCopy.enterPassword}
+          />
+        </label>
+      </ConfirmDialog>
     </div>
   )
 }

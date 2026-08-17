@@ -1027,25 +1027,6 @@
   line-height: 1.4;
 }
 
-.security-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(10, 18, 33, 0.45);
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  z-index: 120;
-}
-
-.security-reauth-card {
-  width: min(100%, 460px);
-}
-
-.security-reauth-form {
-  display: grid;
-  gap: 14px;
-}
-
 @media (max-width: 1280px) {
   .security-stat-grid-v2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));

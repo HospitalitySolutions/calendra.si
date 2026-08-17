@@ -1,11 +1,24 @@
 import { DesktopSelect } from '../components/DesktopSelect'
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from 'react'
 import '../styles/main/consumables.css'
 import { useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 import { useAuthenticatedUser } from '../authUserContext'
 import { useToast } from '../components/Toast'
+import {
+  PanelBody,
+  PanelButton,
+  PanelEmpty,
+  PanelFooter,
+  PanelHeader,
+  PanelSection,
+  PanelSectionIcon,
+  SidePanel,
+  useConfirm,
+} from '../components/panel'
 import { BarcodeScannerModal, type BarcodeScanResult } from '../components/BarcodeScannerModal'
+import { useLocation } from 'react-router-dom'
+import { CONSUMABLES_DRAWERS, useDrawerRoute } from '../lib/drawerRoutes'
 import { useSelectedLocationId } from '../lib/locationContext'
 import { hasEmployeePermission } from '../lib/employeePermissions'
 import type { Location } from '../lib/types'
@@ -369,6 +382,7 @@ export function ConsumablesPage() {
   const [selectedLocationId, setSelectedLocationId] = useSelectedLocationId(activeUnitId)
   const queryClient = useQueryClient()
   const { showToast } = useToast()
+  const confirm = useConfirm()
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     if (typeof window === 'undefined') return 'overview'
     const requested = new URLSearchParams(window.location.search).get('tab') as TabKey | null
@@ -418,7 +432,6 @@ export function ConsumablesPage() {
     if (selectedLocationId !== notificationLocationId) setSelectedLocationId(notificationLocationId)
   }, [notificationLocationId, operationalLocations, selectedLocationId, setSelectedLocationId])
 
-  const [itemModalOpen, setItemModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [savingItem, setSavingItem] = useState(false)
   const [itemForm, setItemForm] = useState<ItemFormState>(emptyItemForm(null))
@@ -427,20 +440,16 @@ export function ConsumablesPage() {
   const [savingMovement, setSavingMovement] = useState(false)
   const [stockMovementForm, setStockMovementForm] = useState<StockMovementFormState>({ movementType: 'MANUAL_ADJUSTMENT', quantity: '1', direction: 'INCREASE', note: '' })
 
-  const [transferModalOpen, setTransferModalOpen] = useState(false)
   const [savingTransfer, setSavingTransfer] = useState(false)
   const [transferForm, setTransferForm] = useState<TransferFormState>({ consumableId: '', fromLocationId: '', toLocationId: '', quantity: '1', note: '' })
 
-  const [categoryModalOpen, setCategoryModalOpen] = useState(false)
   const [savingCategory, setSavingCategory] = useState(false)
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>({ id: null, name: '', color: '#2563eb', active: true })
 
-  const [supplierModalOpen, setSupplierModalOpen] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
   const [savingSupplier, setSavingSupplier] = useState(false)
   const [supplierForm, setSupplierForm] = useState<SupplierFormState>(emptySupplierForm)
 
-  const [purchaseOrderModalOpen, setPurchaseOrderModalOpen] = useState(false)
   const [purchaseOrderForm, setPurchaseOrderForm] = useState<PurchaseOrderFormState>(emptyPurchaseOrderForm(null))
   const [loadingPurchaseOrder, setLoadingPurchaseOrder] = useState(false)
   const [savingPurchaseOrder, setSavingPurchaseOrder] = useState(false)
@@ -452,7 +461,6 @@ export function ConsumablesPage() {
   const [inventorySessions, setInventorySessions] = useState<InventorySession[]>([])
   const [inventoryDetail, setInventoryDetail] = useState<InventoryDetail | null>(null)
   const [inventoryCountDraft, setInventoryCountDraft] = useState<InventoryCountDraft>({})
-  const [inventoryStartModalOpen, setInventoryStartModalOpen] = useState(false)
   const [inventoryStartLocationId, setInventoryStartLocationId] = useState('')
   const [inventoryStartNotes, setInventoryStartNotes] = useState('')
   const [savingInventory, setSavingInventory] = useState(false)
@@ -462,6 +470,20 @@ export function ConsumablesPage() {
   const [inventoryCountStatusFilter, setInventoryCountStatusFilter] = useState('')
 
   const [barcodeScanner, setBarcodeScanner] = useState<BarcodeScannerState | null>(null)
+
+  /* ---------------------------------------------------------------------------
+   * Drawers
+   *
+   * Every form on this page is a URL. The panel that is open comes from the
+   * pathname and the entity it edits from the params, so a drawer link reloads
+   * into exactly the same state. Closing returns to the page with the current
+   * tab, which `close()` would otherwise drop along with the drawer's own params.
+   * ------------------------------------------------------------------------ */
+  const { match: drawerMatch, isOpen: isDrawerOpen, open: openDrawer, close: closeDrawerRoute } = useDrawerRoute()
+  const routerLocation = useLocation()
+  const drawerQuery = useMemo(() => new URLSearchParams(routerLocation.search), [routerLocation.search])
+  const pageSearch = useMemo(() => `tab=${activeTab}`, [activeTab])
+  const closeDrawer = useCallback(() => closeDrawerRoute({ search: pageSearch }), [closeDrawerRoute, pageSearch])
 
   const load = useCallback(async (force = true) => {
     setLoading(true)
@@ -608,36 +630,27 @@ export function ConsumablesPage() {
     transferInventoryRows.filter((item) => item.active && item.trackStock).map((item) => [item.id, item]),
   ).values()).sort((a, b) => a.name.localeCompare(b.name, 'sl')), [transferInventoryRows])
 
-  const closeItemModal = () => {
-    setItemModalOpen(false)
-    setEditingItem(null)
-  }
-  const openNewItem = () => {
-    setEditingItem(null)
-    setItemForm(emptyItemForm(defaultWriteLocationId))
-    setItemModalOpen(true)
-  }
-  const openEditItem = (item: Item) => {
-    setEditingItem(item)
-    setItemForm({
-      name: item.name,
-      description: item.description || '',
-      sku: item.sku || '',
-      barcode: item.barcode || '',
-      categoryId: item.category?.id != null ? String(item.category.id) : '',
-      locationId: String(item.locationId),
-      unit: item.unit || 'kos',
-      currentStock: String(item.currentStock ?? 0),
-      minimumStock: String(item.minimumStock ?? 0),
-      costPrice: String(item.costPrice ?? 0),
-      salePrice: String(item.salePrice ?? 0),
-      vatRate: item.vatRate || 'NO_VAT',
-      billable: item.billable,
-      trackStock: item.trackStock,
-      active: item.active,
-    })
-    setItemModalOpen(true)
-  }
+  const openNewItem = () => openDrawer(CONSUMABLES_DRAWERS.newItem)
+  const openEditItem = (item: Item) =>
+    openDrawer(CONSUMABLES_DRAWERS.item, { params: { id: item.id }, search: `location=${item.locationId}` })
+
+  const itemFormFor = (item: Item): ItemFormState => ({
+    name: item.name,
+    description: item.description || '',
+    sku: item.sku || '',
+    barcode: item.barcode || '',
+    categoryId: item.category?.id != null ? String(item.category.id) : '',
+    locationId: String(item.locationId),
+    unit: item.unit || 'kos',
+    currentStock: String(item.currentStock ?? 0),
+    minimumStock: String(item.minimumStock ?? 0),
+    costPrice: String(item.costPrice ?? 0),
+    salePrice: String(item.salePrice ?? 0),
+    vatRate: item.vatRate || 'NO_VAT',
+    billable: item.billable,
+    trackStock: item.trackStock,
+    active: item.active,
+  })
 
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -699,17 +712,15 @@ export function ConsumablesPage() {
     request
       .then(() => {
         showToast('success', editingItem ? 'Artikel je posodobljen.' : 'Artikel je dodan.')
-        closeItemModal()
+        closeDrawer()
         void load()
       })
       .catch((e) => showToast('error', e?.response?.data?.message || 'Shranjevanje artikla ni uspelo.'))
       .finally(() => setSavingItem(false))
   }
 
-  const openStockMovement = (item: Item) => {
-    setStockMovementItem(item)
-    setStockMovementForm({ movementType: 'MANUAL_ADJUSTMENT', quantity: '1', direction: 'INCREASE', note: '' })
-  }
+  const openStockMovement = (item: Item) =>
+    openDrawer(CONSUMABLES_DRAWERS.stockMovement, { params: { id: item.id }, search: `location=${item.locationId}` })
   const saveStockMovement = (event: FormEvent) => {
     event.preventDefault()
     if (!stockMovementItem) return
@@ -727,7 +738,7 @@ export function ConsumablesPage() {
     })
       .then(() => {
         showToast('success', 'Premik zaloge je zabeležen.')
-        setStockMovementItem(null)
+        closeDrawer()
         void load()
       })
       .catch((e) => showToast('error', e?.response?.data?.message || 'Premika zaloge ni bilo mogoče shraniti.'))
@@ -735,32 +746,39 @@ export function ConsumablesPage() {
   }
 
 
-  const openStockTransfer = (item?: Item) => {
+  /** Resolves the transfer seed from an optional starting row, or from the URL on a cold load. */
+  const transferSeed = (item?: Item | null): TransferFormState | null => {
     const sourceLocationId = item?.locationId
       ?? (selectedLocationId != null && activeInventoryLocations.some((location) => location.id === selectedLocationId) ? selectedLocationId : null)
       ?? activeInventoryLocations[0]?.id
       ?? null
-    if (sourceLocationId == null || activeInventoryLocations.length < 2) {
-      showToast('error', 'Za prenos zaloge potrebujete vsaj dve aktivni poslovalnici.')
-      return
-    }
+    if (sourceLocationId == null || activeInventoryLocations.length < 2) return null
     const destinationLocationId = activeInventoryLocations.find((location) => location.id !== sourceLocationId)?.id ?? null
     const sourceItem = item
       ?? transferInventoryRows.find((candidate) => candidate.locationId === sourceLocationId && candidate.active && candidate.trackStock && Number(candidate.currentStock || 0) > 0)
       ?? transferInventoryRows.find((candidate) => candidate.locationId === sourceLocationId && candidate.active && candidate.trackStock)
       ?? transferCatalogItems[0]
       ?? null
-    setTransferForm({
+    return {
       consumableId: sourceItem ? String(sourceItem.id) : '',
       fromLocationId: String(sourceLocationId),
       toLocationId: destinationLocationId != null ? String(destinationLocationId) : '',
       quantity: '1',
       note: '',
-    })
-    setTransferModalOpen(true)
-    if (!allLocationItems.length) {
-      void api.get<Item[]>('/consumables/items').then(({ data }) => setAllLocationItems(data || [])).catch(() => undefined)
     }
+  }
+
+  const openStockTransfer = (item?: Item) => {
+    if (activeInventoryLocations.length < 2) {
+      showToast('error', 'Za prenos zaloge potrebujete vsaj dve aktivni poslovalnici.')
+      return
+    }
+    const search = new URLSearchParams()
+    if (item) {
+      search.set('item', String(item.id))
+      search.set('from', String(item.locationId))
+    }
+    openDrawer(CONSUMABLES_DRAWERS.stockTransfer, { search })
   }
 
   const saveStockTransfer = (event: FormEvent) => {
@@ -798,7 +816,7 @@ export function ConsumablesPage() {
     })
       .then(({ data }) => {
         showToast('success', `${data?.itemName || 'Artikel'} je prenesen med poslovalnicama.`)
-        setTransferModalOpen(false)
+        closeDrawer()
         void queryClient.invalidateQueries({ queryKey: queryKeys.consumables.all, refetchType: 'none' })
         void load()
       })
@@ -806,10 +824,7 @@ export function ConsumablesPage() {
       .finally(() => setSavingTransfer(false))
   }
 
-  const openCategoryManager = () => {
-    setCategoryForm({ id: null, name: '', color: '#2563eb', active: true })
-    setCategoryModalOpen(true)
-  }
+  const openCategoryManager = () => openDrawer(CONSUMABLES_DRAWERS.categories)
   const editCategory = (category: Category) => {
     setCategoryForm({ id: category.id, name: category.name, color: category.color || '#2563eb', active: category.active })
   }
@@ -838,26 +853,21 @@ export function ConsumablesPage() {
       .catch((e) => showToast('error', e?.response?.data?.message || 'Statusa kategorije ni bilo mogoče spremeniti.'))
   }
 
-  const openNewSupplier = () => {
-    setEditingSupplier(null)
-    setSupplierForm({ ...emptySupplierForm })
-    setSupplierModalOpen(true)
-  }
-  const openEditSupplier = (supplier: Supplier) => {
-    setEditingSupplier(supplier)
-    setSupplierForm({
-      name: supplier.name,
-      contactName: supplier.contactName || '',
-      phone: supplier.phone || '',
-      email: supplier.email || '',
-      categories: supplier.categories || '',
-      paymentTermsDays: String(supplier.paymentTermsDays ?? 30),
-      reliabilityPercent: String(supplier.reliabilityPercent ?? 100),
-      outstandingAmount: String(supplier.outstandingAmount ?? 0),
-      status: supplier.status || 'ACTIVE',
-    })
-    setSupplierModalOpen(true)
-  }
+  const openNewSupplier = () => openDrawer(CONSUMABLES_DRAWERS.newSupplier)
+  const openEditSupplier = (supplier: Supplier) =>
+    openDrawer(CONSUMABLES_DRAWERS.supplier, { params: { id: supplier.id } })
+
+  const supplierFormFor = (supplier: Supplier): SupplierFormState => ({
+    name: supplier.name,
+    contactName: supplier.contactName || '',
+    phone: supplier.phone || '',
+    email: supplier.email || '',
+    categories: supplier.categories || '',
+    paymentTermsDays: String(supplier.paymentTermsDays ?? 30),
+    reliabilityPercent: String(supplier.reliabilityPercent ?? 100),
+    outstandingAmount: String(supplier.outstandingAmount ?? 0),
+    status: supplier.status || 'ACTIVE',
+  })
   const saveSupplier = (event: FormEvent) => {
     event.preventDefault()
     if (!supplierForm.name.trim()) {
@@ -887,8 +897,7 @@ export function ConsumablesPage() {
     request
       .then(() => {
         showToast('success', editingSupplier ? 'Dobavitelj je posodobljen.' : 'Dobavitelj je dodan.')
-        setSupplierModalOpen(false)
-        setEditingSupplier(null)
+        closeDrawer()
         void load()
       })
       .catch((e) => showToast('error', e?.response?.data?.message || 'Dobavitelja ni bilo mogoče shraniti.'))
@@ -900,9 +909,22 @@ export function ConsumablesPage() {
       showToast('error', 'Za naročilnico najprej izberite poslovalnico v zgornjem izbirniku.')
       return
     }
+    const suggested = Array.from(new Set(
+      suggestedItems.filter((item) => item.locationId === defaultWriteLocationId).map((item) => item.id),
+    ))
+    const search = new URLSearchParams()
+    if (suggested.length) search.set('items', suggested.join(','))
+    openDrawer(CONSUMABLES_DRAWERS.newPurchaseOrder, { search })
+  }
+
+  /** Seeds a draft order from the low-stock suggestions carried in the URL. */
+  const purchaseOrderSeed = (suggestedIds: number[]): PurchaseOrderFormState => {
     const byItem = new Map<number, Item>()
-    suggestedItems.filter((item) => item.locationId === defaultWriteLocationId).forEach((item) => byItem.set(item.id, item))
-    setPurchaseOrderForm({
+    suggestedIds.forEach((id) => {
+      const item = procurementInventoryRows.find((candidate) => candidate.id === id && candidate.locationId === defaultWriteLocationId)
+      if (item) byItem.set(item.id, item)
+    })
+    return {
       ...emptyPurchaseOrderForm(defaultWriteLocationId),
       lines: Array.from(byItem.values()).map((item) => ({
         consumableId: String(item.id),
@@ -911,14 +933,15 @@ export function ConsumablesPage() {
         unitPrice: String(Number(item.costPrice || 0)),
         vatRate: item.vatRate || 'NO_VAT',
       })),
-    })
-    setPurchaseOrderModalOpen(true)
+    }
   }
 
-  const openExistingPurchaseOrder = (order: PurchaseOrder) => {
+  const openExistingPurchaseOrder = (order: PurchaseOrder) =>
+    openDrawer(CONSUMABLES_DRAWERS.purchaseOrder, { params: { id: order.id } })
+
+  const loadPurchaseOrderDetail = (orderId: number) => {
     setLoadingPurchaseOrder(true)
-    setPurchaseOrderModalOpen(true)
-    api.get<PurchaseOrderDetail>(`/consumables/purchase-orders/${order.id}`)
+    api.get<PurchaseOrderDetail>(`/consumables/purchase-orders/${orderId}`)
       .then(({ data }) => {
         const detail = data
         setPurchaseOrderForm({
@@ -941,14 +964,13 @@ export function ConsumablesPage() {
           receipts: detail.receipts || [],
         })
       })
-      .catch((e) => { showToast('error', e?.response?.data?.message || 'Naročilnice ni bilo mogoče odpreti.'); setPurchaseOrderModalOpen(false) })
+      .catch((e) => { showToast('error', e?.response?.data?.message || 'Naročilnice ni bilo mogoče odpreti.'); closeDrawer() })
       .finally(() => setLoadingPurchaseOrder(false))
   }
 
   const closePurchaseOrderModal = () => {
-    setPurchaseOrderModalOpen(false)
     setReceiveModalOpen(false)
-    setPurchaseOrderForm(emptyPurchaseOrderForm(defaultWriteLocationId))
+    closeDrawer()
   }
 
   const addPurchaseOrderLine = (item?: Item, initialQuantity?: number) => {
@@ -1020,8 +1042,10 @@ export function ConsumablesPage() {
       showToast('success', purchaseOrderForm.id ? 'Naročilnica je posodobljena.' : 'Naročilnica je ustvarjena.')
       const id = purchaseOrderForm.id || response.data?.id
       void load()
-      if (id) openExistingPurchaseOrder({ ...(response.data || {}), id } as PurchaseOrder)
-      else closePurchaseOrderModal()
+      // A new order gets its own URL; an existing one is already there and only needs the reload.
+      if (!id) closePurchaseOrderModal()
+      else if (purchaseOrderForm.id) loadPurchaseOrderDetail(id)
+      else openExistingPurchaseOrder({ ...(response.data || {}), id } as PurchaseOrder)
     }).catch((e) => showToast('error', e?.response?.data?.message || 'Naročilnice ni bilo mogoče shraniti.'))
       .finally(() => setSavingPurchaseOrder(false))
   }
@@ -1107,15 +1131,18 @@ export function ConsumablesPage() {
     }
   }
 
+  const defaultInventoryLocationId = () =>
+    defaultWriteLocationId
+    ?? writableInventoryLocations.find((location) => !inventorySessions.some((session) => session.locationId === location.id && session.status === 'IN_PROGRESS'))?.id
+    ?? writableInventoryLocations[0]?.id
+    ?? null
+
   const openStartInventory = () => {
-    const locationId = defaultWriteLocationId ?? writableInventoryLocations.find((location) => !inventorySessions.some((session) => session.locationId === location.id && session.status === 'IN_PROGRESS'))?.id ?? writableInventoryLocations[0]?.id ?? null
-    if (locationId == null) {
+    if (defaultInventoryLocationId() == null) {
       showToast('error', 'Izberite poslovalnico za inventuro.')
       return
     }
-    setInventoryStartLocationId(String(locationId))
-    setInventoryStartNotes('')
-    setInventoryStartModalOpen(true)
+    openDrawer(CONSUMABLES_DRAWERS.startInventory)
   }
 
   const startInventory = (event: FormEvent) => {
@@ -1125,7 +1152,7 @@ export function ConsumablesPage() {
     api.post<InventoryDetail>('/consumables/inventory-sessions', { locationId: Number(inventoryStartLocationId), notes: inventoryStartNotes.trim() || null })
       .then(({ data }) => {
         showToast('success', 'Inventura je začeta. Sistemske količine so shranjene kot začetni posnetek.')
-        setInventoryStartModalOpen(false)
+        closeDrawer()
         hydrateInventory(data || null)
         void refreshInventorySessions(data?.session?.id).catch(() => undefined)
       })
@@ -1165,7 +1192,11 @@ export function ConsumablesPage() {
     if (!inventoryDetail || inventoryDetail.session.status !== 'IN_PROGRESS') return
     const uncounted = inventoryDetail.lines.filter((line) => (inventoryCountDraft[line.id]?.countedQuantity ?? '').trim() === '').length
     if (uncounted > 0) { showToast('error', `Pred zaključkom preštejte vse artikle. Manjka še ${uncounted}.`); return }
-    if (!window.confirm('Zaključim inventuro? Razlike bodo zapisane kot premiki zaloge in inventure po tem ne bo več mogoče urejati.')) return
+    const confirmed = await confirm({
+      title: 'Zaključim inventuro?',
+      text: 'Razlike bodo zapisane kot premiki zaloge in inventure po tem ne bo več mogoče urejati.',
+    })
+    if (!confirmed) return
     try {
       await saveInventoryCounts(false)
       setSavingInventory(true)
@@ -1296,6 +1327,116 @@ export function ConsumablesPage() {
 
   const createPurchaseOrder = (suggestedItems: Item[] = []) => openNewPurchaseOrder(suggestedItems)
 
+  /*
+   * Seeds the open drawer's form from its URL. Runs once per drawer identity, so
+   * typing into a panel is never clobbered; if the entity it names has not loaded
+   * yet the seed is left unmarked and retried when the next data arrives.
+   */
+  const seededDrawerRef = useRef('')
+  const drawerName = drawerMatch?.descriptor.name ?? ''
+  const drawerId = drawerMatch?.params.id ?? ''
+  const drawerKey = drawerName ? `${drawerName}:${drawerId}:${routerLocation.search}` : ''
+
+  useEffect(() => {
+    if (!drawerKey) {
+      seededDrawerRef.current = ''
+      setEditingItem(null)
+      setEditingSupplier(null)
+      setStockMovementItem(null)
+      setReceiveModalOpen(false)
+      return
+    }
+    if (seededDrawerRef.current === drawerKey) return
+    const seeded = () => { seededDrawerRef.current = drawerKey }
+    const id = Number(drawerId)
+    const locationId = Number(drawerQuery.get('location'))
+    const itemRow = (rowId: number, rowLocationId: number) =>
+      items.find((row) => row.id === rowId && row.locationId === rowLocationId)
+      ?? allLocationItems.find((row) => row.id === rowId && row.locationId === rowLocationId)
+      ?? null
+
+    if (drawerName === CONSUMABLES_DRAWERS.newItem.name) {
+      setEditingItem(null)
+      setItemForm(emptyItemForm(defaultWriteLocationId))
+      seeded()
+      return
+    }
+    if (drawerName === CONSUMABLES_DRAWERS.item.name) {
+      const row = itemRow(id, locationId)
+      if (!row) return
+      setEditingItem(row)
+      setItemForm(itemFormFor(row))
+      seeded()
+      return
+    }
+    if (drawerName === CONSUMABLES_DRAWERS.stockMovement.name) {
+      const row = itemRow(id, locationId)
+      if (!row) return
+      setStockMovementItem(row)
+      setStockMovementForm({ movementType: 'MANUAL_ADJUSTMENT', quantity: '1', direction: 'INCREASE', note: '' })
+      seeded()
+      return
+    }
+    if (drawerName === CONSUMABLES_DRAWERS.stockTransfer.name) {
+      if (activeInventoryLocations.length < 2) return
+      const startId = Number(drawerQuery.get('item'))
+      const startLocationId = Number(drawerQuery.get('from'))
+      const seed = transferSeed(startId && startLocationId ? itemRow(startId, startLocationId) : null)
+      if (!seed) return
+      setTransferForm(seed)
+      seeded()
+      if (!allLocationItems.length) {
+        void api.get<Item[]>('/consumables/items').then(({ data }) => setAllLocationItems(data || [])).catch(() => undefined)
+      }
+      return
+    }
+    if (drawerName === CONSUMABLES_DRAWERS.categories.name) {
+      setCategoryForm({ id: null, name: '', color: '#2563eb', active: true })
+      seeded()
+      return
+    }
+    if (drawerName === CONSUMABLES_DRAWERS.newSupplier.name) {
+      setEditingSupplier(null)
+      setSupplierForm({ ...emptySupplierForm })
+      seeded()
+      return
+    }
+    if (drawerName === CONSUMABLES_DRAWERS.supplier.name) {
+      const supplier = suppliers.find((candidate) => candidate.id === id)
+      if (!supplier) return
+      setEditingSupplier(supplier)
+      setSupplierForm(supplierFormFor(supplier))
+      seeded()
+      return
+    }
+    if (drawerName === CONSUMABLES_DRAWERS.newPurchaseOrder.name) {
+      const suggestedIds = (drawerQuery.get('items') || '').split(',').map(Number).filter(Boolean)
+      if (suggestedIds.length && !procurementInventoryRows.length) return
+      setPurchaseOrderForm(purchaseOrderSeed(suggestedIds))
+      seeded()
+      return
+    }
+    if (drawerName === CONSUMABLES_DRAWERS.purchaseOrder.name) {
+      if (!id) return
+      seeded()
+      loadPurchaseOrderDetail(id)
+      return
+    }
+    if (drawerName === CONSUMABLES_DRAWERS.startInventory.name) {
+      const startLocationId = defaultInventoryLocationId()
+      if (startLocationId == null) return
+      setInventoryStartLocationId(String(startLocationId))
+      setInventoryStartNotes('')
+      seeded()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawerKey, drawerName, drawerId, drawerQuery, items, allLocationItems, suppliers, procurementInventoryRows, activeInventoryLocations, defaultWriteLocationId])
+
+  const itemSettingsSummary = [
+    itemForm.trackStock ? 'Zaloga' : null,
+    itemForm.billable ? 'Zaračunljivo' : null,
+    itemForm.active ? 'Aktivno' : 'Neaktivno',
+  ].filter(Boolean).join(' · ')
 
   const stockPreviewDelta = movementSignedQuantity(stockMovementForm)
   const stockPreviewAfter = stockMovementItem ? Number(stockMovementItem.currentStock || 0) + stockPreviewDelta : 0
@@ -1309,6 +1450,7 @@ export function ConsumablesPage() {
 
   const purchaseOrderHasReceipts = purchaseOrderForm.lines.some((line) => Number(line.receivedQuantity || 0) > 0)
   const purchaseOrderTerminal = ['COMPLETED', 'CANCELLED'].includes(purchaseOrderForm.status)
+  const purchaseOrderSupplierName = suppliers.find((supplier) => String(supplier.id) === purchaseOrderForm.supplierId)?.name || ''
   const purchaseOrderTotals = purchaseOrderForm.lines.reduce((totals, line) => {
     const quantity = Number(String(line.orderedQuantity || '0').replace(',', '.')) || 0
     const unitPrice = Number(String(line.unitPrice || '0').replace(',', '.')) || 0
@@ -1347,162 +1489,291 @@ export function ConsumablesPage() {
         {activeTab === 'reports' && canViewConsumableReports && <ReportsTab report={report} loading={reportLoading} reportType={reportType} setReportType={setReportType} from={reportFrom} setFrom={setReportFrom} to={reportTo} setTo={setReportTo} locationId={reportLocationId} setLocationId={setReportLocationId} serviceTypeId={reportServiceTypeId} setServiceTypeId={setReportServiceTypeId} employeeId={reportEmployeeId} setEmployeeId={setReportEmployeeId} locations={activeInventoryLocations} onRefresh={() => void loadReport()} onExportCsv={() => void exportReport('csv')} onExportExcel={() => void exportReport('excel')} />}
       </section>
 
-      {inventoryStartModalOpen && (
-        <div className="consumables-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setInventoryStartModalOpen(false) }}>
-          <form className="consumables-modal" onSubmit={startInventory}>
-            <header><div><h2>Začni inventuro</h2><p>Sistemska zaloga se ob začetku shrani kot nespremenljiv posnetek za izbrano poslovalnico.</p></div><button type="button" onClick={() => setInventoryStartModalOpen(false)} aria-label="Zapri">×</button></header>
-            <div className="consumables-modal-grid">
+      <SidePanel open={isDrawerOpen(CONSUMABLES_DRAWERS.startInventory)} onClose={closeDrawer} ariaLabel="Začni inventuro" size="sm">
+        <PanelHeader
+          title="Začni inventuro"
+          subtitle="Sistemska zaloga se ob začetku shrani kot nespremenljiv posnetek za izbrano poslovalnico."
+          onClose={closeDrawer}
+          closeLabel="Zapri"
+        />
+        <PanelBody as="form" id="consumables-start-inventory" onSubmit={startInventory} sectioned>
+          <PanelSection title="Inventura" icon={<PanelSectionIcon name="stock" />} collapsible={false}>
+            <div className="consumables-modal-grid one-col">
               <label>Poslovalnica<DesktopSelect autoFocus value={inventoryStartLocationId} onChange={(e) => setInventoryStartLocationId(e.target.value)}><option value="">Izberite poslovalnico</option>{writableInventoryLocations.map((location) => { const active = inventorySessions.some((session) => session.locationId === location.id && session.status === 'IN_PROGRESS'); return <option key={location.id} value={location.id} disabled={active}>{location.name}{active ? ' · inventura že poteka' : ''}</option> })}</DesktopSelect></label>
               <label className="full">Opomba<textarea value={inventoryStartNotes} onChange={(e) => setInventoryStartNotes(e.target.value)} placeholder="Npr. mesečna inventura, zaključek izmene ..." /></label>
             </div>
             <div className="procurement-info-note inventory-start-note">Med inventuro lahko normalno nastajajo drugi premiki zaloge. Zaključna korekcija uporablja razliko med prešteto količino in posnetkom ob začetku, zato kasnejši premiki ne prepišejo začetnega stanja.</div>
-            <footer><button type="button" className="btn secondary" onClick={() => setInventoryStartModalOpen(false)}>Prekliči</button><button type="submit" className="btn primary" disabled={savingInventory}>{savingInventory ? 'Začenjam…' : 'Začni inventuro'}</button></footer>
-          </form>
-        </div>
-      )}
+          </PanelSection>
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={closeDrawer}>Prekliči</PanelButton>
+          <PanelButton type="submit" form="consumables-start-inventory" variant="primary" busy={savingInventory}>
+            {savingInventory ? 'Začenjam…' : 'Začni inventuro'}
+          </PanelButton>
+        </PanelFooter>
+      </SidePanel>
 
-      {itemModalOpen && (
-        <div className="consumables-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) closeItemModal() }}>
-          <form className="consumables-modal consumables-modal-wide" onSubmit={saveItem}>
-            <header>
-              <div><h2>{editingItem ? 'Uredi artikel' : 'Nov artikel'}</h2><p>{editingItem ? `Urejate zalogo za poslovalnico ${editingItem.location || ''}. Katalogski podatki veljajo za artikel v vseh poslovalnicah.` : 'Dodajte artikel in začetno zalogo za izbrano poslovalnico.'}</p></div>
-              <button type="button" onClick={closeItemModal} aria-label="Zapri">×</button>
-            </header>
+      <SidePanel
+        open={isDrawerOpen(CONSUMABLES_DRAWERS.newItem) || isDrawerOpen(CONSUMABLES_DRAWERS.item)}
+        onClose={closeDrawer}
+        ariaLabel={editingItem ? 'Uredi artikel' : 'Nov artikel'}
+        size="lg"
+      >
+        <PanelHeader
+          title={editingItem ? 'Uredi artikel' : 'Nov artikel'}
+          subtitle={editingItem ? `Urejate zalogo za poslovalnico ${editingItem.location || ''}. Katalogski podatki veljajo za artikel v vseh poslovalnicah.` : 'Dodajte artikel in začetno zalogo za izbrano poslovalnico.'}
+          onClose={closeDrawer}
+          closeLabel="Zapri"
+        />
+        <PanelBody as="form" id="consumables-item" onSubmit={saveItem} sectioned>
+          <PanelSection title="Osnovni podatki" icon={<PanelSectionIcon name="consumables" />} summary={itemForm.name.trim() || '—'}>
             <div className="consumables-modal-grid">
               <label>Naziv *<input autoFocus value={itemForm.name} onChange={(e) => setItemForm((f) => ({ ...f, name: e.target.value }))} /></label>
               <label>SKU<input value={itemForm.sku} onChange={(e) => setItemForm((f) => ({ ...f, sku: e.target.value }))} placeholder="npr. OLJE-500" /></label>
               <label className="full">Opis<textarea value={itemForm.description} onChange={(e) => setItemForm((f) => ({ ...f, description: e.target.value }))} placeholder="Interni opis artikla" /></label>
               <label>Črtna koda<div className="barcode-field-row"><input value={itemForm.barcode} onChange={(e) => setItemForm((f) => ({ ...f, barcode: e.target.value }))} placeholder="EAN / UPC / Code 128 / druga koda" /><button type="button" className="btn secondary barcode-field-button" onClick={() => openBarcodeScanner('ITEM_BARCODE')}>▦ Skeniraj</button></div><small>Koda mora biti unikatna znotraj podjetja.</small></label>
               <label>Kategorija<DesktopSelect value={itemForm.categoryId} onChange={(e) => setItemForm((f) => ({ ...f, categoryId: e.target.value }))}><option value="">Brez kategorije</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}{c.active ? '' : ' (neaktivna)'}</option>)}</DesktopSelect></label>
+            </div>
+          </PanelSection>
+
+          <PanelSection
+            title="Zaloga"
+            icon={<PanelSectionIcon name="stock" />}
+            summary={`${n(Number(String(itemForm.currentStock || '0').replace(',', '.')) || 0, 2)} ${itemForm.unit || ''}`}
+          >
+            <div className="consumables-modal-grid">
               <label>Poslovalnica<DesktopSelect disabled={Boolean(editingItem)} value={itemForm.locationId} onChange={(e) => setItemForm((f) => ({ ...f, locationId: e.target.value }))}><option value="">Izberite poslovalnico</option>{writableInventoryLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}{editingItem && !writableInventoryLocations.some((location) => location.id === editingItem.locationId) && <option value={editingItem.locationId}>{editingItem.location || `#${editingItem.locationId}`}</option>}</DesktopSelect></label>
               <label>Enota *<input value={itemForm.unit} onChange={(e) => setItemForm((f) => ({ ...f, unit: e.target.value }))} placeholder="kos, ml, g ..." /></label>
               <label>Trenutna zaloga<input type="number" step="0.01" min="0" disabled={Boolean(editingItem)} value={itemForm.currentStock} onChange={(e) => setItemForm((f) => ({ ...f, currentStock: e.target.value }))} />{editingItem && <small>Za spremembo zaloge uporabite »Premik zaloge«.</small>}</label>
               <label>Min. zaloga<input type="number" step="0.01" min="0" value={itemForm.minimumStock} onChange={(e) => setItemForm((f) => ({ ...f, minimumStock: e.target.value }))} /></label>
+            </div>
+          </PanelSection>
+
+          <PanelSection
+            title="Cene"
+            icon={<PanelSectionIcon name="pricing" />}
+            defaultOpen={false}
+            summary={`${eur(Number(String(itemForm.salePrice || '0').replace(',', '.')) || 0)} · ${vatText(itemForm.vatRate)}`}
+          >
+            <div className="consumables-modal-grid">
               <label>Nabavna cena<input type="number" step="0.01" min="0" value={itemForm.costPrice} onChange={(e) => setItemForm((f) => ({ ...f, costPrice: e.target.value }))} /></label>
               <label>Prodajna cena<input type="number" step="0.01" min="0" value={itemForm.salePrice} onChange={(e) => setItemForm((f) => ({ ...f, salePrice: e.target.value }))} /></label>
               <label>DDV<DesktopSelect value={itemForm.vatRate} onChange={(e) => setItemForm((f) => ({ ...f, vatRate: e.target.value as ItemFormState['vatRate'] }))}><option value="VAT_22">22 %</option><option value="VAT_9_5">9,5 %</option><option value="VAT_0">0 %</option><option value="NO_VAT">Brez DDV</option></DesktopSelect></label>
             </div>
+          </PanelSection>
+
+          <PanelSection
+            title="Nastavitve"
+            icon={<PanelSectionIcon name="settings" />}
+            defaultOpen={false}
+            summary={itemSettingsSummary}
+          >
             <div className="consumables-modal-switches three">
               <label><input type="checkbox" checked={itemForm.trackStock} onChange={(e) => setItemForm((f) => ({ ...f, trackStock: e.target.checked }))} /> Spremljaj zalogo</label>
               <label><input type="checkbox" checked={itemForm.billable} onChange={(e) => setItemForm((f) => ({ ...f, billable: e.target.checked }))} /> Zaračunljivo</label>
               <label><input type="checkbox" checked={itemForm.active} onChange={(e) => setItemForm((f) => ({ ...f, active: e.target.checked }))} /> Aktivno</label>
             </div>
-            <footer>
-              <button type="button" className="btn secondary" onClick={closeItemModal}>Prekliči</button>
-              <button type="submit" className="btn primary" disabled={savingItem}>{savingItem ? 'Shranjujem…' : editingItem ? 'Shrani spremembe' : 'Shrani artikel'}</button>
-            </footer>
-          </form>
-        </div>
-      )}
+          </PanelSection>
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={closeDrawer}>Prekliči</PanelButton>
+          <PanelButton type="submit" form="consumables-item" variant="primary" busy={savingItem}>
+            {savingItem ? 'Shranjujem…' : editingItem ? 'Shrani spremembe' : 'Shrani artikel'}
+          </PanelButton>
+        </PanelFooter>
+      </SidePanel>
 
-      {stockMovementItem && (
-        <div className="consumables-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setStockMovementItem(null) }}>
-          <form className="consumables-modal" onSubmit={saveStockMovement}>
-            <header>
-              <div><h2>Premik zaloge</h2><p>{stockMovementItem.name} · {stockMovementItem.location || 'Poslovalnica'}</p></div>
-              <button type="button" onClick={() => setStockMovementItem(null)} aria-label="Zapri">×</button>
-            </header>
-            <div className="consumables-modal-grid">
-              <label>Vrsta premika<DesktopSelect value={stockMovementForm.movementType} onChange={(e) => setStockMovementForm((f) => ({ ...f, movementType: e.target.value as ManualMovementType }))}><option value="PURCHASE">Prejem</option><option value="MANUAL_ADJUSTMENT">Ročni popravek</option><option value="WASTE">Odpis</option><option value="RETURN">Vračilo</option><option value="CORRECTION">Korekcija</option></DesktopSelect></label>
-              {manualDirectionVisible && <label>Smer<DesktopSelect value={stockMovementForm.direction} onChange={(e) => setStockMovementForm((f) => ({ ...f, direction: e.target.value as StockMovementFormState['direction'] }))}><option value="INCREASE">Povečaj zalogo</option><option value="DECREASE">Zmanjšaj zalogo</option></DesktopSelect></label>}
-              <label>Količina ({stockMovementItem.unit})<input type="number" step="0.01" min="0.01" value={stockMovementForm.quantity} onChange={(e) => setStockMovementForm((f) => ({ ...f, quantity: e.target.value }))} /></label>
-              <label className="full">Opomba<textarea value={stockMovementForm.note} onChange={(e) => setStockMovementForm((f) => ({ ...f, note: e.target.value }))} placeholder="Npr. poškodovana embalaža, prejem dobave ..." /></label>
-            </div>
-            <div className="consumables-stock-preview">
-              <span>Trenutno<strong>{n(stockMovementItem.currentStock, 2)} {stockMovementItem.unit}</strong></span>
-              <span>Sprememba<strong className={stockPreviewDelta < 0 ? 'danger' : 'success'}>{stockPreviewDelta > 0 ? '+' : ''}{n(stockPreviewDelta, 2)} {stockMovementItem.unit}</strong></span>
-              <span>Po premiku<strong className={stockPreviewAfter < 0 ? 'danger' : ''}>{n(stockPreviewAfter, 2)} {stockMovementItem.unit}</strong></span>
-            </div>
-            <footer>
-              <button type="button" className="btn secondary" onClick={() => setStockMovementItem(null)}>Prekliči</button>
-              <button type="submit" className="btn primary" disabled={savingMovement || stockPreviewAfter < 0}>{savingMovement ? 'Shranjujem…' : 'Shrani premik'}</button>
-            </footer>
-          </form>
-        </div>
-      )}
+      <SidePanel
+        open={isDrawerOpen(CONSUMABLES_DRAWERS.stockMovement) && Boolean(stockMovementItem)}
+        onClose={closeDrawer}
+        ariaLabel="Premik zaloge"
+        size="md"
+      >
+        {stockMovementItem && <>
+          <PanelHeader
+            title="Premik zaloge"
+            subtitle={`${stockMovementItem.name} · ${stockMovementItem.location || 'Poslovalnica'}`}
+            onClose={closeDrawer}
+            closeLabel="Zapri"
+          />
+          <PanelBody as="form" id="consumables-stock-movement" onSubmit={saveStockMovement} sectioned>
+            <PanelSection title="Premik" icon={<PanelSectionIcon name="stock" />} collapsible={false}>
+              <div className="consumables-modal-grid">
+                <label>Vrsta premika<DesktopSelect value={stockMovementForm.movementType} onChange={(e) => setStockMovementForm((f) => ({ ...f, movementType: e.target.value as ManualMovementType }))}><option value="PURCHASE">Prejem</option><option value="MANUAL_ADJUSTMENT">Ročni popravek</option><option value="WASTE">Odpis</option><option value="RETURN">Vračilo</option><option value="CORRECTION">Korekcija</option></DesktopSelect></label>
+                {manualDirectionVisible && <label>Smer<DesktopSelect value={stockMovementForm.direction} onChange={(e) => setStockMovementForm((f) => ({ ...f, direction: e.target.value as StockMovementFormState['direction'] }))}><option value="INCREASE">Povečaj zalogo</option><option value="DECREASE">Zmanjšaj zalogo</option></DesktopSelect></label>}
+                <label>Količina ({stockMovementItem.unit})<input type="number" step="0.01" min="0.01" value={stockMovementForm.quantity} onChange={(e) => setStockMovementForm((f) => ({ ...f, quantity: e.target.value }))} /></label>
+                <label className="full">Opomba<textarea value={stockMovementForm.note} onChange={(e) => setStockMovementForm((f) => ({ ...f, note: e.target.value }))} placeholder="Npr. poškodovana embalaža, prejem dobave ..." /></label>
+              </div>
+              <div className="consumables-stock-preview">
+                <span>Trenutno<strong>{n(stockMovementItem.currentStock, 2)} {stockMovementItem.unit}</strong></span>
+                <span>Sprememba<strong className={stockPreviewDelta < 0 ? 'danger' : 'success'}>{stockPreviewDelta > 0 ? '+' : ''}{n(stockPreviewDelta, 2)} {stockMovementItem.unit}</strong></span>
+                <span>Po premiku<strong className={stockPreviewAfter < 0 ? 'danger' : ''}>{n(stockPreviewAfter, 2)} {stockMovementItem.unit}</strong></span>
+              </div>
+            </PanelSection>
+          </PanelBody>
+          <PanelFooter>
+            <PanelButton onClick={closeDrawer}>Prekliči</PanelButton>
+            <PanelButton type="submit" form="consumables-stock-movement" variant="primary" busy={savingMovement} disabled={stockPreviewAfter < 0}>
+              {savingMovement ? 'Shranjujem…' : 'Shrani premik'}
+            </PanelButton>
+          </PanelFooter>
+        </>}
+      </SidePanel>
 
-      {transferModalOpen && (
-        <div className="consumables-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setTransferModalOpen(false) }}>
-          <form className="consumables-modal consumables-modal-wide stock-transfer-modal" onSubmit={saveStockTransfer}>
-            <header>
-              <div><h2>Prenos zaloge</h2><p>Prenesite artikel med poslovalnicama z enim atomarnim premikom. Oba premika ostaneta povezana v zgodovini.</p></div>
-              <button type="button" onClick={() => setTransferModalOpen(false)} aria-label="Zapri">×</button>
-            </header>
+      <SidePanel open={isDrawerOpen(CONSUMABLES_DRAWERS.stockTransfer)} onClose={closeDrawer} ariaLabel="Prenos zaloge" size="lg">
+        <PanelHeader
+          title="Prenos zaloge"
+          subtitle="Prenesite artikel med poslovalnicama z enim atomarnim premikom. Oba premika ostaneta povezana v zgodovini."
+          onClose={closeDrawer}
+          closeLabel="Zapri"
+        />
+        <PanelBody as="form" id="consumables-stock-transfer" onSubmit={saveStockTransfer} sectioned>
+          <PanelSection title="Artikel" icon={<PanelSectionIcon name="consumables" />} collapsible={false}>
             <div className="consumables-modal-grid">
               <label className="full">Artikel<div className="barcode-field-row"><DesktopSelect autoFocus value={transferForm.consumableId} onChange={(e) => setTransferForm((form) => ({ ...form, consumableId: e.target.value }))}><option value="">Izberite artikel</option>{transferCatalogItems.map((item) => <option key={item.id} value={item.id}>{item.name}{item.sku ? ` · ${item.sku}` : ''}</option>)}</DesktopSelect><button type="button" className="btn secondary barcode-field-button" onClick={() => openBarcodeScanner('TRANSFER_ITEM')}>▦ Skeniraj</button></div></label>
+              <label>Količina ({transferSelectedItem?.unit || 'enota'})<input type="number" min="0.0001" step="0.0001" max={transferSourceRow?.trackStock ? Math.max(0, Number(transferSourceRow.currentStock || 0)) : undefined} value={transferForm.quantity} onChange={(e) => setTransferForm((form) => ({ ...form, quantity: e.target.value }))} /></label>
+            </div>
+          </PanelSection>
+          <PanelSection title="Poslovalnici" icon={<PanelSectionIcon name="location" />} collapsible={false}>
+            <div className="consumables-modal-grid">
               <label>Iz poslovalnice<DesktopSelect value={transferForm.fromLocationId} onChange={(e) => { const fromLocationId = e.target.value; const nextDestination = transferForm.toLocationId === fromLocationId ? String(activeInventoryLocations.find((location) => String(location.id) !== fromLocationId)?.id || '') : transferForm.toLocationId; setTransferForm((form) => ({ ...form, fromLocationId, toLocationId: nextDestination })) }}><option value="">Izberite</option>{activeInventoryLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</DesktopSelect></label>
               <label>V poslovalnico<DesktopSelect value={transferForm.toLocationId} onChange={(e) => setTransferForm((form) => ({ ...form, toLocationId: e.target.value }))}><option value="">Izberite</option>{activeInventoryLocations.filter((location) => String(location.id) !== transferForm.fromLocationId).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</DesktopSelect></label>
-              <label>Količina ({transferSelectedItem?.unit || 'enota'})<input type="number" min="0.0001" step="0.0001" max={transferSourceRow?.trackStock ? Math.max(0, Number(transferSourceRow.currentStock || 0)) : undefined} value={transferForm.quantity} onChange={(e) => setTransferForm((form) => ({ ...form, quantity: e.target.value }))} /></label>
-              <label className="full">Opomba<textarea value={transferForm.note} onChange={(e) => setTransferForm((form) => ({ ...form, note: e.target.value }))} placeholder="Npr. dopolnitev zaloge druge poslovalnice ..." /></label>
             </div>
             <div className="stock-transfer-preview">
               <div><small>Izvorna zaloga</small><strong>{n(transferSourceRow?.currentStock, 2)} {transferSelectedItem?.unit || ''}</strong><span className={transferSourceAfter < 0 ? 'danger' : ''}>Po prenosu: {n(transferSourceAfter, 2)}</span></div>
               <div className="stock-transfer-arrow">→<small>{transferQuantity > 0 ? `${n(transferQuantity, 2)} ${transferSelectedItem?.unit || ''}` : 'količina'}</small></div>
               <div><small>Ciljna zaloga</small><strong>{n(transferDestinationRow?.currentStock, 2)} {transferSelectedItem?.unit || ''}</strong><span>Po prenosu: {n(transferDestinationAfter, 2)}</span></div>
             </div>
+          </PanelSection>
+          <PanelSection title="Opomba" icon={<PanelSectionIcon name="notes" />} defaultOpen={false} summary={transferForm.note.trim() || '—'}>
+            <div className="consumables-modal-grid one-col">
+              <label className="full">Opomba<textarea value={transferForm.note} onChange={(e) => setTransferForm((form) => ({ ...form, note: e.target.value }))} placeholder="Npr. dopolnitev zaloge druge poslovalnice ..." /></label>
+            </div>
             <div className="procurement-info-note">Prenos zmanjša zalogo na izvorni poslovalnici in jo v isti transakciji poveča na ciljni. Ciljna nabavna cena se preračuna uteženo z nabavno ceno prenesene zaloge. Če katerikoli del ne uspe, se ne zapiše noben premik.</div>
-            <footer><button type="button" className="btn secondary" onClick={() => setTransferModalOpen(false)}>Prekliči</button><button type="submit" className="btn primary" disabled={savingTransfer || !transferSelectedItem || transferQuantity <= 0 || transferSourceAfter < 0}>{savingTransfer ? 'Prenašam…' : 'Potrdi prenos'}</button></footer>
-          </form>
-        </div>
-      )}
+          </PanelSection>
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={closeDrawer}>Prekliči</PanelButton>
+          <PanelButton
+            type="submit"
+            form="consumables-stock-transfer"
+            variant="primary"
+            busy={savingTransfer}
+            disabled={!transferSelectedItem || transferQuantity <= 0 || transferSourceAfter < 0}
+          >
+            {savingTransfer ? 'Prenašam…' : 'Potrdi prenos'}
+          </PanelButton>
+        </PanelFooter>
+      </SidePanel>
 
-      {categoryModalOpen && (
-        <div className="consumables-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setCategoryModalOpen(false) }}>
-          <div className="consumables-modal consumables-modal-wide">
-            <header>
-              <div><h2>Kategorije artiklov</h2><p>Ustvarite, uredite ali deaktivirajte kategorije porabnega materiala.</p></div>
-              <button type="button" onClick={() => setCategoryModalOpen(false)} aria-label="Zapri">×</button>
-            </header>
+      <SidePanel open={isDrawerOpen(CONSUMABLES_DRAWERS.categories)} onClose={closeDrawer} ariaLabel="Kategorije artiklov" size="lg">
+        <PanelHeader
+          title="Kategorije artiklov"
+          subtitle="Ustvarite, uredite ali deaktivirajte kategorije porabnega materiala."
+          onClose={closeDrawer}
+          closeLabel="Zapri"
+        />
+        <PanelBody sectioned>
+          <PanelSection
+            title={categoryForm.id ? 'Uredi kategorijo' : 'Nova kategorija'}
+            icon={<PanelSectionIcon name="settings" />}
+            collapsible={false}
+          >
             <form onSubmit={saveCategory} className="consumables-inline-form">
               <label>Naziv *<input value={categoryForm.name} onChange={(e) => setCategoryForm((f) => ({ ...f, name: e.target.value }))} placeholder="Naziv kategorije" /></label>
               <label>Barva<input type="color" value={categoryForm.color} onChange={(e) => setCategoryForm((f) => ({ ...f, color: e.target.value }))} /></label>
               <label className="check"><input type="checkbox" checked={categoryForm.active} onChange={(e) => setCategoryForm((f) => ({ ...f, active: e.target.checked }))} /> Aktivna</label>
-              <button type="submit" className="btn primary" disabled={savingCategory}>{savingCategory ? 'Shranjujem…' : categoryForm.id ? 'Shrani kategorijo' : '+ Dodaj kategorijo'}</button>
-              {categoryForm.id && <button type="button" className="btn secondary" onClick={() => setCategoryForm({ id: null, name: '', color: '#2563eb', active: true })}>Prekliči urejanje</button>}
+              <PanelButton type="submit" variant="primary" busy={savingCategory}>
+                {savingCategory ? 'Shranjujem…' : categoryForm.id ? 'Shrani kategorijo' : '+ Dodaj kategorijo'}
+              </PanelButton>
+              {categoryForm.id && <PanelButton onClick={() => setCategoryForm({ id: null, name: '', color: '#2563eb', active: true })}>Prekliči urejanje</PanelButton>}
             </form>
+          </PanelSection>
+          <PanelSection
+            title="Kategorije"
+            icon={<PanelSectionIcon name="consumables" />}
+            badge={`${categories.length}`}
+            collapsible={false}
+          >
             <div className="consumables-manager-list">
               <table><thead><tr><th>Kategorija</th><th>Barva</th><th>Status</th><th>Dejanja</th></tr></thead><tbody>{categories.map((category) => <tr key={category.id}><td><strong>{category.name}</strong></td><td><span className="category-color-dot" style={{ background: category.color || '#2563eb' }} /> {category.color || '#2563eb'}</td><td><Badge tone={category.active ? 'success' : 'muted'}>{category.active ? 'Aktivna' : 'Neaktivna'}</Badge></td><td><div className="consumables-row-actions"><button type="button" className="btn tiny secondary" onClick={() => editCategory(category)}>Uredi</button><button type="button" className="btn tiny secondary" onClick={() => toggleCategory(category)}>{category.active ? 'Deaktiviraj' : 'Aktiviraj'}</button></div></td></tr>)}</tbody></table>
               <Empty visible={categories.length === 0} text="Kategorij še ni." />
             </div>
-            <footer><button type="button" className="btn secondary" onClick={() => setCategoryModalOpen(false)}>Zapri</button></footer>
-          </div>
-        </div>
-      )}
+          </PanelSection>
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={closeDrawer} variant="primary">Zapri</PanelButton>
+        </PanelFooter>
+      </SidePanel>
 
-      {supplierModalOpen && (
-        <div className="consumables-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setSupplierModalOpen(false) }}>
-          <form className="consumables-modal consumables-modal-wide" onSubmit={saveSupplier}>
-            <header>
-              <div><h2>{editingSupplier ? 'Uredi dobavitelja' : 'Nov dobavitelj'}</h2><p>Kontaktni in operativni podatki dobavitelja.</p></div>
-              <button type="button" onClick={() => setSupplierModalOpen(false)} aria-label="Zapri">×</button>
-            </header>
+      <SidePanel
+        open={isDrawerOpen(CONSUMABLES_DRAWERS.newSupplier) || isDrawerOpen(CONSUMABLES_DRAWERS.supplier)}
+        onClose={closeDrawer}
+        ariaLabel={editingSupplier ? 'Uredi dobavitelja' : 'Nov dobavitelj'}
+        size="lg"
+      >
+        <PanelHeader
+          title={editingSupplier ? 'Uredi dobavitelja' : 'Nov dobavitelj'}
+          subtitle="Kontaktni in operativni podatki dobavitelja."
+          onClose={closeDrawer}
+          closeLabel="Zapri"
+        />
+        <PanelBody as="form" id="consumables-supplier" onSubmit={saveSupplier} sectioned>
+          <PanelSection title="Kontakt" icon={<PanelSectionIcon name="contact" />} collapsible={false}>
             <div className="consumables-modal-grid">
               <label>Naziv *<input autoFocus value={supplierForm.name} onChange={(e) => setSupplierForm((f) => ({ ...f, name: e.target.value }))} /></label>
               <label>Kontaktna oseba<input value={supplierForm.contactName} onChange={(e) => setSupplierForm((f) => ({ ...f, contactName: e.target.value }))} /></label>
               <label>Telefon<input value={supplierForm.phone} onChange={(e) => setSupplierForm((f) => ({ ...f, phone: e.target.value }))} /></label>
               <label>E-mail<input type="email" value={supplierForm.email} onChange={(e) => setSupplierForm((f) => ({ ...f, email: e.target.value }))} /></label>
               <label className="full">Kategorije<input value={supplierForm.categories} onChange={(e) => setSupplierForm((f) => ({ ...f, categories: e.target.value }))} placeholder="Npr. Higiena, Masaža, Pijača (ločite z vejico)" /></label>
+            </div>
+          </PanelSection>
+          <PanelSection
+            title="Sodelovanje"
+            icon={<PanelSectionIcon name="supplier" />}
+            defaultOpen={false}
+            summary={`${supplierForm.paymentTermsDays || 0} dni · ${supplierForm.reliabilityPercent || 0} % · ${supplierForm.status === 'ACTIVE' ? 'Aktiven' : 'Neaktiven'}`}
+          >
+            <div className="consumables-modal-grid">
               <label>Plačilni rok (dni)<input type="number" min="0" step="1" value={supplierForm.paymentTermsDays} onChange={(e) => setSupplierForm((f) => ({ ...f, paymentTermsDays: e.target.value }))} /></label>
               <label>Zanesljivost (%)<input type="number" min="0" max="100" step="1" value={supplierForm.reliabilityPercent} onChange={(e) => setSupplierForm((f) => ({ ...f, reliabilityPercent: e.target.value }))} /></label>
               <label>Neplačane obveznosti (€)<input type="number" min="0" step="0.01" value={supplierForm.outstandingAmount} onChange={(e) => setSupplierForm((f) => ({ ...f, outstandingAmount: e.target.value }))} /></label>
               <label>Status<DesktopSelect value={supplierForm.status} onChange={(e) => setSupplierForm((f) => ({ ...f, status: e.target.value as SupplierFormState['status'] }))}><option value="ACTIVE">Aktiven</option><option value="INACTIVE">Neaktiven</option></DesktopSelect></label>
             </div>
-            <footer>
-              <button type="button" className="btn secondary" onClick={() => setSupplierModalOpen(false)}>Prekliči</button>
-              <button type="submit" className="btn primary" disabled={savingSupplier}>{savingSupplier ? 'Shranjujem…' : 'Shrani dobavitelja'}</button>
-            </footer>
-          </form>
-        </div>
-      )}
+          </PanelSection>
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={closeDrawer}>Prekliči</PanelButton>
+          <PanelButton type="submit" form="consumables-supplier" variant="primary" busy={savingSupplier}>
+            {savingSupplier ? 'Shranjujem…' : 'Shrani dobavitelja'}
+          </PanelButton>
+        </PanelFooter>
+      </SidePanel>
 
-      {purchaseOrderModalOpen && (
-        <div className="consumables-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !receiveModalOpen) closePurchaseOrderModal() }}>
-          <form className="consumables-modal consumables-modal-xl" onSubmit={canManageProcurement ? savePurchaseOrder : (event) => event.preventDefault()}>
-            <header>
-              <div><h2>{purchaseOrderForm.id ? `Naročilnica ${purchaseOrderForm.orderNumber}` : 'Nova naročilnica'}</h2><p>Dodajte artikle, določite količine in nabavne cene ter nato spremljajte delne prejeme.</p></div>
-              <button type="button" onClick={closePurchaseOrderModal} aria-label="Zapri">×</button>
-            </header>
-            {loadingPurchaseOrder ? <div className="consumables-empty">Nalagam naročilnico…</div> : <>
+      <SidePanel
+        open={isDrawerOpen(CONSUMABLES_DRAWERS.newPurchaseOrder) || isDrawerOpen(CONSUMABLES_DRAWERS.purchaseOrder)}
+        onClose={closePurchaseOrderModal}
+        ariaLabel={purchaseOrderForm.id ? `Naročilnica ${purchaseOrderForm.orderNumber}` : 'Nova naročilnica'}
+        size="xl"
+      >
+        <PanelHeader
+          title={purchaseOrderForm.id ? `Naročilnica ${purchaseOrderForm.orderNumber}` : 'Nova naročilnica'}
+          subtitle="Dodajte artikle, določite količine in nabavne cene ter nato spremljajte delne prejeme."
+          onClose={closePurchaseOrderModal}
+          closeLabel="Zapri"
+        />
+        <PanelBody
+          as="form"
+          id="consumables-purchase-order"
+          onSubmit={canManageProcurement ? savePurchaseOrder : (event) => event.preventDefault()}
+          sectioned
+        >
+          {loadingPurchaseOrder ? <PanelEmpty>Nalagam naročilnico…</PanelEmpty> : <>
+            <PanelSection
+              title="Podatki"
+              icon={<PanelSectionIcon name="supplier" />}
+              summary={`${statusText(purchaseOrderForm.status)}${purchaseOrderSupplierName ? ` · ${purchaseOrderSupplierName}` : ''}`}
+            >
               <div className="consumables-modal-grid procurement-header-grid">
                 <label>Št. naročilnice<input value={purchaseOrderForm.orderNumber} disabled={!canManageProcurement || purchaseOrderTerminal} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, orderNumber: e.target.value }))} placeholder="Samodejno, če pustite prazno" /></label>
                 <label>Dobavitelj<DesktopSelect value={purchaseOrderForm.supplierId} disabled={!canManageProcurement || purchaseOrderTerminal || purchaseOrderHasReceipts} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, supplierId: e.target.value }))}><option value="">Brez dobavitelja</option>{suppliers.filter((supplier) => supplier.status === 'ACTIVE' || String(supplier.id) === purchaseOrderForm.supplierId).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</DesktopSelect></label>
@@ -1512,42 +1783,80 @@ export function ConsumablesPage() {
                 <label>Pričakovana dobava<input type="date" value={purchaseOrderForm.expectedDate} disabled={!canManageProcurement || purchaseOrderTerminal} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, expectedDate: e.target.value }))} /></label>
                 <label className="full">Opombe<textarea value={purchaseOrderForm.notes} disabled={!canManageProcurement || purchaseOrderTerminal} onChange={(e) => setPurchaseOrderForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Interna opomba naročilnice" /></label>
               </div>
+            </PanelSection>
 
-              <section className="procurement-lines-section">
-                <div className="procurement-section-header"><div><h3>Artikli</h3><p>Nabavna cena je neto cena na enoto. DDV in bruto vrednost se izračunata samodejno.</p></div>{canManageProcurement && !purchaseOrderTerminal && !purchaseOrderHasReceipts && <div className="procurement-section-actions"><button type="button" className="btn secondary barcode-action" onClick={() => openBarcodeScanner('PURCHASE_ORDER_ITEM')}>▦ Skeniraj artikel</button><button type="button" className="btn secondary" onClick={() => addPurchaseOrderLine()}>+ Dodaj artikel</button></div>}</div>
-                <div className="procurement-lines-table-wrap"><table className="procurement-lines-table"><thead><tr><th>Artikel</th><th>Naročeno</th><th>Prejeto</th><th>Nabavna cena</th><th>DDV</th><th>Neto</th><th>Bruto</th>{canManageProcurement && !purchaseOrderTerminal && !purchaseOrderHasReceipts && <th />}</tr></thead><tbody>{purchaseOrderForm.lines.map((line, index) => {
-                  const item = procurementInventoryRows.find((candidate) => candidate.id === Number(line.consumableId) && candidate.locationId === Number(purchaseOrderForm.locationId))
-                  const qty = Number(String(line.orderedQuantity || '0').replace(',', '.')) || 0
-                  const unitPrice = Number(String(line.unitPrice || '0').replace(',', '.')) || 0
-                  const net = qty * unitPrice
-                  const gross = net * (1 + vatMultiplier(line.vatRate))
-                  return <tr key={line.lineId || `new-${index}`}><td><DesktopSelect value={line.consumableId} disabled={!canManageProcurement || purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => selectPurchaseOrderItem(index, e.target.value)}><option value="">Izberite artikel</option>{procurementInventoryRows.filter((candidate) => candidate.locationId === Number(purchaseOrderForm.locationId) && (candidate.id === Number(line.consumableId) || !purchaseOrderForm.lines.some((other, otherIndex) => otherIndex !== index && Number(other.consumableId) === candidate.id))).map((candidate) => <option key={`${candidate.id}:${candidate.locationId}`} value={candidate.id}>{candidate.name}{candidate.sku ? ` · ${candidate.sku}` : ''}</option>)}</DesktopSelect><small>{item ? `${item.location || ''} · ${item.unit}` : ''}</small></td><td><div className="quantity-with-unit"><input type="number" min="0.0001" step="0.0001" value={line.orderedQuantity} disabled={!canManageProcurement || purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { orderedQuantity: e.target.value })} /><span>{item?.unit || 'enota'}</span></div></td><td><strong>{n(line.receivedQuantity, 2)}</strong><br /><small>{n(Math.max(0, qty - Number(line.receivedQuantity || 0)), 2)} preostalo</small></td><td><div className="money-input"><span>€</span><input type="number" min="0" step="0.0001" value={line.unitPrice} disabled={!canManageProcurement || purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { unitPrice: e.target.value })} /></div></td><td><DesktopSelect value={line.vatRate} disabled={!canManageProcurement || purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { vatRate: e.target.value as PurchaseOrderLineForm['vatRate'] })}><option value="VAT_22">22 %</option><option value="VAT_9_5">9,5 %</option><option value="VAT_0">0 %</option><option value="NO_VAT">Brez DDV</option></DesktopSelect></td><td>{eur(net)}</td><td><strong>{eur(gross)}</strong></td>{canManageProcurement && !purchaseOrderTerminal && !purchaseOrderHasReceipts && <td><button type="button" className="icon-btn danger" onClick={() => removePurchaseOrderLine(index)} title="Odstrani">×</button></td>}</tr>
-                })}</tbody></table></div>
-                <Empty visible={purchaseOrderForm.lines.length === 0} text="Dodajte vsaj en artikel ali ustvarite naročilnico iz predlogov za naročilo." />
-                <div className="procurement-totals"><span>Neto<strong>{eur(purchaseOrderTotals.net)}</strong></span><span>DDV<strong>{eur(purchaseOrderTotals.vat)}</strong></span><span>Skupaj<strong>{eur(purchaseOrderTotals.gross)}</strong></span></div>
-              </section>
+            <PanelSection
+              title="Artikli"
+              icon={<PanelSectionIcon name="consumables" />}
+              description="Nabavna cena je neto cena na enoto. DDV in bruto vrednost se izračunata samodejno."
+              badge={`${purchaseOrderForm.lines.length}`}
+              summary={eur(purchaseOrderTotals.gross)}
+              action={canManageProcurement && !purchaseOrderTerminal && !purchaseOrderHasReceipts ? <div className="procurement-section-actions"><PanelButton size="sm" onClick={() => openBarcodeScanner('PURCHASE_ORDER_ITEM')}>▦ Skeniraj</PanelButton><PanelButton size="sm" onClick={() => addPurchaseOrderLine()}>+ Dodaj</PanelButton></div> : undefined}
+            >
+              <div className="procurement-lines-table-wrap"><table className="procurement-lines-table"><thead><tr><th>Artikel</th><th>Naročeno</th><th>Prejeto</th><th>Nabavna cena</th><th>DDV</th><th>Neto</th><th>Bruto</th>{canManageProcurement && !purchaseOrderTerminal && !purchaseOrderHasReceipts && <th />}</tr></thead><tbody>{purchaseOrderForm.lines.map((line, index) => {
+                const item = procurementInventoryRows.find((candidate) => candidate.id === Number(line.consumableId) && candidate.locationId === Number(purchaseOrderForm.locationId))
+                const qty = Number(String(line.orderedQuantity || '0').replace(',', '.')) || 0
+                const unitPrice = Number(String(line.unitPrice || '0').replace(',', '.')) || 0
+                const net = qty * unitPrice
+                const gross = net * (1 + vatMultiplier(line.vatRate))
+                return <tr key={line.lineId || `new-${index}`}><td><DesktopSelect value={line.consumableId} disabled={!canManageProcurement || purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => selectPurchaseOrderItem(index, e.target.value)}><option value="">Izberite artikel</option>{procurementInventoryRows.filter((candidate) => candidate.locationId === Number(purchaseOrderForm.locationId) && (candidate.id === Number(line.consumableId) || !purchaseOrderForm.lines.some((other, otherIndex) => otherIndex !== index && Number(other.consumableId) === candidate.id))).map((candidate) => <option key={`${candidate.id}:${candidate.locationId}`} value={candidate.id}>{candidate.name}{candidate.sku ? ` · ${candidate.sku}` : ''}</option>)}</DesktopSelect><small>{item ? `${item.location || ''} · ${item.unit}` : ''}</small></td><td><div className="quantity-with-unit"><input type="number" min="0.0001" step="0.0001" value={line.orderedQuantity} disabled={!canManageProcurement || purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { orderedQuantity: e.target.value })} /><span>{item?.unit || 'enota'}</span></div></td><td><strong>{n(line.receivedQuantity, 2)}</strong><br /><small>{n(Math.max(0, qty - Number(line.receivedQuantity || 0)), 2)} preostalo</small></td><td><div className="money-input"><span>€</span><input type="number" min="0" step="0.0001" value={line.unitPrice} disabled={!canManageProcurement || purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { unitPrice: e.target.value })} /></div></td><td><DesktopSelect value={line.vatRate} disabled={!canManageProcurement || purchaseOrderHasReceipts || purchaseOrderTerminal} onChange={(e) => updatePurchaseOrderLine(index, { vatRate: e.target.value as PurchaseOrderLineForm['vatRate'] })}><option value="VAT_22">22 %</option><option value="VAT_9_5">9,5 %</option><option value="VAT_0">0 %</option><option value="NO_VAT">Brez DDV</option></DesktopSelect></td><td>{eur(net)}</td><td><strong>{eur(gross)}</strong></td>{canManageProcurement && !purchaseOrderTerminal && !purchaseOrderHasReceipts && <td><button type="button" className="icon-btn danger" onClick={() => removePurchaseOrderLine(index)} title="Odstrani">×</button></td>}</tr>
+              })}</tbody></table></div>
+              <Empty visible={purchaseOrderForm.lines.length === 0} text="Dodajte vsaj en artikel ali ustvarite naročilnico iz predlogov za naročilo." />
+              <div className="procurement-totals"><span>Neto<strong>{eur(purchaseOrderTotals.net)}</strong></span><span>DDV<strong>{eur(purchaseOrderTotals.vat)}</strong></span><span>Skupaj<strong>{eur(purchaseOrderTotals.gross)}</strong></span></div>
+            </PanelSection>
 
-              {purchaseOrderForm.receipts.length > 0 && <section className="procurement-receipts-section"><div className="procurement-section-header"><div><h3>Zgodovina prejemov</h3><p>Vsak prejem je zabeležen ločeno in povezan s premiki zaloge.</p></div></div><div className="procurement-receipt-list">{purchaseOrderForm.receipts.map((receipt) => <div key={receipt.id} className="procurement-receipt-card"><div><strong>{dateTime(receipt.receivedAt)}</strong><small>{receipt.userName || 'Sistem'}{receipt.note ? ` · ${receipt.note}` : ''}</small></div><div>{receipt.lines.map((line) => <span key={`${receipt.id}:${line.purchaseOrderLineId}`}>{line.itemName}: <strong>+{n(line.quantity, 2)} {line.unit}</strong></span>)}</div></div>)}</div></section>}
-            </>}
-            <footer>
-              <button type="button" className="btn secondary" onClick={closePurchaseOrderModal}>Zapri</button>
-              {canManageProcurement && purchaseOrderForm.id && ['ORDERED', 'PARTIALLY_RECEIVED'].includes(purchaseOrderForm.status) && !purchaseOrderTerminal && <button type="button" className="btn secondary" onClick={openReceivePurchaseOrder}>Prejmi blago</button>}
-              {canManageProcurement && !purchaseOrderTerminal && <button type="submit" className="btn primary" disabled={savingPurchaseOrder || loadingPurchaseOrder}>{savingPurchaseOrder ? 'Shranjujem…' : purchaseOrderForm.id ? 'Shrani spremembe' : 'Ustvari naročilnico'}</button>}
-            </footer>
-          </form>
-        </div>
-      )}
+            {purchaseOrderForm.receipts.length > 0 && (
+              <PanelSection
+                title="Zgodovina prejemov"
+                icon={<PanelSectionIcon name="history" />}
+                description="Vsak prejem je zabeležen ločeno in povezan s premiki zaloge."
+                defaultOpen={false}
+                summary={`${purchaseOrderForm.receipts.length} ${purchaseOrderForm.receipts.length === 1 ? 'prejem' : 'prejemov'}`}
+              >
+                <div className="procurement-receipt-list">{purchaseOrderForm.receipts.map((receipt) => <div key={receipt.id} className="procurement-receipt-card"><div><strong>{dateTime(receipt.receivedAt)}</strong><small>{receipt.userName || 'Sistem'}{receipt.note ? ` · ${receipt.note}` : ''}</small></div><div>{receipt.lines.map((line) => <span key={`${receipt.id}:${line.purchaseOrderLineId}`}>{line.itemName}: <strong>+{n(line.quantity, 2)} {line.unit}</strong></span>)}</div></div>)}</div>
+              </PanelSection>
+            )}
+          </>}
+        </PanelBody>
+        <PanelFooter summaryLabel="Skupaj" summaryValue={eur(purchaseOrderTotals.gross)}>
+          <PanelButton onClick={closePurchaseOrderModal}>Zapri</PanelButton>
+          {canManageProcurement && purchaseOrderForm.id && ['ORDERED', 'PARTIALLY_RECEIVED'].includes(purchaseOrderForm.status) && !purchaseOrderTerminal && <PanelButton variant="subtle" onClick={openReceivePurchaseOrder}>Prejmi blago</PanelButton>}
+          {canManageProcurement && !purchaseOrderTerminal && (
+            <PanelButton type="submit" form="consumables-purchase-order" variant="primary" busy={savingPurchaseOrder} disabled={loadingPurchaseOrder}>
+              {savingPurchaseOrder ? 'Shranjujem…' : purchaseOrderForm.id ? 'Shrani spremembe' : 'Ustvari naročilnico'}
+            </PanelButton>
+          )}
+        </PanelFooter>
+      </SidePanel>
 
-      {receiveModalOpen && purchaseOrderForm.id && (
-        <div className="consumables-modal-backdrop procurement-receive-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setReceiveModalOpen(false) }}>
-          <form className="consumables-modal consumables-modal-wide" onSubmit={saveReceipt}>
-            <header><div><h2>Prejmi blago</h2><p>{purchaseOrderForm.orderNumber} · količine povečajo zalogo v izbrani poslovalnici.</p></div><button type="button" onClick={() => setReceiveModalOpen(false)} aria-label="Zapri">×</button></header>
-            <div className="barcode-workflow-banner"><div><strong>Skeniranje prejema</strong><span>Sken artikla doda 1 enoto v stolpec »Prejmi zdaj«. Količine lahko nato ročno popravite.</span></div><div className="procurement-section-actions"><button type="button" className="btn secondary" onClick={fillAllRemainingReceiveQuantities}>Prejmi vse preostalo</button><button type="button" className="btn secondary barcode-action" onClick={() => openBarcodeScanner('RECEIVE_ITEM')}>▦ Skeniraj prejem</button></div></div>
-            <div className="procurement-receive-list"><table><thead><tr><th>Artikel</th><th>Naročeno</th><th>Že prejeto</th><th>Preostalo</th><th>Prejmi zdaj</th></tr></thead><tbody>{purchaseOrderForm.lines.filter((line) => line.lineId).map((line) => { const remaining = Math.max(0, Number(line.orderedQuantity || 0) - Number(line.receivedQuantity || 0)); const item = procurementInventoryRows.find((candidate) => candidate.id === Number(line.consumableId) && candidate.locationId === Number(purchaseOrderForm.locationId)); return <tr key={line.lineId}><td><strong>{item?.name || 'Artikel'}</strong></td><td>{n(Number(line.orderedQuantity || 0), 2)} {item?.unit || ''}</td><td>{n(line.receivedQuantity, 2)} {item?.unit || ''}</td><td>{n(remaining, 2)} {item?.unit || ''}</td><td><input type="number" min="0" max={remaining} step="0.0001" value={receiveQuantities[line.lineId as number] || '0'} onChange={(e) => setReceiveQuantities((values) => ({ ...values, [line.lineId as number]: e.target.value }))} disabled={remaining <= 0} /></td></tr> })}</tbody></table><label className="procurement-receive-note">Opomba<textarea value={receiveNote} onChange={(e) => setReceiveNote(e.target.value)} placeholder="Npr. delna dobava, dobavnica št. ..." /></label><div className="procurement-info-note">Prejem je idempotenten: ponovljen isti zahtevek ne more dvakrat povečati zaloge. Nabavna cena se shrani na premik, lokacijska povprečna nabavna cena pa se preračuna uteženo.</div></div>
-            <footer><button type="button" className="btn secondary" onClick={() => setReceiveModalOpen(false)}>Prekliči</button><button type="submit" className="btn primary" disabled={savingReceipt}>{savingReceipt ? 'Shranjujem…' : 'Potrdi prejem'}</button></footer>
-          </form>
-        </div>
-      )}
+      {/* Stacked on the purchase order: a picker opened from inside a panel, so it stays unrouted. */}
+      <SidePanel
+        open={receiveModalOpen && Boolean(purchaseOrderForm.id)}
+        onClose={() => setReceiveModalOpen(false)}
+        ariaLabel="Prejmi blago"
+        size="lg"
+      >
+        <PanelHeader
+          title="Prejmi blago"
+          subtitle={`${purchaseOrderForm.orderNumber} · količine povečajo zalogo v izbrani poslovalnici.`}
+          onClose={() => setReceiveModalOpen(false)}
+          closeLabel="Zapri"
+        />
+        <PanelBody as="form" id="consumables-receive" onSubmit={saveReceipt} sectioned>
+          <PanelSection title="Prejem" icon={<PanelSectionIcon name="stock" />} collapsible={false}>
+            <div className="barcode-workflow-banner"><div><strong>Skeniranje prejema</strong><span>Sken artikla doda 1 enoto v stolpec »Prejmi zdaj«. Količine lahko nato ročno popravite.</span></div><div className="procurement-section-actions"><PanelButton size="sm" onClick={fillAllRemainingReceiveQuantities}>Prejmi vse preostalo</PanelButton><PanelButton size="sm" onClick={() => openBarcodeScanner('RECEIVE_ITEM')}>▦ Skeniraj prejem</PanelButton></div></div>
+            <div className="procurement-receive-list"><table><thead><tr><th>Artikel</th><th>Naročeno</th><th>Že prejeto</th><th>Preostalo</th><th>Prejmi zdaj</th></tr></thead><tbody>{purchaseOrderForm.lines.filter((line) => line.lineId).map((line) => { const remaining = Math.max(0, Number(line.orderedQuantity || 0) - Number(line.receivedQuantity || 0)); const item = procurementInventoryRows.find((candidate) => candidate.id === Number(line.consumableId) && candidate.locationId === Number(purchaseOrderForm.locationId)); return <tr key={line.lineId}><td><strong>{item?.name || 'Artikel'}</strong></td><td>{n(Number(line.orderedQuantity || 0), 2)} {item?.unit || ''}</td><td>{n(line.receivedQuantity, 2)} {item?.unit || ''}</td><td>{n(remaining, 2)} {item?.unit || ''}</td><td><input type="number" min="0" max={remaining} step="0.0001" value={receiveQuantities[line.lineId as number] || '0'} onChange={(e) => setReceiveQuantities((values) => ({ ...values, [line.lineId as number]: e.target.value }))} disabled={remaining <= 0} /></td></tr> })}</tbody></table></div>
+            <label className="procurement-receive-note">Opomba<textarea value={receiveNote} onChange={(e) => setReceiveNote(e.target.value)} placeholder="Npr. delna dobava, dobavnica št. ..." /></label>
+            <div className="procurement-info-note">Prejem je idempotenten: ponovljen isti zahtevek ne more dvakrat povečati zaloge. Nabavna cena se shrani na premik, lokacijska povprečna nabavna cena pa se preračuna uteženo.</div>
+          </PanelSection>
+        </PanelBody>
+        <PanelFooter>
+          <PanelButton onClick={() => setReceiveModalOpen(false)}>Prekliči</PanelButton>
+          <PanelButton type="submit" form="consumables-receive" variant="primary" busy={savingReceipt}>
+            {savingReceipt ? 'Shranjujem…' : 'Potrdi prejem'}
+          </PanelButton>
+        </PanelFooter>
+      </SidePanel>
 
       <BarcodeScannerModal
         open={Boolean(barcodeScanner)}
