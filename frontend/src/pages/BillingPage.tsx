@@ -10627,8 +10627,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             className={isCreateAdvanceBill ? 'billing-create-panel billing-create-panel--advance' : 'billing-create-panel billing-create-panel--open'}
           >
               <PanelHeader
-                title={isCreateAdvanceBill ? (locale === 'sl' ? 'Novo predplačilo' : 'New advance') : (locale === 'sl' ? 'Nov neizdan račun' : 'New unissued invoice')}
-                subtitle={isCreateAdvanceBill ? createRecipientLabel : undefined}
+                title={(
+                  <span className="billing-create-panel-title">
+                    <span className="billing-create-panel-title__icon" aria-hidden>{renderPlainFolioPdfIcon()}</span>
+                    <span>{isCreateAdvanceBill ? (locale === 'sl' ? 'Novo predplačilo' : 'New advance') : (locale === 'sl' ? 'Nov neizdan račun' : 'New unissued invoice')}</span>
+                  </span>
+                )}
                 onClose={closeCreateBillModal}
                 closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
               />
@@ -10636,14 +10640,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
               <div className={`billing-invoice-modern-body billing-invoice-modern-body--create billing-invoice-modern-body--advance-create${isCreateAdvanceBill ? '' : ' billing-invoice-modern-body--open-create'}`}>
                 <section className={`billing-invoice-management-card${!isCreateAdvanceBill ? ' billing-invoice-management-card--open-create-compact' : ''}`}>
-                  {isCreateAdvanceBill ? (
-                    <div className="billing-invoice-management-head billing-invoice-management-head--create">
-                      <div>
-                        <h3>{locale === 'sl' ? 'Upravljanje predplačila' : 'Advance management'}</h3>
-                        <p>{locale === 'sl' ? 'Plačnika in osnovne podatke predplačila uredite na kartici.' : 'Edit advance payee and details from the bill tab.'}</p>
-                      </div>
-                    </div>
-                  ) : null}
                   <div className={`billing-invoice-tabs-row billing-invoice-tabs-row--create${!isCreateAdvanceBill ? ' billing-invoice-tabs-row--create-open-compact' : ''}`}>
                     {isCreateAdvanceBill && createAdvanceTabs.length > 1 ? (
                       createAdvanceTabs.map((tab) => {
@@ -10695,17 +10691,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <h3>{isCreateAdvanceBill ? (locale === 'sl' ? 'Postavke predplačila' : 'Advance items') : (locale === 'sl' ? 'Postavke računa' : 'Bill items')}</h3>
                       <span>{billForm.items.length} {billForm.items.length === 1 ? (locale === 'sl' ? 'postavka' : 'item') : (locale === 'sl' ? 'postavk' : 'items')}</span>
                     </div>
-                    {(!isCreateAdvanceBill || billForm.items.length > 0) && (
-                      <div className={`billing-invoice-table-head billing-invoice-table-head--compact-create${isCreateAdvanceBill ? ' billing-invoice-table-head--advance' : ''}`} aria-hidden>
-                        <span />
-                        <span>{locale === 'sl' ? 'Storitev' : 'Service'}</span>
-                        <span>{locale === 'sl' ? 'Kol.' : 'Qty'}</span>
-                        <span>{locale === 'sl' ? 'Cena' : 'Price'}</span>
-                        <span>{locale === 'sl' ? 'Skupaj' : 'Amount'}</span>
-                        <span>{locale === 'sl' ? 'Popust' : 'Discount'}</span>
-                        <span>{locale === 'sl' ? 'Akcije' : 'Actions'}</span>
-                      </div>
-                    )}
+                    <div className={`billing-invoice-table-head billing-invoice-table-head--compact-create${isCreateAdvanceBill ? ' billing-invoice-table-head--advance' : ''}`} aria-hidden>
+                      <span />
+                      <span>{locale === 'sl' ? 'Storitev' : 'Service'}</span>
+                      <span>{locale === 'sl' ? 'Kol.' : 'Qty'}</span>
+                      <span>{locale === 'sl' ? 'Cena' : 'Price'}</span>
+                      <span>{locale === 'sl' ? 'Skupaj' : 'Amount'}</span>
+                      <span>{locale === 'sl' ? 'Popust' : 'Discount'}</span>
+                      <span>{locale === 'sl' ? 'Akcije' : 'Actions'}</span>
+                    </div>
                     <div className="billing-invoice-item-list">
                       {billForm.items.map((item, index) => renderModernBillFormLineEditor(item, index))}
                       <button
@@ -10731,9 +10725,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         }}
                       >
                         <strong>+ {billingCopy.addLine}</strong>
-                        {!isCreateAdvanceBill && (
-                          <small>{locale === 'sl' ? 'Dodajte eno ali več transakcijskih storitev' : 'Add one or more transaction services'}</small>
-                        )}
+                        <small>{locale === 'sl' ? 'Dodajte eno ali več transakcijskih storitev' : 'Add one or more transaction services'}</small>
                       </button>
                     </div>
                   </div>

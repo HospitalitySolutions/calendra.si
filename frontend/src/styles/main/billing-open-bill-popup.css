@@ -410,7 +410,7 @@
         max-width: min(760px, calc(100vw - 28px)) !important;
     }
 
-    
+
 
     .billing-bill-modal.modal.large-modal.booking-side-panel {
         width: 100vw !important;
@@ -439,7 +439,7 @@
         flex-direction: column-reverse;
     }
 
-    
+
 
     .billing-bill-modal-footer-actions button,
     .billing-bill-modal-preview-btn,
@@ -1826,7 +1826,7 @@
     .billing-invoice-payment-amount-input {
         grid-column: 2 / -1;
     }
-    
+
     .billing-invoice-advance-summary {
         grid-column: 1 / -1;
         flex-direction: column;
@@ -2875,7 +2875,7 @@
 }
 
 @media (max-width: 1024px) {
-    
+
     .billing-invoice-item-row,
     .billing-invoice-item-row--with-client {
         grid-template-columns: 54px 1fr 80px 44px;
@@ -3030,7 +3030,7 @@
 }
 
 @media (max-width: 1024px) {
-    
+
 
     .billing-invoice-item-row,
     .billing-invoice-item-row--with-client {
@@ -3711,7 +3711,7 @@
 }
 
 @media (max-width: 1024px) {
-    
+
 }
 
 [data-theme="dark"] .billing-invoice-discount-card {
@@ -4784,7 +4784,7 @@
 
 /* Mobile open-bill create/edit: use the full screen width like a native sheet. */
 @media (max-width: 1024px) {
-    
+
     .billing-create-panel:not(.billing-create-panel--advance).billing-bill-modal.modal.large-modal.booking-side-panel,
     .billing-open-detail-panel.billing-bill-modal.modal.large-modal.booking-side-panel {
         width: 100vw !important;
@@ -8228,7 +8228,7 @@
     display: none !important;
   }
 
-  
+
 
   .billing-create-panel--open .billing-invoice-item-row--compact-create .billing-bill-modal-field select,
   .billing-create-panel--open .billing-invoice-item-row--compact-create .billing-bill-modal-field input,
@@ -8264,7 +8264,7 @@
     white-space: nowrap !important;
   }
 
-  
+
 
   .billing-create-panel--open .billing-invoice-discount-mini,
   .billing-open-detail-panel--invoice-editor .billing-invoice-discount-mini {
@@ -9032,7 +9032,7 @@
   }
 
   /* Shared line-item cell alignment. */
-  
+
 
   .billing-create-panel--open .billing-invoice-item-row--compact-create .billing-bill-modal-field--service select,
   .billing-open-detail-panel--invoice-editor .billing-invoice-item-row--with-client .billing-bill-modal-field--service select {
@@ -11919,5 +11919,1148 @@
   .billing-open-detail-panel--invoice-editor .billing-invoice-discount-value-pill em {
     font-size: .95rem !important;
     font-weight: 760 !important;
+  }
+}
+
+/* ==========================================================================
+   FINAL DESKTOP CREATE BILL / ADVANCE PANEL STANDARDIZATION (2026-08-17)
+   SidePanel now renders with the shared .cp-panel shell. These selectors target
+   the actual rendered drawer classes so older legacy modal rules cannot win.
+   ========================================================================== */
+@media (min-width: 1025px) {
+  .cp-panel.billing-create-panel--open,
+  .cp-panel.billing-create-panel--advance {
+    width: min(1080px, calc(100vw - 56px)) !important;
+    max-width: min(1080px, calc(100vw - 56px)) !important;
+    background: #ffffff !important;
+  }
+
+  .cp-panel.billing-create-panel--open .cp-panel-header,
+  .cp-panel.billing-create-panel--advance .cp-panel-header {
+    min-height: 88px !important;
+    padding: 0 30px !important;
+    border-bottom: 1px solid #e6ebf2 !important;
+    background: #ffffff !important;
+  }
+
+  .cp-panel.billing-create-panel--open .cp-panel-header__title,
+  .cp-panel.billing-create-panel--advance .cp-panel-header__title {
+    color: #0f172a !important;
+    font-size: 24px !important;
+    font-weight: 780 !important;
+    line-height: 1.2 !important;
+    letter-spacing: -0.025em !important;
+  }
+
+  .cp-panel.billing-create-panel--open .cp-panel-body,
+  .cp-panel.billing-create-panel--advance .cp-panel-body {
+    min-height: 0 !important;
+    padding: 24px 30px 28px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    background: #ffffff !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-modern-body--create,
+  .cp-panel.billing-create-panel--advance .billing-invoice-modern-body--create {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 20px !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  /* Payer card: same compact treatment for invoice and advance. */
+  .cp-panel.billing-create-panel--open .billing-invoice-management-card,
+  .cp-panel.billing-create-panel--advance .billing-invoice-management-card {
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 16px 18px !important;
+    border: 1px solid #dce5f0 !important;
+    border-radius: 16px !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-management-head,
+  .cp-panel.billing-create-panel--advance .billing-invoice-management-head {
+    display: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-tabs-row--create,
+  .cp-panel.billing-create-panel--advance .billing-invoice-tabs-row--create {
+    display: flex !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    gap: 10px !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-bill-tab,
+  .cp-panel.billing-create-panel--advance .billing-invoice-bill-tab {
+    flex: 0 0 270px !important;
+    width: 270px !important;
+    min-width: 270px !important;
+    max-width: 270px !important;
+    min-height: 66px !important;
+    height: 66px !important;
+    padding: 8px 12px !important;
+    gap: 12px !important;
+    border: 1px solid #d7e1ed !important;
+    border-radius: 13px !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-bill-tab.is-active,
+  .cp-panel.billing-create-panel--advance .billing-invoice-bill-tab.is-active {
+    border-color: #c7d8ee !important;
+    box-shadow: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-bill-tab::before,
+  .cp-panel.billing-create-panel--advance .billing-invoice-bill-tab::before {
+    display: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-tab-icon,
+  .cp-panel.billing-create-panel--advance .billing-invoice-tab-icon {
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+    border-radius: 999px !important;
+    background: #edf4ff !important;
+    color: #1769ff !important;
+    font-size: 1rem !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-tab-copy,
+  .cp-panel.billing-create-panel--advance .billing-invoice-tab-copy {
+    min-width: 0 !important;
+    gap: 3px !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-tab-copy strong,
+  .cp-panel.billing-create-panel--advance .billing-invoice-tab-copy strong {
+    color: #0f172a !important;
+    font-size: 14px !important;
+    font-weight: 760 !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-tab-copy small,
+  .cp-panel.billing-create-panel--advance .billing-invoice-tab-copy small {
+    width: fit-content !important;
+    padding: 2px 7px !important;
+    border-radius: 999px !important;
+    background: #edf4ff !important;
+    color: #1769ff !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-tab-edit,
+  .cp-panel.billing-create-panel--advance .billing-invoice-tab-edit {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    margin-left: auto !important;
+    border: 1px solid #d7e1ed !important;
+    border-radius: 9px !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  /* Main content: items left, payment methods right for BOTH create modes. */
+  .cp-panel.billing-create-panel--open .billing-invoice-workspace-card,
+  .cp-panel.billing-create-panel--advance .billing-invoice-workspace-card {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.18fr) minmax(390px, 0.92fr) !important;
+    align-items: stretch !important;
+    gap: 18px !important;
+    min-height: 470px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-items-panel,
+  .cp-panel.billing-create-panel--advance .billing-invoice-items-panel,
+  .cp-panel.billing-create-panel--open .billing-invoice-payment-card,
+  .cp-panel.billing-create-panel--advance .billing-invoice-payment-card,
+  .cp-panel.billing-create-panel--open .billing-invoice-totals-card,
+  .cp-panel.billing-create-panel--advance .billing-invoice-totals-card {
+    margin: 0 !important;
+    border: 1px solid #dce5f0 !important;
+    border-radius: 16px !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-items-panel,
+  .cp-panel.billing-create-panel--advance .billing-invoice-items-panel {
+    min-width: 0 !important;
+    padding: 18px !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-payment-panel,
+  .cp-panel.billing-create-panel--advance .billing-invoice-payment-panel {
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-content: initial !important;
+    gap: 12px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-payment-card,
+  .cp-panel.billing-create-panel--advance .billing-invoice-payment-card,
+  .cp-panel.billing-create-panel--advance .billing-invoice-payment-card--advance {
+    padding: 18px !important;
+    border-color: #dce5f0 !important;
+    background: #ffffff !important;
+    background-image: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-section-title-row,
+  .cp-panel.billing-create-panel--advance .billing-invoice-section-title-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    margin: 0 0 14px !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-section-title-row::before,
+  .cp-panel.billing-create-panel--advance .billing-invoice-section-title-row::before {
+    width: 10px !important;
+    min-width: 10px !important;
+    height: 10px !important;
+    content: '' !important;
+    border-radius: 999px !important;
+    background: #1769ff !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-payment-card > .billing-invoice-section-title-row::before,
+  .cp-panel.billing-create-panel--advance .billing-invoice-payment-card > .billing-invoice-section-title-row::before {
+    background: #10b981 !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-section-title-row h3,
+  .cp-panel.billing-create-panel--advance .billing-invoice-section-title-row h3 {
+    margin: 0 !important;
+    color: #0f172a !important;
+    font-size: 15px !important;
+    font-weight: 780 !important;
+    line-height: 1.25 !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-section-title-row > span,
+  .cp-panel.billing-create-panel--advance .billing-invoice-section-title-row > span {
+    margin-left: auto !important;
+    min-height: 24px !important;
+    padding: 3px 8px !important;
+    border-radius: 999px !important;
+    background: #edf4ff !important;
+    color: #1769ff !important;
+    font-size: 11px !important;
+    font-weight: 740 !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-payment-card > .billing-invoice-section-title-row > span,
+  .cp-panel.billing-create-panel--advance .billing-invoice-payment-card > .billing-invoice-section-title-row > span {
+    background: #e8faf2 !important;
+    color: #079669 !important;
+  }
+
+  /* Keep the column row visible even when there are no items. */
+  .cp-panel.billing-create-panel--open .billing-invoice-table-head--compact-create,
+  .cp-panel.billing-create-panel--advance .billing-invoice-table-head--compact-create,
+  .cp-panel.billing-create-panel--open .billing-invoice-item-row--compact-create,
+  .cp-panel.billing-create-panel--advance .billing-invoice-item-row--compact-create {
+    display: grid !important;
+    grid-template-columns: 22px minmax(150px, 1fr) 54px 82px 88px 58px 30px !important;
+    column-gap: 7px !important;
+    align-items: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-table-head--compact-create,
+  .cp-panel.billing-create-panel--advance .billing-invoice-table-head--compact-create {
+    min-height: 34px !important;
+    padding: 0 0 8px !important;
+    border-bottom: 1px solid #e8edf4 !important;
+    color: #64748b !important;
+    font-size: 10px !important;
+    font-weight: 760 !important;
+    text-transform: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-item-list,
+  .cp-panel.billing-create-panel--advance .billing-invoice-item-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    min-width: 0 !important;
+    margin-top: 10px !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-item-row--compact-create,
+  .cp-panel.billing-create-panel--advance .billing-invoice-item-row--compact-create {
+    min-height: 48px !important;
+    padding: 4px 0 !important;
+    border-bottom: 1px solid #edf1f6 !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-item-row--compact-create .billing-bill-modal-field,
+  .cp-panel.billing-create-panel--advance .billing-invoice-item-row--compact-create .billing-bill-modal-field {
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-item-row--compact-create select,
+  .cp-panel.billing-create-panel--advance .billing-invoice-item-row--compact-create select,
+  .cp-panel.billing-create-panel--open .billing-invoice-item-row--compact-create input,
+  .cp-panel.billing-create-panel--advance .billing-invoice-item-row--compact-create input {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 9px !important;
+    border: 1px solid #d4deea !important;
+    border-radius: 9px !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    font-size: 12px !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-add-dashed--line,
+  .cp-panel.billing-create-panel--advance .billing-invoice-add-dashed--line {
+    width: 100% !important;
+    min-height: 66px !important;
+    margin: 0 !important;
+    padding: 10px 14px !important;
+    border: 1px dashed #b8d3ff !important;
+    border-radius: 11px !important;
+    background: #ffffff !important;
+    color: #1769ff !important;
+    box-shadow: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-add-dashed--line strong,
+  .cp-panel.billing-create-panel--advance .billing-invoice-add-dashed--line strong {
+    font-size: 13px !important;
+    font-weight: 760 !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-add-dashed--line small,
+  .cp-panel.billing-create-panel--advance .billing-invoice-add-dashed--line small {
+    margin-top: 4px !important;
+    color: #718096 !important;
+    font-size: 10px !important;
+  }
+
+  /* Payment controls: neutral white surface; only status strip keeps semantic green. */
+  .cp-panel.billing-create-panel--open .billing-invoice-payment-row,
+  .cp-panel.billing-create-panel--advance .billing-invoice-payment-row {
+    display: grid !important;
+    grid-template-columns: 28px minmax(120px, 1fr) 92px 34px 30px !important;
+    gap: 7px !important;
+    align-items: center !important;
+    width: 100% !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-payment-row select,
+  .cp-panel.billing-create-panel--advance .billing-invoice-payment-row select,
+  .cp-panel.billing-create-panel--open .billing-invoice-payment-amount-input,
+  .cp-panel.billing-create-panel--advance .billing-invoice-payment-amount-input {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    border: 1px solid #d4deea !important;
+    border-radius: 9px !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-payment-icon,
+  .cp-panel.billing-create-panel--advance .billing-invoice-payment-icon {
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 42px !important;
+    background: transparent !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-match-mini,
+  .cp-panel.billing-create-panel--advance .billing-invoice-match-mini,
+  .cp-panel.billing-create-panel--open .billing-invoice-delete-mini,
+  .cp-panel.billing-create-panel--advance .billing-invoice-delete-mini {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    border-radius: 9px !important;
+    box-shadow: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-delete-mini,
+  .cp-panel.billing-create-panel--advance .billing-invoice-delete-mini {
+    width: 30px !important;
+    min-width: 30px !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-payment-card .billing-invoice-add-dashed,
+  .cp-panel.billing-create-panel--advance .billing-invoice-payment-card .billing-invoice-add-dashed {
+    width: 100% !important;
+    min-height: 42px !important;
+    margin-top: 10px !important;
+    border: 1px solid #bfd7ff !important;
+    border-radius: 9px !important;
+    background: #ffffff !important;
+    color: #1769ff !important;
+    box-shadow: none !important;
+    font-size: 12px !important;
+    font-weight: 760 !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-remaining-strip,
+  .cp-panel.billing-create-panel--advance .billing-invoice-remaining-strip {
+    margin-top: 10px !important;
+    min-height: 50px !important;
+    padding: 10px 12px !important;
+    border: 1px solid #bdebd5 !important;
+    border-radius: 10px !important;
+    background: #f0fbf6 !important;
+    box-shadow: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-discount-card {
+    margin: 0 !important;
+    padding: 16px 0 0 !important;
+    border: 0 !important;
+    border-top: 1px solid #e7edf4 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-totals-card {
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Four summary tiles remain, but without the old oversized container. */
+  .cp-panel.billing-create-panel--open .billing-invoice-compact-summary,
+  .cp-panel.billing-create-panel--advance .billing-invoice-compact-summary {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-compact-summary > div,
+  .cp-panel.billing-create-panel--advance .billing-invoice-compact-summary > div {
+    min-height: 64px !important;
+    padding: 10px 12px !important;
+    border: 1px solid #e1e8f1 !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+  }
+
+  /* Footer has actions only — no separate subtotal/total panel. */
+  .cp-panel.billing-create-panel--open .billing-bill-modal-footer,
+  .cp-panel.billing-create-panel--advance .billing-bill-modal-footer {
+    flex: 0 0 auto !important;
+    min-height: 78px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 10px !important;
+    padding: 14px 24px !important;
+    border-top: 1px solid #e6ebf2 !important;
+    background: #ffffff !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-invoice-totals-card--create-footer,
+  .cp-panel.billing-create-panel--advance .billing-invoice-totals-card--advance-footer {
+    display: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-bill-modal-save-btn--create-open-anchor {
+    display: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-bill-modal-footer-actions--desktop-create,
+  .cp-panel.billing-create-panel--advance .billing-bill-modal-footer-actions--desktop-create {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 10px !important;
+    margin-left: auto !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-bill-modal-save-btn,
+  .cp-panel.billing-create-panel--advance .billing-bill-modal-save-btn,
+  .cp-panel.billing-create-panel--open .billing-bill-modal-primary-action,
+  .cp-panel.billing-create-panel--advance .billing-bill-modal-primary-action {
+    min-height: 46px !important;
+    padding: 0 18px !important;
+    border-radius: 10px !important;
+    font-size: 13px !important;
+    font-weight: 760 !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-bill-modal-primary-action,
+  .cp-panel.billing-create-panel--advance .billing-bill-modal-primary-action {
+    background: #1769ff !important;
+    color: #ffffff !important;
+    border-color: #1769ff !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-bill-modal-footer-actions--mobile-open-create {
+    display: none !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  .cp-panel.billing-create-panel--open .billing-create-panel-title,
+  .cp-panel.billing-create-panel--advance .billing-create-panel-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-create-panel-title__icon,
+  .cp-panel.billing-create-panel--advance .billing-create-panel-title__icon {
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    border-radius: 11px;
+    background: #fff2eb;
+    color: #ff5a00;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-create-panel-title__icon svg,
+  .cp-panel.billing-create-panel--advance .billing-create-panel-title__icon svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* Desktop standardization for billing side panels (new/edit open invoice + new advance)
+   Match the shared Calendra side-panel rules used on screens such as Dodaj termin. */
+@media (min-width: 1025px) {
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) {
+    width: min(1100px, calc(100vw - 28px)) !important;
+    min-width: min(1100px, calc(100vw - 28px)) !important;
+    max-width: min(1100px, calc(100vw - 28px)) !important;
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100vh !important;
+    max-height: 100dvh !important;
+    border-left: 1px solid #e5edf6 !important;
+    background: #ffffff !important;
+    box-shadow: -20px 0 48px rgba(15, 23, 42, 0.10) !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-bill-modal-header {
+    position: relative !important;
+    z-index: 20 !important;
+    min-height: 78px !important;
+    height: auto !important;
+    padding: 18px 24px !important;
+    border-bottom: 1px solid #e5edf6 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    box-shadow: none !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 14px !important;
+    justify-content: space-between !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-bill-modal-header > div:first-child {
+    order: 1 !important;
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    text-align: left !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-create-panel-title,
+  .cp-panel.billing-create-panel--advance .billing-create-panel-title {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0 !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-create-panel-title__icon,
+  .cp-panel.billing-create-panel--advance .billing-create-panel-title__icon {
+    display: none !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-bill-modal-title-row,
+  .cp-panel.billing-create-panel--open .billing-create-panel-title,
+  .cp-panel.billing-create-panel--advance .billing-create-panel-title {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 0 !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-bill-modal-title-row h2,
+  .cp-panel.billing-create-panel--open .billing-create-panel-title > span:last-child,
+  .cp-panel.billing-create-panel--advance .billing-create-panel-title > span:last-child {
+    margin: 0 !important;
+    color: #0f172a !important;
+    font-size: 18px !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+    letter-spacing: -0.03em !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-bill-modal-header p,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-bill-modal-status,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance) .billing-bill-modal-status--draft {
+    display: none !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-bill-modal-close,
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-open-detail-actions-menu > summary {
+    position: static !important;
+    width: 42px !important;
+    min-width: 42px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 1px solid #d7e0ec !important;
+    border-radius: 12px !important;
+    background: #ffffff !important;
+    color: #475569 !important;
+    box-shadow: none !important;
+  }
+
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-open-detail-actions-menu {
+    order: 2 !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    height: auto !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-bill-modal-close:hover,
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-open-detail-actions-menu > summary:hover {
+    background: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+    color: #334155 !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-modern-body {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    padding: 22px 24px 24px !important;
+    gap: 18px !important;
+    overflow-y: auto !important;
+    background: #ffffff !important;
+    overscroll-behavior: contain !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-management-card,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-workspace-card,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-items-panel,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-payment-card,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-payment-panel,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-totals-card,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-compact-summary {
+    box-shadow: none !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-management-card {
+    padding: 18px 20px !important;
+    border: 1px solid #e5edf6 !important;
+    border-radius: 18px !important;
+    background: #ffffff !important;
+  }
+
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-invoice-management-head {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 14px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-invoice-management-context {
+    min-width: 0 !important;
+  }
+
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-invoice-session-meta {
+    margin: 0 !important;
+    color: #64748b !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+  }
+
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-invoice-one-payee-switch {
+    min-height: 40px !important;
+    padding: 8px 12px !important;
+    border: 1px solid #d8e2ee !important;
+    border-radius: 12px !important;
+    background: #ffffff !important;
+    color: #334155 !important;
+    box-shadow: none !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-tabs-row {
+    display: flex !important;
+    gap: 14px !important;
+    padding: 0 !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-tabs-row::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-bill-tab {
+    position: relative !important;
+    flex: 0 0 min(270px, 100%) !important;
+    min-width: 240px !important;
+    width: auto !important;
+    min-height: 72px !important;
+    padding: 14px 58px 14px 16px !important;
+    border: 1px solid #d8e2ee !important;
+    border-radius: 16px !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    gap: 12px !important;
+    align-items: center !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-bill-tab::before {
+    display: none !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-tab-icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    border-radius: 12px !important;
+    background: #fff3ea !important;
+    color: #ff5a00 !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-bill-tab.is-active {
+    border-color: #b7d2ff !important;
+    box-shadow: inset 0 0 0 1px #1769ff !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-tab-copy {
+    display: grid !important;
+    gap: 4px !important;
+    min-width: 0 !important;
+    align-items: start !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-tab-copy strong {
+    color: #0f172a !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-tab-copy small {
+    width: fit-content !important;
+    min-height: 24px !important;
+    padding: 4px 9px !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 999px !important;
+    background: #f8fafc !important;
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+  }
+
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-invoice-tab-service-client {
+    display: inline-flex !important;
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-tab-edit {
+    position: absolute !important;
+    top: 50% !important;
+    right: 14px !important;
+    transform: translateY(-50%) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    border: 1px solid #d8e2ee !important;
+    border-radius: 12px !important;
+    background: #ffffff !important;
+    color: #475569 !important;
+    box-shadow: none !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-workspace-card {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.95fr) !important;
+    align-items: start !important;
+    gap: 18px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-items-panel,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-payment-card,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-payment-panel {
+    padding: 18px 20px 20px !important;
+    border: 1px solid #e5edf6 !important;
+    border-radius: 18px !important;
+    background: #ffffff !important;
+  }
+
+  .cp-panel.billing-create-panel--advance .billing-invoice-payment-card--advance {
+    background: #ffffff !important;
+    border-color: #e5edf6 !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-section-title-row {
+    min-height: 34px !important;
+    margin: 0 0 14px !important;
+    padding-left: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-section-title-row::before {
+    display: none !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-section-title-row h3 {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    margin: 0 !important;
+    color: #0f172a !important;
+    font-size: 17px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.02em !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-section-title-row h3::before {
+    content: '' !important;
+    width: 10px !important;
+    height: 10px !important;
+    border-radius: 999px !important;
+    background: #ff6a1a !important;
+    box-shadow: 0 0 0 6px #fff3ea !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-section-title-row > span,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-payment-card > .billing-invoice-section-title-row > span {
+    min-height: 28px !important;
+    padding: 4px 10px !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 999px !important;
+    background: #f8fafc !important;
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-table-head,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-table-head--compact-create,
+  :is(.cp-panel.billing-create-panel--advance, .cp-panel.billing-create-panel--open) .billing-invoice-table-head--advance,
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-invoice-table-head--with-client {
+    margin: 0 !important;
+    padding: 0 8px 10px !important;
+    border: 0 !important;
+    border-bottom: 1px solid #edf2f7 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-item-list {
+    gap: 10px !important;
+    padding-top: 12px !important;
+    overflow: visible !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-item-row,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-item-row--compact-create,
+  :is(.cp-panel.billing-create-panel--advance, .cp-panel.billing-create-panel--open) .billing-invoice-item-row--advance,
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-invoice-item-row--with-client {
+    padding: 10px 8px !important;
+    border: 1px solid #e5edf6 !important;
+    border-radius: 14px !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-item-row .billing-bill-modal-field select,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-item-row .billing-bill-modal-field input,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-item-row--compact-create .billing-bill-modal-field select,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-item-row--compact-create .billing-bill-modal-field input,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance) .billing-invoice-item-row--advance .billing-bill-modal-field select,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance) .billing-invoice-item-row--advance .billing-bill-modal-field input,
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-invoice-item-row--with-client .billing-bill-modal-field select,
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-invoice-item-row--with-client .billing-bill-modal-field input {
+    min-height: 38px !important;
+    border: 1px solid #d8e2ee !important;
+    border-radius: 10px !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    box-shadow: none !important;
+    padding: 0 12px !important;
+    font-size: 14px !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-row-amount {
+    color: #0f172a !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-discount-mini,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-delete-mini,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-match-mini {
+    border-radius: 10px !important;
+    box-shadow: none !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-add-dashed,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-add-dashed--line {
+    min-height: 56px !important;
+    margin-top: 0 !important;
+    border: 1px dashed #c7d6eb !important;
+    border-radius: 14px !important;
+    background: #ffffff !important;
+    color: #1769ff !important;
+    box-shadow: none !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-add-dashed small,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-add-dashed--line small {
+    display: block !important;
+    color: #94a3b8 !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-payment-row {
+    min-height: 54px !important;
+    padding: 6px !important;
+    border: 1px solid #e5edf6 !important;
+    border-radius: 14px !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-payment-icon {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    border-radius: 10px !important;
+    background: #f8fafc !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-payment-row select,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-payment-amount-input {
+    min-height: 38px !important;
+    border: 1px solid #d8e2ee !important;
+    border-radius: 10px !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    box-shadow: none !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-payment-amount-input {
+    text-align: right !important;
+    padding: 0 12px !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-add-dashed:not(.billing-invoice-add-dashed--line) {
+    min-height: 48px !important;
+    border: 1px dashed #c7d6eb !important;
+    border-radius: 12px !important;
+    background: #ffffff !important;
+    color: #1769ff !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-remaining-strip {
+    min-height: 62px !important;
+    padding: 12px 14px !important;
+    border: 1px solid #d8f0df !important;
+    border-radius: 14px !important;
+    background: #f5fcf7 !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-discount-card,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-payment-panel > .billing-invoice-totals-card {
+    display: block !important;
+    padding: 16px !important;
+    border: 1px solid #e5edf6 !important;
+    border-radius: 16px !important;
+    background: #ffffff !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-compact-summary {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 14px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-compact-summary > div {
+    min-height: 88px !important;
+    padding: 16px 18px !important;
+    border: 1px solid #e5edf6 !important;
+    border-radius: 16px !important;
+    background: #ffffff !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-compact-summary span:not(.billing-invoice-summary-icon) {
+    color: #64748b !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-invoice-compact-summary strong {
+    color: #0f172a !important;
+    font-size: 22px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.03em !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-bill-modal-footer {
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    z-index: 20 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 14px !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 16px 24px calc(env(safe-area-inset-bottom, 0px) + 18px) !important;
+    border-top: 1px solid #e5edf6 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-bill-modal-footer-actions--desktop-create,
+  .cp-panel.billing-create-panel--advance .billing-bill-modal-footer-actions--desktop-create,
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-bill-modal-footer-actions--desktop-open-edit {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    margin-left: auto !important;
+  }
+
+  .cp-panel.billing-create-panel--open .billing-bill-modal-footer-actions--mobile-open-create,
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-bill-modal-footer-actions--mobile-open-edit {
+    display: none !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-bill-modal-save-btn,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-bill-modal-primary-action,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-bill-modal-delete,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-preview-choice-anchor {
+    min-height: 46px !important;
+    padding: 0 18px !important;
+    border-radius: 12px !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    box-shadow: none !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-bill-modal-save-btn,
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-preview-choice-anchor {
+    border: 1px solid #cfe0fb !important;
+    background: #ffffff !important;
+    color: #1769ff !important;
+  }
+
+  :is(.cp-panel.billing-create-panel--open, .cp-panel.billing-create-panel--advance, .cp-panel.billing-open-detail-panel--invoice-editor) .billing-bill-modal-primary-action {
+    border: 1px solid #1769ff !important;
+    background: #1769ff !important;
+    color: #ffffff !important;
+  }
+
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-bill-modal-delete {
+    border: 1px solid #fecaca !important;
+    background: #ffffff !important;
+    color: #dc2626 !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-bill-modal-footer > .billing-bill-modal-delete,
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-bill-modal-footer > .billing-preview-choice-anchor {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .cp-panel.billing-open-detail-panel--invoice-editor .billing-bill-modal-footer-actions--desktop-open-edit {
+    display: flex !important;
   }
 }
