@@ -1410,6 +1410,8 @@ body.cp-scroll-locked {
 }
 
 .cp-panel .calendar-client-picker__search-wrap--confirmable input,
+.cp-panel .calendar-client-picker__search-wrap--clearable input,
+.cp-panel .calendar-client-picker__search-wrap--clearable .client-selected-display,
 .cp-panel .calendar-client-picker__search-wrap.client-search-wrap--compact-client .client-selected-display {
     padding-right: 42px;
 }

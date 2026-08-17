@@ -6055,12 +6055,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                       >
                         <div className="calendar-client-picker__search-row">
                           <div className={`client-search-wrap calendar-client-picker__search-wrap${isClientCreatePage && groupMemberDropdownOpen && pendingGroupMemberIds.length > 0 ? ' calendar-client-picker__search-wrap--confirmable' : ''}`}> 
-                            <span className="client-search-icon calendar-client-picker__search-icon" aria-hidden>
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="11" cy="11" r="8" />
-                                <path d="m21 21-4.35-4.35" />
-                              </svg>
-                            </span>
                             <input
                               placeholder={clientsCopy.searchMembersPlaceholder}
                               value={groupMemberSearch}

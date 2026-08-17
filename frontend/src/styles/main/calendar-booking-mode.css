@@ -9066,6 +9066,27 @@
         box-shadow: none;
     }
 
+    /* Mobile/tablet personal and task panels keep the all-day control in the
+       section header only; remove the duplicate switch embedded in the date field. */
+    .cp-panel--calendar-new-personal .calendar-timespan-all-day-line,
+    .cp-panel--calendar-edit-personal .calendar-timespan-all-day-line,
+    .cp-panel--calendar-new-todo .calendar-timespan-all-day-line,
+    .cp-panel--calendar-edit-todo .calendar-timespan-all-day-line {
+        display: none !important;
+    }
+
+    /* Opravilo: labels + actual time/date controls sit directly on the white
+       panel surface instead of inside an additional outer bordered card. */
+    .cp-panel--calendar-new-todo .calendar-standardized__schedule--todo .calendar-timespan-input-inner,
+    .cp-panel--calendar-edit-todo .calendar-standardized__schedule--todo .calendar-timespan-input-inner {
+        min-height: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
     .cp-panel--calendar-standardized .calendar-standardized__schedule .calendar-timespan-label {
         color: #6b7280;
         font-size: 12px;
@@ -9101,6 +9122,15 @@
     .cp-panel--calendar-standardized .cp-panel-footer .cp-btn--primary {
         min-height: 44px;
         border-radius: 10px;
+    }
+
+    /* Mobile/tablet: closing is available from the panel X, so Personal and
+       Opravilo no longer duplicate it with a bottom Prekliči action. */
+    .cp-panel--calendar-new-personal .cp-panel-footer .cp-btn--ghost,
+    .cp-panel--calendar-edit-personal .cp-panel-footer .cp-btn--ghost,
+    .cp-panel--calendar-new-todo .cp-panel-footer .cp-btn--ghost,
+    .cp-panel--calendar-edit-todo .cp-panel-footer .cp-btn--ghost {
+        display: none !important;
     }
 }
 

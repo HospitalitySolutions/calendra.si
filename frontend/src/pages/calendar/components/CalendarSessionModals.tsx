@@ -5207,7 +5207,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   {groupBookingEnabled && bookingGroupMode ? (
                     <div className="client-picker calendar-client-picker" onClick={(e) => e.stopPropagation()} style={{ minWidth: 0 }}>
                       <div className="calendar-client-picker__search-row">
-                        <div className={`client-search-wrap calendar-client-picker__search-wrap${bookSessionGroupFieldCompact ? ' client-search-wrap--compact-client' : ''}`}>
+                        <div className={`client-search-wrap calendar-client-picker__search-wrap${bookSessionGroupFieldCompact ? ' client-search-wrap--compact-client' : ''}${selectedGroup ? ' calendar-client-picker__search-wrap--clearable' : ''}`}>
                           <span className="client-search-icon calendar-client-picker__search-icon" aria-hidden>
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                           </span>
@@ -5255,12 +5255,10 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               }}
                             />
                           )}
-                        </div>
-                        <div className="calendar-client-picker__actions">
                           {!!selectedGroup && (
                             <button
                               type="button"
-                              className="secondary calendar-client-picker__clear-btn"
+                              className="calendar-client-picker__single-clear"
                               title={clearSingleGroupTitle}
                               aria-label={clearSingleGroupTitle}
                               onClick={(e) => {
@@ -5274,6 +5272,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               <span aria-hidden>×</span>
                             </button>
                           )}
+                        </div>
+                        <div className="calendar-client-picker__actions">
                           <button
                             type="button"
                             className="secondary client-add-btn calendar-client-picker__add-btn"

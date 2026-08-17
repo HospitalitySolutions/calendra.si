@@ -30,8 +30,8 @@ let intervalHandle: ReturnType<typeof setInterval> | null = null
 
 /** Fetches the clock once and refreshes periodically. Safe to call multiple times. */
 export function startClockSync(intervalMs = 60_000): void {
-  void refreshClock()
   if (intervalHandle != null) return
+  void refreshClock()
   intervalHandle = setInterval(() => {
     void refreshClock()
   }, intervalMs)

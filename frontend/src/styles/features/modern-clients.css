@@ -7104,6 +7104,13 @@
         max-width: min(940px, 92vw) !important;
     }
 
+    /* Company edit needs a wider files/invoices workspace so all invoice
+       columns remain visible without squeezing or clipping. */
+    .clients-standard-company-panel.clients-standard-entity-panel--edit {
+        width: min(1120px, 96vw) !important;
+        max-width: min(1120px, 96vw) !important;
+    }
+
     .clients-standard-entity-panel .cp-panel-header {
         min-height: 86px;
         padding: 20px 28px;
@@ -7205,6 +7212,10 @@
         grid-template-columns: minmax(300px, 0.9fr) minmax(360px, 1.1fr);
         align-items: start;
         gap: 24px;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .clients-action-workspace-shell {
+        grid-template-columns: minmax(320px, 0.8fr) minmax(560px, 1.2fr);
     }
 
     .clients-standard-entity-profile {
