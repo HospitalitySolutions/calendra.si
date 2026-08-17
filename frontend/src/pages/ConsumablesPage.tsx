@@ -1556,8 +1556,8 @@ export function ConsumablesPage() {
             summary={`${eur(Number(String(itemForm.salePrice || '0').replace(',', '.')) || 0)} · ${vatText(itemForm.vatRate)}`}
           >
             <div className="consumables-modal-grid">
-              <label>Nabavna cena<input type="number" step="0.01" min="0" value={itemForm.costPrice} onChange={(e) => setItemForm((f) => ({ ...f, costPrice: e.target.value }))} /></label>
-              <label>Prodajna cena<input type="number" step="0.01" min="0" value={itemForm.salePrice} onChange={(e) => setItemForm((f) => ({ ...f, salePrice: e.target.value }))} /></label>
+              <label>Nabavna cena<div className="consumables-money-input"><span aria-hidden>€</span><input type="number" step="0.01" min="0" value={itemForm.costPrice} onChange={(e) => setItemForm((f) => ({ ...f, costPrice: e.target.value }))} /></div></label>
+              <label>Prodajna cena<div className="consumables-money-input"><span aria-hidden>€</span><input type="number" step="0.01" min="0" value={itemForm.salePrice} onChange={(e) => setItemForm((f) => ({ ...f, salePrice: e.target.value }))} /></div></label>
               <label>DDV<DesktopSelect value={itemForm.vatRate} onChange={(e) => setItemForm((f) => ({ ...f, vatRate: e.target.value as ItemFormState['vatRate'] }))}><option value="VAT_22">22 %</option><option value="VAT_9_5">9,5 %</option><option value="VAT_0">0 %</option><option value="NO_VAT">Brez DDV</option></DesktopSelect></label>
             </div>
           </PanelSection>
@@ -1737,7 +1737,7 @@ export function ConsumablesPage() {
             <div className="consumables-modal-grid">
               <label>Plačilni rok (dni)<input type="number" min="0" step="1" value={supplierForm.paymentTermsDays} onChange={(e) => setSupplierForm((f) => ({ ...f, paymentTermsDays: e.target.value }))} /></label>
               <label>Zanesljivost (%)<input type="number" min="0" max="100" step="1" value={supplierForm.reliabilityPercent} onChange={(e) => setSupplierForm((f) => ({ ...f, reliabilityPercent: e.target.value }))} /></label>
-              <label>Neplačane obveznosti (€)<input type="number" min="0" step="0.01" value={supplierForm.outstandingAmount} onChange={(e) => setSupplierForm((f) => ({ ...f, outstandingAmount: e.target.value }))} /></label>
+              <label>Neplačane obveznosti<div className="consumables-money-input"><span aria-hidden>€</span><input type="number" min="0" step="0.01" value={supplierForm.outstandingAmount} onChange={(e) => setSupplierForm((f) => ({ ...f, outstandingAmount: e.target.value }))} /></div></label>
               <label>Status<DesktopSelect value={supplierForm.status} onChange={(e) => setSupplierForm((f) => ({ ...f, status: e.target.value as SupplierFormState['status'] }))}><option value="ACTIVE">Aktiven</option><option value="INACTIVE">Neaktiven</option></DesktopSelect></label>
             </div>
           </PanelSection>

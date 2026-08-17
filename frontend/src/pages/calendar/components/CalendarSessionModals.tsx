@@ -37,14 +37,6 @@ function CalendarWarningIcon() {
   )
 }
 
-function CalendarInlinePlusIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
-    </svg>
-  )
-}
-
 function CalendarGroupFormIcon() {
   return (
     <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -712,9 +704,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [newSlotWaitlistLoading, setNewSlotWaitlistLoading] = useState(false)
   const [newSlotWaitlistOpen, setNewSlotWaitlistOpen] = useState(false)
   const [mobileBookingStatusDraft, setMobileBookingStatusDraft] = useState<string | null>(null)
-  const [isCalendarCreateMobile, setIsCalendarCreateMobile] = useState(() =>
-    typeof window !== 'undefined' ? window.matchMedia('(max-width: 1024px)').matches : false,
-  )
+  const [isCalendarCreateMobile, setIsCalendarCreateMobile] = useState(false)
   // Appointment panels now use the same information architecture at every breakpoint.
   // Responsive CSS may stack/reflow controls, but tablet/mobile must not switch back
   // to the legacy collapsed (+/−) section structure.
@@ -753,7 +743,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   useEffect(() => {
     if (typeof window === 'undefined') return
     const media = window.matchMedia('(max-width: 1024px)')
-    const sync = () => setIsCalendarCreateMobile(media.matches)
+    const sync = () => setIsCalendarCreateMobile(false)
     sync()
     media.addEventListener?.('change', sync)
     return () => media.removeEventListener?.('change', sync)
@@ -2970,7 +2960,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           setShowAddClientModal(true)
                         }}
                       >
-                        <span aria-hidden><CalendarInlinePlusIcon /></span>
+                        <span aria-hidden>+</span>
                         <span className="calendar-client-picker__add-label">{clientSearchPlaceholder}</span>
                       </button>
                       {bookedSessionSelectedClients.length === 1 && bookedSessionSelectedClient?.id && (
@@ -3172,9 +3162,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   title={t('formConsultant')}
                   className="calendar-standardized__section calendar-standardized__employee"
                   icon={<CalendarSectionIcon name="clients" />}
-                  summary={selectedBookedSession?.consultant ? fullName(selectedBookedSession.consultant) : t('formUnassigned')}
-                  defaultOpen={false}
-                  collapsible
+                  collapsible={false}
                 >
                   <div className="form-row form-row-infield calendar-booking-field--consultant">
                     <div className="form-field-inline-control">
@@ -3203,9 +3191,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   title={t('formCalendarBookingSpace')}
                   className="calendar-standardized__section calendar-standardized__space"
                   icon={<CalendarSectionIcon name="location" />}
-                  summary={selectedBookedSession?.space?.name || t('formNoSpace')}
-                  defaultOpen={false}
-                  collapsible
+                  collapsible={false}
                 >
                   <div className="form-row form-row-infield calendar-booking-field--space">
                     <div className="form-field-inline-control">
@@ -3229,8 +3215,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 title={sectionLabels.schedule}
                 className="calendar-standardized__section calendar-standardized__schedule"
                 icon={<CalendarSectionIcon name="schedule" />}
-                defaultOpen={false}
-                collapsible
+                defaultOpen
+                collapsible={compactAppointmentStructure}
                 summary={bookedScheduleSummary}
                 action={!compactAppointmentStructure ? (
                   <div className="calendar-standardized__header-toggle" role="group" aria-label={t('formAllDay')}>
@@ -3332,8 +3318,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 title={sectionLabels.notes}
                 className="calendar-standardized__section calendar-standardized__notes"
                 icon={<CalendarSectionIcon name="notes" />}
-                defaultOpen={false}
-                collapsible
+                defaultOpen
+                collapsible={false}
                 summary={bookedNotesSummary}
               >
               {(selectedBookedSession.meetingLink || (selectedBookedSession.notes || '').includes('Zoom meeting:')) && (
@@ -4692,7 +4678,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
           onClose={closeBookingSelection}
           ariaLabel={renderBookingModeTitle()}
           closeOnScrimClick={false}
-          className={`cp-panel--calendar-form${activeNewFormPanel === 'booking' ? ' cp-panel--calendar-new-booking' : ''}${activeNewFormPanel === 'todo' ? ' cp-panel--calendar-standardized cp-panel--calendar-new-todo' : ''}${activeNewFormPanel === 'personal' ? ' cp-panel--calendar-standardized cp-panel--calendar-new-personal' : ''}`}
+          className={`cp-panel--calendar-form${activeNewFormPanel === 'booking' ? ' cp-panel--calendar-new-booking' : ''}${activeNewFormPanel === 'todo' ? ' cp-panel--calendar-standardized cp-panel--calendar-new-todo' : ''}${activeNewFormPanel === 'personal' ? ' cp-panel--calendar-standardized cp-panel--calendar-new-personal' : ''}${activeNewFormPanel === 'availability' ? ' cp-panel--calendar-standardized cp-panel--calendar-new-availability' : ''}`}
         >
           <PanelHeader
             title={renderBookingModeTitle()}
@@ -4739,7 +4725,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             sectioned
             className={activeNewFormPanel === 'booking'
               ? 'calendar-approved-booking-body'
-              : (activeNewFormPanel === 'todo' || activeNewFormPanel === 'personal')
+              : (activeNewFormPanel === 'todo' || activeNewFormPanel === 'personal' || activeNewFormPanel === 'availability')
                 ? 'calendar-standardized-body'
                 : ''}
             onClick={() => {
@@ -4759,6 +4745,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <>
                 <PanelSection
                   title={t('calendarModeAvailability')}
+                  className="calendar-standardized__section calendar-standardized__availability"
                   icon={<CalendarSectionIcon name="availability" />}
                 >
                   {locationFilterId == null && metaLocations.filter((item: any) => item?.active !== false).length > 1 && (
@@ -4836,6 +4823,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 </PanelSection>
                 <PanelSection
                   title={sectionLabels.schedule}
+                  className="calendar-standardized__section calendar-standardized__schedule"
                   icon={<CalendarSectionIcon name="schedule" />}
                   summary={scheduleSummary(availabilitySelection.startTime, availabilitySelection.endTime)}
                 >
@@ -5297,7 +5285,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               setShowAddGroupModal(true)
                             }}
                           >
-                            <span aria-hidden><CalendarInlinePlusIcon /></span>
+                            <span aria-hidden>+</span>
                           </button>
                         </div>
                       </div>
@@ -5464,7 +5452,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           setShowAddClientModal(true)
                         }}
                       >
-                        <span aria-hidden><CalendarInlinePlusIcon /></span>
+                        <span aria-hidden>+</span>
                       </button>
                       {waitlistModuleEnabled && Number(visibleNewSlotWaitlistMatches?.count) > 0 && (
                         <button
@@ -5660,9 +5648,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   title={t('formConsultant')}
                   className="calendar-approved-booking__section calendar-approved-booking__employee"
                   icon={<CalendarSectionIcon name="clients" />}
-                  summary={form.consultantId ? fullName(formConsultants.find((consultant: any) => Number(consultant.id) === Number(form.consultantId))) : t('formUnassigned')}
-                  defaultOpen={false}
-                  collapsible
+                  collapsible={false}
                 >
                   <div className="form-row form-row-infield calendar-booking-field--consultant">
                     <div className="form-field-inline-control">
@@ -5683,9 +5669,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   title={t('formCalendarBookingSpace')}
                   className="calendar-approved-booking__section calendar-approved-booking__space"
                   icon={<CalendarSectionIcon name="location" />}
-                  summary={form.spaceId ? (formSpaces.find((space: any) => Number(space.id) === Number(form.spaceId))?.name || t('formNoSpace')) : t('formNoSpace')}
-                  defaultOpen={false}
-                  collapsible
+                  collapsible={false}
                 >
                   <div className="form-row form-row-infield calendar-booking-field--space">
                     <div className="form-field-inline-control">
@@ -5709,8 +5693,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 title={sectionLabels.schedule}
                 className="calendar-approved-booking__section calendar-approved-booking__schedule"
                 icon={<CalendarSectionIcon name="schedule" />}
-                defaultOpen={false}
-                collapsible
+                defaultOpen={!compactAppointmentStructure}
+                collapsible={compactAppointmentStructure}
                 summary={newFormScheduleSummary}
                 action={!compactAppointmentStructure ? (
                   <div className="calendar-approved-booking__header-toggle" role="group" aria-label={t('formAllDay')}>
@@ -5869,8 +5853,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   title={sectionLabels.notes}
                   className="calendar-approved-booking__section calendar-approved-booking__notes"
                   icon={<CalendarSectionIcon name="notes" />}
-                  defaultOpen={false}
-                  collapsible
+                  defaultOpen
+                  collapsible={false}
                   summary={newFormNotesSummary}
                 >
                   <div className="form-row form-row-infield stretch">

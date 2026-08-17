@@ -963,3 +963,67 @@ button.cards-product-delete-btn {
     }
 
 }
+
+/* Product / voucher money inputs share the Billing Znesek field structure. */
+.cards-product-money-input {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 46px;
+    border: 1px solid #d4deea;
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+    box-shadow: none;
+}
+
+.cards-product-money-input > span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+    width: 42px;
+    min-width: 42px;
+    border-right: 1px solid #e4eaf1;
+    color: #64748b;
+    font-size: 0.86rem;
+    font-weight: 650;
+}
+
+.cards-product-money-input > input {
+    min-width: 0;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 14px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    outline: 0;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-variant-numeric: tabular-nums;
+}
+
+.cards-product-money-input:focus-within {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.cards-product-money-input > input[readonly] {
+    background: #f8fafc !important;
+    color: #475569;
+}
+
+[data-theme="dark"] .cards-product-money-input {
+    border-color: rgba(148, 163, 184, 0.28);
+    background: #111827;
+}
+
+[data-theme="dark"] .cards-product-money-input > span {
+    border-right-color: rgba(148, 163, 184, 0.2);
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .cards-product-money-input > input[readonly] {
+    background: rgba(30, 41, 59, 0.72) !important;
+    color: #cbd5e1;
+}

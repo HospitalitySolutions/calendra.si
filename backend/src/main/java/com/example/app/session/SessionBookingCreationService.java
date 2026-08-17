@@ -731,6 +731,76 @@ public class SessionBookingCreationService {
     }
 
     /**
+     * Persists the participant-capacity override for one logical group-session occurrence.
+     * A null/non-positive value clears the override and returns the session to the service default.
+     * The underlying SessionType is never modified.
+     */
+    @Transactional
+    public SessionBookingController.BookingResponse updateGroupSessionMaxParticipants(
+            Long representativeBookingId,
+            Integer requestedMaxParticipantsOverride,
+            User me
+    ) {
+        if (me == null || me.getCompany() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
+        Long companyId = me.getCompany().getId();
+        SessionBooking representative = repo.findByIdAndCompanyId(representativeBookingId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Group session not found."));
+        authorizeStaffGroupSessionMutation(representative, me);
+
+        companies.findByIdForUpdate(companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found"));
+
+        List<SessionBooking> rows = new ArrayList<>(loadGroupedRows(representative, companyId));
+        Integer normalizedOverride = normalizedMaxParticipantsOverride(requestedMaxParticipantsOverride);
+        int participantCount = (int) rows.stream()
+                .filter(row -> row.getClient() != null)
+                .filter(row -> !SessionBookingStatus.CANCELLED.equals(
+                        SessionBookingStatus.normalizeStored(row.getBookingStatus())))
+                .map(row -> row.getClient().getId())
+                .filter(Objects::nonNull)
+                .distinct()
+                .count();
+
+        SessionServicePlanService.Plan existingPlan = servicePlans.retimeExisting(
+                representative, representative.getStartTime());
+        servicePlans.validateParticipantLimit(existingPlan, participantCount, normalizedOverride);
+
+        SessionBookingController.BookingResponse before = SessionBookingController.toGroupedResponse(
+                rows, locationPrices == null ? null : locationPrices::effectiveNet);
+        for (SessionBooking row : rows) {
+            row.setMaxParticipantsOverride(normalizedOverride);
+        }
+        repo.saveAll(rows);
+        repo.flush();
+
+        SessionBookingController.BookingResponse response = SessionBookingController.toGroupedResponse(
+                rows, locationPrices == null ? null : locationPrices::effectiveNet);
+        bookingChangePublisher.publish(
+                companyId,
+                response.id(),
+                response.startTime(),
+                response.endTime(),
+                BookingChangePublisher.BOOKING_UPDATED
+        );
+        recordBookingActivity(
+                me,
+                ActivityAction.SESSION_UPDATED,
+                response,
+                null,
+                null,
+                null,
+                Map.of(
+                        "field", "maxParticipantsOverride",
+                        "before", bookingActivitySnapshot(before),
+                        "after", bookingActivitySnapshot(response)
+                )
+        );
+        return response;
+    }
+
+    /**
      * Staff-only convenience operation used by the calendar group-attendee panel.
      * It changes this occurrence only and deliberately does not mutate the saved
      * membership list on {@link ClientGroup}.

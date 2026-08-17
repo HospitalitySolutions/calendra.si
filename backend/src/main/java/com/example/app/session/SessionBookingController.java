@@ -173,6 +173,8 @@ public class SessionBookingController {
             Long spaceId
     ) {}
 
+    public record MaxParticipantsOverrideRequest(Integer maxParticipantsOverride) {}
+
     public record BookingRequest(
             Long clientId,
             List<Long> clientIds,
@@ -462,6 +464,16 @@ public class SessionBookingController {
     @PutMapping("/{id}")
     public BookingResponse update(@PathVariable Long id, @RequestBody BookingRequest req, @AuthenticationPrincipal User me) {
         return bookingCreationService.update(id, req, me);
+    }
+
+    @PatchMapping("/{id}/max-participants")
+    public BookingResponse updateMaxParticipantsOverride(
+            @PathVariable Long id,
+            @RequestBody MaxParticipantsOverrideRequest req,
+            @AuthenticationPrincipal User me
+    ) {
+        return bookingCreationService.updateGroupSessionMaxParticipants(
+                id, req == null ? null : req.maxParticipantsOverride(), me);
     }
 
     /**

@@ -247,6 +247,7 @@ session/ServiceGroupController.java|@PutMapping("/reorder")|reorder
 session/ServiceGroupController.java|@PutMapping("/{id}")|update
 session/SessionBookingController.java|@DeleteMapping("/{id}")|delete
 session/SessionBookingController.java|@DeleteMapping("/{id}/participants/{clientId}")|removeParticipant
+session/SessionBookingController.java|@PatchMapping("/{id}/max-participants")|updateMaxParticipantsOverride
 session/SessionBookingController.java|@PostMapping("/series")|createSeries
 session/SessionBookingController.java|@PostMapping("/swap")|swap
 session/SessionBookingController.java|@PostMapping("/{id}/no-show-clients")|markClientsNoShow

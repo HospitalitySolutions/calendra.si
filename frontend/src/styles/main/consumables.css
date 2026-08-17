@@ -373,3 +373,65 @@
   .consumables-report-kpis { grid-template-columns: 1fr; }
   .consumables-report-toolbar label { min-width: 100%; }
 }
+
+/* Editable monetary values use the same split € prefix as Billing > Znesek. */
+.consumables-money-input,
+.procurement-lines-table .money-input {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 42px;
+    gap: 0;
+    border: 1px solid #d4deea;
+    border-radius: 9px;
+    background: #fff;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.consumables-money-input > span,
+.procurement-lines-table .money-input > span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+    width: 38px;
+    min-width: 38px;
+    margin: 0;
+    border-right: 1px solid #e4eaf1;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.consumables-money-input > input,
+.procurement-lines-table .money-input > input {
+    min-width: 0 !important;
+    width: 100%;
+    min-height: 40px;
+    padding: 0 11px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    outline: 0;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-variant-numeric: tabular-nums;
+}
+
+.consumables-money-input:focus-within,
+.procurement-lines-table .money-input:focus-within {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+[data-theme="dark"] .consumables-money-input,
+[data-theme="dark"] .procurement-lines-table .money-input {
+    border-color: rgba(148, 163, 184, 0.28);
+    background: #111827;
+}
+
+[data-theme="dark"] .consumables-money-input > span,
+[data-theme="dark"] .procurement-lines-table .money-input > span {
+    border-right-color: rgba(148, 163, 184, 0.2);
+    color: #94a3b8;
+}

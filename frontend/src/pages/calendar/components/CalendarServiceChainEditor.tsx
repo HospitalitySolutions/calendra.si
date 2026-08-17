@@ -1058,15 +1058,15 @@ export function CalendarServiceChainEditor({
               </div>
             </PanelField>
             <PanelField label={copy.price}>
-              <div className="calendar-service-edit-modal__price-wrap">
+              <label className="calendar-service-edit-modal__price-wrap calendar-service-edit-modal__price-wrap--money">
+                <span>€</span>
                 <input
                   type="text"
                   inputMode="decimal"
                   value={editingServicePrice}
                   onChange={(event) => setEditingServicePrice(event.target.value)}
                 />
-                <span>€</span>
-              </div>
+              </label>
             </PanelField>
             {showSessionMaxParticipants ? (
               <PanelField label={copy.maxParticipants}>

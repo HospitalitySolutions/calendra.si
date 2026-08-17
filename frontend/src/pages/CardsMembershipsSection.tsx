@@ -2234,54 +2234,57 @@ export const CardsMembershipsSection = forwardRef<
                     : undefined
                 }
               >
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  readOnly={
-                    guestProductForm.productType === "CLASS_TICKET" &&
-                    guestProductForm.serviceScope === "SERVICES" &&
-                    guestProductTypeUsesAutoPrice(
-                      guestProductForm.productType,
-                      guestProductForm.sessionTypeIds.length,
-                    )
-                  }
-                  aria-readonly={
-                    guestProductForm.productType === "CLASS_TICKET" &&
-                    guestProductForm.serviceScope === "SERVICES" &&
-                    guestProductTypeUsesAutoPrice(
-                      guestProductForm.productType,
-                      guestProductForm.sessionTypeIds.length,
-                    )
-                  }
-                  value={guestProductForm.priceGross}
-                  onChange={(e) => {
-                    if (
+                <div className="cards-product-money-input">
+                  <span aria-hidden>€</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    readOnly={
                       guestProductForm.productType === "CLASS_TICKET" &&
                       guestProductForm.serviceScope === "SERVICES" &&
                       guestProductTypeUsesAutoPrice(
                         guestProductForm.productType,
                         guestProductForm.sessionTypeIds.length,
                       )
-                    )
-                      return;
-                    const nextPrice = e.target.value;
-                    setGuestProductForm((current) => ({
-                      ...current,
-                      priceGross: nextPrice,
-                      priceGrossManuallyOverridden:
-                        current.productType === "PACK"
-                          ? true
-                          : current.priceGrossManuallyOverridden,
-                      voucherFaceValueGross:
-                        current.productType === "GIFT_CARD" &&
-                        current.voucherRedemptionMode === "VALUE" &&
-                        (current.voucherFaceValueGross === current.priceGross || Number(current.voucherFaceValueGross) <= 0)
-                          ? nextPrice
-                          : current.voucherFaceValueGross,
-                    }));
-                  }}
-                />
+                    }
+                    aria-readonly={
+                      guestProductForm.productType === "CLASS_TICKET" &&
+                      guestProductForm.serviceScope === "SERVICES" &&
+                      guestProductTypeUsesAutoPrice(
+                        guestProductForm.productType,
+                        guestProductForm.sessionTypeIds.length,
+                      )
+                    }
+                    value={guestProductForm.priceGross}
+                    onChange={(e) => {
+                      if (
+                        guestProductForm.productType === "CLASS_TICKET" &&
+                        guestProductForm.serviceScope === "SERVICES" &&
+                        guestProductTypeUsesAutoPrice(
+                          guestProductForm.productType,
+                          guestProductForm.sessionTypeIds.length,
+                        )
+                      )
+                        return;
+                      const nextPrice = e.target.value;
+                      setGuestProductForm((current) => ({
+                        ...current,
+                        priceGross: nextPrice,
+                        priceGrossManuallyOverridden:
+                          current.productType === "PACK"
+                            ? true
+                            : current.priceGrossManuallyOverridden,
+                        voucherFaceValueGross:
+                          current.productType === "GIFT_CARD" &&
+                          current.voucherRedemptionMode === "VALUE" &&
+                          (current.voucherFaceValueGross === current.priceGross || Number(current.voucherFaceValueGross) <= 0)
+                            ? nextPrice
+                            : current.voucherFaceValueGross,
+                      }));
+                    }}
+                  />
+                </div>
               </Field>
               <Field label={locale === "sl" ? "Valuta *" : "Currency *"}>
                 <input
@@ -2304,19 +2307,22 @@ export const CardsMembershipsSection = forwardRef<
                       : "Monetary balance issued with the voucher. Defaults to the selling price."
                   }
                 >
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    required
-                    value={guestProductForm.voucherFaceValueGross}
-                    onChange={(e) =>
-                      setGuestProductForm({
-                        ...guestProductForm,
-                        voucherFaceValueGross: e.target.value,
-                      })
-                    }
-                  />
+                  <div className="cards-product-money-input">
+                    <span aria-hidden>€</span>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      required
+                      value={guestProductForm.voucherFaceValueGross}
+                      onChange={(e) =>
+                        setGuestProductForm({
+                          ...guestProductForm,
+                          voucherFaceValueGross: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
                 </Field>
               )}
           </PanelSection>

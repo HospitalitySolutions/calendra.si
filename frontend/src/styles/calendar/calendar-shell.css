@@ -3233,3 +3233,63 @@ button.calendar-dashboard-client-row {
     cursor: grabbing;
 }
 
+
+/* Compact calendar billing price input: same split € prefix as Billing > Znesek. */
+.calendar-dashboard-money-input {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    min-height: 36px;
+    border: 1px solid #d4deea;
+    border-radius: 7px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.calendar-dashboard-money-input span {
+    position: static;
+    right: auto;
+    top: auto;
+    transform: none;
+    order: -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+    width: 32px;
+    min-width: 32px;
+    border-right: 1px solid #e4eaf1;
+    color: #7b899e;
+    font-size: 11px;
+    font-weight: 650;
+    pointer-events: none;
+}
+
+.calendar-dashboard-money-input input {
+    min-width: 0;
+    width: 100%;
+    min-height: 34px;
+    padding: 0 9px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    outline: none;
+    background: transparent !important;
+    box-shadow: none !important;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.calendar-dashboard-money-input:focus-within {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+[data-theme="dark"] .calendar-dashboard-money-input {
+    border-color: rgba(148, 163, 184, 0.28);
+    background: #111827;
+}
+
+[data-theme="dark"] .calendar-dashboard-money-input span {
+    border-right-color: rgba(148, 163, 184, 0.2);
+    color: #94a3b8;
+}

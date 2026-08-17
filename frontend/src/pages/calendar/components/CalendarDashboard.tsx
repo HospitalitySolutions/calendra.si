@@ -274,7 +274,7 @@ function BillingRowsEditor({ rows, services, onChange, disabled }: { rows: Billi
             {services.map((service) => <option value={service.id} key={service.id}>{serviceLabel(service)}</option>)}
           </DesktopSelect>
           <input type="number" min="1" step="1" value={row.quantity} disabled={disabled} onChange={(event) => update(index, { quantity: Math.max(1, Number(event.target.value || 1)) })} aria-label="Količina" />
-          <div className="calendar-dashboard-money-input"><input type="number" min="0" step="0.01" value={row.grossPrice} disabled={disabled} onChange={(event) => update(index, { grossPrice: event.target.value })} aria-label="Cena" /><span>€</span></div>
+          <div className="calendar-dashboard-money-input"><span aria-hidden>€</span><input type="number" min="0" step="0.01" value={row.grossPrice} disabled={disabled} onChange={(event) => update(index, { grossPrice: event.target.value })} aria-label="Cena" /></div>
           <button type="button" className="calendar-dashboard-icon-button" disabled={disabled || rows.length <= 1} onClick={() => onChange(rows.filter((_, rowIndex) => rowIndex !== index))} aria-label="Odstrani postavko"><Icon name="trash" size={16} /></button>
         </div>
       ))}

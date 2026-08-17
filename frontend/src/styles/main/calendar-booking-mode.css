@@ -4736,26 +4736,6 @@
         height: 20px;
     }
 
-    /* Stranke uses the exact same square + action language as Storitev. */
-    .cp-panel--calendar-new-booking .calendar-approved-booking__clients .calendar-client-picker__add-btn {
-        width: 50px;
-        min-width: 50px;
-        height: 50px;
-        min-height: 50px;
-        flex: 0 0 50px;
-        padding: 0;
-        border: 1px solid var(--approved-booking-border);
-        border-radius: 9px;
-        background: #fff;
-        color: #111827;
-        box-shadow: none;
-    }
-
-    .cp-panel--calendar-new-booking .calendar-approved-booking__clients .calendar-client-picker__add-btn svg {
-        width: 20px;
-        height: 20px;
-    }
-
     /* Online / all-day / repeat switches. */
     .cp-panel--calendar-new-booking .calendar-approved-booking__service .cp-section__controls {
         gap: 10px;
@@ -5878,13 +5858,7 @@
 
     .cp-panel--calendar-new-booking .calendar-approved-booking__consumables .cp-section__collapse,
     .cp-panel--calendar-standardized .calendar-standardized__consumables .cp-section__collapse,
-    .cp-panel--calendar-new-booking .calendar-approved-booking__employee .cp-section__collapse,
-    .cp-panel--calendar-new-booking .calendar-approved-booking__space .cp-section__collapse,
-    .cp-panel--calendar-new-booking .calendar-approved-booking__schedule .cp-section__collapse,
     .cp-panel--calendar-new-booking .calendar-approved-booking__notes .cp-section__collapse,
-    .cp-panel--calendar-standardized .calendar-standardized__employee .cp-section__collapse,
-    .cp-panel--calendar-standardized .calendar-standardized__space .cp-section__collapse,
-    .cp-panel--calendar-standardized .calendar-standardized__schedule .cp-section__collapse,
     .cp-panel--calendar-standardized .calendar-standardized__notes .cp-section__collapse {
         width: 40px;
         min-width: 40px;
@@ -8830,16 +8804,6 @@
         min-height: 50px !important;
         padding: 0 !important;
     }
-
-    .cp-panel--calendar-new-booking .calendar-approved-booking__clients .calendar-client-picker__add-btn,
-    .cp-panel--calendar-edit-booking .calendar-standardized__clients .calendar-client-picker__add-btn {
-        width: 50px !important;
-        min-width: 50px !important;
-        max-width: 50px !important;
-        height: 50px !important;
-        min-height: 50px !important;
-        flex-basis: 50px !important;
-    }
 }
 
 @media (max-width: 640px) {
@@ -8865,16 +8829,6 @@
         min-height: 50px !important;
     }
 
-    .cp-panel--calendar-new-booking .calendar-approved-booking__clients .calendar-client-picker__add-btn,
-    .cp-panel--calendar-edit-booking .calendar-standardized__clients .calendar-client-picker__add-btn {
-        width: 46px !important;
-        min-width: 46px !important;
-        max-width: 46px !important;
-        height: 50px !important;
-        min-height: 50px !important;
-        flex-basis: 46px !important;
-    }
-
     /* Uredi porabni material keeps the desktop table/header instead of the old
        two-column mobile card conversion. The table can scroll horizontally on
        the narrowest screens, but its information architecture stays intact. */
@@ -8897,4 +8851,302 @@
         gap: 10px !important;
         padding: 8px !important;
     }
+}
+
+
+/* Mobile/tablet parity for Personal / Opravilo / Dostopnost. */
+@media (max-width: 1024px) {
+    .cp-panel--calendar-standardized {
+        --calendar-standard-orange: #ff5a00;
+        --calendar-standard-border: #d8dee8;
+        --calendar-standard-muted: #667085;
+        --calendar-standard-text: #111827;
+        background: #fff;
+        color: var(--calendar-standard-text);
+    }
+
+    .cp-panel--calendar-new-todo > .cp-panel-tabs,
+    .cp-panel--calendar-new-personal > .cp-panel-tabs,
+    .cp-panel--calendar-new-availability > .cp-panel-tabs {
+        display: none !important;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized-mobile-only {
+        display: none !important;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized-desktop-delete {
+        display: inline-flex;
+        margin-right: auto;
+    }
+
+    .cp-panel--calendar-standardized .cp-panel-header {
+        min-height: 0;
+        padding: 22px 20px 18px;
+        gap: 16px;
+        border-bottom: 0;
+        background: #fff;
+    }
+
+    .cp-panel--calendar-standardized .cp-panel-header__title {
+        color: var(--calendar-standard-text);
+        font-size: 1.5rem;
+        font-weight: 700;
+        line-height: 1.16;
+        letter-spacing: -0.025em;
+    }
+
+    .cp-panel--calendar-new-todo .cp-panel-header__subtitle,
+    .cp-panel--calendar-new-personal .cp-panel-header__subtitle,
+    .cp-panel--calendar-new-availability .cp-panel-header__subtitle,
+    .cp-panel--calendar-edit-todo .cp-panel-header__subtitle,
+    .cp-panel--calendar-edit-personal .cp-panel-header__subtitle {
+        display: none;
+    }
+
+    .cp-panel--calendar-edit-todo .cp-panel-header__actions > .cp-menu,
+    .cp-panel--calendar-edit-personal .cp-panel-header__actions > .cp-menu {
+        display: none;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized-body {
+        flex: 1;
+        gap: 0;
+        padding: 0 20px 8px;
+        overflow-y: auto;
+        background: #fff;
+        scrollbar-width: none;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized-body::-webkit-scrollbar {
+        display: none;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized-body > .cp-section {
+        padding: 22px 0 24px;
+        border: 0 !important;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__task,
+    .cp-panel--calendar-standardized .calendar-standardized__personal,
+    .cp-panel--calendar-standardized .calendar-standardized__availability {
+        padding-top: 18px;
+        padding-bottom: 24px;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__schedule {
+        padding-top: 24px;
+        padding-bottom: 24px;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__notes {
+        padding-top: 22px;
+        padding-bottom: 20px;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__section .cp-section__head {
+        min-height: 28px;
+        gap: 14px;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__section .cp-section__icon {
+        width: 24px;
+        height: 24px;
+        color: var(--calendar-standard-orange);
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__section .cp-section__icon svg {
+        width: 24px;
+        height: 24px;
+        stroke-width: 1.8;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__section .cp-section__title {
+        color: var(--calendar-standard-text);
+        font-size: 1.125rem;
+        font-weight: 700;
+        line-height: 1.3;
+        letter-spacing: -0.012em;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__section .cp-section__body {
+        gap: 14px;
+        padding-top: 16px;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__section .cp-section__collapse,
+    .cp-panel--calendar-standardized .calendar-standardized__section .cp-section__summary {
+        display: none !important;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__task .form-field-inline-label,
+    .cp-panel--calendar-standardized .calendar-new-create-personal-name-label,
+    .cp-panel--calendar-standardized .calendar-personal-visibility-head {
+        display: none !important;
+    }
+
+    .cp-panel--calendar-standardized .form-row,
+    .cp-panel--calendar-standardized .form-row-infield,
+    .cp-panel--calendar-standardized .form-field-inline-control {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .cp-panel--calendar-standardized .form-row-infield {
+        margin: 0;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__section input:not([type='checkbox']):not([type='radio']):not([type='date']),
+    .cp-panel--calendar-standardized .calendar-standardized__section select,
+    .cp-panel--calendar-standardized .calendar-standardized__section .app-desktop-select__trigger,
+    .cp-panel--calendar-standardized .calendar-standardized__section .client-selected-display {
+        min-height: 50px;
+        height: 50px;
+        border: 1px solid var(--calendar-standard-border);
+        border-radius: 9px;
+        background: #fff;
+        color: var(--calendar-standard-text);
+        font-size: 0.9375rem;
+        font-weight: 400;
+        line-height: 1.3;
+        box-shadow: none;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__section input:not([type='checkbox']):not([type='radio']):not([type='date']) {
+        padding: 0 14px;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__section select.app-desktop-select:not([multiple]) {
+        min-height: 50px !important;
+        height: 50px;
+        padding: 0 42px 0 15px !important;
+        border: 1px solid var(--calendar-standard-border) !important;
+        border-radius: 9px !important;
+        background-color: #fff !important;
+        background-image:
+            linear-gradient(45deg, transparent 50%, #475467 50%),
+            linear-gradient(135deg, #475467 50%, transparent 50%) !important;
+        background-position:
+            calc(100% - 19px) calc(50% - 2px),
+            calc(100% - 14px) calc(50% - 2px) !important;
+        background-size: 5px 5px, 5px 5px !important;
+        color: var(--calendar-standard-text) !important;
+        font-size: 0.9375rem !important;
+        font-weight: 400 !important;
+        line-height: 1.3 !important;
+        box-shadow: none !important;
+        -webkit-appearance: none !important;
+        appearance: none !important;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__schedule .calendar-timespan-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__schedule--todo .calendar-timespan-row {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__schedule .calendar-timespan-field,
+    .cp-panel--calendar-standardized .calendar-standardized__schedule .calendar-timespan-field--date {
+        min-width: 0;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__schedule .calendar-timespan-input-inner {
+        min-height: 50px;
+        border: 1px solid var(--calendar-standard-border);
+        border-radius: 9px;
+        background: #fff;
+        padding: 8px 14px;
+        box-shadow: none;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__schedule .calendar-timespan-label {
+        color: #6b7280;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__notes textarea {
+        min-height: 140px;
+        border: 1px solid var(--calendar-standard-border);
+        border-radius: 9px;
+        padding: 14px;
+        background: #fff;
+        color: var(--calendar-standard-text);
+        box-shadow: none;
+        resize: vertical;
+    }
+
+    .cp-panel--calendar-standardized .cp-panel-footer {
+        padding: 14px 20px 20px;
+        border-top: 1px solid #edf2f7;
+        background: rgba(255,255,255,0.98);
+    }
+
+    .cp-panel--calendar-standardized .cp-panel-footer__actions {
+        width: 100%;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    .cp-panel--calendar-standardized .cp-panel-footer .cp-btn--danger,
+    .cp-panel--calendar-standardized .cp-panel-footer .cp-btn--ghost,
+    .cp-panel--calendar-standardized .cp-panel-footer .cp-btn--subtle,
+    .cp-panel--calendar-standardized .cp-panel-footer .cp-btn--primary {
+        min-height: 44px;
+        border-radius: 10px;
+    }
+}
+
+/* Service edit price field matches Načini plačila Znesek field. */
+.calendar-service-edit-panel .calendar-service-edit-modal__price-wrap--money {
+    display: flex;
+    align-items: center;
+    min-height: 50px;
+    height: 50px;
+    border: 1px solid #d4deea;
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+    box-shadow: none;
+}
+
+.calendar-service-edit-panel .calendar-service-edit-modal__price-wrap--money span {
+    order: -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+    width: 42px;
+    min-width: 42px;
+    border-right: 1px solid #e4eaf1;
+    border-left: 0;
+    color: #64748b;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.calendar-service-edit-panel .calendar-service-edit-modal__price-wrap--money input {
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0 14px;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+
+.calendar-service-edit-panel .calendar-service-edit-modal__price-wrap--money:focus-within {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
