@@ -8036,13 +8036,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <button type="button" onClick={() => setBillForm((prev) => ({ ...prev, items: prev.items.map((row, rowIndex) => rowIndex === index ? { ...row, quantity: Number(row.quantity || 0) + 1 } : row) }))}>+</button>
               </div>
               <strong className="billing-pos-line-total">{currency(lineTotal)}</strong>
-              <div className="billing-pos-line-actions">
-                <div className="billing-pos-line-discount">
-                  <button type="button" className={`${showButtonStyle ? 'billing-pos-inline-discount-btn ' : ''}${lineDiscountActive ? 'is-active' : ''}`.trim()} onClick={(event) => { event.stopPropagation(); setOpenCreateItemDiscountIndex(lineDiscountOpen ? null : index) }}>
-                    {lineDiscountButtonContent(lineDraft)}
-                  </button>
-                  {lineDiscountOpen && renderItemDiscountPopover(lineDraft, patchLineDiscount, () => setOpenCreateItemDiscountIndex(null))}
-                </div>
+              <div className={`billing-pos-line-actions${showButtonStyle ? '' : ' billing-pos-line-actions--remove-only'}`}>
+                {showButtonStyle && (
+                  <div className="billing-pos-line-discount">
+                    <button type="button" className={`billing-pos-inline-discount-btn${lineDiscountActive ? ' is-active' : ''}`} onClick={(event) => { event.stopPropagation(); setOpenCreateItemDiscountIndex(lineDiscountOpen ? null : index) }}>
+                      {lineDiscountButtonContent(lineDraft)}
+                    </button>
+                    {lineDiscountOpen && renderItemDiscountPopover(lineDraft, patchLineDiscount, () => setOpenCreateItemDiscountIndex(null))}
+                  </div>
+                )}
                 <button type="button" className="billing-pos-row-remove" aria-label={locale === 'sl' ? 'Odstrani postavko' : 'Remove item'} onClick={() => {
                   const nextItems = billForm.items.filter((_, rowIndex) => rowIndex !== index)
                   setBillForm((prev) => ({ ...prev, items: nextItems, itemDiscounts: shiftedItemDiscountsAfterRemoval(normalizeItemDiscountMap(prev.itemDiscounts, { keepZero: true }), index, nextItems.length), discountItemIndex: clampDiscountIndexAfterRemoval(prev.discountItemIndex, index, nextItems.length) }))

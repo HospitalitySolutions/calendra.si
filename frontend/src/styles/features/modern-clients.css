@@ -7881,3 +7881,899 @@
         transform: translateX(20px);
     }
 }
+
+/* ===== Responsive parity: approved customer/group create panels on tablet/mobile ===== */
+@media (max-width: 1024px) {
+
+    .clients-standard-customer-panel {
+        background: #ffffff;
+        color: #0f172a;
+        box-shadow: -18px 0 42px rgba(15, 23, 42, 0.12);
+    }
+
+    .clients-standard-customer-panel--create {
+        width: 560px !important;
+        max-width: 560px !important;
+    }
+
+    .clients-standard-customer-panel--edit {
+        width: min(980px, 92vw) !important;
+        max-width: min(980px, 92vw) !important;
+    }
+
+    .clients-standard-customer-panel .cp-panel-header {
+        min-height: 104px;
+        padding: 22px 30px 20px;
+        background: #ffffff;
+        border-bottom: 1px solid #e8edf4;
+    }
+
+    .clients-standard-customer-panel .cp-panel-header__title {
+        color: #0f172a;
+        font-size: 24px;
+        font-weight: 800;
+        line-height: 1.2;
+        letter-spacing: -0.025em;
+    }
+
+    .clients-standard-customer-panel .cp-panel-header__subtitle {
+        margin-top: 5px;
+        color: #64748b;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.35;
+    }
+
+    .clients-standard-customer-panel .cp-panel-header .cp-icon-btn {
+        width: 38px;
+        height: 38px;
+        min-width: 38px;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #334155;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel .cp-panel-header .cp-icon-btn:hover {
+        background: #f6f8fb;
+    }
+
+    .clients-standard-customer-panel .cp-panel-body {
+        padding: 30px;
+        background: #ffffff;
+    }
+
+    .clients-standard-customer-panel--edit .cp-panel-body {
+        padding-top: 26px;
+        overflow-x: hidden;
+    }
+
+    .clients-standard-customer-panel .cp-panel-tabs {
+        min-height: 58px;
+        padding: 0 28px;
+        gap: 22px;
+        border-bottom: 1px solid #e8edf4;
+        background: #ffffff;
+    }
+
+    .clients-standard-customer-panel .cp-panel-tab {
+        min-width: 0;
+        min-height: 58px;
+        padding: 0 8px;
+        gap: 8px;
+        border-radius: 0;
+        color: #334155;
+        background: transparent;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .clients-standard-customer-panel .cp-panel-tab.is-active {
+        color: #0868f1;
+        background: transparent;
+        box-shadow: inset 0 -2px 0 #0868f1;
+    }
+
+    .clients-standard-customer-panel .cp-panel-tab svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .clients-standard-customer-profile {
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+        width: 100%;
+        margin: 0;
+    }
+
+    .clients-standard-customer-section {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+    }
+
+    .clients-standard-customer-section h3 {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        margin: 0;
+        color: #111827;
+        font-size: 16px;
+        font-weight: 750;
+        line-height: 1.25;
+    }
+
+    .clients-standard-customer-section h3 svg {
+        flex: 0 0 auto;
+        width: 20px;
+        height: 20px;
+        color: #ff6200;
+        stroke-width: 1.9;
+    }
+
+    .clients-standard-profile-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+        width: 100%;
+    }
+
+    .clients-standard-profile-field,
+    .clients-standard-customer-panel .clients-create-field {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        cursor: default;
+    }
+
+    .clients-standard-profile-field > span,
+    .clients-standard-customer-panel .clients-create-field > span {
+        color: #475569;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.3;
+        letter-spacing: 0;
+        text-transform: none;
+    }
+
+    .clients-standard-customer-section:not(.clients-standard-customer-section--person) .clients-create-field > span {
+        display: none;
+    }
+
+    .clients-standard-profile-field input,
+    .clients-standard-customer-panel .clients-create-field input {
+        width: 100%;
+        height: 50px;
+        min-height: 50px;
+        margin: 0;
+        padding: 0 14px;
+        border: 1px solid #d4deea;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #111827;
+        font: inherit;
+        font-size: 15px;
+        font-weight: 500;
+        line-height: 1;
+        outline: none;
+        box-shadow: none;
+        transition: border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .clients-standard-profile-field input::placeholder,
+    .clients-standard-customer-panel .clients-create-field input::placeholder {
+        color: #7b8aa2;
+        font-weight: 450;
+    }
+
+    .clients-standard-profile-field input:hover,
+    .clients-standard-customer-panel .clients-create-field input:hover {
+        border-color: #bcc9d8;
+    }
+
+    .clients-standard-profile-field input:focus,
+    .clients-standard-customer-panel .clients-create-field input:focus {
+        border-color: #78a9fa;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.09);
+    }
+
+    .clients-standard-profile-field--wide,
+    .clients-standard-customer-panel .clients-detail-field-card--wide {
+        width: 100%;
+    }
+
+    .clients-standard-customer-extra-fields {
+        display: grid;
+        gap: 16px;
+    }
+
+    /* Keep existing custom/assigned-location functionality, but remove legacy cards. */
+    .clients-standard-customer-extra-fields .clients-detail-field-card {
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-action-workspace-shell {
+        display: grid;
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+        align-items: start;
+        gap: 28px;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-customer-profile,
+    .clients-standard-customer-panel--edit .clients-standard-detail-card,
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab,
+    .clients-standard-customer-panel--edit .clients-detail-sessions-card {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .clients-standard-customer-panel--edit .clients-detail-sessions-card.clients-modern-sessions-panel {
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-sessions-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        width: 100%;
+        margin: 0 0 14px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-subtabs.clients-session-tabs {
+        display: inline-flex;
+        width: auto;
+        min-height: 42px;
+        padding: 3px;
+        gap: 2px;
+        border: 1px solid #d9e3ef;
+        border-radius: 999px;
+        background: #f5f8fc;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-subtabs .clients-session-tab {
+        min-height: 34px;
+        padding: 0 17px;
+        border: 0;
+        border-radius: 999px;
+        color: #334155;
+        background: transparent;
+        font-size: 13px;
+        font-weight: 650;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-subtabs .clients-session-tab.active {
+        color: #ffffff;
+        background: #0b6ff5;
+        box-shadow: 0 3px 9px rgba(11, 111, 245, 0.22);
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-sessions-count {
+        min-height: 38px;
+        padding: 0 14px;
+        border-radius: 999px;
+        color: #0868f1;
+        background: #eef5ff;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .clients-standard-customer-panel--edit .clients-detail-empty-card {
+        min-height: 170px;
+        margin: 0;
+        border: 1px solid #dce5f0;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel .cp-panel-footer {
+        min-height: 78px;
+        padding: 14px 30px;
+        border-top: 1px solid #e8edf4;
+        background: #ffffff;
+    }
+
+    .clients-standard-customer-panel--create .cp-panel-footer {
+        justify-content: flex-end;
+    }
+
+    .clients-standard-customer-panel--edit .cp-panel-footer {
+        justify-content: space-between;
+    }
+
+    .clients-standard-customer-panel .cp-panel-footer .cp-btn {
+        min-height: 48px;
+        padding: 0 20px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .clients-standard-customer-panel .cp-panel-footer .cp-btn--primary {
+        min-width: 150px;
+        border-color: #0b6ff5;
+        background: #0b6ff5;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel .cp-panel-footer .cp-btn--danger {
+        border: 1px solid #efb5b5;
+        background: #ffffff;
+        color: #e13232;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel .cp-panel-footer .cp-btn--danger:hover:not(:disabled) {
+        border-color: #ee8f8f;
+        background: #fff7f7;
+    }
+
+
+
+    .clients-standard-entity-panel {
+        background: #ffffff;
+        color: #0f172a;
+        box-shadow: -18px 0 42px rgba(15, 23, 42, 0.12);
+    }
+
+    .clients-standard-entity-panel--create {
+        width: 560px !important;
+        max-width: 560px !important;
+    }
+
+    .clients-standard-entity-panel--edit {
+        width: min(940px, 92vw) !important;
+        max-width: min(940px, 92vw) !important;
+    }
+
+    .clients-standard-entity-panel .cp-panel-header {
+        min-height: 86px;
+        padding: 20px 28px;
+        border-bottom: 1px solid #e8edf4;
+        background: #ffffff;
+    }
+
+    .clients-standard-entity-panel .cp-panel-header__title {
+        color: #0f172a;
+        font-size: 22px;
+        font-weight: 800;
+        line-height: 1.2;
+        letter-spacing: -0.025em;
+    }
+
+    .clients-standard-entity-panel .cp-panel-header__subtitle {
+        margin-top: 4px;
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    .clients-standard-entity-header-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 11px;
+    }
+
+    .clients-standard-entity-header-title > svg {
+        width: 21px;
+        height: 21px;
+        color: #ff6200;
+        stroke-width: 1.9;
+    }
+
+    .clients-standard-entity-panel .cp-panel-header .cp-icon-btn {
+        width: 38px;
+        height: 38px;
+        min-width: 38px;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #334155;
+        box-shadow: none;
+    }
+
+    .clients-standard-entity-panel .cp-panel-header .cp-icon-btn:hover {
+        background: #f6f8fb;
+    }
+
+    .clients-standard-entity-panel .cp-panel-tabs {
+        min-height: 56px;
+        padding: 0 28px;
+        gap: 28px;
+        border-bottom: 1px solid #e8edf4;
+        background: #ffffff;
+    }
+
+    .clients-standard-entity-panel .cp-panel-tab {
+        min-height: 56px;
+        min-width: 0;
+        padding: 0 8px;
+        border-radius: 0;
+        background: transparent;
+        color: #334155;
+        font-size: 14px;
+        font-weight: 600;
+        box-shadow: none;
+    }
+
+    .clients-standard-entity-panel .cp-panel-tab.is-active {
+        color: #0868f1;
+        background: transparent;
+        box-shadow: inset 0 -2px 0 #0868f1;
+    }
+
+    .clients-standard-entity-panel .cp-panel-tab svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .clients-standard-entity-panel .cp-panel-body {
+        padding: 28px;
+        background: #ffffff;
+    }
+
+    .clients-standard-entity-panel--edit .cp-panel-body {
+        padding: 24px 28px 28px;
+    }
+
+    .clients-standard-entity-panel .clients-action-workspace-shell {
+        width: 100%;
+        margin: 0;
+        gap: 24px;
+    }
+
+    .clients-standard-entity-panel--edit .clients-action-workspace-shell {
+        display: grid;
+        grid-template-columns: minmax(300px, 0.9fr) minmax(360px, 1.1fr);
+        align-items: start;
+        gap: 24px;
+    }
+
+    .clients-standard-entity-profile {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+    }
+
+    .clients-standard-entity-profile > h3 {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        margin: 0;
+        color: #111827;
+        font-size: 16px;
+        font-weight: 750;
+        line-height: 1.25;
+    }
+
+    .clients-standard-entity-profile > h3 svg {
+        width: 20px;
+        height: 20px;
+        flex: 0 0 auto;
+        color: #ff6200;
+        stroke-width: 1.9;
+    }
+
+    .clients-standard-entity-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 15px 16px;
+        width: 100%;
+    }
+
+    .clients-standard-group-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .clients-standard-entity-field {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .clients-standard-entity-field--wide {
+        grid-column: 1 / -1;
+    }
+
+    .clients-standard-entity-field > span {
+        color: #475569;
+        font-size: 12px;
+        font-weight: 650;
+        line-height: 1.3;
+        letter-spacing: 0;
+        text-transform: none;
+    }
+
+    .clients-standard-entity-field input,
+    .clients-standard-entity-field select,
+    .clients-standard-entity-field .desktop-select-trigger {
+        width: 100%;
+        height: 50px;
+        min-height: 50px;
+        margin: 0;
+        padding: 0 14px;
+        border: 1px solid #d4deea;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #111827;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1;
+        outline: none;
+        box-shadow: none;
+        transition: border-color .16s ease, box-shadow .16s ease;
+    }
+
+    .clients-standard-entity-field input::placeholder {
+        color: #7b8aa2;
+        font-weight: 450;
+    }
+
+    .clients-standard-entity-field input:hover,
+    .clients-standard-entity-field select:hover,
+    .clients-standard-entity-field .desktop-select-trigger:hover {
+        border-color: #bcc9d8;
+    }
+
+    .clients-standard-entity-field input:focus,
+    .clients-standard-entity-field select:focus,
+    .clients-standard-entity-field .desktop-select-trigger:focus-visible {
+        border-color: #78a9fa;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.09);
+    }
+
+    .clients-standard-entity-custom-fields {
+        display: grid;
+        gap: 14px;
+        width: 100%;
+    }
+
+    .clients-standard-entity-custom-fields:empty {
+        display: none;
+    }
+
+    .clients-standard-entity-custom-fields .clients-location-picker-field,
+    .clients-standard-entity-custom-fields .clients-detail-field-card {
+        margin: 0;
+    }
+
+    .clients-standard-entity-custom-fields .clients-detail-field-card {
+        border: 1px solid #dce5f0;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    /* Company files uses the same standardized file manager as customer files. */
+    .clients-standard-company-files {
+        min-width: 0;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .clients-standard-company-files .clients-detail-datoteke-sub-tabs {
+        margin: 0 0 14px;
+    }
+
+    .clients-standard-company-files .clients-detail-main-tabs-inner.clients-session-tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+        padding: 4px;
+        gap: 4px;
+        border: 1px solid #d9e3ef;
+        border-radius: 12px;
+        background: #f8fafc;
+        box-shadow: none;
+    }
+
+    .clients-standard-company-files .clients-detail-main-tabs-inner .clients-session-tab {
+        min-height: 40px;
+        border: 0;
+        border-radius: 9px;
+        background: transparent;
+        color: #475569;
+        font-size: 13px;
+        font-weight: 700;
+        box-shadow: none;
+    }
+
+    .clients-standard-company-files .clients-detail-main-tabs-inner .clients-session-tab.active {
+        background: #0b6ff5;
+        color: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-company-files .clients-file-search-field {
+        min-height: 46px;
+        border-radius: 10px;
+        border: 1px solid #d4deea;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-company-files .clients-file-upload-dropzone {
+        min-height: 175px;
+        margin-top: 12px;
+        padding: 24px 20px;
+        border: 1px dashed #cbdcf3;
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-company-files .clients-file-list-header {
+        margin: 14px 0 8px;
+        color: #94a3b8;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+    }
+
+    .clients-standard-company-files .clients-detail-empty-card,
+    .clients-standard-company-files .clients-modern-file-list,
+    .clients-standard-company-files .clients-company-invoices-panel {
+        border: 1px solid #dce5f0;
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    /* Company/group settings: preserve logic, remove legacy gray cards. */
+    .clients-standard-entity-settings {
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+    }
+
+    .clients-standard-entity-settings .clients-action-workspace-settings-grid,
+    .clients-standard-entity-settings .clients-detail-fields {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        width: 100%;
+    }
+
+    .clients-standard-entity-settings .clients-detail-field-card,
+    .clients-standard-entity-settings .clients-location-picker-field {
+        width: 100%;
+        margin: 0;
+        border: 1px solid #dce5f0;
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-entity-settings .clients-detail-field-card {
+        padding: 14px 16px;
+    }
+
+    .clients-standard-entity-settings .clients-standard-entity-field {
+        padding: 0;
+        border: 0;
+    }
+
+    .clients-standard-entity-settings .clients-detail-batch-switch-row {
+        min-height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+    }
+
+    /* Group members */
+    .clients-standard-group-members {
+        min-width: 0;
+        margin: 0;
+        padding: 16px;
+        border: 1px solid #dce5f0;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-members .group-members-tab-header {
+        margin-bottom: 12px;
+    }
+
+    .clients-standard-group-members .group-members-tab-header h3 {
+        margin: 0;
+        color: #0f172a;
+        font-size: 16px;
+        font-weight: 800;
+    }
+
+    .clients-standard-group-members .group-members-tab-header > span {
+        min-height: 34px;
+        display: inline-flex;
+        align-items: center;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: #eef5ff;
+        color: #0b6ff5;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .clients-standard-group-members .group-members-tab-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        margin: 0 0 14px;
+    }
+
+    .clients-standard-group-members .calendar-client-picker__search-wrap {
+        width: 100%;
+        min-height: 46px;
+        border: 1px solid #d4deea;
+        border-radius: 10px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-members .calendar-client-picker__search-wrap input {
+        min-height: 44px;
+    }
+
+    .clients-standard-group-members .group-members-add-button {
+        min-height: 46px;
+        padding: 0 16px;
+        border: 1px solid #0b6ff5;
+        border-radius: 10px;
+        background: #0b6ff5;
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 700;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-members .group-members-empty-state {
+        min-height: 190px;
+        margin: 0;
+        padding: 24px;
+        border: 1px solid #dce5f0;
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-group-members .group-members-empty-icon {
+        background: #edf4ff;
+        color: #0b6ff5;
+    }
+
+    .clients-standard-group-members .group-members-modern-list {
+        border: 1px solid #dce5f0;
+        border-radius: 14px;
+        background: #ffffff;
+        overflow: hidden;
+    }
+
+    /* Footer actions: no cancel; destructive left, primary right. */
+    .clients-standard-entity-panel .cp-panel-footer {
+        min-height: 76px;
+        padding: 14px 28px;
+        border-top: 1px solid #e8edf4;
+        background: #ffffff;
+    }
+
+    .clients-standard-entity-panel--create .cp-panel-footer {
+        justify-content: flex-end;
+    }
+
+    .clients-standard-entity-panel--edit .cp-panel-footer {
+        justify-content: space-between;
+    }
+
+    .clients-standard-entity-panel .cp-panel-footer .cp-btn {
+        min-height: 46px;
+        padding: 0 18px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .clients-standard-entity-panel .cp-panel-footer .cp-btn--primary {
+        min-width: 150px;
+        border-color: #0b6ff5;
+        background: #0b6ff5;
+        box-shadow: none;
+    }
+
+    .clients-standard-entity-panel .cp-panel-footer .cp-btn--danger {
+        border: 1px solid #efb5b5;
+        background: #ffffff;
+        color: #e13232;
+        box-shadow: none;
+    }
+
+    .clients-standard-entity-panel .cp-panel-footer .cp-btn--danger:hover:not(:disabled) {
+        border-color: #ee8f8f;
+        background: #fff7f7;
+    }
+
+
+    .clients-standard-customer-panel--create,
+    .clients-standard-entity-panel--create {
+        width: min(560px, 100vw) !important;
+        max-width: 100vw !important;
+    }
+}
+
+@media (max-width: 640px) {
+    .clients-standard-customer-panel--create,
+    .clients-standard-entity-panel--create {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        border-radius: 0 !important;
+    }
+
+    .clients-standard-customer-panel--create .cp-panel-header,
+    .clients-standard-entity-panel--create .cp-panel-header {
+        min-height: 82px;
+        padding: 18px 20px 16px;
+    }
+
+    .clients-standard-customer-panel--create .cp-panel-body,
+    .clients-standard-entity-panel--create .cp-panel-body {
+        padding: 22px 20px 26px;
+    }
+
+    .clients-standard-customer-panel--create .clients-standard-profile-grid,
+    .clients-standard-entity-panel--create .clients-standard-entity-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .clients-standard-customer-panel--create .cp-panel-footer,
+    .clients-standard-entity-panel--create .cp-panel-footer {
+        padding: 12px 20px 16px;
+    }
+
+    .clients-standard-customer-panel--create .cp-panel-footer .cp-btn--primary,
+    .clients-standard-entity-panel--create .cp-panel-footer .cp-btn--primary {
+        width: 100%;
+    }
+}
+

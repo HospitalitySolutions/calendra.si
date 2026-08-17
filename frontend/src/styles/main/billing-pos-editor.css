@@ -500,6 +500,14 @@
   gap: 8px;
 }
 
+.billing-pos-line-actions--remove-only {
+  justify-content: flex-end;
+}
+
+.billing-pos-line-actions--remove-only .billing-pos-row-remove {
+  margin-left: auto;
+}
+
 .billing-pos-row-remove,
 .billing-pos-remove-payment {
   display: inline-flex;

@@ -1137,3 +1137,397 @@
     color: #ffffff !important;
   }
 }
+
+/* ===== Responsive parity: desktop group details on tablet/mobile ===== */
+@media (max-width: 1024px) {
+
+  .cp-panel.calendar-group-guests-side-panel {
+    width: min(820px, 94vw) !important;
+    max-width: min(820px, 94vw) !important;
+    min-width: min(760px, 94vw);
+    background: #ffffff;
+    color: #111827;
+    box-shadow: -12px 0 42px rgba(15, 23, 42, 0.14);
+    overflow: hidden;
+  }
+
+  .calendar-group-guests-side-panel .cp-panel-header {
+    padding: 22px 32px 18px;
+    border-bottom: 0;
+    background: #ffffff;
+  }
+
+  .calendar-group-guests-standard-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .calendar-group-guests-standard-title-icon {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 11px;
+    color: #ff5a00;
+    background: #fff3eb;
+  }
+
+  .calendar-group-guests-standard-title-icon svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .calendar-group-guests-side-panel .cp-panel-header__title {
+    font-size: 1.625rem;
+    font-weight: 700;
+    line-height: 1.16;
+    letter-spacing: -0.025em;
+  }
+
+  .calendar-group-guests-side-panel .cp-panel-header__subtitle {
+    margin-top: 7px;
+    color: #667085;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  .calendar-group-guests-side-panel .cp-panel-header .cp-icon-btn {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #344054;
+    box-shadow: none;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-body {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    padding: 14px 32px 10px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto;
+    background: #ffffff;
+    scrollbar-width: thin;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    width: 100%;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-stat,
+  .calendar-group-guests-side-panel .calendar-group-guests-session-meta {
+    min-width: 0;
+    min-height: 88px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 13px;
+    padding: 16px;
+    border: 1px solid #d8dee8;
+    border-radius: 12px;
+    background: #ffffff;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-stat {
+    border-right: 1px solid #d8dee8;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-stat-icon {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 12px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-stat-icon--blue {
+    color: #2563eb;
+    background: #edf4ff;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-stat-icon--green {
+    color: #15803d;
+    background: #edf9f0;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-stat-icon--purple {
+    color: #6d5dfc;
+    background: #f2efff;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-stat strong,
+  .calendar-group-guests-side-panel .calendar-group-guests-session-meta strong {
+    color: #111827;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-stat span,
+  .calendar-group-guests-side-panel .calendar-group-guests-session-meta span {
+    margin-top: 3px;
+    color: #667085;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-session-meta {
+    flex-direction: row;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-session-meta > div {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-session-meta strong,
+  .calendar-group-guests-side-panel .calendar-group-guests-session-meta span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    width: 100%;
+    margin-top: 22px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-search,
+  .calendar-group-guests-side-panel .calendar-group-guests-add-toggle {
+    height: 50px;
+    min-height: 50px;
+    border-radius: 10px;
+    box-shadow: none;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-search {
+    min-width: 0;
+    padding: 0 14px;
+    border: 1px solid #d8dee8;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-search:focus-within {
+    border-color: #78a9fa;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.09);
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-search input {
+    font-size: 14px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-add-toggle {
+    min-width: 154px;
+    padding: 0 17px;
+    border: 1px solid #0b6ff5;
+    color: #0b6ff5;
+    background: #ffffff;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-add-toggle:hover,
+  .calendar-group-guests-side-panel .calendar-group-guests-add-toggle--active {
+    background: #f5f9ff;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-table {
+    width: 100%;
+    min-width: 0;
+    margin-top: 22px;
+    overflow: hidden;
+    border: 1px solid #d8dee8;
+    border-radius: 12px;
+    background: #ffffff;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-table-head,
+  .calendar-group-guests-side-panel .calendar-group-guests-row {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(180px, 1.1fr) minmax(180px, 1fr) minmax(188px, 0.9fr);
+    column-gap: 14px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-table-head {
+    min-height: 44px;
+    padding: 0 16px;
+    color: #667085;
+    background: #f8fafc;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-row {
+    min-height: 68px;
+    padding: 8px 16px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-person,
+  .calendar-group-guests-side-panel .calendar-group-guests-contact,
+  .calendar-group-guests-side-panel .calendar-group-guests-actions {
+    min-width: 0;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-actions {
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-actions--current {
+    justify-content: flex-end;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-status {
+    min-width: 112px;
+    justify-content: flex-end;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-status-pill {
+    min-width: 108px;
+    min-height: 34px;
+    border-radius: 9px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-status-select {
+    width: 128px;
+    height: 38px;
+    border-radius: 9px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-row-action {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    border-radius: 9px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-row-action--remove {
+    color: #dc2626;
+    border: 1px solid #f0a6a6;
+    background: #ffffff;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-row-action--add {
+    color: #ffffff;
+    border: 1px solid #16a34a;
+    background: #16a34a;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-row-action--add:hover {
+    background: #15803d;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-empty {
+    padding: 46px 20px;
+    color: #667085;
+  }
+
+  .calendar-group-guests-side-panel .cp-panel-footer {
+    min-height: 0;
+    padding: 12px 32px 18px;
+    border-top: 0;
+    background: #ffffff;
+  }
+
+  .calendar-group-guests-side-panel .cp-panel-footer__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-footer-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #667085;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-info-icon {
+    width: 19px;
+    height: 19px;
+    color: #0b6ff5;
+  }
+
+
+  .cp-panel.calendar-group-guests-side-panel {
+    width: min(820px, 100vw) !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .cp-panel.calendar-group-guests-side-panel {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .calendar-group-guests-side-panel .cp-panel-header {
+    padding: 18px 20px 14px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-body {
+    padding: 12px 20px 10px !important;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-summary {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-stat,
+  .calendar-group-guests-side-panel .calendar-group-guests-session-meta {
+    min-height: 72px;
+    padding: 13px 14px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-toolbar {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-add-toggle {
+    width: 100%;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-table-head {
+    display: none;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 12px 10px;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-contact {
+    display: none;
+  }
+}
+

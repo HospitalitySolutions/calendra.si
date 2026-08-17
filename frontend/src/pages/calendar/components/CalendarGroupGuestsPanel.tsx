@@ -426,7 +426,6 @@ export function CalendarGroupGuestsPanel({
         <PanelHeader
           title={
             <span className="calendar-group-guests-standard-title">
-              <span className="calendar-group-guests-standard-title-icon" aria-hidden><PeopleIcon /></span>
               <span>{copy.details}</span>
             </span>
           }

@@ -895,7 +895,6 @@ export function CalendarServiceChainEditor({
           <PanelHeader
             title={
               <span className="calendar-aux-panel-title">
-                <span className="calendar-aux-panel-title__icon calendar-aux-panel-title__icon--consumables"><CalendarSectionIcon name="consumables" /></span>
                 <span>{locale === 'sl' ? 'Uredi porabni material' : locale === 'sr' ? 'Uredi potrošni materijal' : 'Edit consumables'}</span>
               </span>
             }
@@ -967,7 +966,6 @@ export function CalendarServiceChainEditor({
           <PanelHeader
             title={
               <span className="calendar-aux-panel-title">
-                <span className="calendar-aux-panel-title__icon calendar-aux-panel-title__icon--service-add"><PlusIcon /></span>
                 <span>{pickerReplaceIndex != null ? copy.change : copy.pickerTitle}</span>
               </span>
             }
@@ -1018,7 +1016,6 @@ export function CalendarServiceChainEditor({
           <PanelHeader
             title={
               <span className="calendar-aux-panel-title">
-                <span className="calendar-aux-panel-title__icon calendar-aux-panel-title__icon--service-edit"><PencilIcon /></span>
                 <span>{copy.editServiceTitle}</span>
               </span>
             }

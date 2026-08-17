@@ -1156,6 +1156,7 @@ type ClientsPageProps = {
 }
 
 export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, onEmbeddedClose, onEmbeddedSaved }: ClientsPageProps = {}) {
+  const useResponsiveDesktopCreatePanels = true
   useClientsMobileKeyboardVisibility()
   const { t, locale } = useLocale()
   const confirm = useConfirm()
@@ -5801,7 +5802,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         size="lg"
         className="clients-standard-customer-panel clients-standard-customer-panel--create"
       >
-        {isClientCreatePage ? (
+        {!useResponsiveDesktopCreatePanels ? (
           <SimpleClientCreatePage
                 title={clientsCopy.newClientTitle}
                 closeLabel={t('mobileNavClose')}
@@ -6398,7 +6399,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         size="lg"
         className="clients-standard-entity-panel clients-standard-group-panel clients-standard-entity-panel--create"
       >
-            {isClientsMobile ? (
+            {!useResponsiveDesktopCreatePanels ? (
               <form className="clients-create-modal-form clients-simple-create-form" autoComplete="off" onSubmit={(e) => { e.preventDefault(); handleCreateGroup() }}>
                 <div className="clients-simple-create-header">
                   <button
