@@ -5160,56 +5160,49 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 icon={<CalendarSectionIcon name="clients" />}
                 summary={newFormClientsSummary}
                 collapsible={compactAppointmentStructure}
+                action={groupBookingEnabled ? (
+                  <div className="calendar-booking-service-online-line calendar-booking-section-head-action" role="group" aria-label={t('formGroupToggle')}>
+                    <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formGroupToggle')}>
+                      <input
+                        type="checkbox"
+                        checked={bookingGroupMode}
+                        aria-labelledby={addBookingGroupCaptionId}
+                        onChange={(e) => {
+                          const on = e.target.checked
+                          setBookingGroupMode(on)
+                          if (on) {
+                            const firstGroupType = metaTypes.find((type: any) => type?.active !== false && type?.groupBookingEnabled === true)
+                            const compatibleServices = formServiceDrafts.filter((service: any) => {
+                              if (service.typeId == null) return true
+                              const type = metaTypes.find((entry: any) => Number(entry?.id) === Number(service.typeId))
+                              return type?.active !== false && type?.groupBookingEnabled === true
+                            })
+                            const nextServices = compatibleServices.some((service: any) => service.typeId != null)
+                              ? compatibleServices
+                              : [{ typeId: firstGroupType?.id ?? null, spaceId: formServiceDrafts[0]?.spaceId ?? form.spaceId ?? null }]
+                            setForm((prev: any) => ({ ...prev, clientId: null, clientIds: [] }))
+                            updateBookingFormServices(nextServices)
+                          } else {
+                            const firstActiveType = metaTypes.find((type: any) => type?.active !== false)
+                            setForm((prev: any) => ({ ...prev, groupId: null }))
+                            if (!formServiceDrafts.some((service: any) => service.typeId != null) && firstActiveType) {
+                              updateBookingFormServices([{ typeId: firstActiveType.id, spaceId: formServiceDrafts[0]?.spaceId ?? form.spaceId ?? null }])
+                            }
+                            setGroupSearch('')
+                            setGroupDropdownOpen(false)
+                            setEditingGroupSearch(false)
+                          }
+                        }}
+                      />
+                      <span className="repeats-toggle-slider" />
+                    </label>
+                    <span id={addBookingGroupCaptionId} className="calendar-booking-service-online-caption">
+                      {t('formGroupToggle')}
+                    </span>
+                  </div>
+                ) : undefined}
               >
               <div className={`form-row form-row-infield calendar-booking-field--client${groupBookingEnabled ? ' calendar-booking-client-with-group' : ''}`}>
-                {groupBookingEnabled ? (
-                  <div className="calendar-booking-service-infield-head">
-                    <span className="form-field-inline-label">
-                      {bookingGroupMode ? t('formGroup') : t(multipleClientsPerSessionEnabled ? 'formClients' : 'formClient')}
-                    </span>
-                    <div className="calendar-booking-service-online-line" role="group" aria-label={t('formGroupToggle')}>
-                      <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formGroupToggle')}>
-                        <input
-                          type="checkbox"
-                          checked={bookingGroupMode}
-                          aria-labelledby={addBookingGroupCaptionId}
-                          onChange={(e) => {
-                            const on = e.target.checked
-                            setBookingGroupMode(on)
-                            if (on) {
-                              const firstGroupType = metaTypes.find((type: any) => type?.active !== false && type?.groupBookingEnabled === true)
-                              const compatibleServices = formServiceDrafts.filter((service: any) => {
-                                if (service.typeId == null) return true
-                                const type = metaTypes.find((entry: any) => Number(entry?.id) === Number(service.typeId))
-                                return type?.active !== false && type?.groupBookingEnabled === true
-                              })
-                              const nextServices = compatibleServices.some((service: any) => service.typeId != null)
-                                ? compatibleServices
-                                : [{ typeId: firstGroupType?.id ?? null, spaceId: formServiceDrafts[0]?.spaceId ?? form.spaceId ?? null }]
-                              setForm((prev: any) => ({ ...prev, clientId: null, clientIds: [] }))
-                              updateBookingFormServices(nextServices)
-                            } else {
-                              const firstActiveType = metaTypes.find((type: any) => type?.active !== false)
-                              setForm((prev: any) => ({ ...prev, groupId: null }))
-                              if (!formServiceDrafts.some((service: any) => service.typeId != null) && firstActiveType) {
-                                updateBookingFormServices([{ typeId: firstActiveType.id, spaceId: formServiceDrafts[0]?.spaceId ?? form.spaceId ?? null }])
-                              }
-                              setGroupSearch('')
-                              setGroupDropdownOpen(false)
-                              setEditingGroupSearch(false)
-                            }
-                          }}
-                        />
-                        <span className="repeats-toggle-slider" />
-                      </label>
-                      <span id={addBookingGroupCaptionId} className="calendar-booking-service-online-caption">
-                        {t('formGroupToggle')}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <span className="form-field-inline-label">{t(multipleClientsPerSessionEnabled ? 'formClients' : 'formClient')}</span>
-                )}
                 <div className="form-field-inline-control">
                   {groupBookingEnabled && bookingGroupMode ? (
                     <div className="client-picker calendar-client-picker" onClick={(e) => e.stopPropagation()} style={{ minWidth: 0 }}>
