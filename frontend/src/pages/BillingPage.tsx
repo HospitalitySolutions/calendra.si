@@ -10707,14 +10707,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       </div>
                     )}
                     <div className="billing-invoice-item-list">
-                      {billForm.items.length === 0 ? (
-                        !isCreateAdvanceBill ? (
-                          <EmptyState
-                            title={billingCopy.noBillLinesTitle}
-                            text={billingCopy.noBillLinesText}
-                          />
-                        ) : null
-                      ) : billForm.items.map((item, index) => renderModernBillFormLineEditor(item, index))}
+                      {billForm.items.map((item, index) => renderModernBillFormLineEditor(item, index))}
                       <button
                         type="button"
                         className="billing-invoice-add-dashed billing-invoice-add-dashed--line"
@@ -10785,38 +10778,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               </PanelBody>
 
               <div className={`billing-bill-modal-footer${mobileKeyboardOpen ? ' billing-bill-modal-footer--keyboard-hidden' : ''}`}>
-                {!isCreateAdvanceBill && (
-                  <section className="billing-invoice-totals-card billing-invoice-totals-card--open-footer billing-invoice-totals-card--create-footer" aria-label={locale === 'sl' ? 'Povzetek neizdanega računa' : 'Unissued invoice summary'}>
-                    <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(createSubtotalGross)}</strong></div>
-                    {createVatRows.map((row) => (
-                      <div key={row.key} className="billing-bill-modal-summary-line">
-                        <span>{row.label}</span>
-                        <strong>{currency(row.taxTotal)}</strong>
-                      </div>
-                    ))}
-                    {createBillDiscountGross > 0.005 && (
-                      <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'}</span><strong>- {currency(createBillDiscountGross)}</strong></div>
-                    )}
-                    <div className="billing-bill-modal-summary-divider" />
-                    <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(createGross)}</strong></div>
-                  </section>
-                )}
-                {isCreateAdvanceBill && (
-                  <section className="billing-invoice-totals-card billing-invoice-totals-card--advance-footer" aria-label={locale === 'sl' ? 'Povzetek predplačila' : 'Advance summary'}>
-                    <div className="billing-bill-modal-summary-line"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(createSubtotalGross)}</strong></div>
-                    {createVatRows.map((row) => (
-                      <div key={row.key} className="billing-bill-modal-summary-line">
-                        <span>{row.label}</span>
-                        <strong>{currency(row.taxTotal)}</strong>
-                      </div>
-                    ))}
-                    {createBillDiscountGross > 0.005 && (
-                      <div className="billing-bill-modal-summary-line billing-bill-modal-summary-line--discount"><span>{locale === 'sl' ? 'Popust' : 'Discount'}</span><strong>- {currency(createBillDiscountGross)}</strong></div>
-                    )}
-                    <div className="billing-bill-modal-summary-divider" />
-                    <div className="billing-bill-modal-total-line"><span>{locale === 'sl' ? 'Skupaj' : 'Grand total'}</span><strong>{currency(createGross)}</strong></div>
-                  </section>
-                )}
+
                 {!isCreateAdvanceBill && (
                   <button
                     type="button"

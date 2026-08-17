@@ -4411,8 +4411,8 @@
     }
 
     :is(.billing-create-panel--advance, .billing-create-panel--open) .billing-invoice-payment-card {
-        border-color: rgba(110, 231, 183, 0.72);
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(240, 253, 250, 0.64) 100%);
+        border-color: rgba(203, 213, 225, 0.82);
+        background: rgba(255, 255, 255, 0.96);
     }
 
     :is(.billing-create-panel--advance, .billing-create-panel--open) .billing-invoice-section-title-row {
@@ -4529,6 +4529,14 @@
 
     :is(.billing-create-panel--advance, .billing-create-panel--open) .billing-invoice-add-dashed--line small {
         font-size: 0.74rem;
+    }
+
+    :is(.billing-create-panel--advance, .billing-create-panel--open) .billing-invoice-item-list:empty {
+        display: block;
+    }
+
+    :is(.billing-create-panel--advance, .billing-create-panel--open) .billing-invoice-item-list > .billing-invoice-add-dashed--line:first-child {
+        margin-top: 0;
     }
 
     :is(.billing-create-panel--advance, .billing-create-panel--open) .billing-invoice-payment-row {
