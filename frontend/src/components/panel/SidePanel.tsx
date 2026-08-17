@@ -81,6 +81,14 @@ export function SidePanel({
   )
 }
 
+function DialogCloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  )
+}
+
 export type ConfirmDialogProps = {
   open: boolean
   onClose: () => void
@@ -92,6 +100,9 @@ export type ConfirmDialogProps = {
   icon?: ReactNode
   confirmLabel: string
   cancelLabel?: string
+  /** Optional top-right X using the same icon-button treatment as side-panel headers. */
+  showCloseButton?: boolean
+  closeLabel?: string
   onConfirm: () => void
   busy?: boolean
   /** Blocks confirm without the busy spinner, for dialogs whose `children` hold a required field. */
@@ -117,6 +128,8 @@ export function ConfirmDialog({
   icon,
   confirmLabel,
   cancelLabel,
+  showCloseButton = false,
+  closeLabel = 'Close',
   onConfirm,
   busy = false,
   confirmDisabled = false,
@@ -150,6 +163,11 @@ export function ConfirmDialog({
         tabIndex={-1}
         className={`cp-dialog${wide ? ' cp-dialog--wide' : ''}`}
       >
+        {showCloseButton ? (
+          <button type="button" className="cp-icon-btn cp-dialog__close" onClick={onClose} aria-label={closeLabel} title={closeLabel} disabled={busy}>
+            <DialogCloseIcon />
+          </button>
+        ) : null}
         <div className="cp-dialog__head">
           {icon && (
             <div

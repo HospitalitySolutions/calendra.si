@@ -14,6 +14,7 @@ import {
   SidePanel,
 } from '../../../components/panel'
 import { CalendarSectionIcon } from './CalendarIcons'
+import { useMobileKeyboardOpen } from '../../../hooks/useMobileKeyboardOpen'
 
 function formatMinutes(totalMinutes: number, locale: string) {
   const minutes = Math.max(0, Math.round(totalMinutes || 0))
@@ -340,6 +341,7 @@ export function CalendarServiceChainEditor({
   children?: ReactNode
 }) {
   const copy = labels(locale)
+  const editServiceKeyboardOpen = useMobileKeyboardOpen(1024)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerReplaceIndex, setPickerReplaceIndex] = useState<number | null>(null)
   const [pickerQuery, setPickerQuery] = useState('')
@@ -977,7 +979,6 @@ export function CalendarServiceChainEditor({
           <PanelBody className="calendar-service-picker-panel__body">
             <label className="cp-field calendar-service-picker-panel__search">
               <span className="cp-sr-only">{copy.searchPlaceholder}</span>
-              <span className="calendar-service-picker-panel__search-icon" aria-hidden><SearchIcon /></span>
               <input
                 type="search"
                 value={pickerQuery}
@@ -1080,14 +1081,16 @@ export function CalendarServiceChainEditor({
               </PanelField>
             ) : null}
           </PanelBody>
-          <PanelFooter>
-            <PanelButton variant="ghost" onClick={closeEditService}>
-              {copy.close}
-            </PanelButton>
-            <PanelButton variant="primary" onClick={saveEditService}>
-              {copy.saveChanges}
-            </PanelButton>
-          </PanelFooter>
+          {!editServiceKeyboardOpen ? (
+            <PanelFooter>
+              <PanelButton variant="ghost" onClick={closeEditService}>
+                {copy.close}
+              </PanelButton>
+              <PanelButton variant="primary" onClick={saveEditService}>
+                {copy.saveChanges}
+              </PanelButton>
+            </PanelFooter>
+          ) : null}
         </SidePanel>
       ) : null}
     </>

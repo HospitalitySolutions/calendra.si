@@ -6447,7 +6447,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             ) : (
               <>
                 <PanelHeader
-                  title={<span className="clients-standard-entity-header-title"><ClientWorkspaceIcon name="members" /><span>{clientsCopy.newGroupTitle}</span></span>}
+                  title={clientsCopy.newGroupTitle}
                   onClose={closeGroupModal}
                   closeLabel={t('mobileNavClose')}
                 />

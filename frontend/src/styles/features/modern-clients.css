@@ -5753,7 +5753,9 @@
    visualViewport measurements in ClientsPage instead of the :focus selector. */
 @media (max-width: 1024px) {
     html.clients-mobile-keyboard-open .clients-action-workspace-modal .clients-action-workspace-footer,
-    html.clients-mobile-keyboard-open .clients-simple-create-form .clients-simple-create-submit {
+    html.clients-mobile-keyboard-open .clients-simple-create-form .clients-simple-create-submit,
+    html.clients-mobile-keyboard-open .clients-standard-customer-panel--create .cp-panel-footer,
+    html.clients-mobile-keyboard-open .clients-standard-group-panel.clients-standard-entity-panel--create .cp-panel-footer {
         display: none !important;
     }
 }

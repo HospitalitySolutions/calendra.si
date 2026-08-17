@@ -1059,6 +1059,17 @@ button.cp-row:focus-visible {
     width: min(620px, calc(100vw - 32px));
 }
 
+.cp-dialog__close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    z-index: 1;
+}
+
+.cp-dialog__close + .cp-dialog__head {
+    padding-right: 40px;
+}
+
 .cp-dialog__head {
     display: flex;
     align-items: flex-start;
