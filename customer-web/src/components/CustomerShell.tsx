@@ -68,12 +68,13 @@ export function CustomerShell() {
       <div className="sidebar-user">
         <span className="sidebar-user__avatar">{initials(user?.firstName, user?.lastName)}</span>
         <span className="sidebar-user__copy"><strong>{user?.firstName} {user?.lastName}</strong><small>{user?.email}</small></span>
+        <span className="sidebar-user__caret" aria-hidden="true">⌄</span>
       </div>
       <nav className="sidebar-nav" aria-label="Moj račun">
         {navItems.map(({ to, label, icon: Icon, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}><Icon/><span>{label}</span>{label === 'Sporočila' && Boolean(home?.unreadInboxCount) && <b className="nav-badge">{home?.unreadInboxCount}</b>}{label === 'Obvestila' && Boolean(home?.unreadNotificationCount) && <b className="nav-badge">{home?.unreadNotificationCount}</b>}</NavLink>)}
       </nav>
       <div className="sidebar-bottom">
-        <a href="https://calendra.si/kontakt" className="nav-link"><MessageIcon/><span>Pomoč in podpora</span></a>
+        <a href="https://calendra.si/kontakt" className="nav-link sidebar-support"><MessageIcon/><span><strong>Pomoč in podpora</strong><small>Tukaj smo za vas</small></span></a>
       </div>
     </aside>
 
