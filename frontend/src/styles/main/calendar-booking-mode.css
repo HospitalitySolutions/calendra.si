@@ -8756,3 +8756,99 @@
     }
 }
 
+
+/* ========================================================================== */
+/* Strict responsive structural parity                                       */
+/* Tablet/mobile use the same appointment/service/consumables structure as   */
+/* desktop. Breakpoints may only resize/reflow controls, not remove actions   */
+/* or replace the desktop information architecture.                          */
+/* ========================================================================== */
+@media (max-width: 1024px) {
+    /* Native select appearance used to repeat the two CSS chevrons on mobile,
+       which rendered as the dense black-dot pattern. Keep the desktop arrow
+       treatment and explicitly disable repetition at responsive widths. */
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service select.app-desktop-select:not([multiple]),
+    .cp-panel--calendar-new-booking .calendar-approved-booking__employee select.app-desktop-select:not([multiple]),
+    .cp-panel--calendar-new-booking .calendar-approved-booking__space select.app-desktop-select:not([multiple]),
+    .cp-panel--calendar-edit-booking .calendar-standardized__section select.app-desktop-select:not([multiple]),
+    .calendar-service-edit-panel .cp-field select.app-desktop-select:not([multiple]),
+    .calendar-consumables-editor-panel .calendar-consumables-editor__select-wrap select.app-desktop-select:not([multiple]) {
+        -webkit-appearance: none !important;
+        appearance: none !important;
+        background-repeat: no-repeat !important;
+    }
+
+    /* The desktop appointment structure always exposes both edit and add
+       service controls. Do not collapse the + action at phone widths. */
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-row--with-edit,
+    .cp-panel--calendar-edit-booking .calendar-standardized__service .calendar-service-chain__single-row--with-edit {
+        grid-template-columns: minmax(0, 1fr) 50px 50px !important;
+        align-items: center !important;
+        column-gap: 10px !important;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-row--with-edit.calendar-service-chain__single-row--single-only,
+    .cp-panel--calendar-edit-booking .calendar-standardized__service .calendar-service-chain__single-row--with-edit.calendar-service-chain__single-row--single-only {
+        grid-template-columns: minmax(0, 1fr) 50px !important;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__head-add,
+    .cp-panel--calendar-edit-booking .calendar-standardized__service .calendar-service-chain__head-add {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 50px !important;
+        min-width: 50px !important;
+        max-width: 50px !important;
+        height: 50px !important;
+        min-height: 50px !important;
+        padding: 0 !important;
+    }
+}
+
+@media (max-width: 640px) {
+    /* Keep the exact desktop service action structure on phones too. */
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-row--with-edit,
+    .cp-panel--calendar-edit-booking .calendar-standardized__service .calendar-service-chain__single-row--with-edit {
+        grid-template-columns: minmax(0, 1fr) 46px 46px !important;
+        column-gap: 8px !important;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-row--with-edit.calendar-service-chain__single-row--single-only,
+    .cp-panel--calendar-edit-booking .calendar-standardized__service .calendar-service-chain__single-row--with-edit.calendar-service-chain__single-row--single-only {
+        grid-template-columns: minmax(0, 1fr) 46px !important;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__head-add,
+    .cp-panel--calendar-edit-booking .calendar-standardized__service .calendar-service-chain__head-add {
+        display: inline-flex !important;
+        width: 46px !important;
+        min-width: 46px !important;
+        max-width: 46px !important;
+        height: 50px !important;
+        min-height: 50px !important;
+    }
+
+    /* Uredi porabni material keeps the desktop table/header instead of the old
+       two-column mobile card conversion. The table can scroll horizontally on
+       the narrowest screens, but its information architecture stays intact. */
+    .calendar-consumables-editor-panel__body {
+        overflow-x: auto !important;
+    }
+
+    .calendar-consumables-editor-panel .calendar-consumables-editor__head {
+        display: grid !important;
+        min-width: 580px;
+        grid-template-columns: minmax(120px, 1.6fr) minmax(80px, .9fr) minmax(86px, 1fr) 72px 72px 32px !important;
+    }
+
+    .calendar-consumables-editor-panel .calendar-consumables-editor__rows {
+        min-width: 580px;
+    }
+
+    .calendar-consumables-editor-panel .calendar-consumables-editor__row {
+        grid-template-columns: minmax(120px, 1.6fr) minmax(80px, .9fr) minmax(86px, 1fr) 72px 72px 32px !important;
+        gap: 10px !important;
+        padding: 8px !important;
+    }
+}

@@ -1531,3 +1531,33 @@
   }
 }
 
+
+/* Strict mobile structural parity with the approved desktop group-details table. */
+@media (max-width: 640px) {
+  .calendar-group-guests-side-panel .calendar-group-guests-table {
+    overflow-x: auto !important;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-table-head {
+    display: grid !important;
+    min-width: 680px;
+    grid-template-columns: minmax(180px, 1.1fr) minmax(180px, 1fr) minmax(188px, .9fr) !important;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-row {
+    min-width: 680px;
+    grid-template-columns: minmax(180px, 1.1fr) minmax(180px, 1fr) minmax(188px, .9fr) !important;
+    column-gap: 14px !important;
+    padding: 8px 16px !important;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-contact {
+    display: flex !important;
+  }
+
+  .calendar-group-guests-side-panel .calendar-group-guests-actions--current {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+  }
+}
