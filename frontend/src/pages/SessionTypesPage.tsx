@@ -333,6 +333,8 @@ type TypeFormState = {
   internalDescription: string;
   billingGrossPrice: string;
   billingTaxRate: TaxRate;
+  advanceDeduction: boolean;
+  noShow: boolean;
   color: string;
   durationMinutes: number;
   breakMinutes: number;
@@ -360,6 +362,8 @@ function emptyTypeForm(
     internalDescription: "",
     billingGrossPrice: "0.00",
     billingTaxRate: "VAT_22",
+    advanceDeduction: false,
+    noShow: false,
     color: SERVICE_TYPE_DEFAULT_COLOR,
     durationMinutes: 60,
     breakMinutes,
@@ -387,6 +391,8 @@ function typeFormsEqual(a: TypeFormState, b: TypeFormState): boolean {
   if (a.internalDescription !== b.internalDescription) return false;
   if (a.billingGrossPrice.trim() !== b.billingGrossPrice.trim()) return false;
   if (a.billingTaxRate !== b.billingTaxRate) return false;
+  if (a.advanceDeduction !== b.advanceDeduction) return false;
+  if (a.noShow !== b.noShow) return false;
   if (
     normalizeServiceTypeColorForUi(a.color) !==
     normalizeServiceTypeColorForUi(b.color)
@@ -1971,6 +1977,54 @@ export function SessionTypesPage() {
         ? await api.put(`/types/${editingType.id}`, payload)
         : await api.post("/types", payload);
       const savedTypeId = Number(savedResponse.data?.id ?? editingType?.id);
+      const savedLinkedServiceIds = Array.isArray(savedResponse.data?.linkedServices)
+        ? savedResponse.data.linkedServices
+            .map((link: any) => Number(link?.transactionServiceId))
+            .filter((id: number) => Number.isInteger(id) && id > 0)
+        : (editingType?.linkedServices || [])
+            .map((link) => Number(link.transactionServiceId))
+            .filter((id) => Number.isInteger(id) && id > 0);
+      const primarySavedLinkedServiceId = savedLinkedServiceIds[0] ?? null;
+
+      const nextAdvanceIds = new Set(advanceDeductionIds);
+      savedLinkedServiceIds.forEach((id) => nextAdvanceIds.delete(id));
+      if (advanceModuleEnabled && typeForm.advanceDeduction && primarySavedLinkedServiceId != null) {
+        nextAdvanceIds.add(primarySavedLinkedServiceId);
+      }
+      if (
+        serializeAdvanceDeductionServiceIds(nextAdvanceIds) !==
+        serializeAdvanceDeductionServiceIds(advanceDeductionIds)
+      ) {
+        const { data: nextSettings } = await api.put<Record<string, string>>(
+          "/settings",
+          {
+            ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID:
+              serializeAdvanceDeductionServiceIds(nextAdvanceIds),
+          },
+        );
+        setSettings(nextSettings);
+      }
+
+      if (noShowModuleEnabled) {
+        const nextNoShowId = typeForm.noShow
+          ? primarySavedLinkedServiceId
+          : savedLinkedServiceIds.includes(Number(configuredNoShowServiceId || 0))
+            ? null
+            : configuredNoShowServiceId;
+        if (
+          serializeSingleTransactionServiceId(nextNoShowId) !==
+          serializeSingleTransactionServiceId(configuredNoShowServiceId)
+        ) {
+          const { data: nextSettings } = await api.put<Record<string, string>>(
+            "/settings",
+            {
+              NO_SHOW_TRANSACTION_SERVICE_ID:
+                serializeSingleTransactionServiceId(nextNoShowId),
+            },
+          );
+          setSettings(nextSettings);
+        }
+      }
       if (consumablesCapabilityEnabled && canEditConsumables && Number.isFinite(savedTypeId)) {
         await api.put(`/consumables/service-types/${savedTypeId}/defaults`,
           typeForm.consumableLines.map((line) => ({
@@ -1989,6 +2043,8 @@ export function SessionTypesPage() {
         internalDescription: "",
         billingGrossPrice: "0.00",
         billingTaxRate: "VAT_22",
+        advanceDeduction: false,
+        noShow: false,
         color: SERVICE_TYPE_DEFAULT_COLOR,
         durationMinutes: 60,
         breakMinutes: defaultServiceBreakMinutes,
@@ -2483,12 +2539,15 @@ export function SessionTypesPage() {
         : primaryBillingService
           ? Number(grossPriceStringFromNet(Number(primaryBillingService.netPrice), primaryBillingService.taxRate))
           : 0;
+    const linkedServiceIds = (type.linkedServices || []).map((link) => Number(link.transactionServiceId)).filter((id) => Number.isInteger(id) && id > 0);
     const next: TypeFormState = {
       name: type.name,
       description: type.description || "",
       internalDescription: type.internalDescription || "",
       billingGrossPrice: Number.isFinite(primaryGrossPrice) ? primaryGrossPrice.toFixed(2) : "0.00",
       billingTaxRate: primaryBillingService?.taxRate ?? "VAT_22",
+      advanceDeduction: linkedServiceIds.some((id) => advanceDeductionIds.has(id)),
+      noShow: noShowModuleEnabled && linkedServiceIds.includes(Number(configuredNoShowServiceId || 0)),
       color: normalizeServiceTypeColorForUi(type.color),
       durationMinutes: clampSessionTypeInt0to999(type.durationMinutes ?? 60),
       breakMinutes: clampSessionTypeInt0to999(type.breakMinutes ?? 0),
@@ -2580,9 +2639,12 @@ export function SessionTypesPage() {
     setGuestLimitPickerOpen(false);
     setGuestLimitClientQuery("");
   }, [
+    advanceDeductionIds,
+    configuredNoShowServiceId,
     consumablesCapabilityEnabled,
     groupBookingModuleEnabled,
     guestAppModuleEnabled,
+    noShowModuleEnabled,
     selectedLocationId,
     services,
     websiteWidgetModuleEnabled,
@@ -4508,6 +4570,61 @@ export function SessionTypesPage() {
                       </DesktopSelect>
                     </Field>
                   </div>
+
+                  {(advanceModuleEnabled || noShowModuleEnabled) ? (
+                    <div className="transaction-service-switch-list session-type-transaction-flags">
+                      {advanceModuleEnabled ? (
+                        <label className="transaction-service-switch-row transaction-service-switch-row--advance">
+                          <span className="transaction-service-switch-icon" aria-hidden>€</span>
+                          <span className="transaction-service-switch-copy">
+                            <strong>{locale === "sl" ? "Predplačilo" : "Advance"}</strong>
+                            <span>{locale === "sl" ? "Ob shranjevanju bo obračunska storitev za to storitev označena kot predplačilo." : "When saved, the linked billing service for this service will be marked as an advance line."}</span>
+                          </span>
+                          <span className="session-type-config-switch transaction-service-option-switch">
+                            <input
+                              type="checkbox"
+                              checked={typeForm.advanceDeduction}
+                              onChange={(event) => setTypeForm({ ...typeForm, advanceDeduction: event.target.checked })}
+                              aria-label={locale === "sl" ? "Predplačilo" : "Advance"}
+                            />
+                            <span className="session-type-config-switch-track" aria-hidden>
+                              <span className="session-type-config-switch-thumb">
+                                {typeForm.advanceDeduction ? "✓" : ""}
+                              </span>
+                            </span>
+                          </span>
+                        </label>
+                      ) : null}
+
+                      {noShowModuleEnabled ? (
+                        <label className="transaction-service-switch-row transaction-service-switch-row--no-show">
+                          <span className="transaction-service-switch-icon" aria-hidden>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                              <circle cx="12" cy="12" r="8.2" stroke="currentColor" strokeWidth="1.8" />
+                              <path d="M12 7.8v5.3M12 16.4h.01" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </span>
+                          <span className="transaction-service-switch-copy">
+                            <strong>{locale === "sl" ? "Neprihod" : "No show"}</strong>
+                            <span>{locale === "sl" ? "Ob shranjevanju bo obračunska storitev za to storitev uporabljena kot neprihod." : "When saved, the linked billing service for this service will be used as the no-show line."}</span>
+                          </span>
+                          <span className="session-type-config-switch transaction-service-option-switch">
+                            <input
+                              type="checkbox"
+                              checked={typeForm.noShow}
+                              onChange={(event) => setTypeForm({ ...typeForm, noShow: event.target.checked })}
+                              aria-label={locale === "sl" ? "Neprihod" : "No show"}
+                            />
+                            <span className="session-type-config-switch-track" aria-hidden>
+                              <span className="session-type-config-switch-thumb">
+                                {typeForm.noShow ? "✓" : ""}
+                              </span>
+                            </span>
+                          </span>
+                        </label>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   <div className="session-type-color-picker">
                     <div className="session-type-color-picker__label">

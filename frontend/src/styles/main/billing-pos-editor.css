@@ -319,7 +319,7 @@
 .billing-pos-selected-row {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) 82px 100px 92px 100px 24px;
+  grid-template-columns: minmax(150px, 1fr) 116px 104px 92px 110px 24px;
   align-items: center;
   gap: 12px;
   min-height: 63px;
@@ -349,12 +349,22 @@
   text-align: right;
 }
 
+.billing-pos-unit-price-input {
+  min-width: 0;
+  height: 36px;
+}
+
+.billing-pos-unit-price-input input {
+  text-align: right;
+  font-weight: 650;
+}
+
 .billing-pos-qty {
   display: grid;
-  grid-template-columns: 34px 40px 34px;
-  align-items: center;
-  justify-items: center;
-  height: 34px;
+  grid-template-columns: 34px 42px 34px;
+  align-items: stretch;
+  justify-items: stretch;
+  height: 36px;
   border: 1px solid var(--billing-pos-border);
   border-radius: 7px;
   overflow: hidden;
@@ -367,6 +377,10 @@
   align-items: center;
   justify-content: center;
   height: 100%;
+}
+
+.billing-pos-qty-value {
+  align-self: stretch;
 }
 
 .billing-pos-qty button {
@@ -429,11 +443,27 @@
   justify-content: center;
   gap: 6px;
   min-height: 32px;
-  padding: 0 12px;
+  padding: 0 10px;
   border: 1px solid #f2c7a0;
   border-radius: 8px;
   background: #fff7f1;
   color: var(--billing-pos-orange);
+}
+
+.billing-pos-line-discount > button.billing-pos-inline-discount-btn svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+
+.billing-pos-line-discount > button.billing-pos-inline-discount-btn span {
+  font-weight: 650;
+}
+
+.billing-pos-line-discount > button.billing-pos-inline-discount-btn em {
+  font-style: normal;
+  font-size: 0.74rem;
+  opacity: 0.8;
 }
 
 .billing-pos-line-discount > button.billing-pos-inline-discount-btn:hover {
@@ -497,7 +527,7 @@
 
 .billing-pos-discount-row {
   display: grid;
-  grid-template-columns: auto minmax(110px, 1fr) 86px auto;
+  grid-template-columns: auto minmax(90px, 1fr) 96px auto;
   align-items: center;
   gap: 13px;
   min-height: 61px;
@@ -546,9 +576,14 @@
   font-variant-numeric: tabular-nums;
 }
 
+.billing-pos-percent-input {
+  min-width: 96px;
+}
+
 .billing-pos-percent-input input {
   text-align: center;
   font-weight: 650;
+  padding-inline: 6px;
 }
 
 .billing-pos-percent-input span,
@@ -622,6 +657,10 @@
 }
 
 .billing-pos-method-chips button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-height: 42px;
   padding: 0 10px;
   overflow: hidden;
@@ -645,6 +684,18 @@
   border-color: #7ea0ff;
   background: var(--billing-pos-blue-soft);
   color: var(--billing-pos-blue);
+}
+
+.billing-pos-method-chips .billing-payicon {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+}
+
+.billing-pos-method-chips .billing-payicon svg {
+  width: 14px;
+  height: 14px;
 }
 
 .billing-pos-payment-table {
@@ -924,12 +975,12 @@
   }
 
   .billing-pos-selected-row {
-    grid-template-columns: minmax(120px, 1fr) 70px 96px 80px 88px 22px;
+    grid-template-columns: minmax(120px, 1fr) 106px 98px 80px 98px 22px;
     gap: 8px;
   }
 
   .billing-pos-discount-row {
-    grid-template-columns: auto minmax(70px, 1fr) 78px auto;
+    grid-template-columns: auto minmax(56px, 1fr) 92px auto;
     gap: 8px;
   }
 }
@@ -965,7 +1016,8 @@
     gap: 8px;
   }
 
-  .billing-pos-unit-price {
+  .billing-pos-unit-price,
+  .billing-pos-unit-price-input {
     display: none;
   }
 

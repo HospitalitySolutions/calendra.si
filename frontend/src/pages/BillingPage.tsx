@@ -457,6 +457,13 @@ const paymentTypeIcon = (value?: string | null, methodName?: string | null): Rea
   return <span className={`billing-payicon billing-payicon--${visualKey}`} aria-hidden>{visualKey === 'paypal' ? 'P' : 'S'}</span>
 }
 
+const paymentMethodChipContent = (method: PaymentMethod | null | undefined, loc: AppLocale): ReactNode => (
+  <>
+    {paymentTypeIcon(method?.paymentType, method?.name)}
+    <span>{localizedPaymentMethodName(method, loc)}</span>
+  </>
+)
+
 const matchRemainingIcon = (): ReactNode => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
     <path d="M12 3 10.6 7.2 6.5 8.6l4.1 1.4L12 14l1.4-4 4.1-1.4-4.1-1.4L12 3Z" />
@@ -848,6 +855,23 @@ type OpenBillsSortField = 'sessionId' | 'client' | 'session' | 'employee' | 'pay
 type OpenPaymentsSortField = 'orderId' | 'billNumber' | 'payer' | 'date' | 'dueDate' | 'amount'
 type UnusedAdvancesSortField = 'advanceNumber' | 'customer' | 'sessionId' | 'originalAmount' | 'remainingAmount' | 'date'
 type GiftCardsSortField = 'id' | 'code' | 'type' | 'customer' | 'content' | 'expires' | 'status' | 'invoice' | 'issuedAt'
+
+type BillingGuestProduct = {
+  id: number
+  name: string
+  productType: 'CLASS_TICKET' | 'PACK' | 'MEMBERSHIP' | 'GIFT_CARD' | 'COURSE' | string | null
+  priceGross: number | string | null
+  currency?: string | null
+  active: boolean
+  usageLimit?: number | null
+  transactionServiceId?: number | null
+  transactionServiceCode?: string | null
+  transactionServiceDescription?: string | null
+  voucherRedemptionMode?: 'SERVICE' | 'VALUE' | string | null
+  availableAllLocations?: boolean
+  locationIds?: number[] | null
+  locationNames?: string[] | null
+}
 type HistorySortField = 'invoiceNumber' | 'invoiceType' | 'orderId' | 'sessionId' | 'customer' | 'employee' | 'description' | 'date' | 'gross' | 'paymentStatus' | 'fiscalStatus'
 type SortDir = 'asc' | 'desc'
 type BillingSortState<K extends string> = { key: K | null; direction: SortDir }
@@ -1215,6 +1239,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [settings, setSettings] = useState<Record<string, string>>(() => queryClient.getQueryData<Record<string, string>>(queryKeys.settings.byUnit(activeUnitId)) ?? {})
   const [services, setServices] = useState<BillingService[]>(() => queryClient.getQueryData<BillingService[]>(queryKeys.billing.services(activeUnitId)) ?? [])
   const [servicesLoaded, setServicesLoaded] = useState(() => queryClient.getQueryData(queryKeys.billing.services(activeUnitId)) != null)
+  const [guestProducts, setGuestProducts] = useState<BillingGuestProduct[]>([])
   const [bills, setBills] = useState<Bill[]>(() => (queryClient.getQueryData<Bill[]>(queryKeys.billing.bills(activeUnitId)) ?? []).map((bill) => normalizeBill(bill)))
   const [openBills, setOpenBills] = useState<OpenBill[]>(() => (queryClient.getQueryData<OpenBill[]>(queryKeys.billing.openBills(activeUnitId)) ?? []).map((openBill) => normalizeOpenBill(openBill)))
   const [bookings, setBookings] = useState<Booking[]>([])
@@ -1482,6 +1507,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const seriesPromise = fetchBillingQuery(invoiceSeriesQueryOptions<InvoiceSeriesOption>(activeUnitId), false).catch(() => [] as InvoiceSeriesOption[])
     const locationsPromise = fetchBillingQuery(locationsQueryOptions(activeUnitId), false).catch(() => [] as Location[])
     const bookingsPromise = fetchBillingQuery(billingEditorBookingsQueryOptions<Booking>(activeUnitId), force).catch(() => [] as Booking[])
+    const guestProductsPromise = api.get<BillingGuestProduct[]>('/guest/admin/products').then((res) => res.data ?? []).catch(() => [] as BillingGuestProduct[])
     const unusedAdvancesPromise = settingsData?.BILLING_ADVANCE_ENABLED === 'false'
       ? Promise.resolve([] as UnusedAdvance[])
       : fetchBillingQuery(unusedAdvancesQueryOptions<UnusedAdvance>(activeUnitId, selectedLocationId), force).catch(() => [] as UnusedAdvance[])
@@ -1496,6 +1522,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       loadedSeries,
       loadedLocations,
       loadedBookings,
+      loadedGuestProducts,
       loadedUnusedAdvances,
     ] = await Promise.all([
       servicesPromise,
@@ -1507,6 +1534,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       seriesPromise,
       locationsPromise,
       bookingsPromise,
+      guestProductsPromise,
       unusedAdvancesPromise,
     ])
 
@@ -1521,6 +1549,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setInvoiceSeriesOptions(loadedSeries.filter((series) => series.active))
     setInvoiceLocations(loadedLocations.filter((invoiceLocation) => invoiceLocation.active !== false))
     setBookings(loadedBookings)
+    setGuestProducts((loadedGuestProducts ?? []).filter((product) => product?.active !== false))
     setUnusedAdvances(loadedUnusedAdvances)
     setLoadedBillingEditorDependencyScopeKey(billingEditorDependencyScopeKey)
 
@@ -1535,6 +1564,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       invoiceSeries: loadedSeries,
       locations: loadedLocations,
       bookings: loadedBookings,
+      guestProducts: loadedGuestProducts,
       unusedAdvances: loadedUnusedAdvances,
     }
   }
@@ -1751,6 +1781,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setSettings(cachedSettings ?? {})
     setServices(cachedServices ?? [])
     setServicesLoaded(cachedServices != null)
+    setGuestProducts([])
     setBills([])
     setLoadedBillsView(null)
     setHistoryPageMeta(EMPTY_BILLING_SERVER_PAGE)
@@ -2478,7 +2509,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const wholeBillPercentNumber = (draft: DiscountDraft | null | undefined) => {
     const parsed = Number(String(draft?.wholeBillPercent ?? '').replace(',', '.'))
     if (!Number.isFinite(parsed) || parsed <= 0) return 0
-    return Math.min(100, parsed)
+    return Math.min(99, parsed)
   }
 
   const discountLineGrossTotal = (item: { quantity: number; grossPrice: string }) => {
@@ -6189,6 +6220,27 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setDraggedOpenBillLine(null)
   }
 
+  const formatLineDiscountSummary = (draft: LineItemDiscountDraft | null | undefined) => {
+    const value = discountValueNumber(draft)
+    if (value <= 0) return ''
+    return normalizeDiscountType(draft?.type) === 'AMOUNT' ? `€${Number(value).toFixed(2)}` : `${Math.round(value)}%`
+  }
+
+  const lineDiscountButtonContent = (draft: LineItemDiscountDraft | null | undefined) => {
+    const summary = formatLineDiscountSummary(draft)
+    return (
+      <>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <circle cx="7.5" cy="7.5" r="1.5" />
+          <circle cx="16.5" cy="16.5" r="1.5" />
+          <path d="M18.5 5.5 5.5 18.5" />
+        </svg>
+        <span>{summary || (locale === 'sl' ? 'Popust' : 'Discount')}</span>
+        <em aria-hidden>⌄</em>
+      </>
+    )
+  }
+
   const renderItemDiscountPopover = (
     draft: LineItemDiscountDraft,
     onPatch: (patch: Partial<LineItemDiscountDraft>) => void,
@@ -6212,10 +6264,21 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <span className="sr-only">{locale === 'sl' ? 'Vrednost popusta postavke' : 'Line discount value'}</span>
           <input
             type="text"
-            inputMode="decimal"
+            inputMode={type === 'PERCENT' ? 'numeric' : 'decimal'}
             value={draft.value}
-            onChange={(event) => onPatch({ type, value: sanitizeDiscountValueInput(event.target.value) })}
-            onBlur={() => onPatch({ type, value: String(discountValueNumber(draft)) })}
+            onChange={(event) => {
+              const raw = type === 'PERCENT'
+                ? event.target.value.replace(/[^0-9]/g, '').slice(0, 2)
+                : sanitizeDiscountValueInput(event.target.value)
+              onPatch({ type, value: raw })
+            }}
+            onBlur={() => {
+              const numeric = discountValueNumber(draft)
+              const normalized = type === 'PERCENT'
+                ? (numeric <= 0 ? '0' : String(Math.max(1, Math.min(99, Math.round(numeric)))))
+                : String(numeric)
+              onPatch({ type, value: normalized })
+            }}
             placeholder="0"
           />
           <em>{suffix}</em>
@@ -7471,16 +7534,58 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return 'Gift cards'
   }
 
-  const posCatalogRows = (catalogServices: BillingService[], billType?: BillDocumentType | string | null) => {
+  const isGiftCardGuestProduct = (product: BillingGuestProduct) => String(product.productType || '').toUpperCase() === 'GIFT_CARD'
+
+  const guestProductTypeLabel = (product: BillingGuestProduct) => {
+    const type = String(product.productType || '').toUpperCase()
+    if (locale === 'sl') {
+      if (type === 'MEMBERSHIP') return 'Članarina'
+      if (type === 'PACK') return 'Paket obiskov'
+      if (type === 'CLASS_TICKET') return 'Karta'
+      if (type === 'COURSE') return 'Dostop do tečaja'
+      if (type === 'GIFT_CARD') return 'Bon'
+      return 'Ugodnost'
+    }
+    if (type === 'MEMBERSHIP') return 'Membership'
+    if (type === 'PACK') return 'Pack'
+    if (type === 'CLASS_TICKET') return 'Ticket'
+    if (type === 'COURSE') return 'Course access'
+    if (type === 'GIFT_CARD') return 'Gift card'
+    return 'Benefit'
+  }
+
+  const guestProductAvailableAtLocation = (product: BillingGuestProduct, locationId?: number | null) => {
+    if (!locationId) return true
+    if (product.availableAllLocations !== false) return true
+    return Array.isArray(product.locationIds) && product.locationIds.map(Number).includes(Number(locationId))
+  }
+
+  const posCatalogRows = (
+    catalogServices: BillingService[],
+    catalogProducts: BillingGuestProduct[],
+    activeLocationId?: number | null,
+    billType?: BillDocumentType | string | null,
+  ) => {
     const normalizedQuery = posCatalogQuery.trim().toLocaleLowerCase()
-    const categoryRows = catalogServices.filter((service) => posCatalogCategoryForService(service) === posCatalogTab)
-    // Some older workspaces only have billing services and do not tag benefit names.
-    // Keep Novo predplačilo usable while the catalog is being migrated to explicit product types.
-    const tabRows = categoryRows.length === 0 && String(billType || '').toUpperCase() === 'ADVANCE' && posCatalogTab === 'benefits'
-      ? catalogServices
-      : categoryRows
-    if (!normalizedQuery) return tabRows
-    return tabRows.filter((service) => `${service.code || ''} ${service.description || ''}`.toLocaleLowerCase().includes(normalizedQuery))
+    if (posCatalogTab === 'services') {
+      const rows = catalogServices
+      if (!normalizedQuery) return { services: rows, products: [] as BillingGuestProduct[] }
+      return {
+        services: rows.filter((service) => `${service.code || ''} ${service.description || ''}`.toLocaleLowerCase().includes(normalizedQuery)),
+        products: [] as BillingGuestProduct[],
+      }
+    }
+    const rows = catalogProducts.filter((product) => (
+      posCatalogTab === 'giftCards' ? isGiftCardGuestProduct(product) : !isGiftCardGuestProduct(product)
+    ) && guestProductAvailableAtLocation(product, activeLocationId))
+    const fallbackRows = rows.length === 0 && String(billType || '').toUpperCase() === 'ADVANCE' && posCatalogTab === 'benefits'
+      ? [] as BillingGuestProduct[]
+      : rows
+    if (!normalizedQuery) return { services: [] as BillingService[], products: fallbackRows }
+    return {
+      services: [] as BillingService[],
+      products: fallbackRows.filter((product) => `${product.name || ''} ${guestProductTypeLabel(product)} ${product.transactionServiceCode || ''} ${product.transactionServiceDescription || ''}`.toLocaleLowerCase().includes(normalizedQuery)),
+    }
   }
 
   const posServiceSecondaryText = (service: BillingService | null | undefined, fallback?: string) => {
@@ -7508,11 +7613,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
   const renderPosCatalog = (
     catalogServices: BillingService[],
-    onAdd: (service: BillingService) => void,
+    catalogProducts: BillingGuestProduct[],
+    onAddService: (service: BillingService) => void,
+    onAddProduct: (product: BillingGuestProduct) => void,
+    activeLocationId?: number | null,
     billType?: BillDocumentType | string | null,
   ) => {
-    const rows = posCatalogRows(catalogServices, billType)
-    const totalForTab = posCatalogRows(catalogServices, billType).length
+    const rows = posCatalogRows(catalogServices, catalogProducts, activeLocationId, billType)
+    const totalForTab = posCatalogTab === 'services' ? rows.services.length : rows.products.length
     const placeholder = posCatalogTab === 'services'
       ? (locale === 'sl' ? 'Išči storitve …' : 'Search services …')
       : posCatalogTab === 'benefits'
@@ -7542,7 +7650,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           aria-label={placeholder}
         />
         <div className="billing-pos-catalog-list">
-          {rows.length > 0 ? rows.map((service) => (
+          {posCatalogTab === 'services' ? (rows.services.length > 0 ? rows.services.map((service) => (
             <div key={service.id} className="billing-pos-catalog-row">
               <div className="billing-pos-catalog-copy">
                 <strong>{serviceOptionLabel(service)}</strong>
@@ -7552,7 +7660,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               <button
                 type="button"
                 className="billing-pos-add-btn"
-                onClick={() => onAdd(service)}
+                onClick={() => onAddService(service)}
                 aria-label={`${locale === 'sl' ? 'Dodaj' : 'Add'} ${serviceOptionLabel(service)}`}
               >
                 +
@@ -7562,9 +7670,35 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             <div className="billing-pos-catalog-empty">
               {locale === 'sl' ? 'Ni razpoložljivih postavk.' : 'No items available.'}
             </div>
-          )}
+          )) : (rows.products.length > 0 ? rows.products.map((product) => {
+            const canAdd = Number(product.transactionServiceId || 0) > 0
+            const price = Number(product.priceGross || 0)
+            return (
+              <div key={`product-${product.id}`} className="billing-pos-catalog-row">
+                <div className="billing-pos-catalog-copy">
+                  <strong>{product.name || guestProductTypeLabel(product)}</strong>
+                  <small>{[guestProductTypeLabel(product), product.transactionServiceDescription || product.transactionServiceCode].filter(Boolean).join(' · ')}</small>
+                </div>
+                <span className="billing-pos-catalog-price">{currency(Number.isFinite(price) ? price : 0)}</span>
+                <button
+                  type="button"
+                  className="billing-pos-add-btn"
+                  onClick={() => onAddProduct(product)}
+                  disabled={!canAdd}
+                  aria-label={`${locale === 'sl' ? 'Dodaj' : 'Add'} ${product.name || guestProductTypeLabel(product)}`}
+                  title={!canAdd ? (locale === 'sl' ? 'Ta ugodnost nima povezane obračunske postavke.' : 'This product has no linked billing line.') : undefined}
+                >
+                  +
+                </button>
+              </div>
+            )
+          }) : (
+            <div className="billing-pos-catalog-empty">
+              {locale === 'sl' ? 'Ni razpoložljivih postavk.' : 'No items available.'}
+            </div>
+          ))}
           <div className="billing-pos-catalog-count">
-            {locale === 'sl' ? `Prikazano ${rows.length} od ${totalForTab}` : `Showing ${rows.length} of ${totalForTab}`}
+            {locale === 'sl' ? `Prikazano ${totalForTab} postavk` : `Showing ${totalForTab} items`}
           </div>
         </div>
       </>
@@ -7586,7 +7720,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           className="billing-pos-discount-slider"
           type="range"
           min="0"
-          max="100"
+          max="99"
           step="1"
           value={percentage}
           onChange={(event) => onChange(event.target.value)}
@@ -7594,12 +7728,21 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         />
         <label className="billing-pos-percent-input">
           <input
-            type="number"
-            min="0"
-            max="100"
-            step="1"
-            value={percentage}
-            onChange={(event) => onChange(String(Math.max(0, Math.min(100, Number(event.target.value || 0)))))}
+            type="text"
+            inputMode="numeric"
+            value={String(draft?.wholeBillPercent ?? '')}
+            onChange={(event) => {
+              const digits = event.target.value.replace(/[^0-9]/g, '').slice(0, 2)
+              if (digits === '') {
+                onChange('')
+                return
+              }
+              onChange(String(Math.max(0, Math.min(99, Number(digits)))) )
+            }}
+            onBlur={() => {
+              const parsed = Number(String(draft?.wholeBillPercent ?? '').replace(',', '.'))
+              onChange(!Number.isFinite(parsed) || parsed <= 0 ? '0' : String(Math.max(1, Math.min(99, Math.round(parsed)))))
+            }}
           />
           <span>%</span>
         </label>
@@ -7645,17 +7788,27 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const methods = createAvailablePaymentMethods
     const totalPaid = Number(splits.reduce((sum, split) => sum + paymentSplitEffectiveGross(split), 0).toFixed(2))
     const remaining = Number((totalGross - totalPaid).toFixed(2))
-    const addSpecificMethod = (method: PaymentMethod) => {
-      if (splits.some((split) => split.paymentMethodId === method.id)) return
-      const assigned = splits.reduce((sum, split) => sum + paymentSplitEffectiveGross(split), 0)
-      const key = `create-${Date.now()}-${Math.random().toString(36).slice(2)}`
-      const nextSplit: OpenBillPaymentSplitDraft = {
-        key,
-        paymentMethodId: method.id,
-        amountGross: formatPaymentAmountInput(Math.max(0, totalGross - assigned)),
+    const primarySplit = splits.find((split) => !isAdvancePaymentSplit(split)) ?? splits[0] ?? null
+    const setPrimaryMethod = (method: PaymentMethod) => {
+      const target = primarySplit
+      if (!target) {
+        const key = `create-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const nextSplit: OpenBillPaymentSplitDraft = {
+          key,
+          paymentMethodId: method.id,
+          amountGross: formatPaymentAmountInput(Math.max(0, totalGross)),
+        }
+        setCreateBillPaymentSplits([nextSplit])
+        if (isDepositPaymentMethod(method)) window.setTimeout(() => openAdvancePaymentModalForCreate(key), 0)
+        return
       }
-      setCreateBillPaymentSplits([...splits, nextSplit])
-      if (isDepositPaymentMethod(method)) window.setTimeout(() => openAdvancePaymentModalForCreate(key), 0)
+      const selections = isDepositPaymentMethod(method) ? getAdvanceSelectionsForSplit(target) : []
+      updateCreateBillPaymentSplit(target.key, {
+        paymentMethodId: method.id,
+        amountGross: isDepositPaymentMethod(method) ? formatPaymentAmountInput(sumAdvanceSelectionGross(selections)) : target.amountGross,
+        advanceSelections: selections,
+      })
+      if (isDepositPaymentMethod(method)) openAdvancePaymentModalForCreate(target.key)
     }
     const equalizeRemaining = (splitKey?: string) => {
       if (!splits.length || Math.abs(remaining) <= 0.01) return
@@ -7669,10 +7822,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         <h3>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</h3>
         <div className="billing-pos-method-chips">
           {methods.slice(0, 5).map((method) => {
-            const selected = splits.some((split) => split.paymentMethodId === method.id)
+            const selected = primarySplit?.paymentMethodId === method.id
             return (
-              <button key={method.id} type="button" className={selected ? 'is-selected' : ''} onClick={() => addSpecificMethod(method)}>
-                {localizedPaymentMethodName(method, locale)}
+              <button key={method.id} type="button" className={selected ? 'is-selected' : ''} onClick={() => setPrimaryMethod(method)}>
+                {paymentMethodChipContent(method, locale)}
               </button>
             )
           })}
@@ -7720,11 +7873,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           })}
           <button type="button" className="billing-pos-add-payment" disabled={methods.length === 0} onClick={() => addCreateBillPaymentSplit(totalGross)}>+ {locale === 'sl' ? 'Dodaj način plačila' : 'Add payment method'}</button>
         </div>
+        {renderPosTotalsMeta(items, draft, discountGross)}
         <div className="billing-pos-payment-totals">
           <div><span>{locale === 'sl' ? 'Skupaj plačano' : 'Total paid'}</span><strong className={Math.abs(remaining) <= 0.01 ? 'is-complete' : ''}>{currency(totalPaid)}</strong></div>
           <div><span>{locale === 'sl' ? 'Preostalo za plačilo' : 'Remaining to pay'}</span><strong>{currency(Math.max(0, remaining))}</strong></div>
         </div>
-        {renderPosTotalsMeta(items, draft, discountGross)}
       </section>
     )
   }
@@ -7742,17 +7895,27 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const methods = effectiveType === 'ADVANCE' ? visiblePaymentMethods.filter((method) => !isDepositPaymentMethod(method)) : visiblePaymentMethods
     const totalPaid = Number(splits.reduce((sum, split) => sum + paymentSplitEffectiveGross(split), 0).toFixed(2))
     const remaining = Number((totalGross - totalPaid).toFixed(2))
-    const addSpecificMethod = (method: PaymentMethod) => {
-      if (splits.some((split) => split.paymentMethodId === method.id)) return
-      const assigned = splits.reduce((sum, split) => sum + paymentSplitEffectiveGross(split), 0)
-      const key = `new-${Date.now()}-${Math.random().toString(36).slice(2)}`
-      const nextSplit: OpenBillPaymentSplitDraft = {
-        key,
-        paymentMethodId: method.id,
-        amountGross: formatPaymentAmountInput(Math.max(0, totalGross - assigned)),
+    const primarySplit = splits.find((split) => !isEntitlementPaymentSplit(split) && !isAdvancePaymentSplit(split)) ?? splits.find((split) => !isEntitlementPaymentSplit(split)) ?? null
+    const setPrimaryMethod = (method: PaymentMethod) => {
+      const target = primarySplit
+      if (!target) {
+        const key = `new-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const nextSplit: OpenBillPaymentSplitDraft = {
+          key,
+          paymentMethodId: method.id,
+          amountGross: formatPaymentAmountInput(Math.max(0, totalGross)),
+        }
+        setOpenBillPaymentSplits(ob, [...splits, nextSplit])
+        if (isDepositPaymentMethod(method)) window.setTimeout(() => openAdvancePaymentModalForOpenBill(ob, key), 0)
+        return
       }
-      setOpenBillPaymentSplits(ob, [...splits, nextSplit])
-      if (isDepositPaymentMethod(method)) window.setTimeout(() => openAdvancePaymentModalForOpenBill(ob, key), 0)
+      const selections = isDepositPaymentMethod(method) ? getAdvanceSelectionsForSplit(target) : []
+      updateOpenBillPaymentSplit(ob, target.key, {
+        paymentMethodId: method.id,
+        amountGross: isDepositPaymentMethod(method) ? formatPaymentAmountInput(sumAdvanceSelectionGross(selections)) : target.amountGross,
+        advanceSelections: selections,
+      })
+      if (isDepositPaymentMethod(method)) openAdvancePaymentModalForOpenBill(ob, target.key)
     }
     const equalizeRemaining = (splitKey?: string) => {
       if (!splits.length || Math.abs(remaining) <= 0.01) return
@@ -7766,8 +7929,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         <h3>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</h3>
         <div className="billing-pos-method-chips">
           {methods.slice(0, 5).map((method) => {
-            const selected = splits.some((split) => split.paymentMethodId === method.id)
-            return <button key={method.id} type="button" className={selected ? 'is-selected' : ''} onClick={() => addSpecificMethod(method)}>{localizedPaymentMethodName(method, locale)}</button>
+            const selected = primarySplit?.paymentMethodId === method.id
+            return <button key={method.id} type="button" className={selected ? 'is-selected' : ''} onClick={() => setPrimaryMethod(method)}>{paymentMethodChipContent(method, locale)}</button>
           })}
         </div>
         <div className="billing-pos-payment-table">
@@ -7814,11 +7977,11 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           })}
           <button type="button" className="billing-pos-add-payment" disabled={methods.length === 0} onClick={() => addOpenBillPaymentSplit(ob, totalGross)}>+ {locale === 'sl' ? 'Dodaj način plačila' : 'Add payment method'}</button>
         </div>
+        {renderPosTotalsMeta(items, draft, discountGross)}
         <div className="billing-pos-payment-totals">
           <div><span>{locale === 'sl' ? 'Skupaj plačano' : 'Total paid'}</span><strong className={Math.abs(remaining) <= 0.01 ? 'is-complete' : ''}>{currency(totalPaid)}</strong></div>
           <div><span>{locale === 'sl' ? 'Preostalo za plačilo' : 'Remaining to pay'}</span><strong>{currency(Math.max(0, remaining))}</strong></div>
         </div>
-        {renderPosTotalsMeta(items, draft, discountGross)}
       </section>
     )
   }
@@ -7850,16 +8013,32 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 <strong>{service ? serviceOptionLabel(service) : `#${item.transactionServiceId}`}</strong>
                 {(posServiceSecondaryText(service) || consultantLabel) && <small>{[posServiceSecondaryText(service), consultantLabel].filter(Boolean).join(' · ')}</small>}
               </div>
-              <span className="billing-pos-unit-price">{currency(Number(item.grossPrice || 0))}</span>
+              <label className="billing-pos-unit-price-input billing-pos-money-input"><span>€</span><input
+                value={item.grossPrice ?? ''}
+                onChange={(event) => {
+                  const nextGross = event.target.value.replace(/[^0-9.,-]/g, '').replace(',', '.')
+                  setBillForm((prev) => ({
+                    ...prev,
+                    items: prev.items.map((row, rowIndex) => rowIndex === index ? { ...row, grossPrice: nextGross, netPrice: String(grossToNet(nextGross || '0', row.transactionServiceId)) } : row),
+                  }))
+                }}
+                onBlur={() => {
+                  const normalized = formatPaymentAmountInput(Number(item.grossPrice || 0))
+                  setBillForm((prev) => ({
+                    ...prev,
+                    items: prev.items.map((row, rowIndex) => rowIndex === index ? { ...row, grossPrice: normalized, netPrice: String(grossToNet(normalized, row.transactionServiceId)) } : row),
+                  }))
+                }}
+              /></label>
               <div className="billing-pos-qty">
                 <button type="button" onClick={() => setBillForm((prev) => ({ ...prev, items: prev.items.map((row, rowIndex) => rowIndex === index ? { ...row, quantity: Math.max(1, Number(row.quantity || 1) - 1) } : row) }))}>−</button>
-                <span>{item.quantity}</span>
+                <span className="billing-pos-qty-value">{item.quantity}</span>
                 <button type="button" onClick={() => setBillForm((prev) => ({ ...prev, items: prev.items.map((row, rowIndex) => rowIndex === index ? { ...row, quantity: Number(row.quantity || 0) + 1 } : row) }))}>+</button>
               </div>
               <strong className="billing-pos-line-total">{currency(lineTotal)}</strong>
               <div className="billing-pos-line-discount">
                 <button type="button" className={`${showButtonStyle ? 'billing-pos-inline-discount-btn ' : ''}${lineDiscountActive ? 'is-active' : ''}`.trim()} onClick={(event) => { event.stopPropagation(); setOpenCreateItemDiscountIndex(lineDiscountOpen ? null : index) }}>
-                  {locale === 'sl' ? 'Popust' : 'Discount'} <span aria-hidden>⌄</span>
+                  {lineDiscountButtonContent(lineDraft)}
                 </button>
                 {lineDiscountOpen && renderItemDiscountPopover(lineDraft, patchLineDiscount, () => setOpenCreateItemDiscountIndex(null))}
               </div>
@@ -7894,16 +8073,30 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           return (
             <div key={item.openBillItemId || item.clientRowKey || index} className="billing-pos-selected-row">
               <div className="billing-pos-selected-copy"><strong>{service ? serviceOptionLabel(service) : `#${item.transactionServiceId}`}</strong>{(posServiceSecondaryText(service) || consultantLabel) && <small>{[posServiceSecondaryText(service), consultantLabel].filter(Boolean).join(' · ')}</small>}</div>
-              <span className="billing-pos-unit-price">{currency(Number(item.grossPrice || 0))}</span>
+              <label className="billing-pos-unit-price-input billing-pos-money-input"><span>€</span><input
+                value={item.grossPrice ?? ''}
+                onChange={(event) => {
+                  const nextGross = event.target.value.replace(/[^0-9.,-]/g, '').replace(',', '.')
+                  const next = [...items]
+                  next[index] = { ...next[index], grossPrice: nextGross, netPrice: String(grossToNet(nextGross || '0', next[index].transactionServiceId)) }
+                  setOpenBillItems(ob, next)
+                }}
+                onBlur={() => {
+                  const normalized = formatPaymentAmountInput(Number(item.grossPrice || 0))
+                  const next = [...items]
+                  next[index] = { ...next[index], grossPrice: normalized, netPrice: String(grossToNet(normalized, next[index].transactionServiceId)) }
+                  setOpenBillItems(ob, next)
+                }}
+              /></label>
               <div className="billing-pos-qty">
                 <button type="button" onClick={() => { const next = [...items]; next[index] = { ...next[index], quantity: Math.max(1, Number(next[index].quantity || 1) - 1) }; setOpenBillItems(ob, next) }}>−</button>
-                <span>{item.quantity}</span>
+                <span className="billing-pos-qty-value">{item.quantity}</span>
                 <button type="button" onClick={() => { const next = [...items]; next[index] = { ...next[index], quantity: Number(next[index].quantity || 0) + 1 }; setOpenBillItems(ob, next) }}>+</button>
               </div>
               <strong className="billing-pos-line-total">{currency(lineTotal)}</strong>
               <div className="billing-pos-line-discount">
                 <button type="button" className={`${showButtonStyle ? 'billing-pos-inline-discount-btn ' : ''}${lineDiscountActive ? 'is-active' : ''}`.trim()} onClick={(event) => { event.stopPropagation(); setOpenOpenBillItemDiscount(lineDiscountOpen ? null : { openBillId: ob.id, index }) }}>
-                  {locale === 'sl' ? 'Popust' : 'Discount'} <span aria-hidden>⌄</span>
+                  {lineDiscountButtonContent(lineDraft)}
                 </button>
                 {lineDiscountOpen && renderItemDiscountPopover(lineDraft, (patch) => setOpenBillItemDiscountDraft(ob, index, patch), () => setOpenOpenBillItemDiscount(null))}
               </div>
@@ -7933,12 +8126,35 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         return { ...prev, items: [...prev.items, { transactionServiceId: service.id, quantity: 1, netPrice: String(service.netPrice), grossPrice: grossStringFromService(service), sourceSessionBookingId: prev.sessionId ?? undefined }] }
       })
     }
+    const addProduct = (product: BillingGuestProduct) => {
+      const transactionServiceId = Number(product.transactionServiceId || 0)
+      const linkedService = services.find((entry) => entry.id === transactionServiceId)
+      if (!linkedService || !transactionServiceId) {
+        showToast('error', locale === 'sl' ? 'Ta ugodnost nima povezane obračunske postavke.' : 'This product has no linked billing line.')
+        return
+      }
+      const usageLimit = Number(product.usageLimit || 0)
+      const quantity = (String(product.productType || '').toUpperCase() === 'PACK' || String(product.productType || '').toUpperCase() === 'CLASS_TICKET') && usageLimit > 0 ? usageLimit : 1
+      const totalGross = Number(product.priceGross || 0)
+      const unitGross = quantity > 0 ? Number((totalGross / quantity).toFixed(2)) : totalGross
+      const unitGrossText = unitGross.toFixed(2)
+      setBillForm((prev) => ({
+        ...prev,
+        items: [...prev.items, {
+          transactionServiceId,
+          quantity,
+          netPrice: String(grossToNet(unitGrossText, transactionServiceId)),
+          grossPrice: unitGrossText,
+          sourceSessionBookingId: prev.sessionId ?? undefined,
+        }],
+      }))
+    }
     return (
       <div className="billing-pos-layout">
         <section className="billing-pos-catalog-pane">
           <label className="billing-pos-payee-label">{locale === 'sl' ? 'Plačnik' : 'Payee'}</label>
           <button type="button" className="billing-pos-payee-field" onClick={() => setEditingCreateBillPayee(true)}>{posCreatePayeeLabel()}</button>
-          {renderPosCatalog(availableBillServices, addService, isAdvance ? 'ADVANCE' : 'INVOICE')}
+          {renderPosCatalog(availableBillServices, guestProducts, addService, addProduct, billForm.locationId, isAdvance ? 'ADVANCE' : 'INVOICE')}
         </section>
         <section className="billing-pos-checkout-pane">
           <h3 className="billing-pos-selected-title">{locale === 'sl' ? 'Izbrano' : 'Selected'}</h3>
@@ -7971,12 +8187,34 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       }
       setOpenBillItems(ob, [...currentItems, { clientRowKey: createOpenBillClientRowKey(), transactionServiceId: service.id, quantity: 1, netPrice: String(service.netPrice), grossPrice: grossStringFromService(service), sourceSessionBookingId: createManualOpenBillLineSourceId() }])
     }
+    const addProduct = (product: BillingGuestProduct) => {
+      const transactionServiceId = Number(product.transactionServiceId || 0)
+      const linkedService = services.find((entry) => entry.id === transactionServiceId)
+      if (!linkedService || !transactionServiceId) {
+        showToast('error', locale === 'sl' ? 'Ta ugodnost nima povezane obračunske postavke.' : 'This product has no linked billing line.')
+        return
+      }
+      const usageLimit = Number(product.usageLimit || 0)
+      const quantity = (String(product.productType || '').toUpperCase() === 'PACK' || String(product.productType || '').toUpperCase() === 'CLASS_TICKET') && usageLimit > 0 ? usageLimit : 1
+      const totalGross = Number(product.priceGross || 0)
+      const unitGross = quantity > 0 ? Number((totalGross / quantity).toFixed(2)) : totalGross
+      const unitGrossText = unitGross.toFixed(2)
+      const currentItems = getOpenBillItems(ob)
+      setOpenBillItems(ob, [...currentItems, {
+        clientRowKey: createOpenBillClientRowKey(),
+        transactionServiceId,
+        quantity,
+        netPrice: String(grossToNet(unitGrossText, transactionServiceId)),
+        grossPrice: unitGrossText,
+        sourceSessionBookingId: createManualOpenBillLineSourceId(),
+      }])
+    }
     return (
       <div className="billing-pos-layout">
         <section className="billing-pos-catalog-pane">
           <label className="billing-pos-payee-label">{locale === 'sl' ? 'Plačnik' : 'Payee'}</label>
           <button type="button" className="billing-pos-payee-field" onClick={() => openOpenBillPayeeEditor(ob)}>{posOpenBillPayeeLabel(ob)}</button>
-          {renderPosCatalog(catalogServices, addService, ob.billType || 'INVOICE')}
+          {renderPosCatalog(catalogServices, guestProducts, addService, addProduct, ob.location?.id, ob.billType || 'INVOICE')}
         </section>
         <section className="billing-pos-checkout-pane">
           <h3 className="billing-pos-selected-title">{locale === 'sl' ? 'Izbrano' : 'Selected'}</h3>
