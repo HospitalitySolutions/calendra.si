@@ -2635,6 +2635,28 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     })
     return map
   }, [invoiceCatalogServices])
+
+  const guestProductCatalogMetaByTransactionServiceId = useMemo(() => {
+    const map = new Map<number, { displayName: string; secondaryText: string }>()
+    guestProducts.forEach((product) => {
+      const legacyTransactionServiceId = Number(product.transactionServiceId || 0)
+      const mappedService = services.find((entry) => (
+        String(entry.systemSource || '').toUpperCase() === 'GUEST_PRODUCT'
+        && String(entry.systemSourceKey || '') === String(product.id)
+      )) ?? services.find((entry) => Number(entry.id) === legacyTransactionServiceId)
+      const transactionServiceId = Number(mappedService?.id || legacyTransactionServiceId || 0)
+      if (!transactionServiceId || map.has(transactionServiceId)) return
+      const productScope = product.serviceGroupName?.trim()
+        || (product.sessionTypeNames ?? []).filter(Boolean).join(', ')
+        || product.sessionTypeName?.trim()
+        || ''
+      map.set(transactionServiceId, {
+        displayName: String(product.name || product.transactionServiceDescription || guestProductTypeLabel(product) || '').trim() || (locale === 'sl' ? 'Ugodnost' : 'Benefit'),
+        secondaryText: [guestProductTypeLabel(product), productScope].filter(Boolean).join(' · '),
+      })
+    })
+    return map
+  }, [guestProducts, services, locale])
   const availableBillServices = useMemo(
     () => (billForm.billType === 'ADVANCE' ? advanceBillServices : openBillSelectableServices),
     [billForm.billType, advanceBillServices, openBillSelectableServices],
@@ -7861,7 +7883,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             const transactionServiceId = Number(mappedService?.id || legacyTransactionServiceId || 0)
             const canAdd = product.active !== false && transactionServiceId > 0 && mappedService != null && mappedService.active !== false
             const price = mappedService ? Number(grossStringFromService(mappedService)) : Number.NaN
-            const invoiceLineName = mappedService?.description?.trim() || product.name || guestProductTypeLabel(product)
+            const productDisplayName = product.name || mappedService?.description?.trim() || guestProductTypeLabel(product)
             const productScope = product.serviceGroupName?.trim()
               || (product.sessionTypeNames ?? []).filter(Boolean).join(', ')
               || product.sessionTypeName?.trim()
@@ -7869,7 +7891,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             return (
               <div key={`product-${product.id}`} className="billing-pos-catalog-row">
                 <div className="billing-pos-catalog-copy">
-                  <strong>{invoiceLineName}</strong>
+                  <strong>{productDisplayName}</strong>
                   <small>{[guestProductTypeLabel(product), productScope].filter(Boolean).join(' · ')}</small>
                 </div>
                 <span className="billing-pos-catalog-price">{currency(Number.isFinite(price) ? price : 0)}</span>
@@ -7878,7 +7900,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   className="billing-pos-add-btn"
                   onClick={() => onAddProduct(product)}
                   disabled={!canAdd}
-                  aria-label={`${locale === 'sl' ? 'Dodaj' : 'Add'} ${invoiceLineName}`}
+                  aria-label={`${locale === 'sl' ? 'Dodaj' : 'Add'} ${productDisplayName}`}
                   title={!canAdd ? (locale === 'sl' ? 'Ta ugodnost ali bon nima povezane obračunske postavke.' : 'This product or voucher has no linked billing line.') : undefined}
                 >
                   +
@@ -8230,11 +8252,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               return { ...prev, itemDiscounts: discounts }
             })
           }
+          const productMeta = guestProductCatalogMetaByTransactionServiceId.get(item.transactionServiceId)
           return (
             <div key={`${item.transactionServiceId}-${index}`} className="billing-pos-selected-row">
               <div className="billing-pos-selected-copy">
-                <strong>{catalogService?.displayName || (service ? serviceOptionLabel(service) : `#${item.transactionServiceId}`)}</strong>
-                {(catalogService?.secondaryText || posServiceSecondaryText(service) || consultantLabel) && <small>{[catalogService?.secondaryText || posServiceSecondaryText(service), consultantLabel].filter(Boolean).join(' · ')}</small>}
+                <strong>{productMeta?.displayName || catalogService?.displayName || (service ? serviceOptionLabel(service) : `#${item.transactionServiceId}`)}</strong>
+                {(productMeta?.secondaryText || catalogService?.secondaryText || posServiceSecondaryText(service) || consultantLabel) && <small>{[productMeta?.secondaryText || catalogService?.secondaryText || posServiceSecondaryText(service), consultantLabel].filter(Boolean).join(' · ')}</small>}
               </div>
               <label className="billing-pos-unit-price-input billing-pos-money-input"><span>€</span><input
                 value={item.grossPrice ?? ''}
@@ -8304,9 +8327,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           const lineDiscountActive = discountValueNumber(lineDraft) > 0
           const lineDiscountOpen = openOpenBillItemDiscount?.openBillId === ob.id && openOpenBillItemDiscount.index === index
           const lineTotal = lineStates[index]?.finalGross ?? lineGrossTotal(item)
+          const productMeta = guestProductCatalogMetaByTransactionServiceId.get(item.transactionServiceId)
           return (
             <div key={item.openBillItemId || item.clientRowKey || index} className="billing-pos-selected-row">
-              <div className="billing-pos-selected-copy"><strong>{catalogService?.displayName || (service ? serviceOptionLabel(service) : `#${item.transactionServiceId}`)}</strong>{(catalogService?.secondaryText || posServiceSecondaryText(service) || consultantLabel) && <small>{[catalogService?.secondaryText || posServiceSecondaryText(service), consultantLabel].filter(Boolean).join(' · ')}</small>}</div>
+              <div className="billing-pos-selected-copy"><strong>{productMeta?.displayName || catalogService?.displayName || (service ? serviceOptionLabel(service) : `#${item.transactionServiceId}`)}</strong>{(productMeta?.secondaryText || catalogService?.secondaryText || posServiceSecondaryText(service) || consultantLabel) && <small>{[productMeta?.secondaryText || catalogService?.secondaryText || posServiceSecondaryText(service), consultantLabel].filter(Boolean).join(' · ')}</small>}</div>
               <label className="billing-pos-unit-price-input billing-pos-money-input"><span>€</span><input
                 value={item.grossPrice ?? ''}
                 onChange={(event) => {
