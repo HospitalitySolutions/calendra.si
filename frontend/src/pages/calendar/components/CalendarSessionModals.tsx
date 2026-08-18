@@ -4719,7 +4719,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   {t('formDelete')}
                 </PanelButton>
               </span>
-              <PanelButton variant="subtle" icon={<CalendarFormFooterSaveIcon />} onClick={completeTodo}>
+              <PanelButton variant="success" icon={<CalendarFormFooterSaveIcon />} onClick={completeTodo}>
                 {locale === 'sl' ? 'Opravljeno' : 'Done'}
               </PanelButton>
               <PanelButton variant="primary" icon={<CalendarFormFooterSaveIcon />} onClick={updateTodo}>
@@ -4818,6 +4818,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   title={t('calendarModeAvailability')}
                   className="calendar-standardized__section calendar-standardized__availability"
                   icon={<CalendarSectionIcon name="availability" />}
+                  collapsible={false}
                 >
                   {locationFilterId == null && metaLocations.filter((item: any) => item?.active !== false).length > 1 && (
                     <div className="form-row form-row-infield">
@@ -4897,6 +4898,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   className="calendar-standardized__section calendar-standardized__schedule"
                   icon={<CalendarSectionIcon name="schedule" />}
                   summary={scheduleSummary(availabilitySelection.startTime, availabilitySelection.endTime)}
+                  collapsible={false}
                 >
                   <div className="form-row form-row-timespan">
                     <CalendarLocalTimespanRow

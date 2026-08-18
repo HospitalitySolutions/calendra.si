@@ -10256,3 +10256,47 @@
         flex: 0 0 auto;
     }
 }
+
+/* ========================================================================== */
+/* Desktop calendar issue-list fixes (2026-08-18).                            */
+/* - keep full localized dates visible in Termin/Osebno/Dostopnost            */
+/* - prevent the two all-day date fields from competing for three columns     */
+/* - keep meeting provider text clearly separated from the Spremeni button    */
+/* ========================================================================== */
+@media (min-width: 1025px) {
+    .cp-panel--calendar-new-booking .calendar-approved-booking__schedule .calendar-timespan-row:not(.calendar-timespan-row--all-day-range),
+    .cp-panel--calendar-standardized .calendar-standardized__schedule .calendar-timespan-row:not(.calendar-timespan-row--two):not(.calendar-timespan-row--all-day-range) {
+        grid-template-columns: minmax(0, 0.88fr) minmax(0, 0.88fr) minmax(180px, 1.24fr);
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__schedule .calendar-timespan-row--all-day-range,
+    .cp-panel--calendar-standardized .calendar-standardized__schedule .calendar-timespan-row--all-day-range {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__schedule .calendar-timespan-row:not(.calendar-timespan-row--all-day-range) .calendar-timespan-field--date input[type='date'],
+    .cp-panel--calendar-standardized .calendar-standardized__schedule .calendar-timespan-row:not(.calendar-timespan-row--all-day-range):not(.calendar-timespan-row--two) .calendar-timespan-field--date input[type='date'] {
+        min-width: 180px;
+        padding-right: 8px;
+        font-size: 0.9rem;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__schedule .calendar-availability-datum-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+    }
+
+    .cp-panel--calendar-standardized .calendar-standardized__schedule .calendar-availability-datum-row .calendar-timespan-field--date,
+    .cp-panel--calendar-standardized .calendar-standardized__schedule .calendar-availability-datum-row input[type='date'],
+    .cp-panel--calendar-new-booking .calendar-approved-booking__schedule .calendar-timespan-row--all-day-range .calendar-timespan-field--date,
+    .cp-panel--calendar-new-booking .calendar-approved-booking__schedule .calendar-timespan-row--all-day-range input[type='date'],
+    .cp-panel--calendar-standardized .calendar-standardized__schedule .calendar-timespan-row--all-day-range .calendar-timespan-field--date,
+    .cp-panel--calendar-standardized .calendar-standardized__schedule .calendar-timespan-row--all-day-range input[type='date'] {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-booking-service-meeting-inline {
+        gap: 12px;
+    }
+}

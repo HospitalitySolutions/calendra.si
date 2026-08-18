@@ -2529,7 +2529,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     [services, advanceDeductionIds],
   )
   const invoiceCatalogServices = useMemo<BillingCatalogService[]>(() => {
-    const serviceById = new Map(services.map((service) => [Number(service.id), service]))
+    const serviceById = new Map<number, BillingService>(services.map((service) => [Number(service.id), service] as [number, BillingService]))
     return sessionTypes
       .filter((type) => type.active !== false)
       .flatMap((type) => {
@@ -2540,13 +2540,25 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         // invoicing and must not appear in the normal unissued-invoice catalog.
         if (configuredLinks.length > 0 && regularLinks.length === 0) return []
 
-        const firstLink = regularLinks[0]
-        const transactionServiceId = firstLink ? Number(firstLink.transactionServiceId) : null
-        const displayName = type.description?.trim() || type.name?.trim() || (locale === 'sl' ? 'Storitev' : 'Service')
+        const mappedBillingService = services.find((service) => (
+          String(service.systemSource || '').toUpperCase() === 'SESSION_TYPE'
+          && String(service.systemSourceKey || '') === String(type.id)
+          && !configuredAdvanceServiceIds.has(Number(service.id))
+        )) ?? null
+        const firstLink = mappedBillingService
+          ? regularLinks.find((link) => Number(link.transactionServiceId) === Number(mappedBillingService.id)) ?? regularLinks[0]
+          : regularLinks[0]
+        const transactionServiceId = mappedBillingService?.id ?? (firstLink ? Number(firstLink.transactionServiceId) : null)
+        const displayName = mappedBillingService?.description?.trim()
+          || type.description?.trim()
+          || type.name?.trim()
+          || (locale === 'sl' ? 'Storitev' : 'Service')
         const secondaryText = type.internalDescription?.trim() || ''
 
         let priceGross: number | null = null
-        if (regularLinks.length > 0) {
+        if (mappedBillingService) {
+          priceGross = Number(grossStringFromService(mappedBillingService))
+        } else if (regularLinks.length > 0) {
           const grossParts = regularLinks.map((link) => {
             const configuredPrice = link.unitGross ?? link.price
             if (configuredPrice != null && Number.isFinite(Number(configuredPrice))) return Number(configuredPrice)
@@ -7808,8 +7820,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               {locale === 'sl' ? 'Ni razpoložljivih postavk.' : 'No items available.'}
             </div>
           )) : (rows.products.length > 0 ? rows.products.map((product) => {
-            const canAdd = Number(product.transactionServiceId || 0) > 0
-            const price = Number(product.priceGross || 0)
+            const legacyTransactionServiceId = Number(product.transactionServiceId || 0)
+            const mappedService = services.find((entry) => (
+              String(entry.systemSource || '').toUpperCase() === 'GUEST_PRODUCT'
+              && String(entry.systemSourceKey || '') === String(product.id)
+            )) ?? services.find((entry) => Number(entry.id) === legacyTransactionServiceId)
+            const transactionServiceId = Number(mappedService?.id || legacyTransactionServiceId || 0)
+            const canAdd = product.active !== false && transactionServiceId > 0 && mappedService != null && mappedService.active !== false
+            const price = mappedService ? Number(grossStringFromService(mappedService)) : Number.NaN
+            const invoiceLineName = mappedService?.description?.trim() || product.name || guestProductTypeLabel(product)
             const productScope = product.serviceGroupName?.trim()
               || (product.sessionTypeNames ?? []).filter(Boolean).join(', ')
               || product.sessionTypeName?.trim()
@@ -7817,7 +7836,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             return (
               <div key={`product-${product.id}`} className="billing-pos-catalog-row">
                 <div className="billing-pos-catalog-copy">
-                  <strong>{product.name || guestProductTypeLabel(product)}</strong>
+                  <strong>{invoiceLineName}</strong>
                   <small>{[guestProductTypeLabel(product), productScope].filter(Boolean).join(' · ')}</small>
                 </div>
                 <span className="billing-pos-catalog-price">{currency(Number.isFinite(price) ? price : 0)}</span>
@@ -7826,8 +7845,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   className="billing-pos-add-btn"
                   onClick={() => onAddProduct(product)}
                   disabled={!canAdd}
-                  aria-label={`${locale === 'sl' ? 'Dodaj' : 'Add'} ${product.name || guestProductTypeLabel(product)}`}
-                  title={!canAdd ? (locale === 'sl' ? 'Ta ugodnost nima povezane obračunske postavke.' : 'This product has no linked billing line.') : undefined}
+                  aria-label={`${locale === 'sl' ? 'Dodaj' : 'Add'} ${invoiceLineName}`}
+                  title={!canAdd ? (locale === 'sl' ? 'Ta ugodnost ali bon nima povezane obračunske postavke.' : 'This product or voucher has no linked billing line.') : undefined}
                 >
                   +
                 </button>
@@ -8307,17 +8326,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       })
     }
     const addProduct = (product: BillingGuestProduct) => {
-      const transactionServiceId = Number(product.transactionServiceId || 0)
-      const linkedService = services.find((entry) => entry.id === transactionServiceId)
+      const legacyTransactionServiceId = Number(product.transactionServiceId || 0)
+      const linkedService = services.find((entry) => (
+        String(entry.systemSource || '').toUpperCase() === 'GUEST_PRODUCT'
+        && String(entry.systemSourceKey || '') === String(product.id)
+      )) ?? services.find((entry) => Number(entry.id) === legacyTransactionServiceId)
+      const transactionServiceId = Number(linkedService?.id || legacyTransactionServiceId || 0)
       if (!linkedService || !transactionServiceId) {
-        showToast('error', locale === 'sl' ? 'Ta ugodnost nima povezane obračunske postavke.' : 'This product has no linked billing line.')
+        showToast('error', locale === 'sl' ? 'Ta ugodnost ali bon nima povezane obračunske postavke.' : 'This product or voucher has no linked billing line.')
         return
       }
-      const usageLimit = Number(product.usageLimit || 0)
-      const quantity = (String(product.productType || '').toUpperCase() === 'PACK' || String(product.productType || '').toUpperCase() === 'CLASS_TICKET') && usageLimit > 0 ? usageLimit : 1
-      const totalGross = Number(product.priceGross || 0)
-      const unitGross = quantity > 0 ? Number((totalGross / quantity).toFixed(2)) : totalGross
-      const unitGrossText = unitGross.toFixed(2)
+      const quantity = 1
+      const unitGrossText = Number(grossStringFromService(linkedService)).toFixed(2)
       setBillForm((prev) => ({
         ...prev,
         items: [...prev.items, {
@@ -8377,17 +8397,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       setOpenBillItems(ob, [...currentItems, { clientRowKey: createOpenBillClientRowKey(), transactionServiceId, quantity: 1, netPrice: String(grossToNet(unitGrossText, transactionServiceId)), grossPrice: unitGrossText, sourceSessionBookingId: createManualOpenBillLineSourceId() }])
     }
     const addProduct = (product: BillingGuestProduct) => {
-      const transactionServiceId = Number(product.transactionServiceId || 0)
-      const linkedService = services.find((entry) => entry.id === transactionServiceId)
+      const legacyTransactionServiceId = Number(product.transactionServiceId || 0)
+      const linkedService = services.find((entry) => (
+        String(entry.systemSource || '').toUpperCase() === 'GUEST_PRODUCT'
+        && String(entry.systemSourceKey || '') === String(product.id)
+      )) ?? services.find((entry) => Number(entry.id) === legacyTransactionServiceId)
+      const transactionServiceId = Number(linkedService?.id || legacyTransactionServiceId || 0)
       if (!linkedService || !transactionServiceId) {
-        showToast('error', locale === 'sl' ? 'Ta ugodnost nima povezane obračunske postavke.' : 'This product has no linked billing line.')
+        showToast('error', locale === 'sl' ? 'Ta ugodnost ali bon nima povezane obračunske postavke.' : 'This product or voucher has no linked billing line.')
         return
       }
-      const usageLimit = Number(product.usageLimit || 0)
-      const quantity = (String(product.productType || '').toUpperCase() === 'PACK' || String(product.productType || '').toUpperCase() === 'CLASS_TICKET') && usageLimit > 0 ? usageLimit : 1
-      const totalGross = Number(product.priceGross || 0)
-      const unitGross = quantity > 0 ? Number((totalGross / quantity).toFixed(2)) : totalGross
-      const unitGrossText = unitGross.toFixed(2)
+      const quantity = 1
+      const unitGrossText = Number(grossStringFromService(linkedService)).toFixed(2)
       const currentItems = getOpenBillItems(ob)
       setOpenBillItems(ob, [...currentItems, {
         clientRowKey: createOpenBillClientRowKey(),

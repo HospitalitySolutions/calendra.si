@@ -15,6 +15,7 @@ import com.example.app.guest.model.GuestOrderItemRepository;
 import com.example.app.guest.model.GuestProduct;
 import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
+import com.example.app.billing.TaxRate;
 import com.example.app.guest.model.GuestProductRepository;
 import com.example.app.billing.PriceMath;
 import com.example.app.guest.model.ProductType;
@@ -31,6 +32,7 @@ import com.example.app.settings.BillingModuleAccessService;
 import com.example.app.user.User;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.Normalizer;
 import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -55,6 +57,8 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/guest/admin/products")
 @PreAuthorize("hasRole('ADMIN')")
 public class GuestProductAdminController {
+    private static final String GUEST_PRODUCT_BILLING_SOURCE = "GUEST_PRODUCT";
+    private static final int TRANSACTION_SERVICE_CODE_MAX_LENGTH = 12;
     private final GuestProductRepository products;
     private final SessionTypeRepository sessionTypes;
     private final TransactionServiceRepository transactionServices;
@@ -134,6 +138,8 @@ public class GuestProductAdminController {
         product.setCompany(me.getCompany());
         apply(product, request, me);
         product = products.save(product);
+        syncMappedTransactionService(product, request.taxRate(), me.getCompany().getId());
+        product = products.save(product);
         syncMembershipCourses(product, request.includedCourseIds(), me.getCompany().getId());
         ProductAdminResponse result = toResponse(product);
         recordProduct(me, ActivityAction.PRODUCT_CREATED, result, "Created card/membership product");
@@ -147,6 +153,8 @@ public class GuestProductAdminController {
         GuestProduct product = products.findByIdAndCompanyId(id, me.getCompany().getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found."));
         apply(product, request, me);
+        product = products.save(product);
+        syncMappedTransactionService(product, request.taxRate(), me.getCompany().getId());
         product = products.save(product);
         syncMembershipCourses(product, request.includedCourseIds(), me.getCompany().getId());
         ProductAdminResponse result = toResponse(product);
@@ -217,15 +225,8 @@ public class GuestProductAdminController {
                     ? new LinkedHashSet<>(sessionTypes.findAllByCompanyIdAndServiceGroupId(companyId, serviceGroup.getId()))
                     : resolveProductSessionTypes(request.sessionTypeIds(), request.sessionTypeId(), companyId);
         SessionType sessionType = eligibleSessionTypes.stream().findFirst().orElse(null);
-        // Invoice accounting is intentionally independent from the services on which the
-        // entitlement may be redeemed. Historical rows without a transaction service keep
-        // working through billing fallbacks, while the admin UI requires one for new saves.
-        TransactionService transactionService = request.transactionServiceId() == null && product.getId() != null
-                ? product.getTransactionService()
-                : resolveTransactionService(request.transactionServiceId(), companyId);
-        if (product.getId() == null && transactionService == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invoice line item is required.");
-        }
+        // Every ugodnost and bon owns an automatically mapped billing service. The mapping is
+        // synchronized after the product has been saved and therefore has a stable product id.
         VoucherRedemptionMode voucherRedemptionMode = productType == ProductType.GIFT_CARD
                 ? parseVoucherRedemptionMode(request.voucherRedemptionMode())
                 : null;
@@ -316,7 +317,8 @@ public class GuestProductAdminController {
         product.getEligibleSessionTypes().clear();
         product.getEligibleSessionTypes().addAll(eligibleSessionTypes);
         product.setServiceGroup(serviceGroup);
-        product.setTransactionService(transactionService);
+        // The invoice line is synchronized after the product itself has an id. Its visible name,
+        // DDV and price follow the ugodnost/bon while the generated code stays stable.
         product.setVoucherRedemptionMode(voucherRedemptionMode);
         product.setVoucherServiceScope(voucherServiceScope);
         product.setVoucherFaceValueGross(voucherFaceValueGross);
@@ -336,6 +338,86 @@ public class GuestProductAdminController {
         if (courseModuleAccessService != null) {
             courseModuleAccessService.assertEnabled(companyId);
         }
+    }
+
+    /**
+     * Ensures every created/modified ugodnost or bon has its own mapped transaction service.
+     * The mapping is identified by system_source/system_source_key rather than by name, so
+     * renaming an entitlement safely renames its invoice line without changing the service code.
+     */
+    private void syncMappedTransactionService(GuestProduct product, TaxRate requestedTaxRate, Long companyId) {
+        if (product == null || product.getId() == null) {
+            throw new IllegalStateException("The entitlement must be saved before its billing service is synchronized.");
+        }
+
+        String sourceKey = String.valueOf(product.getId());
+        var mapped = transactionServices.findByCompanyIdAndSystemSourceAndSystemSourceKey(
+                companyId,
+                GUEST_PRODUCT_BILLING_SOURCE,
+                sourceKey
+        );
+        // Mockito returns null for unstubbed Optional-returning methods in a few older tests.
+        // Treat that the same as Optional.empty() without weakening runtime behavior.
+        TransactionService tx = mapped == null ? new TransactionService() : mapped.orElseGet(TransactionService::new);
+
+        boolean creating = tx.getId() == null;
+        if (creating) {
+            tx.setCompany(product.getCompany());
+            tx.setCode(generateUniqueTransactionServiceCode(companyId, product.getName()));
+        }
+        tx.setSystemGenerated(false);
+        tx.setSystemSource(GUEST_PRODUCT_BILLING_SOURCE);
+        tx.setSystemSourceKey(sourceKey);
+
+        TaxRate taxRate = requestedTaxRate;
+        if (taxRate == null && product.getTransactionService() != null) {
+            taxRate = product.getTransactionService().getTaxRate();
+        }
+        if (taxRate == null) taxRate = TaxRate.VAT_22;
+
+        tx.setDescription(product.getName());
+        tx.setTaxRate(taxRate);
+        tx.setNetPrice(PriceMath.netFromGross(product.getPriceGross(), taxRate));
+        tx.setActive(product.isActive());
+        TransactionService saved = transactionServices.save(tx);
+        product.setTransactionService(saved == null ? tx : saved);
+    }
+
+    private String generateUniqueTransactionServiceCode(Long companyId, String description) {
+        String ascii = Normalizer.normalize(description == null ? "UGODNOST" : description, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        String base = normalizeTransactionServiceCode(ascii);
+        if (base == null) base = "UGODNOST";
+
+        if (transactionServiceCodeAvailable(companyId, base)) {
+            return base;
+        }
+        for (int suffix = 2; suffix < 1_000_000; suffix++) {
+            String suffixText = String.valueOf(suffix);
+            int prefixLength = Math.max(1, TRANSACTION_SERVICE_CODE_MAX_LENGTH - suffixText.length());
+            String candidate = base.substring(0, Math.min(base.length(), prefixLength)) + suffixText;
+            if (transactionServiceCodeAvailable(companyId, candidate)) {
+                return candidate;
+            }
+        }
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "Unable to generate a unique transaction service code.");
+    }
+
+    private boolean transactionServiceCodeAvailable(Long companyId, String code) {
+        var existing = transactionServices.findByCompanyIdAndCodeIgnoreCase(companyId, code);
+        return existing == null || existing.isEmpty();
+    }
+
+    private String normalizeTransactionServiceCode(String raw) {
+        if (raw == null) return null;
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        if (normalized.isEmpty()) return null;
+        String alnum = normalized.replaceAll("[^A-Z0-9]", "");
+        if (alnum.isEmpty()) return null;
+        if (alnum.length() > TRANSACTION_SERVICE_CODE_MAX_LENGTH) {
+            return alnum.substring(0, TRANSACTION_SERVICE_CODE_MAX_LENGTH);
+        }
+        return alnum;
     }
 
     private boolean giftCardsEnabled(Long companyId) {
@@ -431,8 +513,11 @@ public class GuestProductAdminController {
 
     private TransactionService resolveTransactionService(Long transactionServiceId, Long companyId) {
         if (transactionServiceId == null) return null;
-        return transactionServices.findByIdAndCompanyId(transactionServiceId, companyId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected transaction service was not found."));
+        var resolved = transactionServices.findByIdAndCompanyId(transactionServiceId, companyId);
+        if (resolved == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected transaction service was not found.");
+        }
+        return resolved.orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected transaction service was not found."));
     }
 
     /**
@@ -554,6 +639,7 @@ public class GuestProductAdminController {
                 product.getPromoText(),
                 product.getProductType().name(),
                 product.getPriceGross(),
+                product.getTransactionService() == null ? null : product.getTransactionService().getTaxRate(),
                 product.getCurrency(),
                 product.isActive(),
                 product.isGuestVisible(),
@@ -592,6 +678,7 @@ public class GuestProductAdminController {
             String promoText,
             String productType,
             BigDecimal priceGross,
+            TaxRate taxRate,
             String currency,
             Boolean active,
             Boolean guestVisible,
@@ -603,6 +690,8 @@ public class GuestProductAdminController {
             Long sessionTypeId,
             List<Long> sessionTypeIds,
             Long serviceGroupId,
+            // Retained only for API backwards compatibility. Ugodnosti and boni ignore this
+            // field and use their product-owned mapped transaction service instead.
             Long transactionServiceId,
             List<Long> includedCourseIds,
             String voucherRedemptionMode,
@@ -631,7 +720,7 @@ public class GuestProductAdminController {
                 Long transactionServiceId,
                 List<Long> includedCourseIds
         ) {
-            this(name, description, promoText, productType, priceGross, currency, active, guestVisible,
+            this(name, description, promoText, productType, priceGross, null, currency, active, guestVisible,
                     bookable, usageLimit, validityDays, autoRenews, sortOrder, sessionTypeId,
                     null, null, transactionServiceId, includedCourseIds, null, null, null, null, null, null);
         }
@@ -644,6 +733,7 @@ public class GuestProductAdminController {
             String promoText,
             String productType,
             BigDecimal priceGross,
+            TaxRate taxRate,
             String currency,
             boolean active,
             boolean guestVisible,

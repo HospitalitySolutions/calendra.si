@@ -373,6 +373,9 @@ export type BillingService = {
   taxRate: TaxRate
   netPrice: number
   active?: boolean
+  /** Stable source mapping for automatically managed invoice services. */
+  systemSource?: string | null
+  systemSourceKey?: string | null
   createdAt?: string
 }
 

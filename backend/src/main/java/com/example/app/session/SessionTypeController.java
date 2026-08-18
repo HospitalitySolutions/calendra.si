@@ -485,10 +485,12 @@ public class SessionTypeController {
         if (creating) {
             tx.setCompany(type.getCompany());
             tx.setCode(generateUniqueTransactionServiceCode(companyId, description));
-            tx.setSystemGenerated(false);
-            tx.setSystemSource(SESSION_TYPE_BILLING_SOURCE);
-            tx.setSystemSourceKey(sourceKey);
         }
+        // Keep the source mapping explicit on every save. The code is generated only once,
+        // while the visible billing-service name follows the service description.
+        tx.setSystemGenerated(false);
+        tx.setSystemSource(SESSION_TYPE_BILLING_SOURCE);
+        tx.setSystemSourceKey(sourceKey);
         tx.setDescription(description);
         tx.setTaxRate(taxRate);
         tx.setNetPrice(PriceMath.netFromGross(normalizedGross, taxRate));

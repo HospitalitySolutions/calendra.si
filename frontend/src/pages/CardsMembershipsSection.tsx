@@ -12,7 +12,7 @@ import {
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { getStoredUser } from "../auth";
-import type { BillingService, Location as LocationT, SessionType as SessionTypeT } from "../lib/types";
+import type { Location as LocationT, SessionType as SessionTypeT, TaxRate } from "../lib/types";
 import { GuestConfigSaveIcon } from "../components/GuestConfigSaveIcon";
 import {
   ServiceConfigDeleteButton,
@@ -67,6 +67,7 @@ type GuestAdminProduct = {
   promoText?: string | null;
   productType: GuestAdminProductType;
   priceGross: number;
+  taxRate?: TaxRate | null;
   currency: string;
   active: boolean;
   guestVisible: boolean;
@@ -167,6 +168,7 @@ type GuestProductFormState = {
   sessionTypeIds: string[];
   serviceScope: EntitlementServiceScope;
   serviceGroupId: string;
+  taxRate: TaxRate;
   transactionServiceId: string;
   includedCourseIds: string[];
   voucherRedemptionMode: VoucherRedemptionMode;
@@ -211,6 +213,7 @@ const defaultGuestProductForm = (): GuestProductFormState => ({
   sessionTypeIds: [],
   serviceScope: "SERVICES",
   serviceGroupId: "",
+  taxRate: "VAT_22",
   transactionServiceId: "",
   includedCourseIds: [],
   voucherRedemptionMode: "SERVICE",
@@ -410,11 +413,6 @@ function guestProductTypeUsesAutoPrice(
   selectedServiceCount: number,
 ): boolean {
   return (productType === "PACK" || productType === "CLASS_TICKET") && selectedServiceCount === 1;
-}
-
-function transactionServiceLabel(service: BillingService): string {
-  const description = service.description?.trim();
-  return description || `#${service.id}`;
 }
 
 function guestProductTransactionServiceLabel(
@@ -712,9 +710,6 @@ export const CardsMembershipsSection = forwardRef<
     isDrawerOpen(SESSION_TYPES_DRAWERS.newCard) ||
     isDrawerOpen(SESSION_TYPES_DRAWERS.card);
   const [guestProducts, setGuestProducts] = useState<GuestAdminProduct[]>([]);
-  const [transactionServices, setTransactionServices] = useState<
-    BillingService[]
-  >([]);
   const [locations, setLocations] = useState<LocationT[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [showCoursePickerModal, setShowCoursePickerModal] = useState(false);
@@ -824,11 +819,8 @@ export const CardsMembershipsSection = forwardRef<
   const loadGuestProducts = useCallback(async () => {
     if (!isAdmin) return;
     try {
-      const [productsRes, servicesRes, locationsRes, coursesRes] = await Promise.all([
+      const [productsRes, locationsRes, coursesRes] = await Promise.all([
         api.get("/guest/admin/products").catch(() => ({ data: [] })),
-        api
-          .get<BillingService[]>("/billing/services")
-          .catch(() => ({ data: [] as BillingService[] })),
         api.get<LocationT[]>("/locations").catch(() => ({ data: [] as LocationT[] })),
         coursesEnabled
           ? api
@@ -842,14 +834,10 @@ export const CardsMembershipsSection = forwardRef<
             giftCardsEnabled || product.productType !== "GIFT_CARD",
         ),
       );
-      setTransactionServices(
-        Array.isArray(servicesRes.data) ? servicesRes.data : [],
-      );
       setLocations(Array.isArray(locationsRes.data) ? locationsRes.data.filter((location) => location.active !== false) : []);
       setCourses(Array.isArray(coursesRes.data) ? coursesRes.data : []);
     } catch {
       setGuestProducts([]);
-      setTransactionServices([]);
       setLocations([]);
       setCourses([]);
     }
@@ -903,16 +891,6 @@ export const CardsMembershipsSection = forwardRef<
     );
   }, [giftCardsEnabled, guestProductForm.productType, sessionTypes]);
 
-  const activeTransactionServices = useMemo(
-    () =>
-      transactionServices
-        .filter((service) => service.active !== false)
-        .sort((a, b) =>
-          transactionServiceLabel(a).localeCompare(transactionServiceLabel(b)),
-        ),
-    [transactionServices],
-  );
-
   const serviceGroups = useMemo(() => {
     const groups = new Map<number, { id: number; name: string; serviceCount: number }>();
     sessionTypes.forEach((sessionType) => {
@@ -953,17 +931,15 @@ export const CardsMembershipsSection = forwardRef<
         sessionTypeIds: firstSessionTypeId ? [firstSessionTypeId] : [],
         serviceScope: "SERVICES",
         serviceGroupId: "",
+        transactionServiceId: "",
         voucherSessionTypeIds: firstSessionTypeId ? [firstSessionTypeId] : [],
-        transactionServiceId: activeTransactionServices.length === 1
-          ? String(activeTransactionServices[0].id)
-          : "",
       },
       sessionTypes,
     );
     guestProductInitialSignatureRef.current = JSON.stringify(initialForm);
     setGuestProductForm(initialForm);
     setGuestProductKeyboardOpen(false);
-  }, [sessionTypes, activeTransactionServices]);
+  }, [sessionTypes]);
 
   const openNewGuestProductModal = useCallback(() => {
     setOpenProductMenuId(null);
@@ -1013,12 +989,8 @@ export const CardsMembershipsSection = forwardRef<
                 : [String(product.sessionTypeId)],
           serviceScope: product.serviceGroupId != null ? "SERVICE_GROUP" : "SERVICES",
           serviceGroupId: product.serviceGroupId == null ? "" : String(product.serviceGroupId),
-          transactionServiceId:
-            product.transactionServiceId == null
-              ? activeTransactionServices.length === 1
-                ? String(activeTransactionServices[0].id)
-                : ""
-              : String(product.transactionServiceId),
+          taxRate: product.taxRate ?? "VAT_22",
+          transactionServiceId: "",
           includedCourseIds: Array.isArray(product.includedCourseIds)
             ? product.includedCourseIds.map(String)
             : [],
@@ -1314,15 +1286,8 @@ export const CardsMembershipsSection = forwardRef<
     const validityDays = parsePositiveIntegerInput(
       guestProductForm.validityDays,
     );
-    const transactionServiceId = guestProductForm.transactionServiceId.trim()
-      ? Number.parseInt(guestProductForm.transactionServiceId, 10)
-      : null;
     if (isGiftCard && !validityDays) {
       window.alert(locale === "sl" ? "Bon mora imeti določeno veljavnost." : "Vouchers must have an expiry date.");
-      return;
-    }
-    if (!transactionServiceId || transactionServiceId <= 0) {
-      window.alert(locale === "sl" ? "Izberite postavko, ki bo uporabljena na računu." : "Select the invoice line item for this entitlement.");
       return;
     }
     if (
@@ -1382,6 +1347,7 @@ export const CardsMembershipsSection = forwardRef<
       promoText: guestProductForm.promoText.trim() || null,
       productType: guestProductForm.productType,
       priceGross: Number.parseFloat(guestProductForm.priceGross || "0") || 0,
+      taxRate: guestProductForm.taxRate,
       currency: guestProductForm.currency.trim().toUpperCase() || "EUR",
       active: guestProductForm.active,
       guestVisible: guestProductForm.guestVisible,
@@ -1414,7 +1380,7 @@ export const CardsMembershipsSection = forwardRef<
         !isGiftCard && guestProductForm.serviceScope === "SERVICE_GROUP" && guestProductForm.serviceGroupId
           ? Number.parseInt(guestProductForm.serviceGroupId, 10)
           : null,
-      transactionServiceId,
+      transactionServiceId: null,
       voucherRedemptionMode: isGiftCard
         ? guestProductForm.voucherRedemptionMode
         : null,
@@ -1517,6 +1483,7 @@ export const CardsMembershipsSection = forwardRef<
         productType:
           product.productType === "CLASS_TICKET" ? "PACK" : product.productType,
         priceGross: product.priceGross,
+        taxRate: product.taxRate ?? "VAT_22",
         currency: product.currency,
         active: nextActive,
         guestVisible: product.guestVisible,
@@ -1547,7 +1514,7 @@ export const CardsMembershipsSection = forwardRef<
             : (Array.isArray(product.sessionTypeIds) && product.sessionTypeIds.length > 0
                 ? product.sessionTypeIds
                 : product.sessionTypeId == null ? [] : [product.sessionTypeId]),
-        transactionServiceId: product.transactionServiceId ?? null,
+        transactionServiceId: null,
         voucherRedemptionMode:
           product.productType === "GIFT_CARD"
             ? (product.voucherRedemptionMode || "VALUE")
@@ -2286,6 +2253,23 @@ export const CardsMembershipsSection = forwardRef<
                   />
                 </div>
               </Field>
+              <Field label={locale === "sl" ? "DDV *" : "VAT *"}>
+                  <DesktopSelect
+                    required
+                    value={guestProductForm.taxRate}
+                    onChange={(event) =>
+                      setGuestProductForm((current) => ({
+                        ...current,
+                        taxRate: event.target.value as TaxRate,
+                      }))
+                    }
+                  >
+                    <option value="VAT_22">{locale === "sl" ? "22 %" : "22%"}</option>
+                    <option value="VAT_9_5">{locale === "sl" ? "9,5 %" : "9.5%"}</option>
+                    <option value="VAT_0">0 %</option>
+                    <option value="NO_VAT">{locale === "sl" ? "Brez DDV" : "No VAT"}</option>
+                  </DesktopSelect>
+                </Field>
               <Field label={locale === "sl" ? "Valuta *" : "Currency *"}>
                 <input
                   maxLength={3}
@@ -2519,45 +2503,6 @@ export const CardsMembershipsSection = forwardRef<
                     </Field>
                   )}
                 </>
-              )}
-              <Field
-                label={locale === "sl" ? "Postavka na računu *" : "Invoice line item *"}
-                hint={
-                  locale === "sl"
-                    ? "Določa obračunsko storitev, DDV in naziv postavke, ki se prikaže na računu ob nakupu ugodnosti."
-                    : "Defines the transaction service, VAT and line description shown on the invoice when this entitlement is purchased."
-                }
-              >
-                <DesktopSelect
-                  required
-                  value={guestProductForm.transactionServiceId}
-                  onChange={(e) =>
-                    setGuestProductForm({
-                      ...guestProductForm,
-                      transactionServiceId: e.target.value,
-                    })
-                  }
-                >
-                  <option value="">{locale === "sl" ? "Izberi postavko na računu" : "Select invoice line item"}</option>
-                  {activeTransactionServices.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {transactionServiceLabel(service)}
-                    </option>
-                  ))}
-                </DesktopSelect>
-              </Field>
-              {activeTransactionServices.length === 0 && (
-                <p className="muted cards-product-modal-note">
-                  {locale === "sl" ? "Pred ustvarjanjem ugodnosti ustvarite aktivno obračunsko storitev v " : "Create an active transaction service in "}
-                  <Link
-                    to={`/session-types?subtab=${SESSION_TYPES_SUBTAB_TRANSACTION}`}
-                    className="linkish-btn"
-                    style={{ display: "inline" }}
-                  >
-                    {locale === "sl" ? "Obračunskih storitvah" : "Transaction services"}
-                  </Link>
-                  {locale === "sl" ? "." : " before creating the entitlement."}
-                </p>
               )}
               {guestProductForm.serviceScope === "SERVICES" && guestProductTypeUsesAutoPrice(guestProductForm.productType, guestProductForm.sessionTypeIds.length) &&
                 guestProductForm.sessionTypeId.trim() !== "" &&
