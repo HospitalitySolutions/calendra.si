@@ -1069,6 +1069,7 @@
 .employee-standard-panel .cp-panel-footer__actions {
     width: 100%;
     margin-left: 0;
+    justify-content: flex-end;
 }
 
 .employee-standard-footer-delete {

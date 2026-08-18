@@ -2010,7 +2010,6 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                   </PanelButton>
                 </div>
               )}
-              <PanelButton onClick={dismissFormPanel}>{closeLabel}</PanelButton>
               {(!isConsultantsMobile || !editing || isFormDirty || saving) && (
                 <PanelButton
                   variant="primary"
