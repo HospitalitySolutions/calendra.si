@@ -9834,6 +9834,401 @@
     max-width: none;
 }
 
+
+
+/* ========================================================================== */
+/* Uredi podjetje / Uredi skupino — approved mobile/tablet workspace           */
+/* Horizontal icon tabs + minimal line inputs, matching Uredi stranko.         */
+/* ========================================================================== */
+.clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header__leading,
+.clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header__leading {
+    display: none;
+}
+
+@media (max-width: 1024px) {
+    .clients-standard-company-panel.clients-standard-entity-panel--edit,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit {
+        width: min(760px, 100vw) !important;
+        max-width: min(760px, 100vw) !important;
+        height: 100dvh;
+        max-height: 100dvh;
+        border-radius: 0;
+        background: #ffffff;
+        box-shadow: -18px 0 42px rgba(15, 23, 42, 0.14);
+        overflow: hidden;
+        --clients-entity-rail-width: 0px;
+        --clients-entity-header-height: 0px;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-header,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-body,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-footer,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-header,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-body,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-footer {
+        margin-left: 0;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-header,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-header {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 118px;
+        padding: max(20px, env(safe-area-inset-top, 0px)) 64px 14px;
+        border-bottom: 0;
+        background: #ffffff;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header__leading,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header__leading {
+        position: absolute;
+        top: max(20px, env(safe-area-inset-top, 0px));
+        left: 18px;
+        z-index: 2;
+        display: block;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .clients-customer-mobile-back,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header .cp-icon-btn,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .clients-customer-mobile-back,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header .cp-icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        min-height: 40px;
+        padding: 0;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #17233a;
+        box-shadow: none;
+        cursor: pointer;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .clients-customer-mobile-back:hover,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .clients-customer-mobile-back:focus-visible,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header .cp-icon-btn:hover,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header .cp-icon-btn:focus-visible,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .clients-customer-mobile-back:hover,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .clients-customer-mobile-back:focus-visible,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header .cp-icon-btn:hover,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header .cp-icon-btn:focus-visible {
+        background: #f5f7fa;
+        outline: none;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .clients-customer-mobile-back svg,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header .cp-icon-btn svg,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .clients-customer-mobile-back svg,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header .cp-icon-btn svg {
+        width: 25px;
+        height: 25px;
+        stroke-width: 1.9;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header__actions,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header__actions {
+        position: absolute;
+        top: max(20px, env(safe-area-inset-top, 0px));
+        right: 18px;
+        z-index: 2;
+        display: flex;
+        margin: 0;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header__text,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header__text {
+        flex: 0 1 auto;
+        width: min(100%, 520px);
+        min-width: 0;
+        margin: 0 auto;
+        text-align: center;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header__title,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header__title {
+        margin: 0;
+        color: #111d34;
+        font-size: 24px;
+        font-weight: 800;
+        line-height: 1.2;
+        letter-spacing: -0.025em;
+        text-align: center;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header__subtitle,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header__subtitle {
+        margin: 6px 0 0;
+        color: #7a879d;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.35;
+        text-align: center;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs {
+        position: relative;
+        inset: auto;
+        z-index: 1;
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+        width: 100%;
+        min-height: 98px;
+        height: auto;
+        padding: 0 10px;
+        gap: 0;
+        border: 0;
+        border-right: 0;
+        border-bottom: 0;
+        background: #ffffff;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs::-webkit-scrollbar,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab {
+        position: relative;
+        display: flex;
+        flex: 1 0 0;
+        align-items: center;
+        justify-content: center;
+        min-width: 0;
+        min-height: 98px;
+        height: 98px;
+        padding: 12px 6px 14px;
+        gap: 8px;
+        border: 0;
+        border-radius: 0;
+        background: #ffffff;
+        color: #334155;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.25;
+        text-align: center;
+        box-shadow: none;
+        white-space: normal;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab::after,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab::after {
+        content: '';
+        position: absolute;
+        left: 18px;
+        right: 18px;
+        bottom: 0;
+        height: 3px;
+        border-radius: 999px;
+        background: transparent;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab svg,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab svg {
+        width: 22px;
+        height: 22px;
+        color: currentColor;
+        stroke-width: 1.85;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab:hover,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab:hover {
+        background: #ffffff;
+        color: #0f172a;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab.is-active,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab.is-active {
+        color: #ff6200;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab.is-active::after,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab.is-active::after {
+        background: #ff6200;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab:focus-visible,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab:focus-visible {
+        outline: 2px solid rgba(255, 98, 0, .24);
+        outline-offset: -4px;
+        box-shadow: none;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-body,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-body {
+        padding: 24px clamp(24px, 5vw, 52px) 30px;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .clients-standard-company-profile > h3,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .clients-standard-group-profile > h3 {
+        display: none;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .clients-mobile-entity-edit-form,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .clients-mobile-entity-edit-form {
+        width: 100%;
+        max-width: 680px;
+        margin: 0 auto;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .clients-standard-company-files,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .clients-standard-entity-settings,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .group-members-tab-panel,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .clients-detail-sessions-card,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .clients-standard-entity-settings {
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-footer,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-footer {
+        display: flex;
+        align-items: stretch;
+        width: 100%;
+        min-height: auto;
+        padding: 14px clamp(24px, 5vw, 52px) max(18px, calc(14px + env(safe-area-inset-bottom, 0px)));
+        border-top: 1px solid #eef1f5;
+        background: #ffffff;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-panel-footer__actions,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-panel-footer__actions {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+        max-width: 680px;
+        margin: 0 auto;
+        gap: 7px;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-btn,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-btn {
+        flex: 0 0 auto;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-btn--primary,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-btn--primary {
+        order: 1;
+        width: 100%;
+        min-width: 0;
+        min-height: 54px;
+        padding: 0 18px;
+        border: 1px solid #0b6ff5;
+        border-radius: 12px;
+        background: #0b6ff5;
+        color: #ffffff;
+        font-size: 15px;
+        font-weight: 750;
+        box-shadow: none;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-btn--danger,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-btn--danger {
+        order: 2;
+        align-self: center;
+        width: auto;
+        min-height: 44px;
+        padding: 0 12px;
+        border: 0 !important;
+        border-radius: 10px;
+        background: transparent !important;
+        color: #ef3434;
+        font-size: 14px;
+        font-weight: 650;
+        box-shadow: none !important;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-btn--danger:hover:not(:disabled),
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-btn--danger:focus-visible:not(:disabled),
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-btn--danger:hover:not(:disabled),
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-btn--danger:focus-visible:not(:disabled) {
+        border: 0;
+        background: #fff5f5 !important;
+        color: #df2828;
+        outline: none;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-btn svg,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+}
+
+@media (max-width: 640px) {
+    .clients-standard-company-panel.clients-standard-entity-panel--edit,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit {
+        width: 100vw !important;
+        max-width: 100vw !important;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-header,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-header {
+        min-height: 114px;
+        padding-left: 58px;
+        padding-right: 58px;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header__title,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header__title {
+        font-size: 23px;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs {
+        min-height: 94px;
+        padding-left: 6px;
+        padding-right: 6px;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab {
+        min-height: 94px;
+        height: 94px;
+        padding-left: 1px;
+        padding-right: 1px;
+        font-size: 10.5px;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab svg,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-body,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-body {
+        padding: 24px 24px 30px;
+    }
+
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-footer,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-footer {
+        padding-left: 24px;
+        padding-right: 24px;
+    }
+}
+
 /* ========================================================================== */
 /* Uredi stranko — approved mobile/tablet workspace                           */
 /* Horizontal icon tabs + minimal line inputs. Desktop rail remains unchanged. */
@@ -11345,5 +11740,208 @@
 
     .clients-standard-customer-panel--edit .clients-settings-linked-editor {
         padding-left: 56px;
+    }
+}
+
+/* ========================================================================== */
+/* Mobile/tablet panel header standard — Nova/Uredi stranka/podjetje/skupina */
+/* Back + title/context + close share one compact row; tabs follow immediately. */
+/* ========================================================================== */
+@media (max-width: 1024px) {
+    .clients-standard-customer-panel--create > .cp-panel-header,
+    .clients-standard-company-panel.clients-standard-entity-panel--create > .cp-panel-header,
+    .clients-standard-group-panel.clients-standard-entity-panel--create > .cp-panel-header,
+    .clients-standard-customer-panel--edit > .cp-panel-header,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-header,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-header {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 74px;
+        height: 74px;
+        padding: 0 62px;
+        border: 0 !important;
+        border-bottom: 0 !important;
+        background: #ffffff;
+    }
+
+    .clients-standard-customer-panel--create .cp-panel-header__leading,
+    .clients-standard-company-panel.clients-standard-entity-panel--create .cp-panel-header__leading,
+    .clients-standard-group-panel.clients-standard-entity-panel--create .cp-panel-header__leading,
+    .clients-standard-customer-panel--edit .cp-panel-header__leading,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header__leading,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header__leading {
+        position: absolute;
+        top: 50%;
+        left: 16px;
+        z-index: 3;
+        display: block;
+        transform: translateY(-50%);
+    }
+
+    .clients-standard-customer-panel--create .cp-panel-header__actions,
+    .clients-standard-company-panel.clients-standard-entity-panel--create .cp-panel-header__actions,
+    .clients-standard-group-panel.clients-standard-entity-panel--create .cp-panel-header__actions,
+    .clients-standard-customer-panel--edit .cp-panel-header__actions,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header__actions,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header__actions {
+        position: absolute;
+        top: 50%;
+        right: 16px;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        margin: 0;
+        transform: translateY(-50%);
+    }
+
+    .clients-standard-customer-panel--create .clients-customer-mobile-back,
+    .clients-standard-company-panel.clients-standard-entity-panel--create .clients-customer-mobile-back,
+    .clients-standard-group-panel.clients-standard-entity-panel--create .clients-customer-mobile-back,
+    .clients-standard-customer-panel--edit .clients-customer-mobile-back,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .clients-customer-mobile-back,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .clients-customer-mobile-back,
+    .clients-standard-customer-panel--create .cp-panel-header .cp-icon-btn,
+    .clients-standard-company-panel.clients-standard-entity-panel--create .cp-panel-header .cp-icon-btn,
+    .clients-standard-group-panel.clients-standard-entity-panel--create .cp-panel-header .cp-icon-btn,
+    .clients-standard-customer-panel--edit .cp-panel-header .cp-icon-btn,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header .cp-icon-btn,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header .cp-icon-btn {
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        min-height: 40px;
+        padding: 0;
+    }
+
+    .clients-standard-customer-panel--create .cp-panel-header__text,
+    .clients-standard-company-panel.clients-standard-entity-panel--create .cp-panel-header__text,
+    .clients-standard-group-panel.clients-standard-entity-panel--create .cp-panel-header__text,
+    .clients-standard-customer-panel--edit .cp-panel-header__text,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header__text,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header__text {
+        display: flex;
+        flex: 0 1 auto;
+        align-items: baseline;
+        justify-content: center;
+        width: auto;
+        max-width: 100%;
+        min-width: 0;
+        margin: 0;
+        gap: 7px;
+        overflow: hidden;
+        text-align: center;
+    }
+
+    .clients-standard-customer-panel--create .cp-panel-header__title,
+    .clients-standard-company-panel.clients-standard-entity-panel--create .cp-panel-header__title,
+    .clients-standard-group-panel.clients-standard-entity-panel--create .cp-panel-header__title,
+    .clients-standard-customer-panel--edit .cp-panel-header__title,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header__title,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header__title {
+        flex: 0 1 auto;
+        min-width: 0;
+        margin: 0;
+        color: #111d34;
+        font-size: 22px;
+        font-weight: 800;
+        line-height: 1.2;
+        letter-spacing: -0.025em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .clients-standard-customer-panel--edit .cp-panel-header__subtitle,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header__subtitle,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header__subtitle {
+        flex: 0 1 auto;
+        max-width: 42%;
+        min-width: 0;
+        margin: 0;
+        color: #7a879d;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Existing edit tabs sit directly below the compact top row. */
+    .clients-standard-customer-panel--edit > .cp-panel-tabs,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs {
+        margin: 0 !important;
+        min-height: 88px;
+        height: 88px;
+        padding-top: 0;
+        border: 0 !important;
+        border-top: 0 !important;
+        border-bottom: 0 !important;
+        background: #ffffff;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab {
+        min-height: 88px;
+        height: 88px;
+        padding-top: 8px;
+        padding-bottom: 10px;
+    }
+
+    /* Delete actions are intentionally hidden on all mobile/tablet edit panels. */
+    .clients-standard-customer-panel--edit > .cp-panel-footer .cp-btn--danger,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-btn--danger,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-btn--danger {
+        display: none !important;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-footer .cp-panel-footer__actions,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-panel-footer__actions,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-panel-footer__actions {
+        gap: 0;
+    }
+}
+
+@media (max-width: 640px) {
+    .clients-standard-customer-panel--create > .cp-panel-header,
+    .clients-standard-company-panel.clients-standard-entity-panel--create > .cp-panel-header,
+    .clients-standard-group-panel.clients-standard-entity-panel--create > .cp-panel-header,
+    .clients-standard-customer-panel--edit > .cp-panel-header,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-header,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-header {
+        min-height: 70px;
+        height: 70px;
+        padding-left: 58px;
+        padding-right: 58px;
+    }
+
+    .clients-standard-customer-panel--create .cp-panel-header__title,
+    .clients-standard-company-panel.clients-standard-entity-panel--create .cp-panel-header__title,
+    .clients-standard-group-panel.clients-standard-entity-panel--create .cp-panel-header__title,
+    .clients-standard-customer-panel--edit .cp-panel-header__title,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header__title,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header__title {
+        font-size: 20px;
+    }
+
+    .clients-standard-customer-panel--edit .cp-panel-header__subtitle,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit .cp-panel-header__subtitle,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .cp-panel-header__subtitle {
+        max-width: 38%;
+        font-size: 11px;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs,
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab,
+    .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab {
+        min-height: 84px;
+        height: 84px;
     }
 }

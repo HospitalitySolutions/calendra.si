@@ -1236,6 +1236,19 @@ function MobileCreateFieldIcon({ name }: { name: 'person' | 'email' | 'phone' | 
   return <svg {...common}><path d="M12 21s6-5.2 6-11a6 6 0 1 0-12 0c0 5.8 6 11 6 11Z" /><circle cx="12" cy="10" r="2.5" /></svg>
 }
 
+
+function MobileDeleteActionIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  )
+}
+
 function ClientWorkspaceIcon({ name }: { name: ClientWorkspaceIconName }) {
   const common = {
     width: 18,
@@ -5931,10 +5944,23 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         className="clients-standard-entity-panel clients-standard-company-panel clients-standard-entity-panel--edit"
       >
         <PanelHeader
-          title={<span className="clients-standard-entity-header-title"><ClientSettingsCardIcon name="company" /><span>{clientsCopy.editCompanyTitle}</span></span>}
+          title={isClientsMobile ? clientsCopy.editCompanyTitle : <span className="clients-standard-entity-header-title"><ClientSettingsCardIcon name="company" /><span>{clientsCopy.editCompanyTitle}</span></span>}
           subtitle={detailCompany ? `${detailCompany.name} · ID #${detailCompany.id}` : undefined}
           onClose={closeCompanyDetailModal}
           closeLabel={t('mobileNavClose')}
+          leading={isClientsMobile ? (
+            <button
+              type="button"
+              className="clients-customer-mobile-back"
+              onClick={closeCompanyDetailModal}
+              aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}
+              title={locale === 'sl' ? 'Nazaj' : 'Back'}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+            </button>
+          ) : undefined}
         />
         <PanelTabs
           label={clientsCopy.companyDetailMainTabsAria}
@@ -5950,25 +5976,97 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           {detailCompany ? (
               <div className="clients-detail-shell clients-action-workspace-shell">
                 {companyDetailMainTab === 'basic' && (
-                  <section className="clients-standard-entity-profile clients-standard-company-profile" role="tabpanel">
-                    <h3><ClientSettingsCardIcon name="company" /><span>{locale === 'sl' ? 'Podatki o podjetju' : 'Company details'}</span></h3>
-                    <div className="clients-standard-entity-grid clients-standard-company-grid">
-                      {renderCompanyEditableField('name', clientsCopy.companyName, true)}
-                      {renderCompanyEditableField('vatId', clientsCopy.vatId, true)}
-                      {renderCompanyEditableField('email', clientsCopy.email)}
-                      {renderCompanyEditableField('telephone', clientsCopy.telephone)}
-                      {renderCompanyEditableField('address', clientsCopy.address, true)}
-                      {renderCompanyEditableField('postalCode', clientsCopy.postalCode)}
-                      {renderCompanyEditableField('city', clientsCopy.city)}
-                    </div>
-                    {companyCustomFieldDefs.length > 0 ? (
-                      <div className="clients-standard-entity-custom-fields">
-                        {renderCustomFieldInputs(companyCustomFieldDefs, detailCompanyCustomValues, (fieldId, value) =>
-                          setDetailCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
-                        )}
+                  isClientsMobile ? (
+                    <section className="clients-standard-entity-profile clients-standard-company-profile" role="tabpanel">
+                      <div className="clients-mobile-create-form clients-mobile-entity-edit-form">
+                        <div className="clients-mobile-create-fields">
+                          {renderMobileCreateField({
+                            icon: 'company',
+                            label: clientsCopy.companyName,
+                            value: companyDetailEditDraft.name ?? '',
+                            onChange: (value) => setCompanyDetailEditDraft((current) => ({ ...current, name: value })),
+                            fieldName: 'calendra-edit-company-name-mobile',
+                            required: true,
+                            autoFocus: true,
+                            autoCapitalize: 'words',
+                          })}
+                          {renderMobileCreateField({
+                            icon: 'document',
+                            label: clientsCopy.vatId,
+                            value: companyDetailEditDraft.vatId ?? '',
+                            onChange: (value) => setCompanyDetailEditDraft((current) => ({ ...current, vatId: value })),
+                            fieldName: 'calendra-edit-company-vat-mobile',
+                          })}
+                          {renderMobileCreateField({
+                            icon: 'email',
+                            label: clientsCopy.email,
+                            value: companyDetailEditDraft.email ?? '',
+                            onChange: (value) => setCompanyDetailEditDraft((current) => ({ ...current, email: value })),
+                            fieldName: 'calendra-edit-company-email-mobile',
+                            inputType: 'email',
+                          })}
+                          {renderMobileCreateField({
+                            icon: 'phone',
+                            label: clientsCopy.telephone,
+                            value: companyDetailEditDraft.telephone ?? '',
+                            onChange: (value) => setCompanyDetailEditDraft((current) => ({ ...current, telephone: value })),
+                            fieldName: 'calendra-edit-company-phone-mobile',
+                            inputType: 'tel',
+                          })}
+                          {renderMobileCreateField({
+                            icon: 'address',
+                            label: clientsCopy.address,
+                            value: companyDetailEditDraft.address ?? '',
+                            onChange: (value) => setCompanyDetailEditDraft((current) => ({ ...current, address: value })),
+                            fieldName: 'calendra-edit-company-address-mobile',
+                            autoCapitalize: 'words',
+                          })}
+                          {renderMobileCreateField({
+                            icon: 'postal',
+                            label: clientsCopy.postalCode,
+                            value: companyDetailEditDraft.postalCode ?? '',
+                            onChange: (value) => setCompanyDetailEditDraft((current) => ({ ...current, postalCode: value })),
+                            fieldName: 'calendra-edit-company-postal-mobile',
+                          })}
+                          {renderMobileCreateField({
+                            icon: 'city',
+                            label: clientsCopy.city,
+                            value: companyDetailEditDraft.city ?? '',
+                            onChange: (value) => setCompanyDetailEditDraft((current) => ({ ...current, city: value })),
+                            fieldName: 'calendra-edit-company-city-mobile',
+                            autoCapitalize: 'words',
+                          })}
+                        </div>
+                        {companyCustomFieldDefs.length > 0 ? (
+                          <div className="clients-mobile-create-extra">
+                            {renderCustomFieldInputs(companyCustomFieldDefs, detailCompanyCustomValues, (fieldId, value) =>
+                              setDetailCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                            )}
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </section>
+                    </section>
+                  ) : (
+                    <section className="clients-standard-entity-profile clients-standard-company-profile" role="tabpanel">
+                      <h3><ClientSettingsCardIcon name="company" /><span>{locale === 'sl' ? 'Podatki o podjetju' : 'Company details'}</span></h3>
+                      <div className="clients-standard-entity-grid clients-standard-company-grid">
+                        {renderCompanyEditableField('name', clientsCopy.companyName, true)}
+                        {renderCompanyEditableField('vatId', clientsCopy.vatId, true)}
+                        {renderCompanyEditableField('email', clientsCopy.email)}
+                        {renderCompanyEditableField('telephone', clientsCopy.telephone)}
+                        {renderCompanyEditableField('address', clientsCopy.address, true)}
+                        {renderCompanyEditableField('postalCode', clientsCopy.postalCode)}
+                        {renderCompanyEditableField('city', clientsCopy.city)}
+                      </div>
+                      {companyCustomFieldDefs.length > 0 ? (
+                        <div className="clients-standard-entity-custom-fields">
+                          {renderCustomFieldInputs(companyCustomFieldDefs, detailCompanyCustomValues, (fieldId, value) =>
+                            setDetailCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                          )}
+                        </div>
+                      ) : null}
+                    </section>
+                  )
                 )}
 
                 {companyDetailMainTab === 'nastavitve' && (
@@ -6194,6 +6292,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           {detailCompany ? (
             <PanelButton
               variant="danger"
+              icon={<MobileDeleteActionIcon />}
               onClick={() => void deleteCompanyById(detailCompany.id)}
               disabled={deletingCompanyId === detailCompany.id}
             >
@@ -6553,10 +6652,23 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         className="clients-standard-entity-panel clients-standard-group-panel clients-standard-entity-panel--edit"
       >
         <PanelHeader
-          title={<span className="clients-standard-entity-header-title"><ClientWorkspaceIcon name="members" /><span>{clientsCopy.editGroupTitle}</span></span>}
+          title={isClientsMobile ? clientsCopy.editGroupTitle : <span className="clients-standard-entity-header-title"><ClientWorkspaceIcon name="members" /><span>{clientsCopy.editGroupTitle}</span></span>}
           subtitle={detailGroup ? `${detailGroup.name} · ID #${detailGroup.id}` : undefined}
           onClose={closeGroupDetailModal}
           closeLabel={t('mobileNavClose')}
+          leading={isClientsMobile ? (
+            <button
+              type="button"
+              className="clients-customer-mobile-back"
+              onClick={closeGroupDetailModal}
+              aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}
+              title={locale === 'sl' ? 'Nazaj' : 'Back'}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+            </button>
+          ) : undefined}
         />
         <PanelTabs
           label={clientsCopy.groupDetailMainTabsAria}
@@ -6573,20 +6685,54 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           {detailGroup ? (
               <div className="clients-detail-shell clients-action-workspace-shell">
                 {groupDetailMainTab === 'basic' && (
-                  <section className="clients-standard-entity-profile clients-standard-group-profile" role="tabpanel">
-                    <h3><ClientWorkspaceIcon name="members" /><span>{locale === 'sl' ? 'Podatki o skupini' : 'Group details'}</span></h3>
-                    <div className="clients-standard-entity-grid clients-standard-group-grid">
-                      {renderGroupEditableField('name', clientsCopy.groupName, true)}
-                      {renderGroupEditableField('email', clientsCopy.groupEmail, true)}
-                    </div>
-                    {groupCustomFieldDefs.length > 0 ? (
-                      <div className="clients-standard-entity-custom-fields">
-                        {renderCustomFieldInputs(groupCustomFieldDefs, detailGroupCustomValues, (fieldId, value) =>
-                          setDetailGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))
-                        )}
+                  isClientsMobile ? (
+                    <section className="clients-standard-entity-profile clients-standard-group-profile" role="tabpanel">
+                      <div className="clients-mobile-create-form clients-mobile-entity-edit-form">
+                        <div className="clients-mobile-create-fields">
+                          {renderMobileCreateField({
+                            icon: 'group',
+                            label: clientsCopy.groupName,
+                            value: groupDetailEditDraft.name ?? '',
+                            onChange: (value) => setGroupDetailEditDraft((current) => ({ ...current, name: value })),
+                            fieldName: 'calendra-edit-group-name-mobile',
+                            required: true,
+                            autoFocus: true,
+                            autoCapitalize: 'words',
+                          })}
+                          {renderMobileCreateField({
+                            icon: 'email',
+                            label: clientsCopy.groupEmail,
+                            value: groupDetailEditDraft.email ?? '',
+                            onChange: (value) => setGroupDetailEditDraft((current) => ({ ...current, email: value })),
+                            fieldName: 'calendra-edit-group-email-mobile',
+                            inputType: 'email',
+                          })}
+                        </div>
+                        {groupCustomFieldDefs.length > 0 ? (
+                          <div className="clients-mobile-create-extra">
+                            {renderCustomFieldInputs(groupCustomFieldDefs, detailGroupCustomValues, (fieldId, value) =>
+                              setDetailGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                            )}
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </section>
+                    </section>
+                  ) : (
+                    <section className="clients-standard-entity-profile clients-standard-group-profile" role="tabpanel">
+                      <h3><ClientWorkspaceIcon name="members" /><span>{locale === 'sl' ? 'Podatki o skupini' : 'Group details'}</span></h3>
+                      <div className="clients-standard-entity-grid clients-standard-group-grid">
+                        {renderGroupEditableField('name', clientsCopy.groupName, true)}
+                        {renderGroupEditableField('email', clientsCopy.groupEmail, true)}
+                      </div>
+                      {groupCustomFieldDefs.length > 0 ? (
+                        <div className="clients-standard-entity-custom-fields">
+                          {renderCustomFieldInputs(groupCustomFieldDefs, detailGroupCustomValues, (fieldId, value) =>
+                            setDetailGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                          )}
+                        </div>
+                      ) : null}
+                    </section>
+                  )
                 )}
 
                 {groupDetailMainTab === 'members' && (
@@ -6916,6 +7062,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           {detailGroup ? (
             <PanelButton
               variant="danger"
+              icon={<MobileDeleteActionIcon />}
               onClick={() => void deleteGroupById(detailGroup.id)}
               disabled={deletingGroupId === detailGroup.id}
             >
