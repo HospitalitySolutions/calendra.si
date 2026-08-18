@@ -1495,3 +1495,115 @@
     min-width: 26px !important;
   }
 }
+
+/* ========================================================================== */
+/* Approved invoice editor refinements (2026-08-18)                           */
+/* Matches the Dodaj termin side-panel language: orange section icons,         */
+/* borderless content groups and a full-height left tab rail.                  */
+/* ========================================================================== */
+.billing-pos-section-heading {
+  display: flex !important;
+  align-items: center;
+  gap: 9px;
+}
+
+.billing-pos-section-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  color: var(--billing-pos-orange);
+}
+
+.billing-pos-section-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.billing-pos-payee-label.billing-pos-section-heading,
+.billing-pos-selected-title.billing-pos-section-heading,
+.billing-pos-payment-section > h3.billing-pos-section-heading,
+.billing-pos-summary-title.billing-pos-section-heading {
+  color: var(--billing-pos-text);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+/* Izbrano: no outer card/block, only clean row separators. */
+.billing-pos-selected-box {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.billing-pos-selected-row {
+  padding-inline: 0;
+  border-bottom: 1px solid var(--billing-pos-border-soft);
+}
+
+.billing-pos-selected-empty {
+  border: 0;
+  background: transparent;
+}
+
+/* Načini plačila: remove table header and enclosing card while preserving rows. */
+.billing-pos-payment-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  background: transparent;
+}
+
+.billing-pos-payment-list .billing-pos-payment-row {
+  min-height: 44px;
+  padding-inline: 0;
+  border: 0;
+}
+
+.billing-pos-payment-list .billing-pos-add-payment {
+  width: fit-content;
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.billing-pos-payment-list .billing-pos-add-payment:hover:not(:disabled) {
+  background: transparent;
+  text-decoration: underline;
+}
+
+.billing-pos-summary-title {
+  margin: 24px 0 10px !important;
+}
+
+.billing-pos-summary-title + .billing-pos-meta-lines {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Whole-invoice discount accepts decimals; keep enough width for values like 12.50. */
+.billing-pos-percent-input input {
+  min-width: 54px;
+}
+
+@media (min-width: 1025px) {
+  /* Continue the left tab rail through the footer so it visually spans the full
+     side-panel height, matching Dodaj termin. */
+  .billing-pos-footer {
+    position: relative;
+  }
+
+  .billing-pos-footer::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 112px;
+    border-right: 1px solid var(--billing-pos-border-soft);
+    background: #fff;
+    pointer-events: none;
+  }
+}

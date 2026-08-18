@@ -483,6 +483,39 @@ const equalizeToZeroIcon = (): ReactNode => (
   </svg>
 )
 
+const billingPosSectionIcon = (kind: 'payee' | 'selected' | 'payment' | 'summary'): ReactNode => {
+  if (kind === 'payee') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <circle cx="12" cy="7.5" r="3.5" />
+        <path d="M5.5 20v-1.4A6.5 6.5 0 0 1 12 12.1a6.5 6.5 0 0 1 6.5 6.5V20" />
+      </svg>
+    )
+  }
+  if (kind === 'selected') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <rect x="4" y="6.5" width="16" height="13" rx="2" />
+        <path d="M8 6.5V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1.5M4 11h16" />
+      </svg>
+    )
+  }
+  if (kind === 'payment') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+        <path d="M3.5 9h17M7.5 14h4" />
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M7 3h8l4 4v14H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+      <path d="M15 3v5h5M9 13h6M9 17h6" />
+    </svg>
+  )
+}
+
 const entitlementPaymentIcon = (): ReactNode => (
   <span className="billing-payicon billing-payicon--entitlement" aria-hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -7886,19 +7919,35 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         <label className="billing-pos-percent-input">
           <input
             type="text"
-            inputMode="numeric"
+            inputMode="decimal"
             value={String(draft?.wholeBillPercent ?? '')}
             onChange={(event) => {
-              const digits = event.target.value.replace(/[^0-9]/g, '').slice(0, 2)
-              if (digits === '') {
+              let next = event.target.value.replace(',', '.').replace(/[^0-9.]/g, '')
+              const firstDot = next.indexOf('.')
+              if (firstDot >= 0) next = next.slice(0, firstDot + 1) + next.slice(firstDot + 1).replace(/\./g, '')
+              const [wholeRaw = '', decimalRaw = ''] = next.split('.')
+              const whole = wholeRaw.slice(0, 2)
+              const decimal = decimalRaw.slice(0, 2)
+              next = firstDot >= 0 ? `${whole}.${decimal}` : whole
+              if (next === '' || next === '.') {
                 onChange('')
                 return
               }
-              onChange(String(Math.max(0, Math.min(99, Number(digits)))) )
+              const numeric = Number(next)
+              if (Number.isFinite(numeric) && numeric > 99) {
+                onChange('99')
+                return
+              }
+              onChange(next)
             }}
             onBlur={() => {
               const parsed = Number(String(draft?.wholeBillPercent ?? '').replace(',', '.'))
-              onChange(!Number.isFinite(parsed) || parsed <= 0 ? '0' : String(Math.max(1, Math.min(99, Math.round(parsed)))))
+              if (!Number.isFinite(parsed) || parsed <= 0) {
+                onChange('0')
+                return
+              }
+              const clamped = Math.min(99, parsed)
+              onChange(String(Number(clamped.toFixed(2))))
             }}
           />
           <span>%</span>
@@ -7976,7 +8025,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
     return (
       <section className="billing-pos-payment-section">
-        <h3>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</h3>
+        <h3 className="billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('payment')}</span><span>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</span></h3>
         <div className="billing-pos-method-chips">
           {methods.slice(0, 5).map((method) => {
             const selected = primarySplit?.paymentMethodId === method.id
@@ -7987,8 +8036,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             )
           })}
         </div>
-        <div className="billing-pos-payment-table">
-          <div className="billing-pos-payment-head"><span>{locale === 'sl' ? 'Način plačila' : 'Payment method'}</span><span>{locale === 'sl' ? 'Znesek' : 'Amount'}</span><span /></div>
+        <div className="billing-pos-payment-list">
           {splits.map((split) => {
             const selectedMethod = paymentMethods.find((method) => method.id === split.paymentMethodId) || null
             const isAdvanceSplit = isAdvancePaymentSplit(split)
@@ -8038,6 +8086,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           })}
           <button type="button" className="billing-pos-add-payment" disabled={methods.length === 0} onClick={() => addCreateBillPaymentSplit(totalGross)}>+ {locale === 'sl' ? 'Dodaj način plačila' : 'Add payment method'}</button>
         </div>
+        <h3 className="billing-pos-summary-title billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('summary')}</span><span>{locale === 'sl' ? 'Povzetek računa' : 'Invoice summary'}</span></h3>
         {renderPosTotalsMeta(items, draft, discountGross)}
         <div className="billing-pos-payment-totals">
           <div><span>{locale === 'sl' ? 'Skupaj plačano' : 'Total paid'}</span><strong className={Math.abs(remaining) <= 0.01 ? 'is-complete' : ''}>{currency(totalPaid)}</strong></div>
@@ -8091,15 +8140,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
     return (
       <section className="billing-pos-payment-section">
-        <h3>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</h3>
+        <h3 className="billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('payment')}</span><span>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</span></h3>
         <div className="billing-pos-method-chips">
           {methods.slice(0, 5).map((method) => {
             const selected = primarySplit?.paymentMethodId === method.id
             return <button key={method.id} type="button" className={selected ? 'is-selected' : ''} onClick={() => setPrimaryMethod(method)}>{paymentMethodChipContent(method, locale)}</button>
           })}
         </div>
-        <div className="billing-pos-payment-table">
-          <div className="billing-pos-payment-head"><span>{locale === 'sl' ? 'Način plačila' : 'Payment method'}</span><span>{locale === 'sl' ? 'Znesek' : 'Amount'}</span><span /></div>
+        <div className="billing-pos-payment-list">
           {splits.map((split) => {
             const selectedMethod = paymentMethods.find((method) => method.id === split.paymentMethodId) || null
             const isEntitlement = isEntitlementPaymentSplit(split)
@@ -8150,6 +8198,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           })}
           <button type="button" className="billing-pos-add-payment" disabled={methods.length === 0} onClick={() => addOpenBillPaymentSplit(ob, totalGross)}>+ {locale === 'sl' ? 'Dodaj način plačila' : 'Add payment method'}</button>
         </div>
+        <h3 className="billing-pos-summary-title billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('summary')}</span><span>{locale === 'sl' ? 'Povzetek računa' : 'Invoice summary'}</span></h3>
         {renderPosTotalsMeta(items, draft, discountGross)}
         <div className="billing-pos-payment-totals">
           <div><span>{locale === 'sl' ? 'Skupaj plačano' : 'Total paid'}</span><strong className={Math.abs(remaining) <= 0.01 ? 'is-complete' : ''}>{currency(totalPaid)}</strong></div>
@@ -8357,10 +8406,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         </section>
         <section className="billing-pos-checkout-pane">
           <div className="billing-pos-payee-section">
-            <label className="billing-pos-payee-label">{locale === 'sl' ? 'Plačnik' : 'Payee'}</label>
+            <label className="billing-pos-payee-label billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('payee')}</span><span>{locale === 'sl' ? 'Plačnik' : 'Payee'}</span></label>
             <button type="button" className="billing-pos-payee-field" onClick={() => setEditingCreateBillPayee(true)}>{posCreatePayeeLabel()}</button>
           </div>
-          <h3 className="billing-pos-selected-title">{locale === 'sl' ? 'Izbrano' : 'Selected'}</h3>
+          <h3 className="billing-pos-selected-title billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('selected')}</span><span>{locale === 'sl' ? 'Izbrano' : 'Selected'}</span></h3>
           {renderPosCreateSelectedItems(!isAdvance)}
           <div className="billing-pos-subtotal"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(subtotalGross)}</strong></div>
           {renderPosWholeBillDiscount(createBillDiscountDraft, subtotalGross, billForm.items, (value) => { setOpenCreateItemDiscountIndex(null); setBillForm((prev) => ({ ...prev, wholeBillDiscountPercent: value, discountType: 'PERCENT', discountValue: value, discountItemIndex: undefined })) })}
@@ -8427,10 +8476,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         </section>
         <section className="billing-pos-checkout-pane">
           <div className="billing-pos-payee-section">
-            <label className="billing-pos-payee-label">{locale === 'sl' ? 'Plačnik' : 'Payee'}</label>
+            <label className="billing-pos-payee-label billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('payee')}</span><span>{locale === 'sl' ? 'Plačnik' : 'Payee'}</span></label>
             <button type="button" className="billing-pos-payee-field" onClick={() => openOpenBillPayeeEditor(ob)}>{posOpenBillPayeeLabel(ob)}</button>
           </div>
-          <h3 className="billing-pos-selected-title">{locale === 'sl' ? 'Izbrano' : 'Selected'}</h3>
+          <h3 className="billing-pos-selected-title billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('selected')}</span><span>{locale === 'sl' ? 'Izbrano' : 'Selected'}</span></h3>
           {renderPosOpenSelectedItems(ob)}
           <div className="billing-pos-subtotal"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(subtotalGross)}</strong></div>
           {renderPosWholeBillDiscount(discountDraft, subtotalGross, items, (value) => { setOpenOpenBillItemDiscount(null); setOpenBillDiscountDraft(ob, { wholeBillPercent: value }) })}
