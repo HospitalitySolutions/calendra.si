@@ -10124,3 +10124,135 @@
     .cp-panel--calendar-edit-booking > .cp-panel-actionbar { order: 98; }
     .cp-panel--calendar-edit-booking > .cp-panel-footer { order: 99; }
 }
+
+/* ========================================================================== */
+/* Dodaj/Uredi termin — Opombe as a dedicated bottom rail tab.                */
+/* Keeps the approved outer rail clean while moving notes out of basic data.  */
+/* ========================================================================== */
+
+/* Uredi termin: notes live on their own view instead of inside Osnovni podatki. */
+.cp-panel--calendar-edit-booking .calendar-standardized-edit-booking-body > .calendar-standardized__notes {
+    display: none;
+}
+
+.cp-panel--calendar-edit-booking .calendar-standardized-edit-booking-body.calendar-booking-notes-tab-active > .cp-section:not(.calendar-standardized__notes) {
+    display: none;
+}
+
+.cp-panel--calendar-edit-booking .calendar-standardized-edit-booking-body.calendar-booking-notes-tab-active > .calendar-standardized__notes {
+    display: block;
+}
+
+/* Shared rail-button treatment used by the edit panel action rail. */
+.cp-panel--calendar-edit-booking .calendar-booking-rail-notes-tab {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 1px solid var(--calendar-standard-border, #d8dee8);
+    border-radius: 9px;
+    background: #fff;
+    color: #475467;
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.cp-panel--calendar-edit-booking .calendar-booking-rail-notes-tab svg {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+}
+
+.cp-panel--calendar-edit-booking .calendar-booking-rail-notes-tab.is-active {
+    background: #eef5ff;
+    color: #1266e3;
+}
+
+@media (min-width: 1025px) {
+    /* Dodaj termin: the footer of the vertical rail is reserved for Opombe. */
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tabs__footer {
+        width: 100%;
+        margin-top: auto;
+    }
+
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tabs__footer .calendar-booking-notes-rail-tab {
+        min-height: 66px;
+    }
+
+    /* Move notes out of the default Dodaj termin content on desktop. */
+    .cp-panel--calendar-new-booking .calendar-approved-booking-body > .calendar-approved-booking__notes {
+        display: none;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking-body.calendar-booking-notes-tab-active > .cp-section:not(.calendar-approved-booking__notes) {
+        display: none;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking-body.calendar-booking-notes-tab-active > .calendar-approved-booking__notes {
+        display: block;
+    }
+
+    /* Uredi termin: Vir, Status and Opombe form one centered stack at rail bottom. */
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar {
+        gap: 2px;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-booking-rail-notes-tab {
+        order: 2;
+        width: 100%;
+        min-height: 66px;
+        padding: 8px 4px;
+        flex-direction: column;
+        gap: 5px;
+        border: 0;
+        border-radius: 9px;
+        background: transparent;
+        color: #475467;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        line-height: 1.2;
+        text-align: center;
+        white-space: normal;
+        box-shadow: none;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-booking-rail-notes-tab:hover {
+        background: #f7f9fc;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-booking-rail-notes-tab.is-active {
+        background: #eef5ff;
+        color: #1266e3;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-booking-rail-notes-tab svg {
+        width: 19px;
+        height: 19px;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-booking-rail-notes-tab.is-active::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        width: 3px;
+        height: 42px;
+        border-radius: 0 3px 3px 0;
+        background: #1677ff;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-booking-rail-notes-tab {
+        position: relative;
+    }
+}
+
+@media (max-width: 1024px) {
+    /* The add panel keeps its existing inline notes on tablet/mobile because its outer mode rail is hidden there. */
+    .cp-panel--calendar-edit-booking .calendar-booking-rail-notes-tab {
+        min-height: 40px;
+        padding: 0 12px;
+        flex: 0 0 auto;
+    }
+}

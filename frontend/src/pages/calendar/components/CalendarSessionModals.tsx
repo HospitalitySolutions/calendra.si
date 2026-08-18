@@ -166,11 +166,20 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   )
   const todoPanelSubtitle = formatPanelSlotSubtitle(selectedTodo?.startTime, selectedTodo?.endTime, locale)
 
-  const [bookedEditPanelTab, setBookedEditPanelTab] = useState<'basic' | 'invoice' | 'advance'>('basic')
+  const [bookedEditPanelTab, setBookedEditPanelTab] = useState<'basic' | 'notes' | 'invoice' | 'advance'>('basic')
+  const [newBookingDetailTab, setNewBookingDetailTab] = useState<'basic' | 'notes'>('basic')
 
   useEffect(() => {
     setBookedEditPanelTab('basic')
   }, [selectedBookedSession?.id])
+
+  useEffect(() => {
+    setNewBookingDetailTab('basic')
+  }, [selection?.start, selection?.end])
+
+  useEffect(() => {
+    if (activeNewFormPanel !== 'booking') setNewBookingDetailTab('basic')
+  }, [activeNewFormPanel])
 
   // --- Collapsed-section summaries -----------------------------------------
   // Each collapsed card reports what it holds, so nothing is hidden without a trace.
@@ -2814,7 +2823,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             <PanelTabs
               label={t('formBookedSession')}
               activeId={bookedEditPanelTab}
-              onSelect={(id) => setBookedEditPanelTab(id as 'basic' | 'invoice' | 'advance')}
+              onSelect={(id) => setBookedEditPanelTab(id as 'basic' | 'notes' | 'invoice' | 'advance')}
               tabs={[
                 {
                   id: 'basic',
@@ -2845,8 +2854,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 },
               ]}
             />
-            {bookedEditPanelTab === 'basic' && (
-            <PanelBody sectioned className="calendar-standardized-body calendar-standardized-edit-booking-body">
+            {(bookedEditPanelTab === 'basic' || bookedEditPanelTab === 'notes') && (
+            <PanelBody sectioned className={`calendar-standardized-body calendar-standardized-edit-booking-body${bookedEditPanelTab === 'notes' ? ' calendar-booking-notes-tab-active' : ''}`}>
             {selectedBookedSession.billedAt && (
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                 <span
@@ -3410,7 +3419,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               </PanelSection>
             </PanelBody>
             )}
-            {bookedEditPanelTab !== 'basic' && (
+            {(bookedEditPanelTab === 'invoice' || bookedEditPanelTab === 'advance') && (
               <CalendarSessionQuickBilling
                 mode={bookedEditPanelTab === 'advance' ? 'advance' : 'invoice'}
                 locale={locale}
@@ -3552,9 +3561,22 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         </div>
                       )}
                     </div>
+                    <button
+                      type="button"
+                      className={`calendar-booking-rail-notes-tab${bookedEditPanelTab === 'notes' ? ' is-active' : ''}`}
+                      aria-current={bookedEditPanelTab === 'notes' ? 'page' : undefined}
+                      onClick={() => {
+                        setBookedStatusMenuOpen(false)
+                        setNoShowClientPickerOpen(false)
+                        setBookedEditPanelTab('notes')
+                      }}
+                    >
+                      <CalendarSectionIcon name="notes" />
+                      <span>{sectionLabels.notes}</span>
+                    </button>
               </PanelActionBar>
             )}
-            {showBookedSessionFooter && bookedEditPanelTab === 'basic' && (
+            {showBookedSessionFooter && (bookedEditPanelTab === 'basic' || bookedEditPanelTab === 'notes') && (
               <PanelFooter>
                 <PanelButton
                   variant="danger"
@@ -4724,8 +4746,22 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
           {!isNativeAndroid && (
             <PanelTabs
               label={t('formBookSession')}
-              activeId={activeNewFormPanel}
-              onSelect={(id) => activateNewFormPanel(id)}
+              activeId={activeNewFormPanel === 'booking' && newBookingDetailTab === 'notes' ? 'notes' : activeNewFormPanel}
+              onSelect={(id) => {
+                setNewBookingDetailTab('basic')
+                activateNewFormPanel(id)
+              }}
+              footer={activeNewFormPanel === 'booking' ? (
+                <button
+                  type="button"
+                  className={`cp-panel-tab calendar-booking-notes-rail-tab${newBookingDetailTab === 'notes' ? ' is-active' : ''}`}
+                  aria-current={newBookingDetailTab === 'notes' ? 'page' : undefined}
+                  onClick={() => setNewBookingDetailTab('notes')}
+                >
+                  <CalendarSectionIcon name="notes" />
+                  <span>{sectionLabels.notes}</span>
+                </button>
+              ) : undefined}
               tabs={[
                 {
                   id: 'booking',
@@ -4759,7 +4795,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
           <PanelBody
             sectioned
             className={activeNewFormPanel === 'booking'
-              ? 'calendar-approved-booking-body'
+              ? `calendar-approved-booking-body${newBookingDetailTab === 'notes' && !isNativeAndroid ? ' calendar-booking-notes-tab-active' : ''}`
               : (activeNewFormPanel === 'todo' || activeNewFormPanel === 'personal' || activeNewFormPanel === 'availability')
                 ? 'calendar-standardized-body'
                 : ''}
