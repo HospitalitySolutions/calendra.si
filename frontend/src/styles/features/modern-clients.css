@@ -3245,6 +3245,9 @@
 
 .clients-wallet-product-copy .clients-wallet-product-name {
     display: block;
+    justify-self: start;
+    width: 100%;
+    text-align: left;
     font-size: 15px;
     font-weight: 750;
     line-height: 1.25;

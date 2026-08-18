@@ -279,6 +279,7 @@ user/EmployeeAccessRoleController.java|@PutMapping("/custom/{id}")|update
 user/UserController.java|@DeleteMapping("/{id}")|delete
 user/UserController.java|@PatchMapping("/{id}/activate")|activateUser
 user/UserController.java|@PatchMapping("/{id}/deactivate")|deactivateUser
+user/UserController.java|@PostMapping("/{id}/password-reset")|sendPasswordResetEmail
 user/UserController.java|@PostMapping(value="/profile/avatar",consumes=MediaType.MULTIPART_FORM_DATA_VALUE)|uploadProfileAvatar
 user/UserController.java|@PostMapping|create
 user/UserController.java|@PutMapping("/profile")|updateProfile
