@@ -7683,9 +7683,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const fallbackRows = rows.length === 0 && String(billType || '').toUpperCase() === 'ADVANCE' && posCatalogTab === 'benefits'
       ? [] as BillingGuestProduct[]
       : rows
-    if (!normalizedQuery) return { services: [] as BillingService[], products: fallbackRows }
+    if (!normalizedQuery) return { services: [] as BillingCatalogService[], products: fallbackRows }
     return {
-      services: [] as BillingService[],
+      services: [] as BillingCatalogService[],
       products: fallbackRows.filter((product) => `${product.name || ''} ${guestProductTypeLabel(product)} ${product.transactionServiceCode || ''} ${product.transactionServiceDescription || ''}`.toLocaleLowerCase().includes(normalizedQuery)),
     }
   }
