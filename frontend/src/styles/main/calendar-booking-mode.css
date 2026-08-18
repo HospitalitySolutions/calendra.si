@@ -9563,3 +9563,564 @@
         min-width: 430px;
     }
 }
+
+/* ========================================================================== */
+/* Uredi termin — quick Račun / Predplačilo workflow.                         */
+/* Mirrors the clean Nakup ugodnosti checkout language and keeps invoice and  */
+/* advance service rows visually identical: name, duration and price only.     */
+/* ========================================================================== */
+.cp-panel--calendar-edit-booking .calendar-quick-billing {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+    gap: 24px;
+    padding: 26px 28px 30px;
+    overflow-y: auto;
+    background: #fff;
+}
+
+.calendar-quick-billing__section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+}
+
+.calendar-quick-billing__section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 24px;
+}
+
+.calendar-quick-billing__section-title h3 {
+    margin: 0;
+    color: #101828;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.calendar-quick-billing__section-icon {
+    display: inline-flex;
+    width: 19px;
+    height: 19px;
+    flex: 0 0 19px;
+    align-items: center;
+    justify-content: center;
+    color: #ff5a00;
+}
+
+.calendar-quick-billing__section-icon svg {
+    width: 19px;
+    height: 19px;
+}
+
+.calendar-quick-billing__issued-table,
+.calendar-quick-billing__services-list {
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid #dfe6ef;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.calendar-quick-billing__issued-head,
+.calendar-quick-billing__issued-row {
+    display: grid;
+    grid-template-columns: minmax(64px, .72fr) minmax(82px, 1fr) minmax(70px, .76fr) minmax(82px, .85fr) minmax(94px, 1fr) minmax(68px, .72fr);
+    align-items: center;
+    column-gap: 10px;
+    min-width: 530px;
+    padding: 10px 12px;
+}
+
+.calendar-quick-billing__issued-head {
+    border-bottom: 1px solid #e7ecf2;
+    background: #fbfcfe;
+    color: #667085;
+    font-size: 0.6875rem;
+    font-weight: 600;
+}
+
+.calendar-quick-billing__issued-row {
+    color: #27364a;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.calendar-quick-billing__issued-row + .calendar-quick-billing__issued-row {
+    border-top: 1px solid #edf1f5;
+}
+
+.calendar-quick-billing__issued-row > span,
+.calendar-quick-billing__issued-head > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.calendar-quick-billing__status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+    padding: 3px 8px;
+    border-radius: 7px;
+    font-style: normal;
+    font-size: 0.6875rem;
+    font-weight: 700;
+}
+
+.calendar-quick-billing__status--paid {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.calendar-quick-billing__status--pending {
+    background: #fff1df;
+    color: #c75400;
+}
+
+.calendar-quick-billing__empty-inline {
+    padding: 13px 14px;
+    border: 1px dashed #d9e1eb;
+    border-radius: 9px;
+    color: #667085;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+}
+
+.calendar-quick-billing__payer-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.calendar-quick-billing__payer-tabs button {
+    min-height: 38px;
+    padding: 0 14px;
+    border: 1px solid #dbe3ec;
+    border-radius: 8px;
+    background: #fff;
+    color: #344054;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.calendar-quick-billing__payer-tabs button:hover {
+    border-color: #ffc39f;
+    background: #fffaf7;
+}
+
+.calendar-quick-billing__payer-tabs button.is-active {
+    border-color: #ff7a2f;
+    background: #fff8f3;
+    color: #e85400;
+    box-shadow: 0 0 0 1px rgba(255, 122, 47, 0.05);
+}
+
+/* Same service layout for Račun and Predplačilo — intentionally no item icon. */
+.calendar-quick-billing__service-row {
+    display: flex;
+    min-height: 76px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 14px 16px;
+}
+
+.calendar-quick-billing__service-row + .calendar-quick-billing__service-row {
+    border-top: 1px solid #edf1f5;
+}
+
+.calendar-quick-billing__service-row > div {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.calendar-quick-billing__service-row strong {
+    color: #101828;
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.calendar-quick-billing__service-row > div > strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.calendar-quick-billing__service-row span {
+    color: #667085;
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+
+.calendar-quick-billing__service-row > strong:last-child {
+    flex: 0 0 auto;
+    font-variant-numeric: tabular-nums;
+}
+
+.calendar-quick-billing__discount-add {
+    display: inline-flex;
+    width: fit-content;
+    min-height: 38px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 13px;
+    border: 1px solid #dce3ec;
+    border-radius: 8px;
+    background: #fff;
+    color: #344054;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.calendar-quick-billing__discount-add svg {
+    width: 15px;
+    height: 15px;
+}
+
+.calendar-quick-billing__discount-editor {
+    display: flex;
+    max-width: 310px;
+    align-items: center;
+    gap: 8px;
+}
+
+.calendar-quick-billing__discount-types {
+    display: inline-flex;
+    overflow: hidden;
+    border: 1px solid #dce3ec;
+    border-radius: 8px;
+}
+
+.calendar-quick-billing__discount-types button {
+    width: 38px;
+    height: 38px;
+    border: 0;
+    background: #fff;
+    color: #667085;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.calendar-quick-billing__discount-types button + button {
+    border-left: 1px solid #dce3ec;
+}
+
+.calendar-quick-billing__discount-types button.is-active {
+    background: #fff4ec;
+    color: #ff5a00;
+}
+
+.calendar-quick-billing__discount-editor > input {
+    width: 118px;
+    height: 40px;
+    padding: 0 11px;
+    border: 1px solid #dce3ec;
+    border-radius: 8px;
+    color: #101828;
+    font: inherit;
+}
+
+.calendar-quick-billing__discount-remove {
+    width: 38px;
+    height: 38px;
+    border: 1px solid #f1d0d0;
+    border-radius: 8px;
+    background: #fff7f7;
+    color: #d92d20;
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+
+.calendar-quick-billing__payment-methods {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.calendar-quick-billing__payment-method {
+    display: flex;
+    min-width: 0;
+    min-height: 94px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    padding: 12px 8px;
+    border: 1px solid #dce3ec;
+    border-radius: 10px;
+    background: #fff;
+    color: #344054;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+.calendar-quick-billing__payment-method:hover {
+    border-color: #b8c7d9;
+    background: #fcfdff;
+}
+
+.calendar-quick-billing__payment-method.is-active {
+    border-color: #1677ff;
+    background: #f8fbff;
+    box-shadow: inset 0 0 0 1px rgba(22, 119, 255, 0.06);
+}
+
+.calendar-quick-billing__payment-method > span {
+    display: inline-flex;
+    width: 23px;
+    height: 23px;
+    align-items: center;
+    justify-content: center;
+}
+
+.calendar-quick-billing__payment-method > span svg {
+    width: 23px;
+    height: 23px;
+}
+
+.calendar-quick-billing__payment-method--bank > span { color: #8b5cf6; }
+.calendar-quick-billing__payment-method--cash > span { color: #16a34a; }
+.calendar-quick-billing__payment-method--card > span { color: #1266e3; }
+
+.calendar-quick-billing__payment-method strong {
+    max-width: 100%;
+    color: #25334a;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.calendar-quick-billing__total {
+    display: flex;
+    min-height: 58px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 0 16px;
+    border: 1px solid #dfe6ef;
+    border-radius: 10px;
+    background: #fff;
+    color: #101828;
+}
+
+.calendar-quick-billing__total strong:first-child {
+    font-size: 0.9375rem;
+}
+
+.calendar-quick-billing__total strong:last-child {
+    font-size: 1.125rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.cp-panel--calendar-edit-booking .calendar-quick-billing__edit-button,
+.cp-panel--calendar-edit-booking .calendar-quick-billing__close-button {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 18px;
+    border-radius: 9px;
+    font-size: 0.875rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.cp-panel--calendar-edit-booking .calendar-quick-billing__edit-button {
+    border: 1px solid #d8e0e9;
+    background: #fff;
+    color: #344054;
+}
+
+.cp-panel--calendar-edit-booking .calendar-quick-billing__edit-button:hover {
+    background: #f8fafc;
+}
+
+.cp-panel--calendar-edit-booking .calendar-quick-billing__close-button {
+    min-width: 160px;
+    border: 1px solid #0969ed;
+    background: #0b6ff5;
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+
+.cp-panel--calendar-edit-booking .calendar-quick-billing__close-button:hover:not(:disabled) {
+    background: #075fd7;
+}
+
+.cp-panel--calendar-edit-booking .calendar-quick-billing__close-button:disabled {
+    opacity: .52;
+    cursor: not-allowed;
+}
+
+@media (min-width: 1025px) {
+    /* Source and status belong to the bottom of the same outer tab rail. */
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar {
+        position: absolute;
+        left: -108px;
+        bottom: 12px;
+        z-index: 14;
+        display: flex;
+        width: 108px;
+        height: auto;
+        padding: 0 8px;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        border: 0;
+        background: transparent;
+        overflow: visible;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .cp-panel-actionbar__items {
+        display: flex;
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+        order: 2;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .cp-panel-actionbar__info {
+        width: 100%;
+        margin: 0;
+        order: 1;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-booking-status-menu-wrap {
+        width: 100%;
+        order: 1;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-standardized__source-tag,
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-session-status-tag {
+        display: flex;
+        width: 100%;
+        min-width: 0;
+        height: auto;
+        min-height: 66px;
+        padding: 8px 4px;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        border: 0;
+        border-radius: 9px;
+        background: transparent;
+        color: #475467;
+        text-align: center;
+        white-space: normal;
+        box-shadow: none;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-session-status-tag:hover,
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-standardized__source-tag:hover {
+        background: #f7f9fc;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-standardized__source-tag > strong,
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-session-status-tag__label {
+        max-width: 92px;
+        color: #667085;
+        font-size: 0.6875rem;
+        font-weight: 500;
+        line-height: 1.25;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-standardized__source-caption,
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-session-status-tag__caption {
+        color: #344054;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-session-status-tag__copy {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-session-status-tag__icon {
+        width: 18px;
+        height: 18px;
+        color: #475467;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-session-status-tag__icon svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    /* Menus still open inside the visible drawer instead of off-screen. */
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-booking-status-menu,
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-no-show-client-picker {
+        left: 112px;
+        right: auto;
+        bottom: 0;
+        top: auto;
+    }
+}
+
+@media (max-width: 1024px) {
+    .cp-panel--calendar-edit-booking .calendar-quick-billing {
+        padding: 22px 20px 26px;
+        gap: 22px;
+    }
+
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-standardized__source-caption,
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar .calendar-session-status-tag__caption {
+        display: none;
+    }
+}
+
+@media (max-width: 680px) {
+    .calendar-quick-billing__issued-table {
+        overflow-x: auto;
+    }
+
+    .calendar-quick-billing__payment-methods {
+        grid-template-columns: repeat(3, minmax(92px, 1fr));
+        overflow-x: auto;
+        padding-bottom: 2px;
+    }
+
+    .calendar-quick-billing__payment-method {
+        min-height: 88px;
+    }
+
+    .cp-panel--calendar-edit-booking .calendar-quick-billing__edit-button,
+    .cp-panel--calendar-edit-booking .calendar-quick-billing__close-button {
+        min-width: 0;
+        flex: 1 1 0;
+        padding-inline: 12px;
+    }
+}
+
+/* Keep the compact issued-bill table usable at the standard 560 px drawer width. */
+.calendar-quick-billing__issued-table { overflow-x: auto; }
+.calendar-quick-billing__issued-head,
+.calendar-quick-billing__issued-row { min-width: 500px; }
+
+@media (max-width: 1024px) {
+    .cp-panel--calendar-edit-booking > .cp-panel-actionbar { order: 98; }
+    .cp-panel--calendar-edit-booking > .cp-panel-footer { order: 99; }
+}

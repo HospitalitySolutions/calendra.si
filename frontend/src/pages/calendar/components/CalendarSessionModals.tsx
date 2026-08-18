@@ -8,6 +8,7 @@ import { api } from '../../../api'
 import { bookingStatusDisplayLabel, deriveBookingStatus } from '../calendarStatus'
 import { CalendarServiceChainEditor, serviceDescription } from './CalendarServiceChainEditor'
 import { CalendarSectionIcon } from './CalendarIcons'
+import { CalendarSessionQuickBilling } from './CalendarSessionQuickBilling'
 import { useMobileKeyboardOpen } from '../../../hooks/useMobileKeyboardOpen'
 import { SimpleClientCreatePage } from '../../clients/SimpleClientCreatePage'
 import { hasEmployeePermission } from '../../../lib/employeePermissions'
@@ -133,7 +134,7 @@ function bookingFormSignature(session: any, clientIds: any[], services: any[]) {
 
 export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const useResponsiveDesktopCreatePanels = true
-  const {BookingTypeTabIcon,CalendarFormFooterDeleteIcon,CalendarFormFooterSaveIcon,CalendarLocalTimeDateRow,CalendarLocalTimespanRow,CalendarPaymentCompanyIcon,CalendarPaymentPersonIcon,CalendarScannerIcon,GuestConfigSaveIcon,LanguageModal,PageHeader,PersonalTaskCombo,REPEAT_WEEKDAY_EN,ROUTE_NEW_BOOKING,SessionNotesTextarea,activateNewFormPanel,addBookingGroupCaptionId,addBookingOnlineCaptionId,addClientInlineTitle,addGroupInlineTitle,androidLanguageModal,applyBookedSessionClientIds,applyFormClientIds,availabilityAllDayCaptionId,availabilityError,availabilityIntent,availabilityRangeEndInputRef,availabilityRangeStartInputRef,availabilitySaving,availabilitySelection,bookSessionClientFieldCompact,bookSessionClientsExpanded,bookSessionGroupFieldCompact,bookSessionNotesExpanded,bookSessionSelectedClient,bookSessionSelectedClients,bookedClientDropdownOpen,bookedClientSearch,bookedClientSearchInputRef,bookedPaymentClientDisplay,bookedPaymentManagerTab,bookedPaymentMenuOpen,bookedPaymentMeta,bookedPaymentPayeeDisplay,bookedPaymentPayeeDrafts,bookedPaymentPayeesUseSameCompanyForAll,bookedPaymentSidebarStatusMeta,bookedPaymentTotals,bookedPrimaryPaymentStatus,bookedSessionClientFieldCompact,bookedSessionClientsExpanded,bookedSessionGroupId,bookedSessionIsGroup,bookedSessionOnlineCaptionId,bookedSessionResolvedGroup,bookedSessionSelectedClient,bookedSessionSelectedClients,bookedStatusLabel,bookedStatusMenuOpen,bookedStatusTagColors,bookedStatusTransitionTargets,bookingEndEditedManuallyRef,bookingGroupMode,bookingPayeeCompanies,bookingStatusTagColors,calendarClientDetailId,calendarDashboardSelectionOnly,calendarFiltersBottomBar,calendarFormPageLayout,cancelBookedPersonalOverlap,cancelNonBookableMove,clearSingleClientTitle,clearSingleGroupTitle,clientDropdownOpen,clientError,clientSearch,clientSearchInputRef,clientSearchPlaceholder,closeBookedModal,closeBookingSelection,closePersonalModal,closeTodoModal,compactSelectionCheckAria,compactSessionEditHeader,confirmAvailabilityFromHeader,confirmBookedPersonalOverlap,confirmBookedPersonalOverlapYes,confirmDelete,confirmNonBookable,confirmNonBookableMove,confirmNonBookableMoveYes,confirmNonBookableYes,confirmOverlap,createClientFromBooking,createGroupFromBooking,createOpenBillForPaymentStatus,currency,deleteBookedSession,deletePersonalBlock,deleteTodo,completeTodo,editBookedAllDayCaptionId,form,formatDateTime,formatRepeatWeekdayLabel,fullName,getBookingEndTimeForStart,getMoreClientsLabel,getSessionPopupDragHandleProps,getSessionPopupInlineStyle,groupBookingEnabled,groupDropdownOpen,groupModalError,groupSearch,groupSearchInputRef,groupSearchPlaceholder,groupedSingleInvoiceClient,groupedSingleInvoicePayeeDraft,groupedSingleInvoiceStatus,hiddenBookSessionClientCount,hiddenBookedSessionClientCount,invoiceAllocationForPaymentStatus,isGroupedSingleInvoiceMode,isLocalBookingAllDay,isLocalTodoAllDayStart,isNativeAndroid,localTodayYmd,locale,locationFilterId,meetingPickerCancelUnchecksOnline,meetingProviderPickerOpen,meetingProviderPickerTarget,metaClients,metaConsultants,metaLocations,metaSpaces,metaTypes,metaUsers,multipleClientsPerSessionEnabled,newBookingAllDayCaptionId,newClientForm,newClientInitials,newGroupForm,newGroupMemberIds,newGroupMemberSearch,normalizeToLocalDateTime,onNewFormPanelTouchEnd,onNewFormPanelTouchStart,openAvailabilityModalFromSelection,openBookedPaymentAddClient,openBookedPaymentDetailsForClient,openBookedSessionGroupScanner,openBookedPaymentEntitlementScanner,openPaymentInvoicePdf,openBookedPaymentOpenBillEditor,openBookedPaymentAdvanceEditor,openCalendarClientDetail,openCalendarGroupDetail,openBookedSessionGroupGuests,parseClientNameInput,paymentManagerIsNewBooking,paymentManagerSessionClients,paymentStatusForClient,personInitials,personalEditAllDayCaptionId,personalFormAllDayCaptionId,personalModuleEnabled,personalTaskPresetDropdownOpen,personalTaskPresets,renderBookingModeTitle,resendPaymentInvoicePdf,saveBookedPaymentManager,saveBooking,saveBookingError,saveBookingLoading,savingClient,savingNewGroupModal,selectableMetaTypes,selectedBookedClientIds,selectedBookedPaymentClient,selectedBookedPaymentClientDraft,selectedBookedPaymentLinkedCompany,selectedBookedPaymentPayeeDraft,selectedBookedPaymentPayeeLocked,selectedBookedPaymentClientIsGroupMember,selectedBookedPaymentStatus,selectedBookedSession,selectedFormClientIds,selectedGroup,selectedPersonalBlock,selectedTodo,selection,sessionPopupRef,setAndroidLanguageModal,setAvailabilityError,setAvailabilityIntent,setAvailabilitySelection,setBookSessionClientsExpanded,setBookSessionNotesExpanded,setBookedClientDropdownOpen,setBookedClientSearch,setBookedPaymentAddMode,setBookedPaymentAddSearch,setBookedPaymentGroupNameDraft,setBookedPaymentManagerTab,setBookedPaymentMenuOpen,setBookedSessionClientsExpanded,setBookedStatusMenuOpen,setBookedPaymentSharedCompanyForAll,setBookingGroupMode,setClientDropdownOpen,setClientSearch,setConfirmDelete,setConfirmNonBookable,setConfirmOverlap,setEditingBookedClientSearch,setEditingClientSearch,setEditingGroupSearch,setForm,setGroupDropdownOpen,setGroupModalError,setGroupSearch,setMeetingPickerCancelUnchecksOnline,setMeetingProviderPickerOpen,setMeetingProviderPickerTarget,setNewClientForm,setNewGroupForm,setNewGroupMemberIds,setNewGroupMemberSearch,setPersonalTaskPresetDropdownOpen,setSaveBookingError,setSelectedBookedPaymentClientId,setSelectedBookedSession,setSelectedPersonalBlock,setSelectedTodo,setShowAddClientModal,setShowAddGroupModal,settings,showAddClientModal,showAddGroupModal,showBookingConsultantRow,showBookingSpaceRow,showBookingTypeRow,showLessClientsLabel,showSelectionFormFooter,splitLocalDateTimeParts,t,toCalendarTimeValue,todoEditAllDayCaptionId,todoFormAllDayCaptionId,todosModuleEnabled,toggleBookedPaymentSameCompanyForAll,markBookedClientsNoShow,transitionBookedStatus,updateBookedSession,updateBookingFormEndTime,updateBookingFormStartTime,updateBookingFormType,updateBookingFormServices,updateSelectedBookedSessionServices,updateSelectedBookedSessionStartTime,formServiceDrafts,formServiceChain,bookedServiceDrafts,bookedServiceChain,formServiceWarnings,bookedServiceWarnings,updatePersonalBlock,updateSelectedBookedPaymentClientDraft,updateSelectedBookedPaymentPayee,updateTodo,useBookingSidePanel,user,showToast,loadCalendarRangeOnly,visibleBookSessionClientChips,visibleBookedClients,visibleBookedSessionClientChips,visibleClients,visibleGroups,bookedPaymentAddCandidates,bookedPaymentAddMode,bookedPaymentAddSearch,paymentManagerAddClientSelectionActive,PAYMENT_MANAGER_ADD_CLIENT_ID,addBookedPaymentClientToSession,removeBookedPaymentClientFromGroup,removeBookedPaymentClientFromSession,bookedPaymentGroupNameDraft} = ctx
+  const {BookingTypeTabIcon,CalendarFormFooterDeleteIcon,CalendarFormFooterSaveIcon,CalendarLocalTimeDateRow,CalendarLocalTimespanRow,CalendarPaymentCompanyIcon,CalendarPaymentPersonIcon,CalendarScannerIcon,GuestConfigSaveIcon,LanguageModal,PageHeader,PersonalTaskCombo,REPEAT_WEEKDAY_EN,ROUTE_NEW_BOOKING,SessionNotesTextarea,activateNewFormPanel,addBookingGroupCaptionId,addBookingOnlineCaptionId,addClientInlineTitle,addGroupInlineTitle,androidLanguageModal,applyBookedSessionClientIds,applyFormClientIds,availabilityAllDayCaptionId,availabilityError,availabilityIntent,availabilityRangeEndInputRef,availabilityRangeStartInputRef,availabilitySaving,availabilitySelection,bookSessionClientFieldCompact,bookSessionClientsExpanded,bookSessionGroupFieldCompact,bookSessionNotesExpanded,bookSessionSelectedClient,bookSessionSelectedClients,bookedClientDropdownOpen,bookedClientSearch,bookedClientSearchInputRef,bookedPaymentClientDisplay,bookedPaymentManagerTab,bookedPaymentMenuOpen,bookedPaymentMeta,bookedPaymentPayeeDisplay,bookedPaymentPayeeDrafts,bookedPaymentPayeesUseSameCompanyForAll,bookedPaymentSidebarStatusMeta,bookedPaymentTotals,bookedPrimaryPaymentStatus,bookedSessionClientFieldCompact,bookedSessionClientsExpanded,bookedSessionGroupId,bookedSessionIsGroup,bookedSessionOnlineCaptionId,bookedSessionResolvedGroup,bookedSessionSelectedClient,bookedSessionSelectedClients,bookedStatusLabel,bookedStatusMenuOpen,bookedStatusTagColors,bookedStatusTransitionTargets,bookingEndEditedManuallyRef,bookingGroupMode,bookingPayeeCompanies,bookingStatusTagColors,calendarClientDetailId,calendarDashboardSelectionOnly,calendarFiltersBottomBar,calendarFormPageLayout,cancelBookedPersonalOverlap,cancelNonBookableMove,clearSingleClientTitle,clearSingleGroupTitle,clientDropdownOpen,clientError,clientSearch,clientSearchInputRef,clientSearchPlaceholder,closeBookedModal,closeBookingSelection,closePersonalModal,closeTodoModal,compactSelectionCheckAria,compactSessionEditHeader,confirmAvailabilityFromHeader,confirmBookedPersonalOverlap,confirmBookedPersonalOverlapYes,confirmDelete,confirmNonBookable,confirmNonBookableMove,confirmNonBookableMoveYes,confirmNonBookableYes,confirmOverlap,createClientFromBooking,createGroupFromBooking,createOpenBillForPaymentStatus,currency,deleteBookedSession,deletePersonalBlock,deleteTodo,completeTodo,editBookedAllDayCaptionId,form,formatDateTime,formatRepeatWeekdayLabel,fullName,getBookingEndTimeForStart,getMoreClientsLabel,getSessionPopupDragHandleProps,getSessionPopupInlineStyle,groupBookingEnabled,groupDropdownOpen,groupModalError,groupSearch,groupSearchInputRef,groupSearchPlaceholder,groupedSingleInvoiceClient,groupedSingleInvoicePayeeDraft,groupedSingleInvoiceStatus,hiddenBookSessionClientCount,hiddenBookedSessionClientCount,invoiceAllocationForPaymentStatus,isGroupedSingleInvoiceMode,isLocalBookingAllDay,isLocalTodoAllDayStart,isNativeAndroid,localTodayYmd,locale,locationFilterId,meetingPickerCancelUnchecksOnline,meetingProviderPickerOpen,meetingProviderPickerTarget,metaClients,metaConsultants,metaLocations,metaSpaces,metaTypes,metaUsers,multipleClientsPerSessionEnabled,newBookingAllDayCaptionId,newClientForm,newClientInitials,newGroupForm,newGroupMemberIds,newGroupMemberSearch,normalizeToLocalDateTime,onNewFormPanelTouchEnd,onNewFormPanelTouchStart,openAvailabilityModalFromSelection,openBookedPaymentAddClient,openBookedPaymentDetailsForClient,openBookedSessionGroupScanner,openBookedPaymentEntitlementScanner,openPaymentInvoicePdf,openBookedPaymentOpenBillEditor,openBookedPaymentAdvanceEditor,openCalendarClientDetail,openCalendarGroupDetail,openBookedSessionGroupGuests,parseClientNameInput,paymentManagerIsNewBooking,paymentManagerSessionClients,paymentStatusForClient,personInitials,personalEditAllDayCaptionId,personalFormAllDayCaptionId,personalModuleEnabled,personalTaskPresetDropdownOpen,personalTaskPresets,renderBookingModeTitle,resendPaymentInvoicePdf,saveBookedPaymentManager,saveBooking,saveBookingError,saveBookingLoading,savingClient,savingNewGroupModal,selectableMetaTypes,selectedBookedClientIds,selectedBookedPaymentClient,selectedBookedPaymentClientDraft,selectedBookedPaymentLinkedCompany,selectedBookedPaymentPayeeDraft,selectedBookedPaymentPayeeLocked,selectedBookedPaymentClientIsGroupMember,selectedBookedPaymentStatus,selectedBookedSession,selectedFormClientIds,selectedGroup,selectedPersonalBlock,selectedTodo,selection,sessionPopupRef,setAndroidLanguageModal,setAvailabilityError,setAvailabilityIntent,setAvailabilitySelection,setBookSessionClientsExpanded,setBookSessionNotesExpanded,setBookedClientDropdownOpen,setBookedClientSearch,setBookedPaymentAddMode,setBookedPaymentAddSearch,setBookedPaymentGroupNameDraft,setBookedPaymentManagerTab,setBookedPaymentMenuOpen,setBookedSessionClientsExpanded,setBookedStatusMenuOpen,setBookedPaymentSharedCompanyForAll,setBookingGroupMode,setClientDropdownOpen,setClientSearch,setConfirmDelete,setConfirmNonBookable,setConfirmOverlap,setEditingBookedClientSearch,setEditingClientSearch,setEditingGroupSearch,setForm,setGroupDropdownOpen,setGroupModalError,setGroupSearch,setMeetingPickerCancelUnchecksOnline,setMeetingProviderPickerOpen,setMeetingProviderPickerTarget,setNewClientForm,setNewGroupForm,setNewGroupMemberIds,setNewGroupMemberSearch,setPersonalTaskPresetDropdownOpen,setSaveBookingError,setSelectedBookedPaymentClientId,setSelectedBookedSession,setSelectedPersonalBlock,setSelectedTodo,setShowAddClientModal,setShowAddGroupModal,settings,showAddClientModal,showAddGroupModal,showBookingConsultantRow,showBookingSpaceRow,showBookingTypeRow,showLessClientsLabel,showSelectionFormFooter,splitLocalDateTimeParts,t,toCalendarTimeValue,todoEditAllDayCaptionId,todoFormAllDayCaptionId,todosModuleEnabled,toggleBookedPaymentSameCompanyForAll,markBookedClientsNoShow,transitionBookedStatus,updateBookedSession,updateBookingFormEndTime,updateBookingFormStartTime,updateBookingFormType,updateBookingFormServices,updateSelectedBookedSessionServices,updateSelectedBookedSessionStartTime,formServiceDrafts,formServiceChain,bookedServiceDrafts,bookedServiceChain,formServiceWarnings,bookedServiceWarnings,updatePersonalBlock,updateSelectedBookedPaymentClientDraft,updateSelectedBookedPaymentPayee,updateTodo,useBookingSidePanel,user,showToast,loadCalendarRangeOnly,visibleBookSessionClientChips,visibleBookedClients,visibleBookedSessionClientChips,visibleClients,visibleGroups,bookedPaymentAddCandidates,bookedPaymentAddMode,bookedPaymentAddSearch,paymentManagerAddClientSelectionActive,PAYMENT_MANAGER_ADD_CLIENT_ID,addBookedPaymentClientToSession,removeBookedPaymentClientFromGroup,removeBookedPaymentClientFromSession,bookedPaymentGroupNameDraft,canIssueOpenInvoice,canIssueAdvanceInvoice} = ctx
 
   const canViewConsumables = hasEmployeePermission(user, 'CONSUMABLES_VIEW')
   const canEditConsumables = hasEmployeePermission(user, 'CONSUMABLES_EDIT')
@@ -164,6 +165,12 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     locale,
   )
   const todoPanelSubtitle = formatPanelSlotSubtitle(selectedTodo?.startTime, selectedTodo?.endTime, locale)
+
+  const [bookedEditPanelTab, setBookedEditPanelTab] = useState<'basic' | 'invoice' | 'advance'>('basic')
+
+  useEffect(() => {
+    setBookedEditPanelTab('basic')
+  }, [selectedBookedSession?.id])
 
   // --- Collapsed-section summaries -----------------------------------------
   // Each collapsed card reports what it holds, so nothing is hidden without a trace.
@@ -1169,12 +1176,17 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   }
 
 
-  const openBookedInvoiceEditor = async () => {
+  const openBookedInvoiceEditor = async (clientIdArg?: number | null) => {
     if (!canShowOpenBillForBookedStatus) {
-      openBookedAdvanceForm()
+      showToast('info', locale === 'sl'
+        ? 'Račun lahko uredite, ko je termin v teku, zaključen ali označen kot neprihod.'
+        : 'The invoice can be edited when the session is ongoing, checked out, or marked as no-show.')
       return
     }
-    const clientId = getBookedPaymentActionClientId()
+    const requestedClientId = Number(clientIdArg ?? 0)
+    const clientId = Number.isInteger(requestedClientId) && requestedClientId > 0
+      ? requestedClientId
+      : getBookedPaymentActionClientId()
     if (!clientId) return
     setBookedClientDropdownOpen(false)
     setBookedStatusMenuOpen(false)
@@ -1182,39 +1194,30 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     setBookedBillingActionMenu(null)
     setSelectedBookedPaymentClientId(clientId)
 
-    const statuses = paymentManagerSessionClients
-      .map((client: any) => paymentStatusForClient(client?.id))
-      .filter((item: any) => !!item?.bookingId)
+    // Always edit the unissued invoice that belongs to the currently selected payer tab.
+    // Never fall back to another participant's open bill in a multi-client/group session.
     const selectedStatus = paymentStatusForClient(clientId)
-    const existingOpenStatus = (Number(selectedStatus?.openBillId ?? 0) > 0 ? selectedStatus : null)
-      ?? statuses.find((item: any) => Number(item?.openBillId ?? 0) > 0)
-      ?? null
+    if (!selectedStatus?.bookingId) return
 
-    if (existingOpenStatus) {
-      const existingOpenBillId = Number(existingOpenStatus.openBillId)
-      if (Number.isInteger(existingOpenBillId) && existingOpenBillId > 0) {
-        openPaymentOpenBillEditor(existingOpenStatus, existingOpenBillId)
-        return
-      }
-    }
-
-    const unbilledStatuses = statuses.filter((item: any) => (
-      Number(item?.openBillId ?? 0) <= 0
-      && !paymentStatusIsFinalizedForAutomaticInvoice(item)
-    ))
-
-    if (unbilledStatuses.length === 0) {
-      if (statuses.some((item: any) => paymentStatusHasIssuedInvoice(item))) {
-        openBookedBillingView('invoices')
-        return
-      }
-      showToast('info', locale === 'sl' ? 'Termin je že poravnan in novega odprtega računa ni treba ustvariti.' : 'This session is already settled and does not need another open invoice.')
+    const existingOpenBillId = Number(selectedStatus?.openBillId ?? 0)
+    if (Number.isInteger(existingOpenBillId) && existingOpenBillId > 0) {
+      openPaymentOpenBillEditor(selectedStatus, existingOpenBillId)
       return
     }
 
-    const statusToCreate = unbilledStatuses.find((item: any) => Number(item?.clientId) === Number(clientId)) ?? unbilledStatuses[0]
-    const openBillId = await createOpenBillForPaymentStatus(statusToCreate)
-    if (openBillId) openPaymentOpenBillEditor(statusToCreate, openBillId)
+    if (paymentStatusIsFinalizedForAutomaticInvoice(selectedStatus)) {
+      if (paymentStatusHasIssuedInvoice(selectedStatus)) {
+        openBookedBillingView('invoices')
+        return
+      }
+      showToast('info', locale === 'sl'
+        ? 'Izbrani plačnik je že poravnan in novega neizdanega računa ni treba ustvariti.'
+        : 'The selected payer is already settled and does not need another unissued invoice.')
+      return
+    }
+
+    const openBillId = await createOpenBillForPaymentStatus(selectedStatus, { selectedOnly: true })
+    if (openBillId) openPaymentOpenBillEditor(selectedStatus, openBillId)
   }
 
   const openBookedPaymentManagerTab = (_tab: 'details' | 'invoice') => {
@@ -1620,7 +1623,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const currentBookingStatusLabel = currentBookingStatusOption?.label ?? bookedStatusLabel
   const currentBookingStatusTone = currentBookingStatusOption?.tone ?? 'reserved'
   const isReservedBookingStatus = currentBookingStatusKey === 'RESERVED'
-  const canShowOpenBillForBookedStatus = currentBookingStatusKey === 'ONGOING' || currentBookingStatusKey === 'CHECKED_OUT'
+  const canShowOpenBillForBookedStatus = currentBookingStatusKey === 'ONGOING' || currentBookingStatusKey === 'CHECKED_OUT' || currentBookingStatusKey === 'NO_SHOW'
   const bookedPaymentActionClientId = getBookedPaymentActionClientId()
   const bookedPaymentActionStatus = bookedPaymentActionClientId ? paymentStatusForClient(bookedPaymentActionClientId) : null
   const bookedPaymentActionHasInvoice = !!invoiceAllocationForPaymentStatus(bookedPaymentActionStatus)
@@ -2006,6 +2009,34 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const bookedBillingHasInvoiceViewRows = sessionInvoiceRows.length > 0
   const bookedBillingCanEditInvoice = bookedBillingHasExistingOpenBill || bookedBillingHasUnbilledStatus
   const bookedBillingInvoiceActionCount = (bookedBillingCanEditInvoice ? 1 : 0) + (bookedBillingHasInvoiceViewRows ? 1 : 0)
+  const bookedQuickAdvanceServiceIds = new Set(String(settings?.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID || '')
+    .split(',')
+    .map((value: string) => Number(value.trim()))
+    .filter((value: number) => Number.isInteger(value) && value > 0))
+  const bookedQuickServiceRefs = Array.isArray(selectedBookedSession?.services) && selectedBookedSession.services.length > 0
+    ? selectedBookedSession.services
+    : selectedBookedSession?.type
+      ? [{ type: selectedBookedSession.type, typeId: selectedBookedSession.type?.id }]
+      : []
+  const bookedQuickHasAdvanceService = bookedQuickServiceRefs.some((serviceRef: any) => {
+    const typeId = Number(serviceRef?.type?.id ?? serviceRef?.typeId)
+    const type = metaTypes.find((entry: any) => Number(entry?.id) === typeId) ?? serviceRef?.type
+    return (Array.isArray(type?.linkedServices) ? type.linkedServices : [])
+      .some((link: any) => bookedQuickAdvanceServiceIds.has(Number(link?.transactionServiceId)))
+  })
+  const bookedInvoiceStatusEligible = currentBookingStatusKey === 'ONGOING'
+    || currentBookingStatusKey === 'CHECKED_OUT'
+    || currentBookingStatusKey === 'NO_SHOW'
+  const bookedInvoiceTabVisible = settings?.BILLING_ENABLED !== 'false'
+    && bookedInvoiceStatusEligible
+    && (bookedBillingHasInvoiceViewRows || (!!canIssueOpenInvoice && bookedBillingCanEditInvoice))
+  const bookedAdvanceTabVisible = advanceBillingEnabled
+    && (bookedBillingHasExistingAdvance || (!!canIssueAdvanceInvoice && bookedQuickHasAdvanceService))
+
+  useEffect(() => {
+    if (bookedEditPanelTab === 'invoice' && !bookedInvoiceTabVisible) setBookedEditPanelTab('basic')
+    if (bookedEditPanelTab === 'advance' && !bookedAdvanceTabVisible) setBookedEditPanelTab('basic')
+  }, [bookedAdvanceTabVisible, bookedEditPanelTab, bookedInvoiceTabVisible])
   const formatSessionDate = (value?: string | null) => formatPaymentDateOnly(value)
   const formatSessionTime = (value?: string | null) => {
     if (!value) return ''
@@ -2780,6 +2811,41 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               onClose={closeBookedModal}
               closeLabel={t('mobileNavClose')}
             />
+            <PanelTabs
+              label={t('formBookedSession')}
+              activeId={bookedEditPanelTab}
+              onSelect={(id) => setBookedEditPanelTab(id as 'basic' | 'invoice' | 'advance')}
+              tabs={[
+                {
+                  id: 'basic',
+                  label: locale === 'sl' ? 'Osnovni podatki' : 'Basic details',
+                  icon: (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <rect x="3" y="5" width="18" height="16" rx="2" />
+                      <path d="M16 3v4M8 3v4M3 10h18" />
+                    </svg>
+                  ),
+                },
+                {
+                  id: 'invoice',
+                  label: locale === 'sl' ? 'Račun' : 'Invoice',
+                  hidden: !bookedInvoiceTabVisible,
+                  icon: (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M7 3.75h6.9l3.85 3.85v12.65H7a1.75 1.75 0 0 1-1.75-1.75v-13A1.75 1.75 0 0 1 7 3.75Z" />
+                      <path d="M13.7 3.9V7.7h3.8M8.75 11h5.25M8.75 14.3h5.25" />
+                    </svg>
+                  ),
+                },
+                {
+                  id: 'advance',
+                  label: locale === 'sl' ? 'Predplačilo' : 'Advance',
+                  hidden: !bookedAdvanceTabVisible,
+                  icon: <CalendarAdvancePaymentIcon />,
+                },
+              ]}
+            />
+            {bookedEditPanelTab === 'basic' && (
             <PanelBody sectioned className="calendar-standardized-body calendar-standardized-edit-booking-body">
             {selectedBookedSession.billedAt && (
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
@@ -3343,11 +3409,34 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               </div>
               </PanelSection>
             </PanelBody>
+            )}
+            {bookedEditPanelTab !== 'basic' && (
+              <CalendarSessionQuickBilling
+                mode={bookedEditPanelTab === 'advance' ? 'advance' : 'invoice'}
+                locale={locale}
+                session={selectedBookedSession}
+                clients={paymentManagerSessionClients}
+                paymentStatuses={bookedBillingPaymentStatuses}
+                metaTypes={metaTypes}
+                settings={settings}
+                user={user}
+                canIssueOpenInvoice={!!canIssueOpenInvoice}
+                canIssueAdvanceInvoice={!!canIssueAdvanceInvoice}
+                currency={currency}
+                fullName={fullName}
+                showToast={showToast}
+                onOpenFullInvoice={openBookedInvoiceEditor}
+                onOpenFullAdvance={openBookedAdvanceForm}
+                createOpenBillForPaymentStatus={createOpenBillForPaymentStatus}
+                onRefresh={() => loadCalendarRangeOnly(true)}
+              />
+            )}
             {showBookedSessionFooter && (
               <PanelActionBar
                 info={
                   <span className="calendar-standardized__source-tag" aria-label={`${bookingSourceFieldLabel}: ${bookingSourceMeta.label}`}>
-                    {locale === 'sl' ? 'Vir:' : 'Source:'} {bookingSourceMeta.label}
+                    <span className="calendar-standardized__source-caption">{locale === 'sl' ? 'Vir' : 'Source'}</span>
+                    <strong>{bookingSourceMeta.label}</strong>
                   </span>
                 }
               >
@@ -3365,7 +3454,10 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         }}
                       >
                         <span className="calendar-session-status-tag__icon" aria-hidden="true"><CalendarBookingStatusIcon statusKey={currentBookingStatusKey} /></span>
-                        <span className="calendar-session-status-tag__label">{currentBookingStatusLabel}</span>
+                        <span className="calendar-session-status-tag__copy">
+                          <span className="calendar-session-status-tag__caption">{locale === 'sl' ? 'Status' : 'Status'}</span>
+                          <span className="calendar-session-status-tag__label">{currentBookingStatusLabel}</span>
+                        </span>
                       </button>
                       {bookedStatusMenuOpen && (
                         <div className="calendar-booking-status-menu" role="menu">
@@ -3460,66 +3552,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         </div>
                       )}
                     </div>
-                {(canShowOpenBillForBookedStatus || advanceBillingEnabled) && (
-                  <div className="calendar-session-billing-action-wrap">
-                    <button
-                      type="button"
-                      className={`cp-action calendar-standardized__billing-action${bookedBillingActionMenu === (bookingServiceBillingButtonIsAdvance ? 'advance' : 'invoice') ? ' is-menu-open' : ''}`}
-                      title={bookingServiceBillingButtonIsAdvance ? (locale === 'sl' ? 'Predplačila' : 'Advances') : (locale === 'sl' ? 'Računi' : 'Invoices')}
-                      aria-label={bookingServiceBillingButtonIsAdvance ? (locale === 'sl' ? 'Odpri meni predplačil' : 'Open advances menu') : (locale === 'sl' ? 'Odpri meni računov' : 'Open invoices menu')}
-                      disabled={bookedPaymentActionButtonsDisabled}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        const actionKind = bookingServiceBillingButtonIsAdvance ? 'advance' : 'invoice'
-                        if (actionKind === 'advance' && !bookedBillingHasExistingAdvance) {
-                          openBookedAdvanceForm()
-                          return
-                        }
-                        if (actionKind === 'invoice' && bookedBillingInvoiceActionCount <= 1) {
-                          if (bookedBillingCanEditInvoice) void openBookedInvoiceEditor()
-                          else if (bookedBillingHasInvoiceViewRows) openBookedBillingView('invoices')
-                          return
-                        }
-                        toggleBookedBillingActionMenu(actionKind)
-                      }}
-                    >
-                      {bookingServiceBillingButtonIsAdvance ? (
-                        <CalendarAdvancePaymentIcon />
-                      ) : (
-                        <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-                          <path d="M7 3.75h6.9l3.85 3.85v12.65H7a1.75 1.75 0 0 1-1.75-1.75v-13A1.75 1.75 0 0 1 7 3.75Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-                          <path d="M13.7 3.9V7.7h3.8M8.75 10.8h5.25M8.75 14h3.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                          <text x="14.7" y="18.4" fontSize="5.7" fontWeight="800" fill="currentColor">€</text>
-                        </svg>
-                      )}
-                      <span className="calendar-standardized__billing-label">
-                        {bookingServiceBillingButtonIsAdvance
-                          ? (locale === 'sl' ? 'Predplačilo' : 'Advance')
-                          : (locale === 'sl' ? 'Račun' : 'Invoice')}
-                      </span>
-                    </button>
-                    {renderBillingActionMenu(bookingServiceBillingButtonIsAdvance ? 'advance' : 'invoice')}
-                  </div>
-                )}
-                {advanceBillingEnabled && canShowOpenBillForBookedStatus && (
-                  <button
-                    type="button"
-                    className="cp-action calendar-standardized__billing-action calendar-standardized__advance-action"
-                    title={locale === 'sl' ? 'Pregled predplačil' : 'View advances'}
-                    aria-label={locale === 'sl' ? 'Odpri pregled predplačil za termin' : 'Open session advances view'}
-                    disabled={bookedPaymentActionButtonsDisabled}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      openBookedBillingView('advances')
-                    }}
-                  >
-                    <CalendarAdvancePaymentIcon />
-                    <span className="calendar-standardized__billing-label">{locale === 'sl' ? 'Predplačilo' : 'Advance'}</span>
-                  </button>
-                )}
               </PanelActionBar>
             )}
-            {showBookedSessionFooter && (
+            {showBookedSessionFooter && bookedEditPanelTab === 'basic' && (
               <PanelFooter>
                 <PanelButton
                   variant="danger"

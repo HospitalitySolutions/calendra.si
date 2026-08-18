@@ -11,7 +11,7 @@ import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser'
 import { api } from '../api'
 import { clientMutationErrorMessage, skipConflictToastHeaders } from '../lib/clientErrors'
 import { useAuthenticatedUser } from '../authUserContext'
-import type { Bill, BillingService, Booking, Client, Company, InvoiceIssuerOption, InvoiceSeriesOption, Location, OpenBill, PaymentMethod, PaymentSplit, User, WorkspaceBill } from '../lib/types'
+import type { Bill, BillingService, Booking, Client, Company, InvoiceIssuerOption, InvoiceSeriesOption, Location, OpenBill, PaymentMethod, PaymentSplit, SessionType, User, WorkspaceBill } from '../lib/types'
 import { normalizePaymentMethod } from '../lib/types'
 import { Card, EmptyState, Field } from '../components/ui'
 import { useToast } from '../components/Toast'
@@ -50,6 +50,7 @@ import {
   type BillingSummary,
   type GiftCardStats,
 } from '../queries/billingQueryOptions'
+import { calendarTypesQueryOptions } from '../queries/calendarQueryOptions'
 import { queryKeys } from '../queries/queryKeys'
 import '../styles/main/billing-tabs.css'
 import '../styles/main/billing-open-bill-popup.css'
@@ -869,11 +870,19 @@ type GiftCardsSortField = 'id' | 'code' | 'type' | 'customer' | 'content' | 'exp
 type BillingGuestProduct = {
   id: number
   name: string
+  description?: string | null
   productType: 'CLASS_TICKET' | 'PACK' | 'MEMBERSHIP' | 'GIFT_CARD' | 'COURSE' | string | null
   priceGross: number | string | null
   currency?: string | null
   active: boolean
   usageLimit?: number | null
+  validityDays?: number | null
+  sessionTypeId?: number | null
+  sessionTypeName?: string | null
+  sessionTypeIds?: number[] | null
+  sessionTypeNames?: string[] | null
+  serviceGroupId?: number | null
+  serviceGroupName?: string | null
   transactionServiceId?: number | null
   transactionServiceCode?: string | null
   transactionServiceDescription?: string | null
@@ -881,6 +890,15 @@ type BillingGuestProduct = {
   availableAllLocations?: boolean
   locationIds?: number[] | null
   locationNames?: string[] | null
+}
+
+type BillingCatalogService = {
+  key: string
+  sessionTypeId?: number | null
+  transactionServiceId: number | null
+  displayName: string
+  secondaryText?: string
+  priceGross: number | null
 }
 type HistorySortField = 'invoiceNumber' | 'invoiceType' | 'orderId' | 'sessionId' | 'customer' | 'employee' | 'description' | 'date' | 'gross' | 'paymentStatus' | 'fiscalStatus'
 type SortDir = 'asc' | 'desc'
@@ -1249,6 +1267,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [settings, setSettings] = useState<Record<string, string>>(() => queryClient.getQueryData<Record<string, string>>(queryKeys.settings.byUnit(activeUnitId)) ?? {})
   const [services, setServices] = useState<BillingService[]>(() => queryClient.getQueryData<BillingService[]>(queryKeys.billing.services(activeUnitId)) ?? [])
   const [servicesLoaded, setServicesLoaded] = useState(() => queryClient.getQueryData(queryKeys.billing.services(activeUnitId)) != null)
+  const [sessionTypes, setSessionTypes] = useState<SessionType[]>(() => queryClient.getQueryData<SessionType[]>(queryKeys.scheduling.types(activeUnitId)) ?? [])
   const [guestProducts, setGuestProducts] = useState<BillingGuestProduct[]>([])
   const [bills, setBills] = useState<Bill[]>(() => (queryClient.getQueryData<Bill[]>(queryKeys.billing.bills(activeUnitId)) ?? []).map((bill) => normalizeBill(bill)))
   const [openBills, setOpenBills] = useState<OpenBill[]>(() => (queryClient.getQueryData<OpenBill[]>(queryKeys.billing.openBills(activeUnitId)) ?? []).map((openBill) => normalizeOpenBill(openBill)))
@@ -1507,6 +1526,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setSettings(settingsData || {})
 
     const servicesPromise = fetchBillingQuery(billingServicesQueryOptions<BillingService>(activeUnitId), false).catch(() => [] as BillingService[])
+    const sessionTypesPromise = fetchBillingQuery(calendarTypesQueryOptions<SessionType>(activeUnitId), false).catch(() => [] as SessionType[])
     const paymentMethodsPromise = fetchBillingQuery(paymentMethodsQueryOptions<PaymentMethod>(activeUnitId), false).catch(() => [] as PaymentMethod[])
     const clientsPromise = fetchBillingQuery(clientOptionsQueryOptions<Client>(activeUnitId, selectedLocationId, 500), force).catch(() => [] as Client[])
     const companiesPromise = fetchBillingQuery(billingEditorCompaniesQueryOptions<Company>(activeUnitId, selectedLocationId), force).catch(() => [] as Company[])
@@ -1524,6 +1544,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
     const [
       loadedServices,
+      loadedSessionTypes,
       loadedPaymentMethods,
       loadedClients,
       loadedCompanies,
@@ -1536,6 +1557,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       loadedUnusedAdvances,
     ] = await Promise.all([
       servicesPromise,
+      sessionTypesPromise,
       paymentMethodsPromise,
       clientsPromise,
       companiesPromise,
@@ -1551,6 +1573,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const normalizedPaymentMethods = loadedPaymentMethods.map((method) => normalizePaymentMethod(method)!).filter(Boolean)
     setServices(loadedServices)
     setServicesLoaded(true)
+    setSessionTypes(loadedSessionTypes)
     setPaymentMethods(normalizedPaymentMethods)
     setClients(loadedClients)
     setCompanies(loadedCompanies)
@@ -1566,6 +1589,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return {
       settings: settingsData,
       services: loadedServices,
+      sessionTypes: loadedSessionTypes,
       paymentMethods: normalizedPaymentMethods,
       clients: loadedClients,
       companies: loadedCompanies,
@@ -1780,6 +1804,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     // Never keep another unit's billing rows visible while the new unit is loading.
     const cachedSettings = queryClient.getQueryData<Record<string, string>>(queryKeys.settings.byUnit(activeUnitId))
     const cachedServices = queryClient.getQueryData<BillingService[]>(queryKeys.billing.services(activeUnitId))
+    const cachedSessionTypes = queryClient.getQueryData<SessionType[]>(queryKeys.scheduling.types(activeUnitId))
     const cachedOpenBills = queryClient.getQueryData<OpenBill[]>(queryKeys.billing.openBills(activeUnitId))
     const cachedPaymentMethods = queryClient.getQueryData<PaymentMethod[]>(queryKeys.billing.paymentMethods(activeUnitId))
     const cachedUsers = queryClient.getQueryData<User[]>(queryKeys.users.byUnit(activeUnitId))
@@ -1791,6 +1816,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     setSettings(cachedSettings ?? {})
     setServices(cachedServices ?? [])
     setServicesLoaded(cachedServices != null)
+    setSessionTypes(cachedSessionTypes ?? [])
     setGuestProducts([])
     setBills([])
     setLoadedBillsView(null)
@@ -2486,9 +2512,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const gross = Number(item.grossPrice || 0)
     return sum + (Number.isFinite(gross) ? gross : 0) * Number(item.quantity || 0)
   }, 0), [billForm.items])
+  const configuredAdvanceServiceIds = useMemo(
+    () => parseAdvanceDeductionServiceIds(settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID),
+    [settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID],
+  )
   const advanceDeductionIds = useMemo(
-    () => advanceBillingEnabled ? parseAdvanceDeductionServiceIds(settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID) : new Set<number>(),
-    [advanceBillingEnabled, settings.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID],
+    () => advanceBillingEnabled ? configuredAdvanceServiceIds : new Set<number>(),
+    [advanceBillingEnabled, configuredAdvanceServiceIds],
   )
   const advanceBillServices = useMemo(
     () => services.filter((s) => advanceDeductionIds.has(s.id)),
@@ -2498,6 +2528,68 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     () => services.filter((s) => !advanceDeductionIds.has(s.id)),
     [services, advanceDeductionIds],
   )
+  const invoiceCatalogServices = useMemo<BillingCatalogService[]>(() => {
+    const serviceById = new Map(services.map((service) => [Number(service.id), service]))
+    return sessionTypes
+      .filter((type) => type.active !== false)
+      .flatMap((type) => {
+        const configuredLinks = type.linkedServices ?? []
+        const regularLinks = configuredLinks.filter((link) => !configuredAdvanceServiceIds.has(Number(link.transactionServiceId)))
+
+        // A service backed only by an "Avans" billing line belongs to advance
+        // invoicing and must not appear in the normal unissued-invoice catalog.
+        if (configuredLinks.length > 0 && regularLinks.length === 0) return []
+
+        const firstLink = regularLinks[0]
+        const transactionServiceId = firstLink ? Number(firstLink.transactionServiceId) : null
+        const displayName = type.description?.trim() || type.name?.trim() || (locale === 'sl' ? 'Storitev' : 'Service')
+        const secondaryText = type.internalDescription?.trim() || ''
+
+        let priceGross: number | null = null
+        if (regularLinks.length > 0) {
+          const grossParts = regularLinks.map((link) => {
+            const configuredPrice = link.unitGross ?? link.price
+            if (configuredPrice != null && Number.isFinite(Number(configuredPrice))) return Number(configuredPrice)
+            const linkedService = serviceById.get(Number(link.transactionServiceId))
+            if (linkedService) return Number(grossStringFromService(linkedService))
+            return Number.NaN
+          })
+          if (grossParts.every(Number.isFinite)) {
+            priceGross = Number(grossParts.reduce((sum, value) => sum + value, 0).toFixed(2))
+          }
+        }
+
+        return [{
+          key: `session-type-${type.id}`,
+          sessionTypeId: type.id,
+          transactionServiceId: transactionServiceId != null && transactionServiceId > 0 ? transactionServiceId : null,
+          displayName,
+          secondaryText,
+          priceGross,
+        }]
+      })
+  }, [sessionTypes, services, configuredAdvanceServiceIds, locale])
+  const advanceCatalogServices = useMemo<BillingCatalogService[]>(
+    () => advanceBillServices.map((service) => ({
+      key: `billing-service-${service.id}`,
+      transactionServiceId: service.id,
+      displayName: billingServiceDisplayLabel(service),
+      secondaryText: String(service.code || '').trim().toLocaleLowerCase() !== String(service.description || '').trim().toLocaleLowerCase()
+        ? String(service.code || '').trim()
+        : '',
+      priceGross: Number(grossStringFromService(service)),
+    })),
+    [advanceBillServices],
+  )
+  const invoiceCatalogServiceByTransactionId = useMemo(() => {
+    const map = new Map<number, BillingCatalogService>()
+    invoiceCatalogServices.forEach((service) => {
+      if (service.transactionServiceId != null && !map.has(service.transactionServiceId)) {
+        map.set(service.transactionServiceId, service)
+      }
+    })
+    return map
+  }, [invoiceCatalogServices])
   const availableBillServices = useMemo(
     () => (billForm.billType === 'ADVANCE' ? advanceBillServices : openBillSelectableServices),
     [billForm.billType, advanceBillServices, openBillSelectableServices],
@@ -7571,7 +7663,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const posCatalogRows = (
-    catalogServices: BillingService[],
+    catalogServices: BillingCatalogService[],
     catalogProducts: BillingGuestProduct[],
     activeLocationId?: number | null,
     billType?: BillDocumentType | string | null,
@@ -7581,7 +7673,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       const rows = catalogServices
       if (!normalizedQuery) return { services: rows, products: [] as BillingGuestProduct[] }
       return {
-        services: rows.filter((service) => `${service.code || ''} ${service.description || ''}`.toLocaleLowerCase().includes(normalizedQuery)),
+        services: rows.filter((service) => `${service.displayName || ''} ${service.secondaryText || ''}`.toLocaleLowerCase().includes(normalizedQuery)),
         products: [] as BillingGuestProduct[],
       }
     }
@@ -7654,9 +7746,9 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   )
 
   const renderPosCatalog = (
-    catalogServices: BillingService[],
+    catalogServices: BillingCatalogService[],
     catalogProducts: BillingGuestProduct[],
-    onAddService: (service: BillingService) => void,
+    onAddService: (service: BillingCatalogService) => void,
     onAddProduct: (product: BillingGuestProduct) => void,
     activeLocationId?: number | null,
     billType?: BillDocumentType | string | null,
@@ -7692,17 +7784,21 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         />
         <div className="billing-pos-catalog-list">
           {posCatalogTab === 'services' ? (rows.services.length > 0 ? rows.services.map((service) => (
-            <div key={service.id} className="billing-pos-catalog-row">
+            <div key={service.key} className="billing-pos-catalog-row">
               <div className="billing-pos-catalog-copy">
-                <strong>{serviceOptionLabel(service)}</strong>
-                {posServiceSecondaryText(service) && <small>{posServiceSecondaryText(service)}</small>}
+                <strong>{service.displayName}</strong>
+                {service.secondaryText && <small>{service.secondaryText}</small>}
               </div>
-              <span className="billing-pos-catalog-price">{currency(Number(grossStringFromService(service)))}</span>
+              <span className="billing-pos-catalog-price">{service.priceGross == null ? '—' : currency(service.priceGross)}</span>
               <button
                 type="button"
                 className="billing-pos-add-btn"
                 onClick={() => onAddService(service)}
-                aria-label={`${locale === 'sl' ? 'Dodaj' : 'Add'} ${serviceOptionLabel(service)}`}
+                disabled={!service.transactionServiceId || service.priceGross == null}
+                aria-label={`${locale === 'sl' ? 'Dodaj' : 'Add'} ${service.displayName}`}
+                title={!service.transactionServiceId || service.priceGross == null
+                  ? (locale === 'sl' ? 'Storitev nima povezane obračunske postavke ali cene.' : 'This service has no linked billing line or price.')
+                  : undefined}
               >
                 +
               </button>
@@ -7714,11 +7810,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           )) : (rows.products.length > 0 ? rows.products.map((product) => {
             const canAdd = Number(product.transactionServiceId || 0) > 0
             const price = Number(product.priceGross || 0)
+            const productScope = product.serviceGroupName?.trim()
+              || (product.sessionTypeNames ?? []).filter(Boolean).join(', ')
+              || product.sessionTypeName?.trim()
+              || ''
             return (
               <div key={`product-${product.id}`} className="billing-pos-catalog-row">
                 <div className="billing-pos-catalog-copy">
                   <strong>{product.name || guestProductTypeLabel(product)}</strong>
-                  <small>{[guestProductTypeLabel(product), product.transactionServiceDescription || product.transactionServiceCode].filter(Boolean).join(' · ')}</small>
+                  <small>{[guestProductTypeLabel(product), productScope].filter(Boolean).join(' · ')}</small>
                 </div>
                 <span className="billing-pos-catalog-price">{currency(Number.isFinite(price) ? price : 0)}</span>
                 <button
@@ -8049,6 +8149,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       <div className="billing-pos-selected-box">
         {billForm.items.length > 0 ? billForm.items.map((item, index) => {
           const service = services.find((entry) => entry.id === item.transactionServiceId)
+          const catalogService = billForm.billType === 'INVOICE' ? invoiceCatalogServiceByTransactionId.get(item.transactionServiceId) : undefined
           const lineDraft = getLineItemDiscount(createBillDiscountDraft, index)
           const lineDiscountActive = discountValueNumber(lineDraft) > 0
           const lineDiscountOpen = openCreateItemDiscountIndex === index
@@ -8064,8 +8165,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           return (
             <div key={`${item.transactionServiceId}-${index}`} className="billing-pos-selected-row">
               <div className="billing-pos-selected-copy">
-                <strong>{service ? serviceOptionLabel(service) : `#${item.transactionServiceId}`}</strong>
-                {(posServiceSecondaryText(service) || consultantLabel) && <small>{[posServiceSecondaryText(service), consultantLabel].filter(Boolean).join(' · ')}</small>}
+                <strong>{catalogService?.displayName || (service ? serviceOptionLabel(service) : `#${item.transactionServiceId}`)}</strong>
+                {(catalogService?.secondaryText || posServiceSecondaryText(service) || consultantLabel) && <small>{[catalogService?.secondaryText || posServiceSecondaryText(service), consultantLabel].filter(Boolean).join(' · ')}</small>}
               </div>
               <label className="billing-pos-unit-price-input billing-pos-money-input"><span>€</span><input
                 value={item.grossPrice ?? ''}
@@ -8130,13 +8231,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         {items.length > 0 ? items.map((item, index) => {
           const persistedService = ob.items.find((serverItem) => Number(serverItem.id) === Number(item.openBillItemId))?.transactionService
           const service = services.find((entry) => entry.id === item.transactionServiceId) || persistedService
+          const catalogService = resolveOpenBillEffectiveType(ob) === 'INVOICE' ? invoiceCatalogServiceByTransactionId.get(item.transactionServiceId) : undefined
           const lineDraft = getLineItemDiscount(draft, index)
           const lineDiscountActive = discountValueNumber(lineDraft) > 0
           const lineDiscountOpen = openOpenBillItemDiscount?.openBillId === ob.id && openOpenBillItemDiscount.index === index
           const lineTotal = lineStates[index]?.finalGross ?? lineGrossTotal(item)
           return (
             <div key={item.openBillItemId || item.clientRowKey || index} className="billing-pos-selected-row">
-              <div className="billing-pos-selected-copy"><strong>{service ? serviceOptionLabel(service) : `#${item.transactionServiceId}`}</strong>{(posServiceSecondaryText(service) || consultantLabel) && <small>{[posServiceSecondaryText(service), consultantLabel].filter(Boolean).join(' · ')}</small>}</div>
+              <div className="billing-pos-selected-copy"><strong>{catalogService?.displayName || (service ? serviceOptionLabel(service) : `#${item.transactionServiceId}`)}</strong>{(catalogService?.secondaryText || posServiceSecondaryText(service) || consultantLabel) && <small>{[catalogService?.secondaryText || posServiceSecondaryText(service), consultantLabel].filter(Boolean).join(' · ')}</small>}</div>
               <label className="billing-pos-unit-price-input billing-pos-money-input"><span>€</span><input
                 value={item.grossPrice ?? ''}
                 onChange={(event) => {
@@ -8189,13 +8291,19 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const subtotalGross = estimateGross(billForm.items)
     const totalGross = payableGrossAfterDiscount(subtotalGross, createBillDiscountDraft, billForm.items)
     const discountGross = calculateDiscountGross(subtotalGross, createBillDiscountDraft, billForm.items)
-    const addService = (service: BillingService) => {
+    const addService = (service: BillingCatalogService) => {
+      const transactionServiceId = Number(service.transactionServiceId || 0)
+      if (!transactionServiceId || service.priceGross == null) {
+        showToast('error', locale === 'sl' ? 'Storitev nima povezane obračunske postavke ali cene.' : 'This service has no linked billing line or price.')
+        return
+      }
+      const unitGrossText = Number(service.priceGross).toFixed(2)
       setBillForm((prev) => {
-        const existingIndex = prev.items.findIndex((item) => item.transactionServiceId === service.id)
+        const existingIndex = prev.items.findIndex((item) => item.transactionServiceId === transactionServiceId)
         if (existingIndex >= 0) {
           return { ...prev, items: prev.items.map((item, index) => index === existingIndex ? { ...item, quantity: Number(item.quantity || 0) + 1 } : item) }
         }
-        return { ...prev, items: [...prev.items, { transactionServiceId: service.id, quantity: 1, netPrice: String(service.netPrice), grossPrice: grossStringFromService(service), sourceSessionBookingId: prev.sessionId ?? undefined }] }
+        return { ...prev, items: [...prev.items, { transactionServiceId, quantity: 1, netPrice: String(grossToNet(unitGrossText, transactionServiceId)), grossPrice: unitGrossText, sourceSessionBookingId: prev.sessionId ?? undefined }] }
       })
     }
     const addProduct = (product: BillingGuestProduct) => {
@@ -8225,7 +8333,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
       <div className="billing-pos-layout">
         {renderPosCatalogRail()}
         <section className="billing-pos-catalog-pane">
-          {renderPosCatalog(availableBillServices, guestProducts, addService, addProduct, billForm.locationId, isAdvance ? 'ADVANCE' : 'INVOICE')}
+          {renderPosCatalog(isAdvance ? advanceCatalogServices : invoiceCatalogServices, guestProducts, addService, addProduct, billForm.locationId, isAdvance ? 'ADVANCE' : 'INVOICE')}
         </section>
         <section className="billing-pos-checkout-pane">
           <div className="billing-pos-payee-section">
@@ -8249,17 +8357,24 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const subtotalGross = estimateGross(items)
     const totalGross = payableGrossAfterDiscount(subtotalGross, discountDraft, items)
     const discountGross = calculateDiscountGross(subtotalGross, discountDraft, items)
-    const catalogServices = selectableServicesForOpenBill(ob)
-    const addService = (service: BillingService) => {
+    const isAdvanceOpenBill = String(ob.billType || 'INVOICE').toUpperCase() === 'ADVANCE'
+    const catalogServices = isAdvanceOpenBill ? advanceCatalogServices : invoiceCatalogServices
+    const addService = (service: BillingCatalogService) => {
+      const transactionServiceId = Number(service.transactionServiceId || 0)
+      if (!transactionServiceId || service.priceGross == null) {
+        showToast('error', locale === 'sl' ? 'Storitev nima povezane obračunske postavke ali cene.' : 'This service has no linked billing line or price.')
+        return
+      }
+      const unitGrossText = Number(service.priceGross).toFixed(2)
       const currentItems = getOpenBillItems(ob)
-      const existingIndex = currentItems.findIndex((item) => item.transactionServiceId === service.id && item.sourceAdvanceBillId == null)
+      const existingIndex = currentItems.findIndex((item) => item.transactionServiceId === transactionServiceId && item.sourceAdvanceBillId == null)
       if (existingIndex >= 0) {
         const next = [...currentItems]
         next[existingIndex] = { ...next[existingIndex], quantity: Number(next[existingIndex].quantity || 0) + 1 }
         setOpenBillItems(ob, next)
         return
       }
-      setOpenBillItems(ob, [...currentItems, { clientRowKey: createOpenBillClientRowKey(), transactionServiceId: service.id, quantity: 1, netPrice: String(service.netPrice), grossPrice: grossStringFromService(service), sourceSessionBookingId: createManualOpenBillLineSourceId() }])
+      setOpenBillItems(ob, [...currentItems, { clientRowKey: createOpenBillClientRowKey(), transactionServiceId, quantity: 1, netPrice: String(grossToNet(unitGrossText, transactionServiceId)), grossPrice: unitGrossText, sourceSessionBookingId: createManualOpenBillLineSourceId() }])
     }
     const addProduct = (product: BillingGuestProduct) => {
       const transactionServiceId = Number(product.transactionServiceId || 0)

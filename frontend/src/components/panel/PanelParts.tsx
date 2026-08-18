@@ -131,6 +131,8 @@ export type PanelTabsProps = {
   tabs: PanelTab[]
   activeId: string
   label: string
+  /** Optional content pinned to the bottom of vertical tab rails. */
+  footer?: ReactNode
   /**
    * Called instead of following the link. Use it when switching tabs has to carry
    * unsaved form state across; the handler is responsible for navigating.
@@ -144,7 +146,7 @@ export type PanelTabsProps = {
  * Tab bar under the header. Each tab is its own URL, so tabs are deep-linkable
  * and the browser back button steps between them.
  */
-export function PanelTabs({ tabs, activeId, label, onSelect, replace = true }: PanelTabsProps) {
+export function PanelTabs({ tabs, activeId, label, footer, onSelect, replace = true }: PanelTabsProps) {
   const visible = tabs.filter((tab) => !tab.hidden)
   return (
     <nav className="cp-panel-tabs" aria-label={label}>
@@ -187,6 +189,7 @@ export function PanelTabs({ tabs, activeId, label, onSelect, replace = true }: P
           </button>
         )
       })}
+      {footer ? <div className="cp-panel-tabs__footer">{footer}</div> : null}
     </nav>
   )
 }
