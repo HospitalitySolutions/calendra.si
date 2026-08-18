@@ -8790,3 +8790,378 @@
     }
 }
 
+
+/* ========================================================================== */
+/* Uredi stranko — vertical workspace rail matching the approved appointment UI */
+/* ========================================================================== */
+.clients-standard-profile-field__label {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.clients-standard-profile-field__label svg {
+    flex: 0 0 auto;
+    width: 19px;
+    height: 19px;
+    color: #ff6200;
+    stroke-width: 1.9;
+}
+
+.clients-standard-profile-field__label strong {
+    color: #111827;
+    font: inherit;
+    font-weight: 700;
+}
+
+@media (min-width: 1025px) {
+    .clients-standard-customer-panel--edit {
+        position: relative;
+        width: min(1040px, 96vw) !important;
+        max-width: min(1040px, 96vw) !important;
+        --clients-customer-rail-width: 112px;
+        --clients-customer-header-height: 104px;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-header,
+    .clients-standard-customer-panel--edit > .cp-panel-body,
+    .clients-standard-customer-panel--edit > .cp-panel-footer {
+        margin-left: var(--clients-customer-rail-width);
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-header {
+        min-height: var(--clients-customer-header-height);
+        padding: 24px 30px 20px;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-body {
+        padding: 30px;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-footer {
+        min-height: 82px;
+        padding: 14px 30px;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs {
+        position: absolute;
+        inset: 0 auto 0 0;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        width: var(--clients-customer-rail-width);
+        min-height: 100%;
+        height: 100%;
+        padding: var(--clients-customer-header-height) 0 0;
+        gap: 0;
+        border: 0;
+        border-right: 1px solid #e7edf5;
+        background: #ffffff;
+        overflow-x: hidden;
+        overflow-y: auto;
+        scrollbar-width: none;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab {
+        position: relative;
+        display: flex;
+        flex: 0 0 auto;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-width: 0;
+        min-height: 106px;
+        height: 106px;
+        padding: 12px 9px;
+        gap: 9px;
+        border: 0;
+        border-radius: 0;
+        background: #ffffff;
+        color: #334155;
+        box-shadow: none;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.28;
+        text-align: center;
+        white-space: normal;
+        transition: color .16s ease, background .16s ease, box-shadow .16s ease;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab::after {
+        display: none;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab svg {
+        width: 22px;
+        height: 22px;
+        color: currentColor;
+        stroke-width: 1.85;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab:hover {
+        background: #f8fafc;
+        color: #0f172a;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab.is-active {
+        color: #0b6ff5;
+        background: #eef5ff;
+        box-shadow: inset 3px 0 0 #0b6ff5;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab:focus-visible {
+        outline: 2px solid rgba(11, 111, 245, .32);
+        outline-offset: -3px;
+        box-shadow: inset 3px 0 0 #0b6ff5;
+    }
+
+    .clients-standard-customer-panel--edit .clients-action-workspace-shell {
+        display: block;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-customer-profile {
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+        width: 100%;
+        max-width: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-profile-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 22px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-profile-field {
+        gap: 10px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-profile-field > span,
+    .clients-standard-customer-panel--edit .clients-standard-profile-field__label {
+        color: #111827;
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1.3;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-profile-field input {
+        height: 52px;
+        min-height: 52px;
+        padding: 0 14px;
+        border: 1px solid #d5deea;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #111827;
+        font-size: 15px;
+        font-weight: 500;
+        box-shadow: none;
+    }
+
+    
+    .clients-standard-customer-panel--edit .clients-modern-session-row {
+        grid-template-columns: minmax(180px, 1.2fr) minmax(108px, 0.85fr) minmax(120px, 1fr) minmax(120px, 1fr) auto;
+        gap: 12px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-icon {
+        display: none;
+    }
+
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .clients-modern-session-row {
+        grid-template-columns: minmax(180px, 1.2fr) minmax(108px, 0.85fr) minmax(120px, 1fr) minmax(120px, 1fr) auto;
+        gap: 12px;
+    }
+
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .clients-modern-session-icon {
+        display: none;
+    }
+
+.clients-standard-customer-panel--edit .clients-standard-profile-field input:focus {
+        border-color: #78a9fa;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, .09);
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-customer-extra-fields {
+        padding-top: 2px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-detail-card,
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab,
+    .clients-standard-customer-panel--edit .clients-detail-sessions-card {
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+    }
+
+    .clients-standard-customer-panel--edit .cp-panel-footer__actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .clients-standard-customer-panel--edit .cp-panel-footer .cp-btn {
+        min-height: 48px;
+        padding: 0 18px;
+        gap: 9px;
+        border-radius: 10px;
+    }
+
+    .clients-standard-customer-panel--edit .cp-panel-footer .cp-btn svg {
+        width: 17px;
+        height: 17px;
+    }
+
+    .clients-standard-customer-panel--edit .cp-panel-footer .cp-btn--primary {
+        min-width: 188px;
+    }
+}
+
+
+/* ------------------------------------------------------------------------- */
+/* Uredi podjetje / Uredi skupino: left-side rail tabs like Uredi stranko    */
+/* ------------------------------------------------------------------------- */
+
+.clients-standard-company-panel.clients-standard-entity-panel--edit,
+.clients-standard-group-panel.clients-standard-entity-panel--edit {
+    width: min(920px, 94vw) !important;
+    max-width: min(920px, 94vw) !important;
+    --clients-entity-rail-width: 112px;
+    --clients-entity-header-height: 104px;
+}
+
+.clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-header,
+.clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-body,
+.clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-footer,
+.clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-header,
+.clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-body,
+.clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-footer {
+    margin-left: var(--clients-entity-rail-width);
+}
+
+.clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-header,
+.clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-header {
+    min-height: var(--clients-entity-header-height);
+    padding: 24px 30px 20px;
+}
+
+.clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-body,
+.clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-body {
+    padding: 30px;
+}
+
+.clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-footer,
+.clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-footer {
+    min-height: 82px;
+    padding: 14px 30px;
+}
+
+.clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs,
+.clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    width: var(--clients-entity-rail-width);
+    min-height: 100%;
+    height: 100%;
+    padding: var(--clients-entity-header-height) 0 0;
+    gap: 0;
+    border: 0;
+    border-right: 1px solid #e7edf5;
+    background: #ffffff;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: none;
+}
+
+.clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs::-webkit-scrollbar,
+.clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab,
+.clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab {
+    position: relative;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+    min-height: 106px;
+    height: 106px;
+    padding: 12px 9px;
+    gap: 9px;
+    border: 0;
+    border-radius: 0;
+    background: #ffffff;
+    color: #334155;
+    box-shadow: none;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.28;
+    text-align: center;
+    white-space: normal;
+    transition: color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+
+.clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab svg,
+.clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab svg {
+    width: 22px;
+    height: 22px;
+    color: currentColor;
+    stroke-width: 1.85;
+}
+
+.clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab:hover,
+.clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab:hover {
+    background: #f8fafc;
+    color: #0f172a;
+}
+
+.clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab.is-active,
+.clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab.is-active {
+    color: #0b6ff5;
+    background: #eef5ff;
+    box-shadow: inset 3px 0 0 #0b6ff5;
+}
+
+.clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab:focus-visible,
+.clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab:focus-visible {
+    outline: 2px solid rgba(11, 111, 245, .32);
+    outline-offset: -3px;
+    box-shadow: inset 3px 0 0 #0b6ff5;
+}
+
+.clients-standard-company-panel.clients-standard-entity-panel--edit .clients-action-workspace-shell,
+.clients-standard-group-panel.clients-standard-entity-panel--edit .clients-action-workspace-shell {
+    display: block;
+    width: 100%;
+    min-width: 0;
+}
+
+.clients-standard-company-panel.clients-standard-entity-panel--edit .clients-standard-company-profile,
+.clients-standard-group-panel.clients-standard-entity-panel--edit .clients-standard-group-profile,
+.clients-standard-company-panel.clients-standard-entity-panel--edit .clients-standard-company-files,
+.clients-standard-group-panel.clients-standard-entity-panel--edit .group-members-tab-panel,
+.clients-standard-group-panel.clients-standard-entity-panel--edit .clients-detail-sessions-card,
+.clients-standard-company-panel.clients-standard-entity-panel--edit .clients-standard-entity-settings,
+.clients-standard-group-panel.clients-standard-entity-panel--edit .clients-standard-entity-settings {
+    width: 100%;
+    max-width: none;
+}

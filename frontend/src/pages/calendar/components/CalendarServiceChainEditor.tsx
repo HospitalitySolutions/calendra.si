@@ -188,14 +188,6 @@ function MinusIcon() {
   )
 }
 
-function CloseIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  )
-}
-
 function MoreIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -209,15 +201,6 @@ function ClockIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
       <circle cx="12" cy="12" r="8.4" stroke="currentColor" strokeWidth="1.8" />
       <path d="M12 7.8v4.6l3 1.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function SearchIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="11" cy="11" r="6.7" stroke="currentColor" strokeWidth="1.9" />
-      <path d="m16 16 4 4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
     </svg>
   )
 }
@@ -351,13 +334,11 @@ export function CalendarServiceChainEditor({
   const [editingServiceDuration, setEditingServiceDuration] = useState('60')
   const [editingServicePrice, setEditingServicePrice] = useState('0,00')
   const [editingSessionMaxParticipants, setEditingSessionMaxParticipants] = useState('')
-  const [consumablesOpen, setConsumablesOpen] = useState(false)
   const [consumablesLoading, setConsumablesLoading] = useState(false)
   const [consumablePreview, setConsumablePreview] = useState<SessionConsumableDraft[]>([])
   const [workingConsumables, setWorkingConsumables] = useState<SessionConsumableDraft[]>([])
   const [workingConsumablesReset, setWorkingConsumablesReset] = useState(false)
   const [consumableCatalog, setConsumableCatalog] = useState<ConsumableCatalogItem[]>([])
-  const [consumableToAdd, setConsumableToAdd] = useState('')
 
   const count = services.filter((service) => service.typeId != null).length
   const isMultiMode = count > 1
@@ -456,15 +437,6 @@ export function CalendarServiceChainEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [consumablesEnabled, bookingId, primaryTypeId, sessionConsumables, resetSessionConsumablesToDefaults, sessionConsumablesOverridden])
 
-  const openConsumablesEditor = async () => {
-    if (!canEditConsumables) return
-    setWorkingConsumables(consumablePreview.map((row) => ({ ...row })))
-    setWorkingConsumablesReset(resetSessionConsumablesToDefaults)
-    setConsumableToAdd('')
-    setConsumablesOpen(true)
-    if (consumableCatalog.length === 0) await loadConsumableCatalog()
-  }
-
   const resetWorkingConsumables = async () => {
     setConsumablesLoading(true)
     try {
@@ -478,18 +450,6 @@ export function CalendarServiceChainEditor({
   const mutateWorkingConsumables = (next: SessionConsumableDraft[]) => {
     setWorkingConsumables(next)
     setWorkingConsumablesReset(false)
-  }
-
-  const saveConsumablesEditor = () => {
-    if (workingConsumablesReset) {
-      onSessionConsumablesChange?.(null, true)
-      setConsumablePreview(workingConsumables)
-    } else {
-      const normalized = workingConsumables.map((row) => ({ ...row, quantity: Math.max(0, Number(row.quantity) || 0) }))
-      onSessionConsumablesChange?.(normalized, false)
-      setConsumablePreview(normalized)
-    }
-    setConsumablesOpen(false)
   }
 
   const countLabel = (() => {
@@ -624,6 +584,11 @@ export function CalendarServiceChainEditor({
     setEditingServicePrice(price.toFixed(2).replace('.', ','))
     const effectiveMaxParticipants = Number(sessionMaxParticipants ?? type?.maxParticipantsPerSession ?? 0)
     setEditingSessionMaxParticipants(effectiveMaxParticipants > 0 ? String(Math.round(effectiveMaxParticipants)) : '')
+    if (consumablesEnabled && primaryTypeId) {
+      setWorkingConsumables(consumablePreview.map((row) => ({ ...row })))
+      setWorkingConsumablesReset(resetSessionConsumablesToDefaults)
+      if (canEditConsumables && consumableCatalog.length === 0) void loadConsumableCatalog()
+    }
     setMenuIndex(null)
     setReorderMenuIndex(null)
   }
@@ -644,6 +609,16 @@ export function CalendarServiceChainEditor({
       const parsedMaxParticipants = Number(editingSessionMaxParticipants)
       onSessionMaxParticipantsChange(Number.isFinite(parsedMaxParticipants) && parsedMaxParticipants > 0 ? Math.round(parsedMaxParticipants) : null)
     }
+    if (consumablesEnabled && primaryTypeId && canEditConsumables) {
+      if (workingConsumablesReset) {
+        onSessionConsumablesChange?.(null, true)
+        setConsumablePreview(workingConsumables.map((row) => ({ ...row })))
+      } else {
+        const normalized = workingConsumables.map((row) => ({ ...row, quantity: Math.max(0, Number(row.quantity) || 0) }))
+        onSessionConsumablesChange?.(normalized, false)
+        setConsumablePreview(normalized)
+      }
+    }
     setEditingServiceIndex(null)
   }
 
@@ -654,28 +629,6 @@ export function CalendarServiceChainEditor({
       return String(Math.min(720, Math.max(5, base + delta)))
     })
   }
-
-  const consumablesCountLabel = `${consumablePreview.length} ${copy.defaultItems}`
-  const consumablesSectionClassName = sectionClassName?.includes('calendar-approved-booking')
-    ? 'calendar-approved-booking__section calendar-approved-booking__consumables'
-    : sectionClassName?.includes('calendar-standardized')
-      ? 'calendar-standardized__section calendar-standardized__consumables'
-      : 'calendar-consumables-section'
-  const consumablesBody = consumablesLoading ? (
-    <div className="calendar-consumables-summary__empty">{copy.loading}</div>
-  ) : consumablePreview.length > 0 ? (
-    <div className="calendar-consumables-summary__list">
-      {consumablePreview.slice(0, 4).map((row) => (
-        <div key={row.consumableId}>
-          <span>{row.itemName}</span>
-          <strong>{Number(row.quantity).toLocaleString(locale === 'sl' ? 'sl-SI' : undefined)} {row.unit}</strong>
-        </div>
-      ))}
-      {consumablePreview.length > 4 ? <small>+{consumablePreview.length - 4}</small> : null}
-    </div>
-  ) : (
-    <div className="calendar-consumables-summary__empty">{copy.noConsumables}</div>
-  )
 
   const chain = (
       <section className={`calendar-service-chain ${isMultiMode ? 'calendar-service-chain--multi' : 'calendar-service-chain--single'}`} aria-label={isMultiMode ? copy.services : copy.service}>
@@ -868,102 +821,6 @@ export function CalendarServiceChainEditor({
         {chain}
         {children}
       </PanelSection>
-      {consumablesEnabled && primaryTypeId ? (
-        <PanelSection
-          title={copy.consumables}
-          className={consumablesSectionClassName}
-          icon={<CalendarSectionIcon name="consumables" />}
-          badge={consumablesCountLabel}
-          defaultOpen
-          collapsible={false}
-          action={canEditConsumables ? (
-            <button type="button" className="secondary slim-btn" onClick={openConsumablesEditor}>
-              {copy.editConsumables}
-            </button>
-          ) : null}
-        >
-          {consumablesBody}
-          <p className="calendar-consumables-summary__hint">{copy.consumablesHint}</p>
-        </PanelSection>
-      ) : null}
-
-      {consumablesOpen && canEditConsumables ? (
-        <SidePanel
-          open
-          onClose={() => setConsumablesOpen(false)}
-          ariaLabel={locale === 'sl' ? 'Uredi porabni material' : 'Edit consumables'}
-          size="lg"
-          className="calendar-consumables-editor-panel"
-        >
-          <PanelHeader
-            title={
-              <span className="calendar-aux-panel-title">
-                <span>{locale === 'sl' ? 'Uredi porabni material' : locale === 'sr' ? 'Uredi potrošni materijal' : 'Edit consumables'}</span>
-              </span>
-            }
-            subtitle={locale === 'sl' ? 'Prilagodite porabni material za ta termin.' : 'Adjust consumables for this appointment.'}
-            onClose={() => setConsumablesOpen(false)}
-            closeLabel={copy.close}
-          />
-          <PanelBody className="calendar-consumables-editor-panel__body">
-            <div className="calendar-consumables-editor__toolbar">
-              <div className="calendar-consumables-editor__add">
-                <div className="calendar-consumables-editor__select-wrap">
-                  <span className="calendar-consumables-editor__select-icon" aria-hidden><SearchIcon /></span>
-                  <DesktopSelect value={consumableToAdd} onChange={(event) => setConsumableToAdd(event.target.value)}>
-                    <option value="">{locale === 'sl' ? 'Dodaj artikel …' : 'Add item…'}</option>
-                    {consumableCatalog.filter((item) => !workingConsumables.some((row) => row.consumableId === item.id)).map((item) => (
-                      <option key={item.id} value={item.id}>{item.name}</option>
-                    ))}
-                  </DesktopSelect>
-                </div>
-                <button type="button" className="secondary slim-btn calendar-consumables-editor__add-button" disabled={!consumableToAdd} onClick={() => {
-                  const item = consumableCatalog.find((entry) => String(entry.id) === consumableToAdd)
-                  if (!item) return
-                  mutateWorkingConsumables([...workingConsumables, { consumableId: item.id, itemName: item.name, unit: item.unit || 'kos', quantity: 1, quantityMode: 'PER_SESSION', billable: item.billable === true, salePriceSnapshot: item.salePrice ?? null, vatRateSnapshot: item.vatRate ?? 'NO_VAT', notes: null }])
-                  setConsumableToAdd('')
-                }}><PlusIcon /> <span>{locale === 'sl' ? 'Dodaj artikel' : 'Add item'}</span></button>
-              </div>
-              <button type="button" className="calendar-consumables-editor__reset" onClick={resetWorkingConsumables}>↻ {locale === 'sl' ? 'Ponastavi na privzeto' : 'Reset to defaults'}</button>
-            </div>
-            <div className="calendar-consumables-editor__head" aria-hidden>
-              <span>{locale === 'sl' ? 'Artikel' : 'Item'}</span><span>{locale === 'sl' ? 'Količina' : 'Quantity'}</span><span>{locale === 'sl' ? 'Obračun' : 'Calculation'}</span><span>{locale === 'sl' ? 'Zaračunaj' : 'Bill'}</span><span>{locale === 'sl' ? 'Cena' : 'Price'}</span><span />
-            </div>
-            <div className="calendar-consumables-editor__rows">
-              {workingConsumables.map((row, index) => (
-                <div className="calendar-consumables-editor__row" key={`${row.consumableId}-${index}`}>
-                  <strong>{row.itemName}</strong>
-                  <div className="calendar-consumables-editor__quantity"><input type="number" min="0" step="0.01" value={row.quantity} onChange={(event) => mutateWorkingConsumables(workingConsumables.map((item, rowIndex) => rowIndex === index ? { ...item, quantity: Number(event.target.value) } : item))} /><span>{row.unit}</span></div>
-                  <DesktopSelect value={row.quantityMode} onChange={(event) => mutateWorkingConsumables(workingConsumables.map((item, rowIndex) => rowIndex === index ? { ...item, quantityMode: event.target.value === 'PER_PARTICIPANT' ? 'PER_PARTICIPANT' : 'PER_SESSION' } : item))}>
-                    <option value="PER_SESSION">{locale === 'sl' ? 'Na termin' : 'Per appointment'}</option>
-                    <option value="PER_PARTICIPANT">{locale === 'sl' ? 'Na udeleženca' : 'Per participant'}</option>
-                  </DesktopSelect>
-                  <label className="switch calendar-consumables-editor__switch"><input type="checkbox" checked={row.billable} onChange={(event) => mutateWorkingConsumables(workingConsumables.map((item, rowIndex) => rowIndex === index ? { ...item, billable: event.target.checked } : item))} /><span className="slider" /></label>
-                  <span className="calendar-consumables-editor__price">{row.billable ? currency(Number(row.salePriceSnapshot ?? 0)) : '—'}</span>
-                  <button type="button" className="calendar-consumables-editor__remove" aria-label={locale === 'sl' ? 'Odstrani' : 'Remove'} onClick={() => mutateWorkingConsumables(workingConsumables.filter((_, rowIndex) => rowIndex !== index))}><TrashIcon /></button>
-                </div>
-              ))}
-            </div>
-            {workingConsumables.length === 0 ? (
-              <div className="calendar-consumables-editor__empty">
-                <span className="calendar-consumables-editor__empty-icon" aria-hidden><CalendarSectionIcon name="consumables" /></span>
-                <strong>{locale === 'sl' ? 'Ni dodanega porabnega materiala' : 'No consumables added'}</strong>
-                <span>{locale === 'sl' ? 'Dodajte artikel, da ga uporabite za ta termin.' : 'Add an item to use it for this appointment.'}</span>
-              </div>
-            ) : null}
-            <div className="calendar-consumables-editor__note"><span aria-hidden>ⓘ</span> {locale === 'sl' ? 'Spremembe veljajo samo za ta termin in ne spremenijo privzetih nastavitev storitve.' : 'Changes apply only to this appointment and do not change the service defaults.'}</div>
-          </PanelBody>
-          <PanelFooter>
-            <PanelButton variant="ghost" onClick={() => setConsumablesOpen(false)}>
-              {locale === 'sl' ? 'Prekliči' : 'Cancel'}
-            </PanelButton>
-            <PanelButton variant="primary" onClick={saveConsumablesEditor}>
-              {locale === 'sl' ? 'Shrani spremembe' : 'Save changes'}
-            </PanelButton>
-          </PanelFooter>
-        </SidePanel>
-      ) : null}
-
       {pickerOpen ? (
         <SidePanel open onClose={closePicker} ariaLabel={copy.pickerTitle} size="sm" className="calendar-service-picker-panel">
           <PanelHeader
@@ -1025,15 +882,29 @@ export function CalendarServiceChainEditor({
             closeLabel={copy.close}
           />
           <PanelBody className="calendar-service-edit-panel__body">
-            <div className="calendar-service-edit-panel__section-title"><span aria-hidden>ⓘ</span><strong>{locale === 'sl' ? 'Osnovni podatki' : locale === 'sr' ? 'Osnovni podaci' : 'Basic information'}</strong></div>
-            <PanelField label={copy.serviceName}>
+            <PanelField
+              label={
+                <span className="calendar-service-edit-panel__field-title">
+                  <span className="calendar-service-edit-panel__field-icon" aria-hidden><CalendarSectionIcon name="service" /></span>
+                  <strong>{copy.serviceName}</strong>
+                </span>
+              }
+            >
               <input
                 type="text"
                 readOnly
                 value={serviceDescription(sessionTypes.find((entry) => Number(entry?.id) === Number(services[editingServiceIndex]?.typeId)), locale)}
               />
             </PanelField>
-            <PanelField label={copy.duration} as="div">
+            <PanelField
+              label={
+                <span className="calendar-service-edit-panel__field-title">
+                  <span className="calendar-service-edit-panel__field-icon" aria-hidden><CalendarSectionIcon name="schedule" /></span>
+                  <strong>{copy.duration}</strong>
+                </span>
+              }
+              as="div"
+            >
               <DesktopSelect value={editingServiceDuration} onChange={(event) => setEditingServiceDuration(event.target.value)}>
                 {durationOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </DesktopSelect>
@@ -1057,7 +928,14 @@ export function CalendarServiceChainEditor({
                 </button>
               </div>
             </PanelField>
-            <PanelField label={copy.price}>
+            <PanelField
+              label={
+                <span className="calendar-service-edit-panel__field-title">
+                  <span className="calendar-service-edit-panel__field-icon" aria-hidden><CalendarSectionIcon name="pricing" /></span>
+                  <strong>{copy.price}</strong>
+                </span>
+              }
+            >
               <label className="calendar-service-edit-modal__price-wrap calendar-service-edit-modal__price-wrap--money">
                 <span>€</span>
                 <input
@@ -1079,6 +957,97 @@ export function CalendarServiceChainEditor({
                   onChange={(event) => setEditingSessionMaxParticipants(event.target.value)}
                 />
               </PanelField>
+            ) : null}
+            {consumablesEnabled && primaryTypeId ? (
+              <section className="calendar-service-edit-consumables" aria-label={copy.consumables}>
+                <div className="calendar-service-edit-consumables__header">
+                  <div className="calendar-service-edit-consumables__title">
+                    <span className="calendar-service-edit-panel__field-icon" aria-hidden><CalendarSectionIcon name="consumables" /></span>
+                    <strong>{copy.consumables}</strong>
+                  </div>
+                  {canEditConsumables ? (
+                    <button type="button" className="calendar-service-edit-consumables__reset" onClick={resetWorkingConsumables}>
+                      {locale === 'sl' ? 'Ponastavi' : locale === 'sr' ? 'Resetuj' : 'Reset'}
+                    </button>
+                  ) : null}
+                </div>
+                <p className="calendar-service-edit-consumables__hint">
+                  {locale === 'sl' ? 'Material se samodejno doda ob izbiri storitve.' : locale === 'sr' ? 'Materijal se automatski dodaje pri izboru usluge.' : 'Materials are added automatically when the service is selected.'}
+                </p>
+                {consumablesLoading ? (
+                  <div className="calendar-service-edit-consumables__empty">{copy.loading}</div>
+                ) : workingConsumables.length > 0 ? (
+                  <div className="calendar-service-edit-consumables__table">
+                    <div className="calendar-service-edit-consumables__head" aria-hidden>
+                      <span>{locale === 'sl' ? 'Material' : locale === 'sr' ? 'Materijal' : 'Material'}</span>
+                      <span>{locale === 'sl' ? 'Količina' : locale === 'sr' ? 'Količina' : 'Quantity'}</span>
+                      <span>{locale === 'sl' ? 'Enota' : locale === 'sr' ? 'Jedinica' : 'Unit'}</span>
+                      <span />
+                    </div>
+                    <div className="calendar-service-edit-consumables__rows">
+                      {workingConsumables.map((row, index) => (
+                        <div className="calendar-service-edit-consumables__row" key={`${row.consumableId}-${index}`}>
+                          <strong title={row.itemName}>{row.itemName}</strong>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={row.quantity}
+                            disabled={!canEditConsumables}
+                            aria-label={`${locale === 'sl' ? 'Količina' : 'Quantity'} ${row.itemName}`}
+                            onChange={(event) => mutateWorkingConsumables(workingConsumables.map((item, rowIndex) => rowIndex === index ? { ...item, quantity: Number(event.target.value) } : item))}
+                          />
+                          <span className="calendar-service-edit-consumables__unit">{row.unit}</span>
+                          {canEditConsumables ? (
+                            <button
+                              type="button"
+                              className="calendar-service-edit-consumables__remove"
+                              aria-label={locale === 'sl' ? `Odstrani ${row.itemName}` : `Remove ${row.itemName}`}
+                              onClick={() => mutateWorkingConsumables(workingConsumables.filter((_, rowIndex) => rowIndex !== index))}
+                            >
+                              <TrashIcon />
+                            </button>
+                          ) : <span />}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="calendar-service-edit-consumables__empty">{copy.noConsumables}</div>
+                )}
+                {canEditConsumables ? (
+                  <div className="calendar-service-edit-consumables__add">
+                    <span className="calendar-service-edit-consumables__add-icon" aria-hidden><PlusIcon /></span>
+                    <DesktopSelect
+                      value=""
+                      aria-label={locale === 'sl' ? 'Dodaj material' : 'Add material'}
+                      onChange={(event) => {
+                        const item = consumableCatalog.find((entry) => String(entry.id) === event.target.value)
+                        if (!item) return
+                        mutateWorkingConsumables([
+                          ...workingConsumables,
+                          {
+                            consumableId: item.id,
+                            itemName: item.name,
+                            unit: item.unit || 'kos',
+                            quantity: 1,
+                            quantityMode: 'PER_SESSION',
+                            billable: item.billable === true,
+                            salePriceSnapshot: item.salePrice ?? null,
+                            vatRateSnapshot: item.vatRate ?? 'NO_VAT',
+                            notes: null,
+                          },
+                        ])
+                      }}
+                    >
+                      <option value="">{locale === 'sl' ? 'Dodaj material' : locale === 'sr' ? 'Dodaj materijal' : 'Add material'}</option>
+                      {consumableCatalog.filter((item) => !workingConsumables.some((row) => row.consumableId === item.id)).map((item) => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))}
+                    </DesktopSelect>
+                  </div>
+                ) : null}
+              </section>
             ) : null}
           </PanelBody>
           {!editServiceKeyboardOpen ? (

@@ -8801,45 +8801,48 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       clientY?: number | null
     },
   ) => {
-    if (!calendarCreateMenuEnabled || typeof window === 'undefined') return false
+    // Desktop calendar clicks/selections now open Dodaj termin immediately.
+    // The old Termin / Opravilo / Osebno / Dostopnost chooser is intentionally
+    // bypassed because those creation modes are available from the drawer rail.
+    if (!calendarCreateMenuEnabled) return false
 
-    const MENU_WIDTH = 236
-    const MENU_HEIGHT = 246
-    const VIEWPORT_GAP = 12
-    const ANCHOR_GAP = 10
-    const anchorRect = options?.anchorEl?.getBoundingClientRect() ?? null
-    const fallbackX = typeof options?.clientX === 'number' && Number.isFinite(options.clientX)
-      ? options.clientX
-      : window.innerWidth / 2
-    const fallbackY = typeof options?.clientY === 'number' && Number.isFinite(options.clientY)
-      ? options.clientY
-      : window.innerHeight / 2
-    const centerX = anchorRect ? anchorRect.left + anchorRect.width / 2 : fallbackX
-    const anchorTop = anchorRect ? anchorRect.top : fallbackY
-    const anchorBottom = anchorRect ? anchorRect.bottom : fallbackY
-
-    const maxLeft = Math.max(VIEWPORT_GAP, window.innerWidth - MENU_WIDTH - VIEWPORT_GAP)
-    const menuLeft = Math.min(Math.max(centerX - MENU_WIDTH / 2, VIEWPORT_GAP), maxLeft)
-    const availableBelow = window.innerHeight - anchorBottom - VIEWPORT_GAP
-    const placement: 'above' | 'below' = availableBelow >= MENU_HEIGHT + ANCHOR_GAP ? 'below' : 'above'
-    const desiredTop = placement === 'below'
-      ? anchorBottom + ANCHOR_GAP
-      : anchorTop - MENU_HEIGHT - ANCHOR_GAP
-    const maxTop = Math.max(VIEWPORT_GAP, window.innerHeight - MENU_HEIGHT - VIEWPORT_GAP)
-    const menuTop = Math.min(Math.max(desiredTop, VIEWPORT_GAP), maxTop)
-    const arrowLeft = Math.min(Math.max(centerX - menuLeft, 22), MENU_WIDTH - 22)
-
+    setCalendarCreateMenu(null)
     setSessionQuickActions(null)
-    setCalendarCreateMenu({
+    setOverlapDrawerGroupId(null)
+
+    const resourceId = options?.resourceId ?? null
+    const bookableInfo = getBookableSelectionInfo(start, end)
+    const consultantFromResource =
+      bookingsUseResourceColumns && resourceId != null && resourceId !== ''
+        ? (resourceId === CONSULTANT_RESOURCE_UNASSIGNED_ID ? user.id : Number(resourceId))
+        : null
+    const preferredConsultantId =
+      Number.isFinite(consultantFromResource)
+        ? Number(consultantFromResource)
+        : (bookableInfo.consultantId ?? consultantFilterId ?? user.id)
+
+    let selectedSpaceId: number | null | undefined
+    if (spaceFilterId != null) {
+      selectedSpaceId = spaceFilterId
+    } else if (spacesUseResourceColumns && resourceId != null && resourceId !== '') {
+      selectedSpaceId = resourceId === SPACE_RESOURCE_UNASSIGNED_ID ? null : Number(resourceId)
+    } else {
+      selectedSpaceId = locationScopedMetaSpaces[0]?.id ?? null
+    }
+
+    if (calendarMode === 'availability') setCalendarMode('bookings')
+
+    openBookingModal(
       start,
       end,
-      preserveDraggedRange: !!options?.preserveDraggedRange,
-      resourceId: options?.resourceId,
-      menuLeft,
-      menuTop,
-      placement,
-      arrowLeft,
-    })
+      preferredConsultantId,
+      !!options?.preserveDraggedRange,
+      selectedSpaceId,
+      undefined,
+      bookableEnabled ? !bookableInfo.isBookable : false,
+      options?.anchorEl ?? null,
+      resourceId,
+    )
     return true
   }
 

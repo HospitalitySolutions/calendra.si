@@ -77,10 +77,81 @@
 
 .billing-pos-layout {
   display: grid;
-  grid-template-columns: minmax(400px, 43%) minmax(0, 57%);
+  grid-template-columns: 112px minmax(330px, 34%) minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   background: #fff;
+}
+
+.billing-pos-catalog-rail {
+  min-width: 0;
+  min-height: 0;
+  padding: 14px 8px;
+  border-right: 1px solid var(--billing-pos-border-soft);
+  background: #fff;
+  overflow-y: auto;
+}
+
+.billing-pos-catalog-rail button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 82px;
+  margin: 0 0 8px;
+  padding: 10px 6px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #475467;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 620;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.billing-pos-catalog-rail button::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: transparent;
+}
+
+.billing-pos-catalog-rail button:hover {
+  background: #f7f9fc;
+  color: #243047;
+}
+
+.billing-pos-catalog-rail button.is-active {
+  background: var(--billing-pos-blue-soft);
+  color: var(--billing-pos-blue);
+}
+
+.billing-pos-catalog-rail button.is-active::before {
+  background: var(--billing-pos-blue);
+}
+
+.billing-pos-catalog-rail__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+
+.billing-pos-catalog-rail__icon svg {
+  width: 22px;
+  height: 22px;
 }
 
 .billing-pos-catalog-pane,
@@ -99,6 +170,14 @@
 
 .billing-pos-checkout-pane {
   padding: 22px 26px 32px;
+}
+
+.billing-pos-payee-section {
+  margin: 0 0 22px;
+}
+
+.billing-pos-catalog-pane > .billing-pos-search {
+  margin-top: 0;
 }
 
 .billing-pos-payee-label {
@@ -186,6 +265,10 @@
 
 .billing-pos-tabs button.is-active::after {
   background: var(--billing-pos-blue);
+}
+
+.billing-pos-tabs--mobile {
+  display: none;
 }
 
 .billing-pos-search {
@@ -993,7 +1076,7 @@
   }
 
   .billing-pos-layout {
-    grid-template-columns: minmax(360px, 42%) minmax(0, 58%);
+    grid-template-columns: 100px minmax(300px, 33%) minmax(0, 1fr);
   }
 
   .billing-pos-selected-row {
@@ -1020,6 +1103,18 @@
   .billing-pos-layout {
     display: block;
     height: auto;
+  }
+
+  .billing-pos-catalog-rail {
+    display: none;
+  }
+
+  .billing-pos-tabs--mobile {
+    display: flex;
+  }
+
+  .billing-pos-catalog-pane > .billing-pos-search {
+    margin-top: 16px;
   }
 
   .billing-pos-catalog-pane,

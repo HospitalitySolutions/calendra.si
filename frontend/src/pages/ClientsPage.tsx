@@ -35,7 +35,9 @@ import { GuestConfigSaveIcon } from '../components/GuestConfigSaveIcon'
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
 type ConsultantSummary = UserSummary & { consultant?: boolean }
 type EntityTab = 'clients' | 'companies' | 'groups'
-type ClientDetailView = 'sessions' | 'wallet' | 'files' | 'settings'
+type ClientDetailView = 'basic' | 'sessions' | 'wallet' | 'files' | 'settings'
+type CompanyDetailView = 'basic' | 'datoteke' | 'nastavitve'
+type GroupDetailView = 'basic' | 'sessions' | 'members' | 'settings'
 
 function parseEntityTab(search: string): EntityTab {
   const tab = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search).get('tab')
@@ -49,8 +51,8 @@ function entityTabSearch(tab: EntityTab): string {
 
 function parseClientDetailView(search: string): ClientDetailView {
   const view = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search).get('view')
-  if (view === 'wallet' || view === 'files' || view === 'settings') return view
-  return 'sessions'
+  if (view === 'sessions' || view === 'wallet' || view === 'files' || view === 'settings') return view
+  return 'basic'
 }
 
 function mergeSearch(...parts: Array<string | undefined>): string {
@@ -568,8 +570,11 @@ function formatShortTime(iso: string): string {
   return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
-function sessionTitle(session: ClientSession): string {
-  return session.sessionTypeName || session.sessionName || session.title || `Session #${session.id}`
+function sessionTitle(session: ClientSession, locale?: string): string {
+  if (session.sessionTypeName || session.sessionName || session.title) {
+    return session.sessionTypeName || session.sessionName || session.title || ''
+  }
+  return locale === 'sl' ? `Termin #${session.id}` : `Session #${session.id}`
 }
 
 function sessionLocation(session: ClientSession): string {
@@ -1023,7 +1028,7 @@ function ClientsMobileCardActionIcon({
   )
 }
 
-type ClientWorkspaceIconName = 'sessions' | 'wallet' | 'files' | 'settings' | 'members' | 'chevronDown'
+type ClientWorkspaceIconName = 'basic' | 'sessions' | 'wallet' | 'files' | 'settings' | 'members' | 'chevronDown'
 
 
 function ClientProfileSectionIcon({ name }: { name: 'person' | 'email' | 'phone' }) {
@@ -1090,6 +1095,14 @@ function ClientWorkspaceIcon({ name }: { name: ClientWorkspaceIconName }) {
     strokeLinecap: 'round' as const,
     strokeLinejoin: 'round' as const,
     'aria-hidden': true,
+  }
+  if (name === 'basic') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="7" r="3.5" />
+        <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
+      </svg>
+    )
   }
   if (name === 'sessions') {
     return (
@@ -1308,6 +1321,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     fileUnsupported: (name: string) => `${name} ni podprt tip datoteke. Dovoljene so slike, PDF, TXT, CSV, DOC, DOCX, XLS, XLSX, PPT in PPTX.`,
     dragDropFilesHint: 'Povlecite datoteke sem ali uporabite gumb zgoraj.',
     clientDetailMainTabsAria: 'Zavihki podrobnosti stranke',
+    clientDetailTabBasic: 'Osnovni podatki',
+    clientDetailTabDocuments: 'Dokumenti',
     clientDetailTabSettings: 'Nastavitve',
     clientDetailTabWallet: 'Denarnica',
     walletActive: 'Aktivno',
@@ -1339,6 +1354,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     walletDeleteEntitlementConfirm: 'Ali želite izbrisati to ugodnost iz denarnice gosta?',
     walletDeleteEntitlementError: 'Ugodnosti ni bilo mogoče izbrisati.',
     companyDetailMainTabsAria: 'Zavihki podrobnosti podjetja',
+    companyDetailTabBasic: 'Osnovni podatki',
     companyDatotekeSubTabsAria: 'Podzavihki datotek in računov',
     companySubTabInvoices: 'Računi',
     companySubTabGeneral: 'Splošno',
@@ -1364,6 +1380,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     createGroup: 'Ustvari skupino',
     individualPayment: 'Individualno plačilo',
     groupDetailMainTabsAria: 'Zavihki podrobnosti skupine',
+    groupDetailTabBasic: 'Osnovni podatki',
     noGroupFilesText: 'Datoteke, naložene za to skupino, bodo prikazane tukaj.',
     groupMaxSize: 'Največje število na termin',
     groupMaxSizeHint: 'Največje število strank na skupino',
@@ -1484,6 +1501,8 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     fileUnsupported: (name: string) => `${name} is not a supported file type. Allowed: images, PDF, TXT, CSV, DOC, DOCX, XLS, XLSX, PPT, PPTX.`,
     dragDropFilesHint: 'Drag files here or use the button above.',
     clientDetailMainTabsAria: 'Client detail sections',
+    clientDetailTabBasic: 'Basic information',
+    clientDetailTabDocuments: 'Documents',
     clientDetailTabSettings: 'Settings',
     clientDetailTabWallet: 'Wallet',
     walletActive: 'Active',
@@ -1515,6 +1534,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     walletDeleteEntitlementConfirm: 'Delete this entitlement from the guest wallet?',
     walletDeleteEntitlementError: 'Could not delete the entitlement.',
     companyDetailMainTabsAria: 'Company detail tabs',
+    companyDetailTabBasic: 'Basic information',
     companyDatotekeSubTabsAria: 'Files and invoices sections',
     companySubTabInvoices: 'Invoices',
     companySubTabGeneral: 'General',
@@ -1540,6 +1560,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     createGroup: 'Create group',
     individualPayment: 'Individual payment',
     groupDetailMainTabsAria: 'Group detail sections',
+    groupDetailTabBasic: 'Basic information',
     noGroupFilesText: 'Files uploaded for this group will appear here.',
     groupMaxSize: 'Max size',
     groupMaxSizeHint: 'Maximum clients per group',
@@ -1623,10 +1644,10 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [detailCompanyFilesError, setDetailCompanyFilesError] = useState('')
   const [sessionTab, setSessionTab] = useState<SessionTab>('future')
   const [sessionPageByTab, setSessionPageByTab] = useState<Record<SessionTab, number>>(() => ({ ...INITIAL_SESSION_PAGES }))
-  const [clientDetailMainTab, setClientDetailMainTab] = useState<'sessions' | 'wallet' | 'files' | 'settings'>('sessions')
+  const [clientDetailMainTab, setClientDetailMainTab] = useState<ClientDetailView>('basic')
   const [clientDetailDatotekeSubTab, setClientDetailDatotekeSubTab] = useState<'racuni' | 'splosno'>('splosno')
   const [highlightedEntitlementId, setHighlightedEntitlementId] = useState<number | null>(null)
-  const [companyDetailMainTab, setCompanyDetailMainTab] = useState<'datoteke' | 'nastavitve'>('datoteke')
+  const [companyDetailMainTab, setCompanyDetailMainTab] = useState<CompanyDetailView>('basic')
   const [companyDetailDatotekeSubTab, setCompanyDetailDatotekeSubTab] = useState<'racuni' | 'splosno'>('splosno')
   const [anonymizingClientId, setAnonymizingClientId] = useState<number | null>(null)
   const [anonymizeConfirmClientId, setAnonymizeConfirmClientId] = useState<number | null>(null)
@@ -1740,7 +1761,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [detailGroupSessionsLoading, setDetailGroupSessionsLoading] = useState(false)
   const [groupSessionTab, setGroupSessionTab] = useState<SessionTab>('future')
   const [groupSessionPageByTab, setGroupSessionPageByTab] = useState<Record<SessionTab, number>>(() => ({ ...INITIAL_SESSION_PAGES }))
-  const [groupDetailMainTab, setGroupDetailMainTab] = useState<'sessions' | 'members' | 'settings'>('sessions')
+  const [groupDetailMainTab, setGroupDetailMainTab] = useState<GroupDetailView>('basic')
   const [groupDetailEditDraft, setGroupDetailEditDraft] = useState<{
     name: string
     email: string
@@ -2029,7 +2050,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   useEffect(() => {
     if (entitlementsFeatureEnabled) return
     if (clientDetailMainTab === 'wallet') {
-      setClientDetailMainTab('sessions')
+      setClientDetailMainTab('basic')
     }
     setWalletPurchaseDrawerOpen(false)
     setDetailWallet(null)
@@ -2661,7 +2682,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       || !customFieldMapsEqual(detailCompanyCustomValues, detailCompany.customFieldValues)
   }, [detailCompany, companyDetailEditDraft, detailCompanyCustomValues])
 
-  const hydrateClientDetail = (c: Client, initialTab: ClientDetailView = 'sessions') => {
+  const hydrateClientDetail = (c: Client, initialTab: ClientDetailView = 'basic') => {
     setDetailClient(c)
     setDetailEditField(null)
     setDetailClientCustomValues(normalizeCustomFieldValues(c.customFieldValues))
@@ -2694,7 +2715,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const hydrateCompanyDetail = (company: Company) => {
     setDetailCompany(company)
     setDetailCompanyCustomValues(normalizeCustomFieldValues(company.customFieldValues))
-    setCompanyDetailMainTab('datoteke')
+    setCompanyDetailMainTab('basic')
     setCompanyDetailDatotekeSubTab('splosno')
     setCompanyDetailEditDraft({
       name: company.name ?? '',
@@ -2726,7 +2747,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     })
     setGroupSessionTab('future')
     setGroupSessionPageByTab({ ...INITIAL_SESSION_PAGES })
-    setGroupDetailMainTab('members')
+    setGroupDetailMainTab('basic')
     setGroupMemberSearch('')
     setGroupMemberDropdownOpen(false)
     setPendingGroupMemberIds([])
@@ -2737,14 +2758,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     openDrawer(CLIENTS_DRAWERS.newClient, { search: pageSearch })
   }
 
-  const openDetailModal = (c: Client, initialTab: ClientDetailView = 'sessions') => {
+  const openDetailModal = (c: Client, initialTab: ClientDetailView = 'basic') => {
     if (embeddedClientDetailMode) {
       hydrateClientDetail(c, initialTab)
       return
     }
     openDrawer(CLIENTS_DRAWERS.client, {
       params: { id: String(c.id) },
-      search: mergeSearch(pageSearch, initialTab !== 'sessions' ? `view=${initialTab}` : undefined),
+      search: mergeSearch(pageSearch, initialTab !== 'basic' ? `view=${initialTab}` : undefined),
     })
   }
 
@@ -3518,7 +3539,10 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     const required = key === 'firstName' || key === 'lastName'
     return (
       <label className={`clients-standard-profile-field${wide ? ' clients-standard-profile-field--wide' : ''}`}>
-        {(key === 'firstName' || key === 'lastName') && <span>{label}{required ? ' *' : ''}</span>}
+        <span className="clients-standard-profile-field__label">
+          <ClientProfileSectionIcon name={key === 'email' ? 'email' : key === 'phone' ? 'phone' : 'person'} />
+          <strong>{label}{required ? ' *' : ''}</strong>
+        </span>
         <input
           required={required}
           type={inputType}
@@ -4859,39 +4883,33 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           activeId={clientDetailMainTab}
           onSelect={(id) => setClientDetailMainTab(id as ClientDetailView)}
           tabs={[
+            { id: 'basic', label: clientsCopy.clientDetailTabBasic, icon: <ClientWorkspaceIcon name="basic" /> },
             { id: 'sessions', label: clientsCopy.sessions, icon: <ClientWorkspaceIcon name="sessions" /> },
             { id: 'wallet', label: clientsCopy.clientDetailTabWallet, icon: <ClientWorkspaceIcon name="wallet" />, hidden: !entitlementsFeatureEnabled },
-            { id: 'files', label: clientsCopy.files, icon: <ClientWorkspaceIcon name="files" /> },
+            { id: 'files', label: clientsCopy.clientDetailTabDocuments, icon: <ClientWorkspaceIcon name="files" /> },
             { id: 'settings', label: clientsCopy.clientDetailTabSettings, icon: <ClientWorkspaceIcon name="settings" /> },
           ]}
         />
         <PanelBody>
           {detailClient ? (
               <div className="clients-detail-shell clients-action-workspace-shell">
-                <div className="clients-standard-customer-profile">
-                  <section className="clients-standard-customer-section clients-standard-customer-section--person">
-                    <h3><ClientProfileSectionIcon name="person" /><span>{locale === 'sl' ? 'Osebni podatki' : 'Personal details'}</span></h3>
+                {clientDetailMainTab === 'basic' && (
+                  <div className="clients-standard-customer-profile" role="tabpanel">
                     <div className="clients-standard-profile-grid">
                       {renderClientProfileInput('firstName', clientsCopy.firstName)}
                       {renderClientProfileInput('lastName', clientsCopy.lastName)}
                     </div>
-                  </section>
-                  <section className="clients-standard-customer-section">
-                    <h3><ClientProfileSectionIcon name="email" /><span>{clientsCopy.email}</span></h3>
                     {renderClientProfileInput('email', clientsCopy.email, true, 'email')}
-                  </section>
-                  <section className="clients-standard-customer-section">
-                    <h3><ClientProfileSectionIcon name="phone" /><span>{clientsCopy.phone}</span></h3>
                     {renderClientProfileInput('phone', clientsCopy.phone, true, 'tel')}
-                  </section>
-                  {clientCustomFieldDefs.length > 0 ? (
-                    <div className="clients-standard-customer-extra-fields clients-detail-fields">
-                      {renderCustomFieldInputs(clientCustomFieldDefs, detailClientCustomValues, (fieldId, value) =>
-                        setDetailClientCustomValues((prev) => ({ ...prev, [fieldId]: value }))
-                      )}
-                    </div>
-                  ) : null}
-                </div>
+                    {clientCustomFieldDefs.length > 0 ? (
+                      <div className="clients-standard-customer-extra-fields clients-detail-fields">
+                        {renderCustomFieldInputs(clientCustomFieldDefs, detailClientCustomValues, (fieldId, value) =>
+                          setDetailClientCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
 
                 {entitlementsFeatureEnabled && clientDetailMainTab === 'wallet' && (
                   <div className="clients-detail-sessions-card clients-detail-wallet-card clients-standard-detail-card clients-standard-wallet-tab" role="tabpanel">
@@ -5292,7 +5310,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                                 <ClientWorkspaceIcon name="sessions" />
                               </div>
                               <div className="clients-modern-session-title">
-                                <strong>{sessionTitle(s)}</strong>
+                                <strong>{sessionTitle(s, locale)}</strong>
                                 <span>{formatDate(s.startTime)}</span>
                               </div>
                               <div className="clients-modern-session-info">
@@ -5363,6 +5381,15 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           {detailClient ? (
             <PanelButton
               variant="danger"
+              icon={(
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4h8v2" />
+                  <path d="M19 6l-1 14H6L5 6" />
+                  <path d="M10 11v5" />
+                  <path d="M14 11v5" />
+                </svg>
+              )}
               onClick={() => void deleteClientById(detailClient.id)}
               disabled={deletingClientId === detailClient.id || detailClient.removalBlocked}
             >
@@ -5526,8 +5553,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         <PanelTabs
           label={clientsCopy.companyDetailMainTabsAria}
           activeId={companyDetailMainTab}
-          onSelect={(id) => setCompanyDetailMainTab(id as 'datoteke' | 'nastavitve')}
+          onSelect={(id) => setCompanyDetailMainTab(id as CompanyDetailView)}
           tabs={[
+            { id: 'basic', label: clientsCopy.companyDetailTabBasic, icon: <ClientSettingsCardIcon name="company" /> },
             { id: 'datoteke', label: clientsCopy.files, icon: <ClientWorkspaceIcon name="files" /> },
             { id: 'nastavitve', label: clientsCopy.clientDetailTabSettings, icon: <ClientWorkspaceIcon name="settings" /> },
           ]}
@@ -5535,25 +5563,27 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         <PanelBody>
           {detailCompany ? (
               <div className="clients-detail-shell clients-action-workspace-shell">
-                <section className="clients-standard-entity-profile clients-standard-company-profile">
-                  <h3><ClientSettingsCardIcon name="company" /><span>{locale === 'sl' ? 'Podatki o podjetju' : 'Company details'}</span></h3>
-                  <div className="clients-standard-entity-grid clients-standard-company-grid">
-                    {renderCompanyEditableField('name', clientsCopy.companyName, true)}
-                    {renderCompanyEditableField('vatId', clientsCopy.vatId, true)}
-                    {renderCompanyEditableField('email', clientsCopy.email)}
-                    {renderCompanyEditableField('telephone', clientsCopy.telephone)}
-                    {renderCompanyEditableField('address', clientsCopy.address, true)}
-                    {renderCompanyEditableField('postalCode', clientsCopy.postalCode)}
-                    {renderCompanyEditableField('city', clientsCopy.city)}
-                  </div>
-                  {companyCustomFieldDefs.length > 0 ? (
-                    <div className="clients-standard-entity-custom-fields">
-                      {renderCustomFieldInputs(companyCustomFieldDefs, detailCompanyCustomValues, (fieldId, value) =>
-                        setDetailCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
-                      )}
+                {companyDetailMainTab === 'basic' && (
+                  <section className="clients-standard-entity-profile clients-standard-company-profile" role="tabpanel">
+                    <h3><ClientSettingsCardIcon name="company" /><span>{locale === 'sl' ? 'Podatki o podjetju' : 'Company details'}</span></h3>
+                    <div className="clients-standard-entity-grid clients-standard-company-grid">
+                      {renderCompanyEditableField('name', clientsCopy.companyName, true)}
+                      {renderCompanyEditableField('vatId', clientsCopy.vatId, true)}
+                      {renderCompanyEditableField('email', clientsCopy.email)}
+                      {renderCompanyEditableField('telephone', clientsCopy.telephone)}
+                      {renderCompanyEditableField('address', clientsCopy.address, true)}
+                      {renderCompanyEditableField('postalCode', clientsCopy.postalCode)}
+                      {renderCompanyEditableField('city', clientsCopy.city)}
                     </div>
-                  ) : null}
-                </section>
+                    {companyCustomFieldDefs.length > 0 ? (
+                      <div className="clients-standard-entity-custom-fields">
+                        {renderCustomFieldInputs(companyCustomFieldDefs, detailCompanyCustomValues, (fieldId, value) =>
+                          setDetailCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                        )}
+                      </div>
+                    ) : null}
+                  </section>
+                )}
 
                 {companyDetailMainTab === 'nastavitve' && (
                   <div className="clients-action-workspace-settings clients-standard-entity-settings" onClick={(e) => e.stopPropagation()} role="tabpanel">
@@ -6017,8 +6047,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         <PanelTabs
           label={clientsCopy.groupDetailMainTabsAria}
           activeId={groupDetailMainTab}
-          onSelect={(id) => setGroupDetailMainTab(id as 'sessions' | 'members' | 'settings')}
+          onSelect={(id) => setGroupDetailMainTab(id as GroupDetailView)}
           tabs={[
+            { id: 'basic', label: clientsCopy.groupDetailTabBasic, icon: <ClientWorkspaceIcon name="basic" /> },
             { id: 'sessions', label: clientsCopy.sessions, icon: <ClientWorkspaceIcon name="sessions" /> },
             { id: 'members', label: clientsCopy.groupMembers, icon: <ClientWorkspaceIcon name="members" /> },
             { id: 'settings', label: clientsCopy.clientDetailTabSettings, icon: <ClientWorkspaceIcon name="settings" /> },
@@ -6027,20 +6058,22 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         <PanelBody>
           {detailGroup ? (
               <div className="clients-detail-shell clients-action-workspace-shell">
-                <section className="clients-standard-entity-profile clients-standard-group-profile">
-                  <h3><ClientWorkspaceIcon name="members" /><span>{locale === 'sl' ? 'Podatki o skupini' : 'Group details'}</span></h3>
-                  <div className="clients-standard-entity-grid clients-standard-group-grid">
-                    {renderGroupEditableField('name', clientsCopy.groupName, true)}
-                    {renderGroupEditableField('email', clientsCopy.groupEmail, true)}
-                  </div>
-                  {groupCustomFieldDefs.length > 0 ? (
-                    <div className="clients-standard-entity-custom-fields">
-                      {renderCustomFieldInputs(groupCustomFieldDefs, detailGroupCustomValues, (fieldId, value) =>
-                        setDetailGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))
-                      )}
+                {groupDetailMainTab === 'basic' && (
+                  <section className="clients-standard-entity-profile clients-standard-group-profile" role="tabpanel">
+                    <h3><ClientWorkspaceIcon name="members" /><span>{locale === 'sl' ? 'Podatki o skupini' : 'Group details'}</span></h3>
+                    <div className="clients-standard-entity-grid clients-standard-group-grid">
+                      {renderGroupEditableField('name', clientsCopy.groupName, true)}
+                      {renderGroupEditableField('email', clientsCopy.groupEmail, true)}
                     </div>
-                  ) : null}
-                </section>
+                    {groupCustomFieldDefs.length > 0 ? (
+                      <div className="clients-standard-entity-custom-fields">
+                        {renderCustomFieldInputs(groupCustomFieldDefs, detailGroupCustomValues, (fieldId, value) =>
+                          setDetailGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                        )}
+                      </div>
+                    ) : null}
+                  </section>
+                )}
 
                 {groupDetailMainTab === 'members' && (
                   <div className="clients-detail-sessions-card group-members-tab-panel clients-standard-group-members" role="tabpanel">
@@ -6261,7 +6294,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                                   <ClientWorkspaceIcon name="sessions" />
                                 </div>
                                 <div className="clients-modern-session-title">
-                                  <strong>{sessionTitle(s)}</strong>
+                                  <strong>{sessionTitle(s, locale)}</strong>
                                   <span>{formatDate(s.startTime)}</span>
                                 </div>
                                 <div className="clients-modern-session-info">

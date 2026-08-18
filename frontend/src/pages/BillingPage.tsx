@@ -7621,6 +7621,38 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return openBillClientLabel(ob)
   }
 
+  const renderPosCatalogRail = () => (
+    <nav className="billing-pos-catalog-rail" aria-label={locale === 'sl' ? 'Vrsta postavke' : 'Item type'}>
+      {(['services', 'benefits', 'giftCards'] as PosCatalogTab[]).map((tab) => (
+        <button
+          key={tab}
+          type="button"
+          className={posCatalogTab === tab ? 'is-active' : ''}
+          aria-current={posCatalogTab === tab ? 'page' : undefined}
+          onClick={() => { setPosCatalogTab(tab); setPosCatalogQuery('') }}
+        >
+          <span className="billing-pos-catalog-rail__icon" aria-hidden>
+            {tab === 'services' ? (
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M4.5 8.5h15v10h-15zM8 8.5V6.8A2.3 2.3 0 0 1 10.3 4.5h3.4A2.3 2.3 0 0 1 16 6.8v1.7M4.5 12h15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : tab === 'benefits' ? (
+              <svg viewBox="0 0 24 24" fill="none">
+                <rect x="4" y="6" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.7" />
+                <path d="M4 10h16M8 14h3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M5 9h14v10H5zM4 9h16V6.5H4zM12 6.5V19M7.4 6.5C6.2 6.5 5.5 5.8 5.5 4.9S6.2 3.4 7.1 3.4c1.8 0 3.2 3.1 4.9 3.1M16.6 6.5c1.2 0 1.9-.7 1.9-1.6s-.7-1.5-1.6-1.5c-1.8 0-3.2 3.1-4.9 3.1" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </span>
+          <span>{posCatalogTabLabel(tab)}</span>
+        </button>
+      ))}
+    </nav>
+  )
+
   const renderPosCatalog = (
     catalogServices: BillingService[],
     catalogProducts: BillingGuestProduct[],
@@ -7630,7 +7662,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     billType?: BillDocumentType | string | null,
   ) => {
     const rows = posCatalogRows(catalogServices, catalogProducts, activeLocationId, billType)
-    const totalForTab = posCatalogTab === 'services' ? rows.services.length : rows.products.length
     const placeholder = posCatalogTab === 'services'
       ? (locale === 'sl' ? 'Išči storitve …' : 'Search services …')
       : posCatalogTab === 'benefits'
@@ -7638,7 +7669,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         : (locale === 'sl' ? 'Išči bone …' : 'Search gift cards …')
     return (
       <>
-        <div className="billing-pos-tabs" role="tablist" aria-label={locale === 'sl' ? 'Katalog' : 'Catalog'}>
+        <div className="billing-pos-tabs billing-pos-tabs--mobile" role="tablist" aria-label={locale === 'sl' ? 'Katalog' : 'Catalog'}>
           {(['services', 'benefits', 'giftCards'] as PosCatalogTab[]).map((tab) => (
             <button
               key={tab}
@@ -7707,9 +7738,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               {locale === 'sl' ? 'Ni razpoložljivih postavk.' : 'No items available.'}
             </div>
           ))}
-          <div className="billing-pos-catalog-count">
-            {locale === 'sl' ? `Prikazano ${totalForTab} postavk` : `Showing ${totalForTab} items`}
-          </div>
         </div>
       </>
     )
@@ -8195,12 +8223,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
     return (
       <div className="billing-pos-layout">
+        {renderPosCatalogRail()}
         <section className="billing-pos-catalog-pane">
-          <label className="billing-pos-payee-label">{locale === 'sl' ? 'Plačnik' : 'Payee'}</label>
-          <button type="button" className="billing-pos-payee-field" onClick={() => setEditingCreateBillPayee(true)}>{posCreatePayeeLabel()}</button>
           {renderPosCatalog(availableBillServices, guestProducts, addService, addProduct, billForm.locationId, isAdvance ? 'ADVANCE' : 'INVOICE')}
         </section>
         <section className="billing-pos-checkout-pane">
+          <div className="billing-pos-payee-section">
+            <label className="billing-pos-payee-label">{locale === 'sl' ? 'Plačnik' : 'Payee'}</label>
+            <button type="button" className="billing-pos-payee-field" onClick={() => setEditingCreateBillPayee(true)}>{posCreatePayeeLabel()}</button>
+          </div>
           <h3 className="billing-pos-selected-title">{locale === 'sl' ? 'Izbrano' : 'Selected'}</h3>
           {renderPosCreateSelectedItems(!isAdvance)}
           <div className="billing-pos-subtotal"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(subtotalGross)}</strong></div>
@@ -8254,12 +8285,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     }
     return (
       <div className="billing-pos-layout">
+        {renderPosCatalogRail()}
         <section className="billing-pos-catalog-pane">
-          <label className="billing-pos-payee-label">{locale === 'sl' ? 'Plačnik' : 'Payee'}</label>
-          <button type="button" className="billing-pos-payee-field" onClick={() => openOpenBillPayeeEditor(ob)}>{posOpenBillPayeeLabel(ob)}</button>
           {renderPosCatalog(catalogServices, guestProducts, addService, addProduct, ob.location?.id, ob.billType || 'INVOICE')}
         </section>
         <section className="billing-pos-checkout-pane">
+          <div className="billing-pos-payee-section">
+            <label className="billing-pos-payee-label">{locale === 'sl' ? 'Plačnik' : 'Payee'}</label>
+            <button type="button" className="billing-pos-payee-field" onClick={() => openOpenBillPayeeEditor(ob)}>{posOpenBillPayeeLabel(ob)}</button>
+          </div>
           <h3 className="billing-pos-selected-title">{locale === 'sl' ? 'Izbrano' : 'Selected'}</h3>
           {renderPosOpenSelectedItems(ob)}
           <div className="billing-pos-subtotal"><span>{locale === 'sl' ? 'Vmesni seštevek' : 'Subtotal'}</span><strong>{currency(subtotalGross)}</strong></div>
