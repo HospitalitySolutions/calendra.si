@@ -5649,7 +5649,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   {selectedWalletProduct ? (
                     <>
                       <div className="clients-wallet-review-product">
-                        <span className="clients-wallet-review-product-icon" aria-hidden><ClientWorkspaceIcon name="wallet" /></span>
                         <strong>{selectedWalletProduct.name}</strong>
                         <span className={`clients-wallet-product-badge clients-wallet-product-badge--${walletProductTypeTone(selectedWalletProduct.productType)}`}>
                           {walletProductTypeLabel(selectedWalletProduct.productType, locale, selectedWalletProduct.voucherRedemptionMode)}

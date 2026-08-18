@@ -413,6 +413,28 @@ public class UserController {
                         .body(Map.of("message", "Consultant not found.")));
     }
 
+    @PostMapping("/{id}/password-reset")
+    @PreAuthorize("isAuthenticated()")
+    @Transactional
+    public ResponseEntity<?> sendPasswordResetEmail(
+            @PathVariable Long id,
+            @RequestBody(required = false) PasswordResetEmailRequest request,
+            @AuthenticationPrincipal User me
+    ) {
+        if (!id.equals(me.getId()) && me.getRole() != Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("message", "You are not allowed to reset this user's password."));
+        }
+        Long companyId = me.getCompany().getId();
+        return userRepository.findByIdAndCompanyId(id, companyId)
+                .<ResponseEntity<?>>map(target -> {
+                    passwordResetService.sendPasswordResetEmail(target, request == null ? null : request.locale());
+                    return ResponseEntity.ok(Map.of("message", "Password setup email sent."));
+                })
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("message", "Consultant not found.")));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> delete(@PathVariable Long id, @AuthenticationPrincipal User me) {
@@ -594,6 +616,9 @@ public class UserController {
             Long accessRoleId,
             String locale
     ) {
+    }
+
+    public record PasswordResetEmailRequest(String locale) {
     }
 
     public record UpdateUserRequest(

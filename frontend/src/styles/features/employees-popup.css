@@ -912,3 +912,489 @@
         background: #ffffff;
     }
 }
+
+/* ===== Employee create/edit — standardized customer-style side panel ===== */
+.employee-standard-panel {
+    width: min(1040px, 96vw) !important;
+    max-width: min(1040px, 96vw) !important;
+    background: #ffffff;
+    color: #0f172a;
+    box-shadow: -18px 0 42px rgba(15, 23, 42, 0.12);
+}
+
+.employee-standard-panel .cp-panel-header {
+    min-height: 104px;
+    padding: 24px 30px 20px;
+    background: #ffffff;
+    border-bottom: 1px solid #e8edf4;
+}
+
+.employee-standard-panel .cp-panel-header__title {
+    color: #0f172a;
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.025em;
+}
+
+.employee-standard-panel .cp-panel-header .cp-icon-btn {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: #334155;
+    box-shadow: none;
+}
+
+.employee-standard-panel .cp-panel-header .cp-icon-btn:hover {
+    background: #f6f8fb;
+}
+
+.employee-standard-panel .employee-standard-panel-body {
+    display: block;
+    padding: 30px;
+    overflow-x: hidden;
+    background: #ffffff;
+}
+
+.employee-standard-basic,
+.employee-standard-working-hours {
+    width: 100%;
+}
+
+.employee-standard-fields-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 22px;
+    width: 100%;
+}
+
+.employee-standard-panel .employee-standard-field {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    min-width: 0;
+    margin: 0;
+}
+
+.employee-standard-panel .employee-standard-field-label {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: #111827;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.employee-standard-panel .employee-standard-field-label svg {
+    width: 19px;
+    height: 19px;
+    flex: 0 0 19px;
+    color: #ff6200;
+    stroke-width: 1.9;
+}
+
+.employee-standard-panel .employee-standard-field input,
+.employee-standard-panel .employee-standard-field select,
+.employee-standard-panel .employee-standard-field .app-desktop-select {
+    width: 100%;
+    height: 52px;
+    min-height: 52px;
+    margin: 0;
+    padding: 0 14px;
+    border: 1px solid #d5deea;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #111827;
+    font-size: 15px;
+    font-weight: 500;
+    box-shadow: none;
+    outline: none;
+}
+
+.employee-standard-panel .employee-standard-field input::placeholder {
+    color: #7b8aa2;
+    font-weight: 450;
+}
+
+.employee-standard-panel .employee-standard-field input:hover,
+.employee-standard-panel .employee-standard-field select:hover,
+.employee-standard-panel .employee-standard-field .app-desktop-select:hover {
+    border-color: #bcc9d8;
+}
+
+.employee-standard-panel .employee-standard-field input:focus,
+.employee-standard-panel .employee-standard-field select:focus,
+.employee-standard-panel .employee-standard-field .app-desktop-select:focus {
+    border-color: #78a9fa;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.09);
+}
+
+.employee-standard-panel .employee-standard-field .field-hint {
+    margin-top: -2px;
+    color: #7b8aa2;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.employee-standard-panel .employees-password-input-wrap input {
+    padding-right: 46px;
+}
+
+.employee-standard-panel .employee-form-consultant-row {
+    margin-top: 24px;
+    padding: 18px 0 0;
+    border-top: 1px solid #edf1f6;
+}
+
+.employee-standard-panel .employee-location-scope-card {
+    margin-top: 18px;
+}
+
+.employee-standard-panel .employee-form-working-card,
+.employee-standard-panel .employee-location-hours-section {
+    box-shadow: none;
+}
+
+.employee-standard-panel .cp-panel-footer {
+    min-height: 82px;
+    padding: 14px 30px;
+    background: #ffffff;
+    border-top: 1px solid #e8edf4;
+}
+
+.employee-standard-panel .cp-panel-footer__actions {
+    width: 100%;
+    margin-left: 0;
+}
+
+.employee-standard-footer-delete {
+    margin-right: auto;
+}
+
+.employee-standard-panel .cp-panel-footer .cp-btn {
+    min-height: 44px;
+    border-radius: 10px;
+    font-weight: 700;
+}
+
+.employee-standard-panel .cp-panel-footer .cp-btn--primary {
+    background: #0b6ff5;
+    border-color: #0b6ff5;
+}
+
+.employee-standard-panel .cp-panel-footer .cp-btn--danger {
+    background: #ffffff;
+    border-color: #fca5a5;
+    color: #ef4444;
+}
+
+.employee-standard-panel .cp-panel-footer .cp-btn--danger:hover:not(:disabled) {
+    background: #fff7f7;
+    border-color: #f87171;
+}
+
+@media (min-width: 1025px) {
+    .employee-standard-panel:not(.employee-standard-panel--self-service) {
+        position: relative;
+        --employee-rail-width: 112px;
+        --employee-header-height: 104px;
+    }
+
+    .employee-standard-panel:not(.employee-standard-panel--self-service) > .cp-panel-header,
+    .employee-standard-panel:not(.employee-standard-panel--self-service) > .cp-panel-body,
+    .employee-standard-panel:not(.employee-standard-panel--self-service) > .cp-panel-footer {
+        margin-left: var(--employee-rail-width);
+    }
+
+    .employee-standard-panel:not(.employee-standard-panel--self-service) > .cp-panel-tabs {
+        position: absolute;
+        inset: 0 auto 0 0;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        width: var(--employee-rail-width);
+        min-height: 100%;
+        height: 100%;
+        padding: var(--employee-header-height) 0 0;
+        gap: 0;
+        border: 0;
+        border-right: 1px solid #e7edf5;
+        background: #ffffff;
+        overflow: hidden auto;
+        scrollbar-width: none;
+    }
+
+    .employee-standard-panel:not(.employee-standard-panel--self-service) > .cp-panel-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .employee-standard-panel:not(.employee-standard-panel--self-service) > .cp-panel-tabs .cp-panel-tab {
+        position: relative;
+        display: flex;
+        flex: 0 0 106px;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-width: 0;
+        min-height: 106px;
+        height: 106px;
+        padding: 12px 9px;
+        gap: 9px;
+        border: 0;
+        border-radius: 0;
+        background: #ffffff;
+        color: #334155;
+        box-shadow: none;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.28;
+        text-align: center;
+        white-space: normal;
+    }
+
+    .employee-standard-panel:not(.employee-standard-panel--self-service) > .cp-panel-tabs .cp-panel-tab::after {
+        display: none;
+    }
+
+    .employee-standard-panel:not(.employee-standard-panel--self-service) > .cp-panel-tabs .cp-panel-tab svg {
+        width: 22px;
+        height: 22px;
+        color: currentColor;
+        stroke-width: 1.85;
+    }
+
+    .employee-standard-panel:not(.employee-standard-panel--self-service) > .cp-panel-tabs .cp-panel-tab:hover {
+        background: #f8fafc;
+        color: #0f172a;
+    }
+
+    .employee-standard-panel:not(.employee-standard-panel--self-service) > .cp-panel-tabs .cp-panel-tab.is-active {
+        color: #0b6ff5;
+        background: #eef5ff;
+        box-shadow: inset 3px 0 0 #0b6ff5;
+    }
+
+    .employee-standard-panel:not(.employee-standard-panel--self-service) > .cp-panel-tabs .cp-panel-tab:focus-visible {
+        outline: 2px solid rgba(11, 111, 245, .32);
+        outline-offset: -3px;
+        box-shadow: inset 3px 0 0 #0b6ff5;
+    }
+}
+
+@media (max-width: 1024px) {
+    .employee-standard-panel {
+        width: min(980px, 100vw) !important;
+        max-width: 100vw !important;
+    }
+
+    .employee-standard-panel .cp-panel-header {
+        min-height: 88px;
+        padding: 20px 24px 18px;
+    }
+
+    .employee-standard-panel .cp-panel-tabs {
+        min-height: 58px;
+        padding: 0 24px;
+        gap: 20px;
+        border-bottom: 1px solid #e8edf4;
+        background: #ffffff;
+    }
+
+    .employee-standard-panel .cp-panel-tab {
+        min-width: 0;
+        min-height: 58px;
+        padding: 0 8px;
+        gap: 8px;
+        border-radius: 0;
+        color: #334155;
+        background: transparent;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .employee-standard-panel .cp-panel-tab.is-active {
+        color: #0868f1;
+        background: transparent;
+        box-shadow: inset 0 -2px 0 #0868f1;
+    }
+
+    .employee-standard-panel .employee-standard-panel-body {
+        padding: 24px;
+    }
+
+    .employee-standard-panel .cp-panel-footer {
+        padding-left: 24px;
+        padding-right: 24px;
+    }
+}
+
+@media (max-width: 640px) {
+    .employee-standard-fields-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .employee-standard-fields-grid > [aria-hidden="true"] {
+        display: none;
+    }
+
+    .employee-standard-panel .cp-panel-header {
+        min-height: 72px;
+        padding: 16px 18px;
+    }
+
+    .employee-standard-panel .cp-panel-header__title {
+        font-size: 21px;
+    }
+
+    .employee-standard-panel .cp-panel-tabs {
+        padding: 0 14px;
+    }
+
+    .employee-standard-panel .employee-standard-panel-body {
+        padding: 20px 18px;
+    }
+
+    .employee-standard-panel .cp-panel-footer {
+        padding: 12px 18px max(12px, calc(12px + env(safe-area-inset-bottom, 0px)));
+    }
+
+    .employee-standard-footer-delete {
+        width: 100%;
+        margin-right: 0;
+    }
+
+    .employee-standard-panel .cp-panel-footer__actions {
+        flex-wrap: wrap;
+    }
+
+    .employee-standard-panel .employee-standard-footer-delete .cp-btn {
+        width: 100%;
+    }
+}
+
+/* Employee editor: match Uredi skupino toggle rows exactly. */
+.employee-standard-panel .employee-form-consultant-row {
+    min-height: 68px;
+    width: 100%;
+    margin-top: 24px;
+    padding: 0 16px 0 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border: 1px solid #dce5f0;
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: none;
+    color: #334155;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.employee-standard-panel .employee-form-consultant-row > span {
+    color: #334155;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.employee-standard-panel .employee-form-consultant-row .clients-batch-switch {
+    position: relative;
+    width: 50px;
+    min-width: 50px;
+    height: 30px;
+    min-height: 30px;
+    padding: 0;
+    border: 1px solid #d5dee9;
+    border-radius: 999px;
+    background: #e8edf4;
+    color: transparent;
+    font-size: 0;
+    line-height: 0;
+    box-shadow: none !important;
+    transition: background .16s ease, border-color .16s ease;
+}
+
+.employee-standard-panel .employee-form-consultant-row .clients-batch-switch::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
+    transition: transform .16s ease;
+}
+
+.employee-standard-panel .employee-form-consultant-row .clients-batch-switch--on {
+    border-color: #0b6ff5;
+    background: #0b6ff5;
+}
+
+.employee-standard-panel .employee-form-consultant-row .clients-batch-switch--on::after {
+    transform: translateX(20px);
+}
+
+.employee-standard-reset-password-action {
+    min-width: 0;
+    display: flex;
+    align-items: flex-start;
+}
+
+.employee-standard-reset-password-button {
+    min-height: 52px;
+    padding: 0 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    border: 1px solid #d5deea;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #111827;
+    font-size: 14px;
+    font-weight: 700;
+    box-shadow: none !important;
+}
+
+.employee-standard-reset-password-button svg {
+    width: 19px;
+    height: 19px;
+    flex: 0 0 19px;
+    color: #ff6200;
+}
+
+.employee-standard-reset-password-button:hover:not(:disabled) {
+    border-color: #b9c7d8;
+    background: #f8fafc;
+}
+
+.employee-standard-reset-password-button:focus-visible {
+    outline: none;
+    border-color: #78a9fa;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.09) !important;
+}
+
+.employee-standard-reset-password-button:disabled {
+    cursor: wait;
+    opacity: .65;
+}
+
+@media (max-width: 700px) {
+    .employee-standard-reset-password-button {
+        width: 100%;
+    }
+}

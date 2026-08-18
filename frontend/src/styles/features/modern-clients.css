@@ -3198,7 +3198,8 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
     border: 1px solid var(--clients-wallet-checkout-border);
     border-radius: 10px;
     background: #fff;
@@ -3206,6 +3207,7 @@
 
 .clients-wallet-product-row--checkout {
     grid-template-columns: 22px minmax(0, 1fr) auto auto;
+    align-items: start;
     gap: 14px;
     min-height: 88px;
     padding: 15px 16px;
@@ -3227,7 +3229,7 @@
 .clients-wallet-product-row--checkout.clients-wallet-product-row--selected {
     position: relative;
     z-index: 1;
-    margin: -1px;
+    margin: 0;
     border: 1px solid var(--clients-wallet-checkout-blue);
     border-radius: 9px;
     background: #f8fbff;
@@ -3238,6 +3240,7 @@
     display: grid;
     gap: 5px;
     min-width: 0;
+    align-self: start;
 }
 
 .clients-wallet-product-copy .clients-wallet-product-name {
@@ -3259,13 +3262,15 @@
 }
 
 .clients-wallet-product-row--checkout .clients-wallet-product-badge {
-    align-self: center;
+    align-self: start;
+    margin-top: 2px;
     padding: 5px 9px;
     font-size: 11px;
 }
 
 .clients-wallet-product-row--checkout .clients-wallet-product-price {
-    align-self: center;
+    align-self: start;
+    margin-top: 2px;
     font-size: 14px;
     font-weight: 800;
 }
@@ -3305,27 +3310,12 @@
 
 .clients-wallet-review-product {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 12px;
     min-height: 80px;
     padding: 14px 16px;
     border-bottom: 1px solid #e9eef5;
-}
-
-.clients-wallet-review-product-icon {
-    display: grid;
-    place-items: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: #eef5ff;
-    color: var(--clients-wallet-checkout-blue);
-}
-
-.clients-wallet-review-product-icon svg {
-    width: 20px;
-    height: 20px;
 }
 
 .clients-wallet-review-product > strong {

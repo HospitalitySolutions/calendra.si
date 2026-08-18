@@ -92,6 +92,19 @@ public class PasswordResetService {
         sendResetEmail(user, token, localeCode);
     }
 
+    /**
+     * Sends a password setup/reset email for the exact employee membership selected by an authenticated user.
+     * This avoids resolving an arbitrary membership when the same login is linked to multiple units.
+     */
+    @Transactional
+    public void sendPasswordResetEmail(User user, String localeCode) {
+        if (user == null || user.getId() == null || accountEmail(user).isBlank()) {
+            return;
+        }
+        String token = createResetToken(user);
+        sendResetEmail(user, token, localeCode);
+    }
+
     @Transactional
     public Optional<String> createPasswordSetupUrl(User user, String localeCode) {
         if (user == null || user.getId() == null) {

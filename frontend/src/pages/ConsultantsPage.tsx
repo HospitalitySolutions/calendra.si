@@ -5,7 +5,7 @@ import '../styles/features.booking.css'
 import '../styles/features/employee-roles.css'
 import '../styles/features/modern-clients.css'
 import { DesktopSelect } from '../components/DesktopSelect'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import '../styles/features/employees-popup.css'
@@ -14,7 +14,7 @@ import { locationsQueryOptions, usersQueryOptions } from '../queries/sharedQuery
 import { employeeRolesQueryOptions, staffQuotaQueryOptions } from '../queries/remainingQueryOptions'
 import { queryKeys } from '../queries/queryKeys'
 import { getStoredUser } from '../auth'
-import { Card, EmptyState, Field, PageHeader } from '../components/ui'
+import { Card, EmptyState, PageHeader } from '../components/ui'
 import { GuestConfigSaveIcon } from '../components/GuestConfigSaveIcon'
 import { ModernTimePicker } from '../components/ModernTimePicker'
 import { GuestSwitch } from './configuration/ConfigurationVisualComponents'
@@ -47,7 +47,7 @@ const EMPLOYEE_DAY_LABEL_KEY: Record<DayOfWeek, string> = {
   SUNDAY: 'employeesDaySunday',
 }
 import { useLocale, type AppLocale } from '../locale'
-import { ConfirmDialog, PanelBody, PanelButton, PanelFooter, PanelHeader, PanelMenuItem, PanelOverflowMenu, SidePanel, useConfirm } from '../components/panel'
+import { ConfirmDialog, PanelBody, PanelButton, PanelFooter, PanelHeader, PanelTabs, SidePanel, useConfirm } from '../components/panel'
 import { CONSULTANTS_DRAWERS, useDrawerRoute } from '../lib/drawerRoutes'
 import { useMobileKeyboardOpen } from '../hooks/useMobileKeyboardOpen'
 
@@ -89,7 +89,7 @@ function EmployeePageTabIcon({ name }: { name: 'employees' | 'roles' }) {
 }
 
 
-function EmployeeFormIcon({ name }: { name: 'person' | 'clock' | 'calendar' | 'eye' | 'trash' }) {
+function EmployeeFormIcon({ name }: { name: 'person' | 'clock' | 'calendar' | 'eye' | 'trash' | 'email' | 'phone' | 'vat' | 'role' | 'password' }) {
   if (name === 'person') {
     return (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -104,6 +104,52 @@ function EmployeeFormIcon({ name }: { name: 'person' | 'clock' | 'calendar' | 'e
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" stroke="currentColor" strokeWidth="1.9" />
         <path d="M12 7.5V12l3 2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+
+  if (name === 'email') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4.5 6.5h15v11h-15v-11Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="m5.25 7.25 6.75 5.5 6.75-5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+
+  if (name === 'phone') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M7.2 3.8 4.8 5.1c-.7.4-1 1.2-.8 2 1.7 6.3 6.6 11.2 12.9 12.9.8.2 1.6-.1 2-.8l1.3-2.4-4.6-2.1-1.3 1.8c-2.8-1.1-5.7-4-6.8-6.8l1.8-1.3-2.1-4.6Z" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+
+  if (name === 'vat') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="4" y="4.5" width="16" height="15" rx="2.5" stroke="currentColor" strokeWidth="1.75" />
+        <path d="M8 9h8M8 13h5M8 16.5h3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  if (name === 'role') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M9.5 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" strokeWidth="1.75" />
+        <path d="M3.75 19.5a5.75 5.75 0 0 1 11.5 0" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+        <path d="m16 13.5 1.6 1.6 3-3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+
+  if (name === 'password') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="5" y="10" width="14" height="10" rx="2.5" stroke="currentColor" strokeWidth="1.75" />
+        <path d="M8 10V7.5a4 4 0 0 1 8 0V10" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+        <path d="M12 14v2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
       </svg>
     )
   }
@@ -130,6 +176,35 @@ function EmployeeFormIcon({ name }: { name: 'person' | 'clock' | 'calendar' | 'e
       <path d="M2.75 12s3.25-6 9.25-6 9.25 6 9.25 6-3.25 6-9.25 6-9.25-6-9.25-6Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="1.8" />
     </svg>
+  )
+}
+
+type EmployeeFieldIconName = 'person' | 'email' | 'phone' | 'vat' | 'role' | 'password'
+
+function EmployeeFormField({
+  icon,
+  label,
+  required,
+  hint,
+  children,
+  className = '',
+}: {
+  icon: EmployeeFieldIconName
+  label: string
+  required?: boolean
+  hint?: string
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <label className={`field employee-standard-field${className ? ` ${className}` : ''}`}>
+      <span className="field-label employee-standard-field-label">
+        <EmployeeFormIcon name={icon} />
+        <span>{label}{required ? ' *' : ''}</span>
+      </span>
+      {children}
+      {hint && <span className="field-hint">{hint}</span>}
+    </label>
   )
 }
 
@@ -275,7 +350,7 @@ type ConsultantForm = {
   accessRoleId: string
 }
 
-type ConsultantFormSectionTab = 'workingHours'
+type ConsultantFormSectionTab = 'basic' | 'workingHours'
 
 function defaultByDayWorkingHours(): WorkingHoursConfig {
   const byDay: WorkingHoursConfig['byDay'] = {}
@@ -429,8 +504,8 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 450px)').matches : false,
   )
   const mobileKeyboardOpen = useMobileKeyboardOpen(1024)
-  const [formSectionTab, setFormSectionTab] = useState<ConsultantFormSectionTab>('workingHours')
-  const [passwordVisible, setPasswordVisible] = useState(false)
+  const [formSectionTab, setFormSectionTab] = useState<ConsultantFormSectionTab>('basic')
+  const [passwordResetSending, setPasswordResetSending] = useState(false)
   const formBaselineRef = useRef<ConsultantForm | null>(null)
   const [loadingSelfProfile, setLoadingSelfProfile] = useState(false)
   const [activatingEmployeeId, setActivatingEmployeeId] = useState<number | null>(null)
@@ -463,6 +538,12 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     if (newEmployeeOpen || employeeDrawerOpen) setEmployeesTab('employees')
     if (roleMembersOpen) setEmployeesTab('roles')
   }, [employeeDrawerOpen, newEmployeeOpen, roleMembersOpen, selfService])
+
+  useEffect(() => {
+    if (!selfService && !form.consultant && formSectionTab === 'workingHours') {
+      setFormSectionTab('basic')
+    }
+  }, [form.consultant, formSectionTab, selfService])
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 450px)')
@@ -679,8 +760,8 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     formBaselineRef.current = cloneConsultantForm(next)
     setErrorMessage('')
     setSuccessMessage('')
-    setFormSectionTab('workingHours')
-    setPasswordVisible(false)
+    setFormSectionTab('basic')
+    setPasswordResetSending(false)
   }
 
   const startCreate = () => {
@@ -731,8 +812,8 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     formBaselineRef.current = cloneConsultantForm(next)
     setErrorMessage('')
     setSuccessMessage('')
-    setFormSectionTab('workingHours')
-    setPasswordVisible(false)
+    setFormSectionTab('basic')
+    setPasswordResetSending(false)
   }
 
   const startEdit = (c: Consultant) => {
@@ -815,6 +896,36 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const removeEditing = async () => {
     if (!editing) return
     await removeConsultant(editing)
+  }
+
+  const sendPasswordResetEmail = async () => {
+    if (!editing || passwordResetSending) return
+    setErrorMessage('')
+    setSuccessMessage('')
+    setPasswordResetSending(true)
+    try {
+      await api.post(`/users/${editing.id}/password-reset`, { locale })
+      setSuccessMessage(
+        locale === 'sl'
+          ? 'E-pošta za nastavitev novega gesla je bila poslana.'
+          : locale === 'sr'
+            ? 'E-pošta za podešavanje nove lozinke je poslata.'
+            : 'Password setup email was sent.',
+      )
+    } catch (error: any) {
+      const backendMessage = error?.response?.data?.message || error?.response?.data?.detail
+      setErrorMessage(
+        backendMessage || (
+          locale === 'sl'
+            ? 'E-pošte za nastavitev gesla ni bilo mogoče poslati.'
+            : locale === 'sr'
+              ? 'E-poštu za podešavanje lozinke nije bilo moguće poslati.'
+              : 'Failed to send the password setup email.'
+        ),
+      )
+    } finally {
+      setPasswordResetSending(false)
+    }
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -1064,7 +1175,11 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const inactiveStatusLabel = locale === 'sl' ? 'Neaktivna' : 'Inactive'
   const formTitle = selfService ? t('myProfileTitle') : editing ? (locale === 'sl' ? 'Uredi zaposlenega' : 'Edit employee') : (locale === 'sl' ? 'Novi zaposleni' : 'New employee')
   const closeLabel = locale === 'sl' ? 'Zapri' : 'Close'
-  const formPrimaryLabel = saving ? t('employeesFormSaving') : editing ? t('employeesFormSaveChanges') : (locale === 'sl' ? 'Ustvari' : 'Create')
+  const formPrimaryLabel = saving
+    ? t('employeesFormSaving')
+    : editing
+      ? t('employeesFormSaveChanges')
+      : (locale === 'sl' ? 'Ustvari zaposlenega' : 'Create employee')
   const formPrimaryDisabled = saving || deleting || (!!editing && !isFormDirty)
   const consultantToggleOn = form.consultant
   const statusHeader = locale === 'sl' ? 'Status' : 'Status'
@@ -1445,161 +1560,157 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
           onClose={dismissFormPanel}
           ariaLabel={formTitle}
           closeOnScrimClick={false}
+          className={`employee-standard-panel${selfService ? ' employee-standard-panel--self-service' : ''}`}
         >
           <PanelHeader
             title={formTitle}
             onClose={dismissFormPanel}
             closeLabel={closeLabel}
-            overflow={
-              editing && !selfService && !isEditingTenantOwner && canDeleteEmployees ? (
-                <PanelOverflowMenu label={t('employeesFormDelete')}>
-                  {(closeMenu) => (
-                    <PanelMenuItem
-                      danger
-                      onClick={() => {
-                        closeMenu()
-                        void removeEditing()
-                      }}
-                    >
-                      {deleting ? t('employeesFormDeleting') : t('employeesFormDelete')}
-                    </PanelMenuItem>
-                  )}
-                </PanelOverflowMenu>
-              ) : undefined
-            }
           />
+          {!selfService && (
+            <PanelTabs
+              label={locale === 'sl' ? 'Podatki zaposlenega' : 'Employee details'}
+              activeId={formSectionTab}
+              onSelect={(id) => setFormSectionTab(id as ConsultantFormSectionTab)}
+              tabs={[
+                {
+                  id: 'basic',
+                  label: locale === 'sl' ? 'Osnovni podatki' : 'Basic details',
+                  icon: <EmployeeFormIcon name="person" />,
+                },
+                ...(form.consultant ? [{
+                  id: 'workingHours',
+                  label: t('employeesFormTabWorkingHours'),
+                  icon: <EmployeeFormIcon name="clock" />,
+                }] : []),
+              ]}
+            />
+          )}
           <PanelBody
             as="form"
             id="consultant-edit-form"
             onSubmit={handleSubmit}
-            className="form-grid booking-side-panel-body employees-form-popup-body"
+            className="booking-side-panel-body employees-form-popup-body employee-standard-panel-body"
           >
-                {errorMessage && <div className="error full-span employees-form-alert">{errorMessage}</div>}
-                <Field label={t('signupFirstName')}>
-                  <input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} placeholder={locale === 'sl' ? 'Vnesite ime' : 'Enter first name'} />
-                </Field>
-                <Field label={t('signupLastName')}>
-                  <input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} placeholder={locale === 'sl' ? 'Vnesite priimek' : 'Enter last name'} />
-                </Field>
-                <Field label={t('loginEmailLabel')}>
-                  <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder={locale === 'sl' ? 'Vnesite e-pošto' : 'Enter email'} />
-                </Field>
-                {(editing || selfService) && (
-                  <Field label={t('employeesFormPassword')} hint={t('employeesFormPasswordHintEdit')}>
-                    <div className="employees-password-input-wrap">
-                      <input
-                        type={passwordVisible ? 'text' : 'password'}
-                        value={form.password}
-                        onChange={(e) => setForm({ ...form, password: e.target.value })}
-                        placeholder={locale === 'sl' ? 'Vnesite novo geslo' : 'Enter new password'}
-                      />
-                      <button
-                        type="button"
-                        className="employees-password-toggle"
-                        aria-label={passwordVisible ? (locale === 'sl' ? 'Skrij geslo' : 'Hide password') : (locale === 'sl' ? 'Prikaži geslo' : 'Show password')}
-                        aria-pressed={passwordVisible}
-                        onClick={() => setPasswordVisible((visible) => !visible)}
-                      >
-                        <EmployeeFormIcon name="eye" />
-                      </button>
-                    </div>
-                  </Field>
-                )}
-                <Field label={t('employeesFormPhone')}>
-                  <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder={t('employeesFormPhonePlaceholder')} />
-                </Field>
-                <Field label={t('employeesFormVatId')}>
-                  <input value={form.vatId} onChange={(e) => setForm({ ...form, vatId: e.target.value })} placeholder={t('employeesFormVatPlaceholder')} />
-                </Field>
-                {!selfService && (
-                  <>
-                    <Field label={t('employeesFormRole')} hint={isEditingTenantOwner ? ownerRoleLockHint : undefined}>
-                      <DesktopSelect
-                        value={employeeRoleSelectValue}
-                        onChange={(e) => applyEmployeeRoleSelection(e.target.value)}
-                        disabled={isEditingTenantOwner}
-                      >
-                        <option value="CONSULTANT">{t('employeesFormRoleOptionConsultant')}</option>
-                        <option value="ADMIN">{t('employeesFormRoleOptionAdmin')}</option>
-                        {accessRoleOptions.length > 0 && (
-                          <optgroup label={locale === 'sl' ? 'Vloge po meri' : 'Custom roles'}>
-                            {accessRoleOptions.map((role) => (
-                              <option key={role.id} value={`CUSTOM:${role.customRoleId ?? ''}`}>{role.name}</option>
-                            ))}
-                          </optgroup>
-                        )}
-                      </DesktopSelect>
-                    </Field>
-                    <div className="employee-form-consultant-row full-span">
-                      <span>{t('employeesFormConsultantShort')}</span>
-                      <button
-                        type="button"
-                        className={`employee-form-status-switch${consultantToggleOn ? ' employee-form-status-switch--on' : ''}`}
-                        aria-pressed={consultantToggleOn}
-                        onClick={() => {
-                          setForm({ ...form, consultant: !form.consultant })
-                        }}
-                      >
-                        <span className="employee-form-status-switch-text">
-                          {consultantToggleOn ? t('configToggleOn') : t('configToggleOff')}
-                        </span>
-                        <span className="employee-form-status-switch-track" aria-hidden>
-                          <span />
-                        </span>
-                      </button>
-                    </div>
-                  </>
-                )}
+                {errorMessage && <div className="error employees-form-alert">{errorMessage}</div>}
+                {(selfService || formSectionTab === 'basic') && (
+                  <div className="employee-standard-basic" role="tabpanel">
+                    <div className="employee-standard-fields-grid">
+                      <EmployeeFormField icon="person" label={t('signupFirstName')} required>
+                        <input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} placeholder={locale === 'sl' ? 'Vnesite ime' : 'Enter first name'} />
+                      </EmployeeFormField>
 
-                {!selfService && form.consultant && locations.length > 1 && (
-                  <div className="full-span employee-location-scope-card">
-                    <div className="employee-location-scope-header">
-                      <div>
-                        <strong>{locale === 'sl' ? 'Lokacije zaposlenega' : 'Employee locations'}</strong>
-                        <span>{locale === 'sl' ? 'Določite, v katerih poslovnih prostorih je zaposleni na voljo za naročanje.' : 'Choose the locations where this employee can be booked.'}</span>
-                      </div>
-                      <div className="employee-location-scope-switch">
-                        <span>{locale === 'sl' ? 'Vse lokacije' : 'All locations'}</span>
-                        <GuestSwitch checked={form.availableAllLocations} onChange={setConsultantAllLocations} />
-                      </div>
-                    </div>
-                    {!form.availableAllLocations && (
-                      <div className="employee-location-options">
-                        {locations.length === 0 ? (
-                          <span className="muted">{locale === 'sl' ? 'Ni aktivnih lokacij.' : 'There are no active locations.'}</span>
-                        ) : locations.map((location) => (
-                          <label key={location.id} className="employee-location-option">
-                            <input
-                              type="checkbox"
-                              checked={form.locationIds.includes(location.id)}
-                              onChange={(e) => toggleConsultantLocation(location.id, e.target.checked)}
-                            />
+                      <EmployeeFormField icon="phone" label={t('employeesFormPhone')}>
+                        <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder={t('employeesFormPhonePlaceholder')} />
+                      </EmployeeFormField>
+
+                      <EmployeeFormField icon="person" label={t('signupLastName')} required>
+                        <input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} placeholder={locale === 'sl' ? 'Vnesite priimek' : 'Enter last name'} />
+                      </EmployeeFormField>
+
+                      <EmployeeFormField icon="vat" label={t('employeesFormVatId')}>
+                        <input value={form.vatId} onChange={(e) => setForm({ ...form, vatId: e.target.value })} placeholder={t('employeesFormVatPlaceholder')} />
+                      </EmployeeFormField>
+
+                      <EmployeeFormField icon="email" label={t('loginEmailLabel')} required>
+                        <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder={locale === 'sl' ? 'Vnesite e-pošto' : 'Enter email'} />
+                      </EmployeeFormField>
+
+                      {!selfService ? (
+                        <EmployeeFormField icon="role" label={t('employeesFormRole')} hint={isEditingTenantOwner ? ownerRoleLockHint : undefined}>
+                          <DesktopSelect
+                            value={employeeRoleSelectValue}
+                            onChange={(e) => applyEmployeeRoleSelection(e.target.value)}
+                            disabled={isEditingTenantOwner}
+                          >
+                            <option value="CONSULTANT">{t('employeesFormRoleOptionConsultant')}</option>
+                            <option value="ADMIN">{t('employeesFormRoleOptionAdmin')}</option>
+                            {accessRoleOptions.length > 0 && (
+                              <optgroup label={locale === 'sl' ? 'Vloge po meri' : 'Custom roles'}>
+                                {accessRoleOptions.map((role) => (
+                                  <option key={role.id} value={`CUSTOM:${role.customRoleId ?? ''}`}>{role.name}</option>
+                                ))}
+                              </optgroup>
+                            )}
+                          </DesktopSelect>
+                        </EmployeeFormField>
+                      ) : <div aria-hidden />}
+
+                      {(editing || selfService) && (
+                        <div className="employee-standard-reset-password-action">
+                          <button
+                            type="button"
+                            className="employee-standard-reset-password-button"
+                            onClick={() => void sendPasswordResetEmail()}
+                            disabled={passwordResetSending}
+                          >
+                            <EmployeeFormIcon name="password" />
                             <span>
-                              <strong>{location.name}</strong>
-                              {location.city ? <small>{location.city}</small> : null}
+                              {passwordResetSending
+                                ? (locale === 'sl' ? 'Pošiljam ...' : locale === 'sr' ? 'Šaljem ...' : 'Sending ...')
+                                : (locale === 'sl' ? 'Ponastavite geslo' : locale === 'sr' ? 'Podesite lozinku' : 'Reset password')}
                             </span>
-                          </label>
-                        ))}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {!selfService && (
+                      <div className="employee-form-consultant-row clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide clients-standard-group-setting-toggle">
+                        <span>{t('employeesFormConsultantShort')}</span>
+                        <button
+                          type="button"
+                          className={`clients-batch-switch${consultantToggleOn ? ' clients-batch-switch--on' : ''}`}
+                          aria-pressed={consultantToggleOn}
+                          onClick={() => {
+                            const nextConsultant = !form.consultant
+                            setForm({ ...form, consultant: nextConsultant })
+                            if (!nextConsultant) setFormSectionTab('basic')
+                          }}
+                        >
+                          {consultantToggleOn ? t('configToggleOn') : t('configToggleOff')}
+                        </button>
+                      </div>
+                    )}
+
+                    {!selfService && form.consultant && locations.length > 1 && (
+                      <div className="employee-location-scope-card">
+                        <div className="employee-location-scope-header">
+                          <div>
+                            <strong>{locale === 'sl' ? 'Lokacije zaposlenega' : 'Employee locations'}</strong>
+                            <span>{locale === 'sl' ? 'Določite, v katerih poslovnih prostorih je zaposleni na voljo za naročanje.' : 'Choose the locations where this employee can be booked.'}</span>
+                          </div>
+                          <div className="employee-location-scope-switch">
+                            <span>{locale === 'sl' ? 'Vse lokacije' : 'All locations'}</span>
+                            <GuestSwitch checked={form.availableAllLocations} onChange={setConsultantAllLocations} />
+                          </div>
+                        </div>
+                        {!form.availableAllLocations && (
+                          <div className="employee-location-options">
+                            {locations.length === 0 ? (
+                              <span className="muted">{locale === 'sl' ? 'Ni aktivnih lokacij.' : 'There are no active locations.'}</span>
+                            ) : locations.map((location) => (
+                              <label key={location.id} className="employee-location-option">
+                                <input
+                                  type="checkbox"
+                                  checked={form.locationIds.includes(location.id)}
+                                  onChange={(e) => toggleConsultantLocation(location.id, e.target.checked)}
+                                />
+                                <span>
+                                  <strong>{location.name}</strong>
+                                  {location.city ? <small>{location.city}</small> : null}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 )}
 
-                {!selfService && (
-                  <div className="full-span clients-session-tabs consultant-form-tabs employee-form-tabs" aria-label={t('employeesFormTabWorkingHours')}>
-                    <button
-                      type="button"
-                      className="clients-session-tab active"
-                      aria-current="true"
-                    >
-                      <EmployeeFormIcon name="clock" />
-                      {t('employeesFormTabWorkingHours')}
-                    </button>
-                  </div>
-                )}
-
-                {(selfService || formSectionTab === 'workingHours') && (
-                  <>
+                {(selfService || (form.consultant && formSectionTab === 'workingHours')) && (
+                  <div className="employee-standard-working-hours" role="tabpanel">
                     <div className="full-span consultant-wh-card employee-form-working-card">
                       <div className="consultant-wh-card-header">
                         <span className="consultant-wh-card-header-label" id="consultant-wh-same-hours-label">
@@ -1877,13 +1988,28 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                         </div>
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
 
-                {successMessage && <div className="success full-span employees-form-alert">{successMessage}</div>}
+                {successMessage && <div className="success employees-form-alert">{successMessage}</div>}
           </PanelBody>
           {!mobileKeyboardOpen && (
             <PanelFooter>
+              {editing && !selfService && !isEditingTenantOwner && canDeleteEmployees && (
+                <div className="employee-standard-footer-delete">
+                  <PanelButton
+                    variant="danger"
+                    onClick={() => void removeEditing()}
+                    disabled={deleting || saving}
+                    busy={deleting}
+                    icon={<EmployeeFormIcon name="trash" />}
+                  >
+                    {deleting
+                      ? t('employeesFormDeleting')
+                      : (locale === 'sl' ? 'Izbriši zaposlenega' : t('employeesFormDelete'))}
+                  </PanelButton>
+                </div>
+              )}
               <PanelButton onClick={dismissFormPanel}>{closeLabel}</PanelButton>
               {(!isConsultantsMobile || !editing || isFormDirty || saving) && (
                 <PanelButton
