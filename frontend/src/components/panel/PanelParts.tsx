@@ -35,15 +35,18 @@ export type PanelHeaderProps = {
   subtitle?: ReactNode
   onClose: () => void
   closeLabel: string
+  /** Optional leading control, normally a mobile back button for detail panels. */
+  leading?: ReactNode
   /** Rendered left of the overflow menu and close button. */
   actions?: ReactNode
   overflow?: ReactNode
 }
 
 /** Standard panel header: title left, secondary actions then close on the right. */
-export function PanelHeader({ title, subtitle, onClose, closeLabel, actions, overflow }: PanelHeaderProps) {
+export function PanelHeader({ title, subtitle, onClose, closeLabel, leading, actions, overflow }: PanelHeaderProps) {
   return (
     <div className="cp-panel-header">
+      {leading ? <div className="cp-panel-header__leading">{leading}</div> : null}
       <div className="cp-panel-header__text">
         <h2 className="cp-panel-header__title">{title}</h2>
         {subtitle && <p className="cp-panel-header__subtitle">{subtitle}</p>}

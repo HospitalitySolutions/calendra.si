@@ -9226,6 +9226,239 @@
 }
 
 
+@media (max-width: 1024px) {
+    .clients-standard-customer-panel--create > .cp-panel-header,
+    .clients-standard-entity-panel--create > .cp-panel-header {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 118px;
+        padding: max(20px, env(safe-area-inset-top, 0px)) 64px 14px;
+        border-bottom: 0;
+        background: #ffffff;
+    }
+
+    .clients-standard-customer-panel--create .cp-panel-header__leading,
+    .clients-standard-entity-panel--create .cp-panel-header__leading {
+        position: absolute;
+        top: max(20px, env(safe-area-inset-top, 0px));
+        left: 18px;
+        z-index: 2;
+        display: block;
+    }
+
+    .clients-standard-customer-panel--create .clients-customer-mobile-back,
+    .clients-standard-customer-panel--create .cp-panel-header .cp-icon-btn,
+    .clients-standard-entity-panel--create .clients-customer-mobile-back,
+    .clients-standard-entity-panel--create .cp-panel-header .cp-icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        min-height: 40px;
+        padding: 0;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #17233a;
+        box-shadow: none;
+        cursor: pointer;
+    }
+
+    .clients-standard-customer-panel--create .clients-customer-mobile-back:hover,
+    .clients-standard-customer-panel--create .clients-customer-mobile-back:focus-visible,
+    .clients-standard-customer-panel--create .cp-panel-header .cp-icon-btn:hover,
+    .clients-standard-customer-panel--create .cp-panel-header .cp-icon-btn:focus-visible,
+    .clients-standard-entity-panel--create .clients-customer-mobile-back:hover,
+    .clients-standard-entity-panel--create .clients-customer-mobile-back:focus-visible,
+    .clients-standard-entity-panel--create .cp-panel-header .cp-icon-btn:hover,
+    .clients-standard-entity-panel--create .cp-panel-header .cp-icon-btn:focus-visible {
+        background: #f5f7fa;
+        outline: none;
+    }
+
+    .clients-standard-customer-panel--create .clients-customer-mobile-back svg,
+    .clients-standard-customer-panel--create .cp-panel-header .cp-icon-btn svg,
+    .clients-standard-entity-panel--create .clients-customer-mobile-back svg,
+    .clients-standard-entity-panel--create .cp-panel-header .cp-icon-btn svg {
+        width: 25px;
+        height: 25px;
+        stroke-width: 1.9;
+    }
+
+    .clients-standard-customer-panel--create .cp-panel-header__actions,
+    .clients-standard-entity-panel--create .cp-panel-header__actions {
+        position: absolute;
+        top: max(20px, env(safe-area-inset-top, 0px));
+        right: 18px;
+        z-index: 2;
+        display: flex;
+        margin: 0;
+    }
+
+    .clients-standard-customer-panel--create .cp-panel-header__text,
+    .clients-standard-entity-panel--create .cp-panel-header__text {
+        flex: 0 1 auto;
+        width: min(100%, 520px);
+        min-width: 0;
+        margin: 0 auto;
+        text-align: center;
+    }
+
+    .clients-standard-customer-panel--create .cp-panel-header__title,
+    .clients-standard-entity-panel--create .cp-panel-header__title {
+        margin: 0;
+        color: #111d34;
+        font-size: 24px;
+        font-weight: 800;
+        line-height: 1.2;
+        letter-spacing: -0.025em;
+        text-align: center;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    .clients-standard-customer-panel--create > .cp-panel-body,
+    .clients-standard-entity-panel--create > .cp-panel-body {
+        padding: 8px 24px 28px;
+        background: #ffffff;
+    }
+
+    .clients-mobile-create-form {
+        display: flex;
+        flex-direction: column;
+        width: min(100%, 680px);
+        min-width: 0;
+        margin: 0 auto;
+    }
+
+    .clients-mobile-create-fields {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 26px;
+    }
+
+    .clients-mobile-create-field {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
+        align-items: center;
+        gap: 18px;
+        width: 100%;
+        min-height: 52px;
+        padding: 0 0 10px;
+        border-bottom: 1px solid #cfd8e4;
+    }
+
+    .clients-mobile-create-field__icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        color: #ff6200;
+    }
+
+    .clients-mobile-create-field__icon svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .clients-mobile-create-field input {
+        width: 100%;
+        min-width: 0;
+        min-height: 30px;
+        padding: 0;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: #1d2940;
+        font: inherit;
+        font-size: 15px;
+        font-weight: 500;
+        line-height: 1.35;
+        box-shadow: none !important;
+        outline: none;
+    }
+
+    .clients-mobile-create-field input::placeholder {
+        color: #7f8da2;
+        opacity: 1;
+        font-weight: 500;
+    }
+
+    .clients-mobile-create-field input:focus {
+        outline: none;
+        box-shadow: none !important;
+    }
+
+    .clients-mobile-create-extra {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        width: 100%;
+        margin-top: 26px;
+    }
+
+    .clients-standard-customer-panel--create > .cp-panel-footer,
+    .clients-standard-entity-panel--create > .cp-panel-footer {
+        padding: 14px 24px max(18px, calc(14px + env(safe-area-inset-bottom, 0px)));
+        border-top: 1px solid #eef2f7;
+        background: #ffffff;
+    }
+
+    .clients-standard-customer-panel--create > .cp-panel-footer .cp-panel-footer__actions,
+    .clients-standard-entity-panel--create > .cp-panel-footer .cp-panel-footer__actions {
+        width: min(100%, 680px);
+        margin: 0 auto;
+    }
+
+    .clients-standard-customer-panel--create > .cp-panel-footer .cp-btn--primary,
+    .clients-standard-entity-panel--create > .cp-panel-footer .cp-btn--primary {
+        width: 100%;
+        min-height: 54px;
+        border-radius: 12px;
+    }
+}
+
+@media (max-width: 640px) {
+    .clients-standard-customer-panel--create > .cp-panel-header,
+    .clients-standard-entity-panel--create > .cp-panel-header {
+        min-height: 114px;
+        padding-left: 58px;
+        padding-right: 58px;
+    }
+
+    .clients-standard-customer-panel--create .cp-panel-header__title,
+    .clients-standard-entity-panel--create .cp-panel-header__title {
+        font-size: 23px;
+    }
+
+    .clients-standard-customer-panel--create > .cp-panel-body,
+    .clients-standard-entity-panel--create > .cp-panel-body {
+        padding: 4px 20px 26px;
+    }
+
+    .clients-mobile-create-fields {
+        gap: 24px;
+    }
+
+    .clients-mobile-create-field {
+        gap: 16px;
+    }
+
+    .clients-standard-customer-panel--create > .cp-panel-footer,
+    .clients-standard-entity-panel--create > .cp-panel-footer {
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+}
+
+
 /* ========================================================================== */
 /* Uredi stranko — vertical workspace rail matching the approved appointment UI */
 /* ========================================================================== */
@@ -9599,4 +9832,1518 @@
 .clients-standard-group-panel.clients-standard-entity-panel--edit .clients-standard-entity-settings {
     width: 100%;
     max-width: none;
+}
+
+/* ========================================================================== */
+/* Uredi stranko — approved mobile/tablet workspace                           */
+/* Horizontal icon tabs + minimal line inputs. Desktop rail remains unchanged. */
+/* ========================================================================== */
+.clients-standard-customer-panel--edit .cp-panel-header__leading {
+    display: none;
+}
+
+@media (max-width: 1024px) {
+    .clients-standard-customer-panel--edit {
+        width: min(760px, 100vw) !important;
+        max-width: min(760px, 100vw) !important;
+        height: 100dvh;
+        max-height: 100dvh;
+        border-radius: 0;
+        background: #ffffff;
+        box-shadow: -18px 0 42px rgba(15, 23, 42, 0.14);
+        overflow: hidden;
+    }
+
+    /* Centered mobile header with independent back and close controls. */
+    .clients-standard-customer-panel--edit > .cp-panel-header {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 118px;
+        padding: max(20px, env(safe-area-inset-top, 0px)) 64px 14px;
+        border-bottom: 0;
+        background: #ffffff;
+    }
+
+    .clients-standard-customer-panel--edit .cp-panel-header__leading {
+        position: absolute;
+        top: max(20px, env(safe-area-inset-top, 0px));
+        left: 18px;
+        z-index: 2;
+        display: block;
+    }
+
+    .clients-standard-customer-panel--edit .clients-customer-mobile-back,
+    .clients-standard-customer-panel--edit .cp-panel-header .cp-icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        min-height: 40px;
+        padding: 0;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #17233a;
+        box-shadow: none;
+        cursor: pointer;
+    }
+
+    .clients-standard-customer-panel--edit .clients-customer-mobile-back:hover,
+    .clients-standard-customer-panel--edit .clients-customer-mobile-back:focus-visible,
+    .clients-standard-customer-panel--edit .cp-panel-header .cp-icon-btn:hover,
+    .clients-standard-customer-panel--edit .cp-panel-header .cp-icon-btn:focus-visible {
+        background: #f5f7fa;
+        outline: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-customer-mobile-back svg,
+    .clients-standard-customer-panel--edit .cp-panel-header .cp-icon-btn svg {
+        width: 25px;
+        height: 25px;
+        stroke-width: 1.9;
+    }
+
+    .clients-standard-customer-panel--edit .cp-panel-header__actions {
+        position: absolute;
+        top: max(20px, env(safe-area-inset-top, 0px));
+        right: 18px;
+        z-index: 2;
+        display: flex;
+        margin: 0;
+    }
+
+    .clients-standard-customer-panel--edit .cp-panel-header__text {
+        flex: 0 1 auto;
+        width: min(100%, 520px);
+        min-width: 0;
+        margin: 0 auto;
+        text-align: center;
+    }
+
+    .clients-standard-customer-panel--edit .cp-panel-header__title {
+        margin: 0;
+        color: #111d34;
+        font-size: 24px;
+        font-weight: 800;
+        line-height: 1.2;
+        letter-spacing: -0.025em;
+        text-align: center;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    .clients-standard-customer-panel--edit .cp-panel-header__subtitle {
+        margin: 6px 0 0;
+        color: #7a879d;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.35;
+        text-align: center;
+    }
+
+    /* Five equal-width tabs, mirroring the approved compact mobile concept. */
+    .clients-standard-customer-panel--edit > .cp-panel-tabs {
+        display: flex;
+        align-items: stretch;
+        width: 100%;
+        min-height: 98px;
+        padding: 0 10px;
+        gap: 0;
+        border: 0;
+        border-bottom: 0;
+        background: #ffffff;
+        overflow: visible;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab {
+        position: relative;
+        display: flex;
+        flex: 1 1 0;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-width: 0;
+        min-height: 98px;
+        height: 98px;
+        padding: 8px 3px 14px;
+        gap: 8px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: #23324c;
+        box-shadow: none;
+        font-size: 11.5px;
+        font-weight: 600;
+        line-height: 1.25;
+        text-align: center;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab::after {
+        content: '';
+        position: absolute;
+        left: 20%;
+        right: 20%;
+        bottom: 0;
+        display: block;
+        height: 2px;
+        border-radius: 999px;
+        background: transparent;
+        transition: background .15s ease;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab svg {
+        width: 23px;
+        height: 23px;
+        color: currentColor;
+        stroke-width: 1.8;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab:hover,
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab:focus-visible {
+        color: #111d34;
+        background: transparent;
+        outline: none;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab.is-active {
+        color: #ff6200;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab.is-active::after {
+        background: #ff6200;
+    }
+
+    /* Content remains a single workspace column on mobile/tablet. */
+    .clients-standard-customer-panel--edit > .cp-panel-body {
+        display: flex;
+        align-items: stretch;
+        flex: 1 1 auto;
+        min-height: 0;
+        padding: 30px clamp(24px, 5vw, 52px) 34px;
+        gap: 0;
+        border: 0;
+        background: #ffffff;
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    .clients-standard-customer-panel--edit .clients-action-workspace-shell {
+        display: block !important;
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+        margin: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-customer-profile {
+        display: flex;
+        flex-direction: column;
+        width: min(100%, 680px);
+        max-width: 680px;
+        margin: 0 auto;
+        gap: 20px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-profile-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        width: 100%;
+        gap: 20px;
+    }
+
+    /* Icon and input share one row. The label text is placeholder-only. */
+    .clients-standard-customer-panel--edit .clients-standard-profile-field,
+    .clients-standard-customer-panel--edit .clients-standard-profile-field--wide {
+        display: grid !important;
+        grid-template-columns: 32px minmax(0, 1fr);
+        align-items: center;
+        column-gap: 14px;
+        width: 100%;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-profile-field__label {
+        grid-column: 1;
+        grid-row: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        min-width: 32px;
+        height: 56px;
+        margin: 0;
+        padding: 0;
+        color: #ff6200;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-profile-field__label strong {
+        display: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-profile-field__label svg {
+        width: 25px;
+        height: 25px;
+        color: #ff6200;
+        stroke-width: 1.85;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-profile-field input {
+        grid-column: 2;
+        grid-row: 1;
+        width: 100%;
+        height: 56px;
+        min-height: 56px;
+        margin: 0;
+        padding: 8px 0 7px;
+        border: 0 !important;
+        border-bottom: 1px solid #cbd4e1 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: #111d34;
+        font: inherit;
+        font-size: 16px;
+        font-weight: 500;
+        line-height: 1.3;
+        outline: none;
+        box-shadow: none !important;
+        transition: border-color .15s ease;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-profile-field input::placeholder {
+        color: #8a96aa;
+        font-weight: 450;
+        opacity: 1;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-profile-field input:hover {
+        border-bottom-color: #aeb9c9 !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-profile-field input:focus {
+        border-bottom-color: #0b6ff5 !important;
+        box-shadow: none !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-customer-extra-fields {
+        width: min(100%, 680px);
+        margin: 8px auto 0;
+    }
+
+    /* Keep the remaining tabs usable at tablet width while sharing the same chrome. */
+    .clients-standard-customer-panel--edit .clients-standard-detail-card,
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab,
+    .clients-standard-customer-panel--edit .clients-detail-sessions-card {
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    /* Stacked mobile actions: primary save first, destructive action underneath. */
+    .clients-standard-customer-panel--edit > .cp-panel-footer {
+        display: flex;
+        align-items: stretch;
+        width: 100%;
+        min-height: auto;
+        padding: 14px clamp(24px, 5vw, 52px) max(18px, calc(14px + env(safe-area-inset-bottom, 0px)));
+        border-top: 1px solid #eef1f5;
+        background: #ffffff;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-footer .cp-panel-footer__actions {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+        max-width: 680px;
+        margin: 0 auto;
+        gap: 7px;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-footer .cp-btn {
+        flex: 0 0 auto;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-footer .cp-btn--primary {
+        order: 1;
+        width: 100%;
+        min-width: 0;
+        min-height: 54px;
+        padding: 0 18px;
+        border: 1px solid #0b6ff5;
+        border-radius: 12px;
+        background: #0b6ff5;
+        color: #ffffff;
+        font-size: 15px;
+        font-weight: 750;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-footer .cp-btn--danger {
+        order: 2;
+        align-self: center;
+        width: auto;
+        min-height: 44px;
+        padding: 0 12px;
+        border: 0 !important;
+        border-radius: 10px;
+        background: transparent !important;
+        color: #ef3434;
+        font-size: 14px;
+        font-weight: 650;
+        box-shadow: none !important;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-footer .cp-btn--danger:hover:not(:disabled),
+    .clients-standard-customer-panel--edit > .cp-panel-footer .cp-btn--danger:focus-visible:not(:disabled) {
+        border: 0;
+        background: #fff5f5 !important;
+        color: #df2828;
+        outline: none;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-footer .cp-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+}
+
+@media (max-width: 640px) {
+    .clients-standard-customer-panel--edit {
+        width: 100vw !important;
+        max-width: 100vw !important;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-header {
+        min-height: 114px;
+        padding-left: 58px;
+        padding-right: 58px;
+    }
+
+    .clients-standard-customer-panel--edit .cp-panel-header__title {
+        font-size: 23px;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs {
+        min-height: 94px;
+        padding-left: 6px;
+        padding-right: 6px;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab {
+        min-height: 94px;
+        height: 94px;
+        padding-left: 1px;
+        padding-right: 1px;
+        font-size: 10.5px;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-body {
+        padding: 28px 24px 30px;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-footer {
+        padding-left: 24px;
+        padding-right: 24px;
+    }
+}
+
+/* Uredi stranko — Termini/Denarnica responsive visual parity (approved mockup). */
+.clients-wallet-entitlement-mobile-meta {
+    display: none;
+}
+
+.clients-modern-session-date > svg,
+.clients-modern-session-info > span > svg {
+    display: none;
+}
+
+@media (max-width: 1024px) {
+    /* ------------------------------------------------------------------ */
+    /* Termini                                                             */
+    /* ------------------------------------------------------------------ */
+    .clients-standard-customer-panel--edit .clients-modern-sessions-panel,
+    .clients-standard-customer-panel--edit .clients-detail-sessions-card.clients-modern-sessions-panel {
+        width: min(100%, 680px);
+        max-width: 680px;
+        margin: 0 auto;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        overflow: visible;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-sessions-header {
+        display: block;
+        width: 100%;
+        margin: 0 0 28px;
+        padding: 0;
+        border: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-sessions-count {
+        display: none !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-subtabs.clients-session-tabs {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        gap: 8px;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-subtabs .clients-session-tab {
+        flex: 0 0 auto;
+        min-width: 0;
+        min-height: 40px;
+        height: 40px;
+        margin: 0;
+        padding: 0 17px;
+        border: 0 !important;
+        border-radius: 999px;
+        background: #f2f5f9;
+        color: #25324a;
+        box-shadow: none !important;
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-subtabs .clients-session-tab:hover,
+    .clients-standard-customer-panel--edit .clients-modern-session-subtabs .clients-session-tab:focus-visible {
+        border: 0 !important;
+        background: #eaf0f6;
+        color: #17233a;
+        outline: none;
+        box-shadow: none !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-subtabs .clients-session-tab.active {
+        border: 0 !important;
+        background: #ff6200;
+        color: #ffffff;
+        box-shadow: none !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-list {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 12px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-row {
+        position: relative;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: start;
+        width: 100%;
+        min-height: 0;
+        padding: 20px 18px 18px;
+        gap: 0;
+        border: 1px solid #dfe6ef;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: 0 5px 16px rgba(15, 23, 42, 0.035);
+        overflow: hidden;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-row:hover,
+    .clients-standard-customer-panel--edit .clients-modern-session-row:focus-visible {
+        border-color: #cfd9e6;
+        background: #ffffff;
+        box-shadow: 0 7px 20px rgba(15, 23, 42, 0.055);
+        outline: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-icon {
+        display: none !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-title {
+        grid-column: 1;
+        grid-row: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        min-width: 0;
+        margin: 0;
+        padding: 0 10px 0 0;
+        gap: 10px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-title strong {
+        color: #111d34;
+        font-size: 16px;
+        font-weight: 800;
+        line-height: 1.25;
+        letter-spacing: -0.01em;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-title .clients-modern-session-date {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: #596980;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.25;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-date > svg,
+    .clients-standard-customer-panel--edit .clients-modern-session-info > span > svg {
+        display: block;
+        flex: 0 0 auto;
+        width: 17px;
+        height: 17px;
+        color: #50627c;
+        stroke-width: 1.85;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-status {
+        grid-column: 2;
+        grid-row: 1;
+        align-self: start;
+        justify-self: end;
+        min-height: 28px;
+        margin: 0;
+        padding: 0 11px;
+        border: 0;
+        border-radius: 999px;
+        font-size: 10.5px;
+        font-weight: 800;
+        line-height: 28px;
+        white-space: nowrap;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-info {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: 18px minmax(0, 1fr);
+        align-items: center;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        gap: 0 10px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-info--time {
+        margin-top: 9px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-info--location,
+    .clients-standard-customer-panel--edit .clients-modern-session-info--consultant {
+        margin-top: 12px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-info > span {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: 18px minmax(0, 1fr);
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        color: #66758a;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.2;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-info > strong {
+        grid-column: 2;
+        min-width: 0;
+        margin-top: 3px;
+        color: #25324a;
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-info--time > span {
+        grid-column: 1;
+        display: flex;
+        align-items: center;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-info--time > span .clients-modern-session-info-label {
+        display: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-info--time > strong {
+        grid-column: 2;
+        margin-top: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-pagination-footer {
+        margin-top: 18px;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Denarnica                                                           */
+    /* ------------------------------------------------------------------ */
+    .clients-standard-customer-panel--edit .clients-standard-wallet-tab,
+    .clients-standard-customer-panel--edit .clients-detail-wallet-card {
+        width: min(100%, 680px);
+        max-width: 680px;
+        margin: 0 auto;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        overflow: visible;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-purchase-layout,
+    .clients-standard-customer-panel--edit .clients-wallet-main-pane {
+        width: 100%;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-toolbar.clients-wallet-toolbar--with-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+        margin: 0 0 28px;
+        padding: 0;
+        gap: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-toolbar-main {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+        min-width: 0;
+        gap: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-filters.clients-session-tabs {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        gap: 7px;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+        overflow: visible;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-filters .clients-session-tab {
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 40px;
+        height: 40px;
+        margin: 0;
+        padding: 0 8px;
+        border: 0 !important;
+        border-radius: 999px;
+        background: #f2f5f9;
+        color: #25324a;
+        box-shadow: none !important;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-filters .clients-session-tab:hover,
+    .clients-standard-customer-panel--edit .clients-wallet-filters .clients-session-tab:focus-visible {
+        border: 0 !important;
+        background: #eaf0f6;
+        color: #17233a;
+        outline: none;
+        box-shadow: none !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-filters .clients-session-tab.active {
+        border: 0 !important;
+        background: #ff6200;
+        color: #ffffff;
+        box-shadow: none !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-action-bar {
+        width: 100%;
+        margin: 18px 0 0;
+        padding: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-buy-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-width: 0;
+        min-height: 52px;
+        height: 52px;
+        margin: 0;
+        padding: 0 18px;
+        gap: 10px;
+        border: 1px solid #0b6ff5;
+        border-radius: 12px;
+        background: #0b6ff5;
+        color: #ffffff;
+        box-shadow: none;
+        font-size: 14px;
+        font-weight: 750;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-buy-button:hover:not(:disabled),
+    .clients-standard-customer-panel--edit .clients-wallet-buy-button:focus-visible:not(:disabled) {
+        border-color: #0863dc;
+        background: #0863dc;
+        color: #ffffff;
+        outline: none;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-summary {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        width: 100%;
+        margin: 18px 0 0;
+        padding: 0;
+        gap: 10px 14px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-summary-pill {
+        min-height: 38px;
+        padding: 0 16px;
+        border: 0;
+        border-radius: 999px;
+        box-shadow: none;
+        font-size: 12.5px;
+        font-weight: 750;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-list {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 12px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-card {
+        position: relative;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        width: 100%;
+        min-height: 0;
+        margin: 0;
+        padding: 18px 18px 0;
+        gap: 0;
+        border: 1px solid #dfe6ef;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: 0 5px 16px rgba(15, 23, 42, 0.035);
+        overflow: hidden;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-card::after {
+        display: none !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-main {
+        grid-column: 1;
+        width: 100%;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-title-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: nowrap;
+        min-width: 0;
+        min-height: 30px;
+        margin: 0;
+        padding: 0 86px 0 0;
+        gap: 10px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-title-row strong {
+        min-width: 0;
+        color: #111d34;
+        font-size: 15px;
+        font-weight: 800;
+        line-height: 1.25;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-tag {
+        flex: 0 0 auto;
+        min-height: 26px;
+        padding: 0 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 750;
+        line-height: 26px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-meta--desktop {
+        display: none !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-mobile-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        min-width: 0;
+        margin: 18px 0 0;
+        padding: 0 0 16px;
+        gap: 14px;
+        border-bottom: 1px solid #e8edf3;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-mobile-date {
+        display: inline-flex;
+        align-items: center;
+        min-width: 0;
+        gap: 9px;
+        color: #596980;
+        font-size: 12.5px;
+        font-weight: 600;
+        line-height: 1.3;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-mobile-date svg {
+        flex: 0 0 auto;
+        width: 16px;
+        height: 16px;
+        color: #50627c;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-mobile-balance {
+        flex: 0 0 auto;
+        color: #52627a;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-side {
+        position: static;
+        display: contents;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-status-pill {
+        position: absolute;
+        top: 18px;
+        right: 18px;
+        z-index: 1;
+        min-height: 28px;
+        padding: 0 11px;
+        border: 0;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 750;
+        line-height: 28px;
+        white-space: nowrap;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-side-balance {
+        display: none !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-delete-button {
+        position: static;
+        grid-column: 1;
+        justify-self: stretch;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: calc(100% + 36px);
+        min-height: 48px;
+        margin: 0 -18px;
+        padding: 0 16px;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: #ef3434;
+        box-shadow: none !important;
+        font-size: 12.5px;
+        font-weight: 700;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-delete-button:hover:not(:disabled),
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-delete-button:focus-visible:not(:disabled) {
+        background: #fff7f7 !important;
+        color: #df2828;
+        outline: none;
+    }
+}
+
+@media (max-width: 640px) {
+    .clients-standard-customer-panel--edit .clients-modern-session-subtabs .clients-session-tab {
+        flex: 1 1 0;
+        padding: 0 8px;
+        font-size: 11.5px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-filters.clients-session-tabs {
+        gap: 5px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-filters .clients-session-tab {
+        padding: 0 5px;
+        font-size: 10.5px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-modern-session-row,
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-card {
+        border-radius: 15px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-title-row {
+        padding-right: 74px;
+        gap: 8px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-entitlement-title-row strong {
+        font-size: 14px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-wallet-status-pill {
+        right: 14px;
+        padding: 0 9px;
+        font-size: 10px;
+    }
+}
+
+
+/* Uredi stranko — Dokumenti/Nastavitve responsive visual parity (approved mockup). */
+@media (max-width: 1024px) {
+    .clients-standard-customer-panel--edit .clients-standard-files-tab,
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab,
+    .clients-standard-customer-panel--edit .clients-standard-settings-list {
+        width: min(100%, 680px);
+        max-width: 680px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Dokumenti                                                           */
+    /* ------------------------------------------------------------------ */
+    .clients-standard-customer-panel--edit .clients-standard-files-tab {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-detail-datoteke-sub-tabs {
+        margin: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-detail-main-tabs-inner.clients-session-tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+        width: 100%;
+        min-height: 52px;
+        margin: 0;
+        padding: 4px;
+        border: 1px solid #d7e0eb;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-detail-main-tabs-inner .clients-session-tab {
+        min-height: 44px;
+        border: 0 !important;
+        border-radius: 12px;
+        background: transparent;
+        color: #314155;
+        font-size: 14px;
+        font-weight: 700;
+        box-shadow: none !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-detail-main-tabs-inner .clients-session-tab.active {
+        background: #ff6200;
+        color: #ffffff;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-manager-toolbar {
+        margin: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-search-field {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 48px;
+        padding: 0 16px;
+        border: 1px solid #d7e0eb;
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-search-field > svg,
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-search-field > .clients-modern-icon {
+        color: #94a3b8;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-search-field input {
+        flex: 1 1 auto;
+        border: 0;
+        outline: none;
+        background: transparent;
+        color: #111d34;
+        font-size: 15px;
+        font-weight: 500;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-search-field input::placeholder {
+        color: #8a96aa;
+        opacity: 1;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-upload-dropzone {
+        min-height: 200px;
+        padding: 30px 24px;
+        border: 1px dashed #d9e1eb;
+        border-radius: 18px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-upload-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 54px;
+        height: 54px;
+        margin: 0 auto 10px;
+        border-radius: 999px;
+        background: #fff3ec;
+        color: #ff6200;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-upload-dropzone strong {
+        color: #18243b;
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1.45;
+        text-align: center;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-browse-button,
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-upload-button {
+        min-height: 44px;
+        padding: 0 18px;
+        border: 1px solid #ffd4b8;
+        border-radius: 12px;
+        background: #ffffff;
+        color: #ff6200;
+        font-size: 14px;
+        font-weight: 750;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-browse-button:hover:not(:disabled),
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-browse-button:focus-visible:not(:disabled),
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-upload-button:hover:not(:disabled),
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-upload-button:focus-visible:not(:disabled) {
+        border-color: #ffc099;
+        background: #fff8f4;
+        color: #f15a00;
+        outline: none;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-list-header {
+        margin: 2px 0 0;
+        color: #9aa7bb;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-detail-empty-card,
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-modern-file-list,
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-company-invoices-panel {
+        margin: 0;
+        padding: 16px;
+        border: 1px solid #dfe6ef;
+        border-radius: 18px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-detail-empty-card .empty-state {
+        padding: 34px 20px;
+        border-radius: 16px;
+        background: #f7f9fc;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .empty-state__icon,
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .empty-state [aria-hidden="true"] {
+        color: #8b99ae;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-company-invoices-toolbar {
+        margin-bottom: 12px;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Nastavitve                                                          */
+    /* ------------------------------------------------------------------ */
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab,
+    .clients-standard-customer-panel--edit .clients-standard-settings-list {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-card,
+    .clients-standard-customer-panel--edit .clients-settings-toggle-row,
+    .clients-standard-customer-panel--edit .clients-settings-location-shell {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-card {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-head,
+    .clients-standard-customer-panel--edit .clients-settings-toggle-main,
+    .clients-standard-customer-panel--edit .clients-settings-location-head {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        width: 100%;
+        min-height: 52px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-copy {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-card-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 46px;
+        height: 46px;
+        min-width: 46px;
+        border-radius: 14px;
+        background: #fff3ec;
+        color: #ff6200;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-card-icon svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-label,
+    .clients-standard-customer-panel--edit .clients-settings-toggle-label {
+        color: #111d34;
+        font-size: 15px;
+        font-weight: 750;
+        line-height: 1.3;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-value {
+        color: #65748b;
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.35;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-value .clients-assigned-multi-summary {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        max-width: 100%;
+        padding: 7px 12px 7px 8px;
+        border: 1px solid #dce5f0;
+        border-radius: 12px;
+        background: #f8fafc;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-value .clients-assigned-avatar-stack {
+        gap: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-value .clients-assigned-avatar {
+        width: 28px;
+        height: 28px;
+        min-width: 28px;
+        margin-left: -6px;
+        border: 2px solid #ffffff;
+        font-size: 11px;
+        font-weight: 800;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-value .clients-assigned-avatar:first-child {
+        margin-left: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-chevron {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        min-width: 34px;
+        padding: 0;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #63748b;
+        font-size: 24px;
+        line-height: 1;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-editor {
+        padding: 0 0 0 60px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-editor .desktop-select,
+    .clients-standard-customer-panel--edit .clients-settings-linked-editor .desktop-select-trigger,
+    .clients-standard-customer-panel--edit .clients-settings-linked-editor select,
+    .clients-standard-customer-panel--edit .clients-settings-location-shell details summary {
+        width: 100%;
+        min-height: 48px;
+        border: 1px solid #d9e1eb;
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-editor .desktop-select-trigger,
+    .clients-standard-customer-panel--edit .clients-settings-linked-editor select,
+    .clients-standard-customer-panel--edit .clients-settings-location-shell details summary {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-assigned-multi-editor {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-assigned-multi-control {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 48px;
+        padding: 0 14px;
+        border: 1px solid #d9e1eb;
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-assigned-multi-hint,
+    .clients-standard-customer-panel--edit .clients-settings-location-shell .clients-location-picker-field > small,
+    .clients-standard-customer-panel--edit .clients-settings-location-shell .clients-location-picker-label {
+        color: #7b8ba2;
+        font-size: 12.5px;
+        line-height: 1.45;
+    }
+
+    .clients-standard-customer-panel--edit .clients-assigned-multi-menu,
+    .clients-standard-customer-panel--edit .clients-settings-location-shell .clients-location-picker-menu {
+        margin-top: 0;
+        border: 1px solid #dce5f0;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: none;
+        overflow: hidden;
+    }
+
+    .clients-standard-customer-panel--edit .clients-assigned-multi-search {
+        min-height: 46px;
+        border: 0;
+        border-bottom: 1px solid #e7edf5;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-assigned-option {
+        border: 0;
+        border-bottom: 1px solid #eef2f7;
+        border-radius: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-assigned-option:last-child {
+        border-bottom: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-location-shell {
+        gap: 12px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-location-shell .clients-location-picker-label {
+        display: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-location-shell .clients-location-picker {
+        margin: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-location-shell .clients-location-picker summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        list-style: none;
+        cursor: pointer;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-location-shell .clients-location-picker summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        min-height: 52px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab .clients-batch-switch {
+        position: relative;
+        width: 52px;
+        min-width: 52px;
+        height: 32px;
+        padding: 0;
+        border: 1px solid #d8e0ea;
+        border-radius: 999px;
+        background: #edf2f7;
+        color: transparent;
+        font-size: 0;
+        box-shadow: none;
+        transition: background .16s ease, border-color .16s ease;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab .clients-batch-switch::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        background: #ffffff;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.16);
+        transition: transform .16s ease;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab .clients-batch-switch--on {
+        background: #0b6ff5;
+        border-color: #0b6ff5;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab .clients-batch-switch--on::after {
+        transform: translateX(20px);
+    }
+}
+
+@media (max-width: 640px) {
+    .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-upload-dropzone {
+        min-height: 182px;
+        padding: 26px 20px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab,
+    .clients-standard-customer-panel--edit .clients-standard-settings-list {
+        gap: 18px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-head,
+    .clients-standard-customer-panel--edit .clients-settings-toggle-main,
+    .clients-standard-customer-panel--edit .clients-settings-location-head {
+        gap: 12px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-card-icon {
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        border-radius: 13px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-label,
+    .clients-standard-customer-panel--edit .clients-settings-toggle-label {
+        font-size: 14.5px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-value {
+        font-size: 13.5px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-linked-editor {
+        padding-left: 56px;
+    }
 }

@@ -1652,3 +1652,10 @@
     z-index: 1;
   }
 }
+
+/* Keep footer actions out of the full-height catalog tab rail. */
+@media (min-width: 1025px) {
+  .billing-pos-footer-left {
+    margin-left: 112px;
+  }
+}

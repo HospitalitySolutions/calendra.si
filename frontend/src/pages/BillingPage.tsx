@@ -2636,6 +2636,24 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return map
   }, [invoiceCatalogServices])
 
+  const guestProductTypeLabel = (product: BillingGuestProduct) => {
+    const type = String(product.productType || '').toUpperCase()
+    if (locale === 'sl') {
+      if (type === 'MEMBERSHIP') return 'Članarina'
+      if (type === 'PACK') return 'Paket obiskov'
+      if (type === 'CLASS_TICKET') return 'Karta'
+      if (type === 'COURSE') return 'Dostop do tečaja'
+      if (type === 'GIFT_CARD') return 'Bon'
+      return 'Ugodnost'
+    }
+    if (type === 'MEMBERSHIP') return 'Membership'
+    if (type === 'PACK') return 'Pack'
+    if (type === 'CLASS_TICKET') return 'Ticket'
+    if (type === 'COURSE') return 'Course access'
+    if (type === 'GIFT_CARD') return 'Gift card'
+    return 'Benefit'
+  }
+
   const guestProductCatalogMetaByTransactionServiceId = useMemo(() => {
     const map = new Map<number, { displayName: string; secondaryText: string }>()
     guestProducts.forEach((product) => {
@@ -7704,24 +7722,6 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const isGiftCardGuestProduct = (product: BillingGuestProduct) => String(product.productType || '').toUpperCase() === 'GIFT_CARD'
-
-  const guestProductTypeLabel = (product: BillingGuestProduct) => {
-    const type = String(product.productType || '').toUpperCase()
-    if (locale === 'sl') {
-      if (type === 'MEMBERSHIP') return 'Članarina'
-      if (type === 'PACK') return 'Paket obiskov'
-      if (type === 'CLASS_TICKET') return 'Karta'
-      if (type === 'COURSE') return 'Dostop do tečaja'
-      if (type === 'GIFT_CARD') return 'Bon'
-      return 'Ugodnost'
-    }
-    if (type === 'MEMBERSHIP') return 'Membership'
-    if (type === 'PACK') return 'Pack'
-    if (type === 'CLASS_TICKET') return 'Ticket'
-    if (type === 'COURSE') return 'Course access'
-    if (type === 'GIFT_CARD') return 'Gift card'
-    return 'Benefit'
-  }
 
   const guestProductAvailableAtLocation = (product: BillingGuestProduct, locationId?: number | null) => {
     if (!locationId) return true

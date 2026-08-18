@@ -443,11 +443,25 @@ function isGiftCardWalletProduct(product: WalletProduct | null | undefined): boo
   return String(product?.productType ?? '').toUpperCase() === 'GIFT_CARD'
 }
 
-/** Human-readable entitlement status (e.g. EXPIRED → Expired). */
-function formatWalletEntitlementStatusLabel(status: string | null | undefined): string {
+/** Human-readable entitlement status, localized for the client panel. */
+function formatWalletEntitlementStatusLabel(status: string | null | undefined, locale: string): string {
   if (!status?.trim()) return '—'
-  return status
-    .trim()
+
+  const normalized = status.trim().toUpperCase()
+  if (locale === 'sl') {
+    const slLabels: Record<string, string> = {
+      ACTIVE: 'Aktivno',
+      INACTIVE: 'Neaktivno',
+      EXPIRED: 'Preteklo',
+      CANCELLED: 'Preklicano',
+      CANCELED: 'Preklicano',
+      USED: 'Porabljeno',
+      USED_UP: 'Porabljeno',
+    }
+    if (slLabels[normalized]) return slLabels[normalized]
+  }
+
+  return normalized
     .toLowerCase()
     .split('_')
     .filter(Boolean)
@@ -512,6 +526,16 @@ function walletVoucherScopeLabel(scope: string | null | undefined, names: string
   if (clean.length === 0) return locale === 'sl' ? 'Izbrane storitve' : 'Selected services'
   if (clean.length === 1) return clean[0]
   return clean.join(', ')
+}
+
+function walletEntitlementUsesFraction(entitlement: ClientWalletEntitlement, usageHistory: ClientWalletUsage[]): string | null {
+  if (entitlement.remainingUses == null) return null
+  const remaining = Math.max(0, Number(entitlement.remainingUses) || 0)
+  const matchingUsage = usageHistory.filter((usage) => usage.entitlementId === entitlement.id)
+  const maxUnitsBefore = matchingUsage.reduce((max, usage) => Math.max(max, Number(usage.unitsBefore ?? 0) || 0), 0)
+  const consumedUnits = matchingUsage.reduce((sum, usage) => sum + Math.max(0, Number(usage.unitsUsed ?? 0) || 0), 0)
+  const total = maxUnitsBefore > 0 ? Math.max(remaining, maxUnitsBefore) : Math.max(remaining, remaining + consumedUnits)
+  return `${remaining}/${total}`
 }
 
 
@@ -1182,6 +1206,36 @@ function ClientSettingsCardIcon({ name }: { name: 'company' | 'employees' | 'wal
   }
   return <svg {...common}><path d="M3 7h18" /><path d="M7 3v4" /><path d="M17 3v4" /><rect x="4" y="5" width="16" height="15" rx="2.5" /></svg>
 }
+
+function MobileCreateFieldIcon({ name }: { name: 'person' | 'email' | 'phone' | 'company' | 'document' | 'address' | 'postal' | 'city' | 'group' }) {
+  const common = {
+    width: 22,
+    height: 22,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.9,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  }
+  if (name === 'person') return <ClientProfileSectionIcon name="person" />
+  if (name === 'email') return <ClientProfileSectionIcon name="email" />
+  if (name === 'phone') return <ClientProfileSectionIcon name="phone" />
+  if (name === 'company') return <ClientSettingsCardIcon name="company" />
+  if (name === 'group') return <ClientsModernIcon name="groups" />
+  if (name === 'document') {
+    return <svg {...common}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6" /><path d="M9 17h6" /></svg>
+  }
+  if (name === 'address') {
+    return <svg {...common}><path d="M4 21h16" /><path d="M6 21V6.5A2.5 2.5 0 0 1 8.5 4h7A2.5 2.5 0 0 1 18 6.5V21" /><path d="M9 8h1" /><path d="M14 8h1" /><path d="M9 12h1" /><path d="M14 12h1" /><path d="M10 21v-4h4v4" /></svg>
+  }
+  if (name === 'postal') {
+    return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>
+  }
+  return <svg {...common}><path d="M12 21s6-5.2 6-11a6 6 0 1 0-12 0c0 5.8 6 11 6 11Z" /><circle cx="12" cy="10" r="2.5" /></svg>
+}
+
 function ClientWorkspaceIcon({ name }: { name: ClientWorkspaceIconName }) {
   const common = {
     width: 18,
@@ -1256,6 +1310,25 @@ function ClientWorkspaceIcon({ name }: { name: ClientWorkspaceIconName }) {
       <path d="m7 10 5 5 5-5" />
     </svg>
   )
+}
+
+
+function ClientSessionMetaIcon({ name }: { name: 'calendar' | 'clock' | 'location' | 'person' }) {
+  const common = {
+    width: 16,
+    height: 16,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.9,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  }
+  if (name === 'clock') return <svg {...common}><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></svg>
+  if (name === 'location') return <svg {...common}><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></svg>
+  if (name === 'person') return <svg {...common}><circle cx="12" cy="7" r="3.25" /><path d="M5.5 20a6.5 6.5 0 0 1 13 0" /></svg>
+  return <svg {...common}><rect x="4" y="5" width="16" height="15" rx="2.5" /><path d="M8 3v4" /><path d="M16 3v4" /><path d="M4 10h16" /></svg>
 }
 
 
@@ -3557,7 +3630,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   ) => {
     if (key === 'assignedToId' && !isAdmin) return null
     const isEditing = detailEditField === key
-    const iconName = key === 'billingCompanyId' ? 'company' : 'employees'
+    const iconName = key === 'billingCompanyId'
+      ? (isClientsMobile ? 'employees' : 'company')
+      : (isClientsMobile ? 'company' : 'employees')
     const value = key === 'billingCompanyId'
       ? (detailClient?.billingCompany?.name || '—')
       : key === 'assignedToId'
@@ -3766,6 +3841,44 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       </label>
     )
   }
+
+
+  const renderMobileCreateField = ({
+    icon,
+    label,
+    value,
+    onChange,
+    fieldName,
+    inputType = 'text',
+    required = false,
+    autoFocus = false,
+    autoCapitalize = 'none',
+  }: {
+    icon: 'person' | 'email' | 'phone' | 'company' | 'document' | 'address' | 'postal' | 'city' | 'group'
+    label: string
+    value: string
+    onChange: (value: string) => void
+    fieldName: string
+    inputType?: 'text' | 'email' | 'tel'
+    required?: boolean
+    autoFocus?: boolean
+    autoCapitalize?: 'none' | 'words' | 'sentences'
+  }) => (
+    <label className="clients-mobile-create-field">
+      <span className="clients-mobile-create-field__icon" aria-hidden><MobileCreateFieldIcon name={icon} /></span>
+      <input
+        autoFocus={autoFocus}
+        required={required}
+        type={inputType}
+        {...mobileAutofillGuardProps(fieldName, autoCapitalize)}
+        inputMode={inputType === 'email' ? 'email' : inputType === 'tel' ? 'tel' : 'text'}
+        enterKeyHint={inputType === 'tel' ? 'done' : 'next'}
+        value={value}
+        placeholder={`${label}${required ? ' *' : ''}`}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
+  )
 
   const renderGroupEditableField = (
     key: 'name' | 'email' | 'billingCompanyId' | 'defaultSessionTypeId',
@@ -5031,6 +5144,19 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           subtitle={detailClient ? `${fullName(detailClient)} · ID #${detailClient.id}` : undefined}
           onClose={closeDetailModal}
           closeLabel={t('mobileNavClose')}
+          leading={(
+            <button
+              type="button"
+              className="clients-customer-mobile-back"
+              onClick={closeDetailModal}
+              aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}
+              title={locale === 'sl' ? 'Nazaj' : 'Back'}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+            </button>
+          )}
         />
         <PanelTabs
           label={clientsCopy.clientDetailMainTabsAria}
@@ -5130,7 +5256,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                             <div className="clients-wallet-entitlement-list">
                               {visibleWalletEntitlements.map((entitlement) => {
                                 const kind = entitlementKind(entitlement)
-                                const status = formatWalletEntitlementStatusLabel(entitlement.status)
+                                const status = formatWalletEntitlementStatusLabel(entitlement.status, locale)
                                 const isMembership = kind === 'membership'
                                 return (
                                   <article
@@ -5142,7 +5268,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                                         <span className="clients-wallet-entitlement-tag">{walletEntitlementKindLabel(kind, locale, entitlement.voucherRedemptionMode)}</span>
                                         <strong>{entitlement.productName}</strong>
                                       </div>
-                                      <div className="clients-wallet-entitlement-meta">
+                                      <div className="clients-wallet-entitlement-meta clients-wallet-entitlement-meta--desktop">
                                         {entitlement.createdAt ? (
                                           <span>{clientsCopy.walletCreated} {formatDate(entitlement.createdAt)}</span>
                                         ) : null}
@@ -5157,10 +5283,30 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                                           <span>{locale === 'sl' ? 'Lokacije' : 'Locations'}: {entitlement.locationNames?.join(', ')}</span>
                                         ) : null}
                                       </div>
+                                      <div className="clients-wallet-entitlement-mobile-meta">
+                                        <span className="clients-wallet-entitlement-mobile-date">
+                                          <ClientSessionMetaIcon name="calendar" />
+                                          {entitlement.validUntil
+                                            ? `${locale === 'sl' ? 'Poteče' : 'Expires'} ${formatDate(entitlement.validUntil)}`
+                                            : entitlement.createdAt
+                                              ? `${clientsCopy.walletCreated} ${formatDate(entitlement.createdAt)}`
+                                              : '—'}
+                                        </span>
+                                        <strong className="clients-wallet-entitlement-mobile-balance">
+                                          {kind === 'gift_card' && entitlement.voucherRedemptionMode !== 'SERVICE'
+                                            ? `${Number(entitlement.remainingValueGross ?? 0).toFixed(2)} ${entitlement.currency || 'EUR'}`
+                                            : isMembership
+                                              ? `${clientsCopy.walletVisitCount}: ${entitlement.visitCount ?? 0}`
+                                              : (() => {
+                                                const fraction = walletEntitlementUsesFraction(entitlement, detailWallet?.usageHistory ?? [])
+                                                return fraction ? `${clientsCopy.walletVisitCount} ${fraction}` : clientsCopy.walletUnlimited
+                                              })()}
+                                        </strong>
+                                      </div>
                                     </div>
                                     <div className="clients-wallet-entitlement-side">
                                       <span className="clients-wallet-status-pill"><span /> {status}</span>
-                                      <strong>
+                                      <strong className="clients-wallet-entitlement-side-balance">
                                         {kind === 'gift_card' && entitlement.voucherRedemptionMode !== 'SERVICE'
                                           ? `${Number(entitlement.remainingValueGross ?? 0).toFixed(2)} ${entitlement.currency || 'EUR'}`
                                           : isMembership
@@ -5465,18 +5611,18 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               </div>
                               <div className="clients-modern-session-title">
                                 <strong>{sessionTitle(s, locale)}</strong>
-                                <span>{formatDate(s.startTime)}</span>
+                                <span className="clients-modern-session-date"><ClientSessionMetaIcon name="calendar" /> {formatDate(s.startTime)}</span>
                               </div>
-                              <div className="clients-modern-session-info">
-                                <span>{locale === 'sl' ? 'Ura' : 'Time'}</span>
+                              <div className="clients-modern-session-info clients-modern-session-info--time">
+                                <span><ClientSessionMetaIcon name="clock" /><span className="clients-modern-session-info-label">{locale === 'sl' ? 'Ura' : 'Time'}</span></span>
                                 <strong>{formatShortTime(s.startTime)} – {formatShortTime(s.endTime)}</strong>
                               </div>
-                              <div className="clients-modern-session-info">
-                                <span>{locale === 'sl' ? 'Lokacija' : 'Location'}</span>
+                              <div className="clients-modern-session-info clients-modern-session-info--location">
+                                <span><ClientSessionMetaIcon name="location" /><span className="clients-modern-session-info-label">{locale === 'sl' ? 'Lokacija' : 'Location'}</span></span>
                                 <strong>{sessionLocation(s)}</strong>
                               </div>
-                              <div className="clients-modern-session-info">
-                                <span>{locale === 'sl' ? 'Izvajalec' : 'Instructor'}</span>
+                              <div className="clients-modern-session-info clients-modern-session-info--consultant">
+                                <span><ClientSessionMetaIcon name="person" /><span className="clients-modern-session-info-label">{locale === 'sl' ? 'Izvajalec' : 'Instructor'}</span></span>
                                 <strong>{consultantName || '—'}</strong>
                               </div>
                               <span className={`clients-modern-session-status clients-modern-session-status--${sessionStatusTone}`}>
@@ -6072,7 +6218,91 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         size="lg"
         className="clients-standard-customer-panel clients-standard-customer-panel--create"
       >
-        {!useResponsiveDesktopCreatePanels ? (
+        {isClientsMobile ? (
+          <>
+            <PanelHeader
+              title={clientsCopy.newClientTitle}
+              onClose={closeModal}
+              closeLabel={t('mobileNavClose')}
+              leading={(
+                <button
+                  type="button"
+                  className="clients-customer-mobile-back"
+                  onClick={closeModal}
+                  aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}
+                  title={locale === 'sl' ? 'Nazaj' : 'Back'}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                </button>
+              )}
+            />
+            <PanelBody as="form" id="clients-new-client-form" onSubmit={handleSubmit}>
+              <div className="clients-mobile-create-form">
+                <div className="clients-mobile-create-fields">
+                  {renderMobileCreateField({
+                    icon: 'person',
+                    label: clientsCopy.firstName,
+                    value: form.firstName,
+                    onChange: (value) => setForm((current) => ({ ...current, firstName: value })),
+                    fieldName: 'calendra-new-client-first-name',
+                    required: true,
+                    autoFocus: true,
+                    autoCapitalize: 'words',
+                  })}
+                  {renderMobileCreateField({
+                    icon: 'person',
+                    label: clientsCopy.lastName,
+                    value: form.lastName,
+                    onChange: (value) => setForm((current) => ({ ...current, lastName: value })),
+                    fieldName: 'calendra-new-client-last-name',
+                    required: true,
+                    autoCapitalize: 'words',
+                  })}
+                  {renderMobileCreateField({
+                    icon: 'email',
+                    label: clientsCopy.email,
+                    value: form.email,
+                    onChange: (value) => setForm((current) => ({ ...current, email: value })),
+                    fieldName: 'calendra-new-client-email-mobile',
+                    inputType: 'email',
+                  })}
+                  {renderMobileCreateField({
+                    icon: 'phone',
+                    label: clientsCopy.phone,
+                    value: form.phone,
+                    onChange: (value) => setForm((current) => ({ ...current, phone: value })),
+                    fieldName: 'calendra-new-client-phone-mobile',
+                    inputType: 'tel',
+                  })}
+                </div>
+                {(businessLocations.length > 1) ? (
+                  <div className="clients-mobile-create-extra">
+                    <AssignedLocationsPicker
+                      locations={businessLocations}
+                      selectedIds={form.assignedLocationIds}
+                      onChange={(assignedLocationIds) => setForm((current) => ({ ...current, assignedLocationIds }))}
+                      locale={locale}
+                    />
+                  </div>
+                ) : null}
+                {errorMessage && <div className="error">{errorMessage}</div>}
+              </div>
+            </PanelBody>
+            <PanelFooter>
+              <PanelButton
+                type="submit"
+                form="clients-new-client-form"
+                variant="primary"
+                icon={<GuestConfigSaveIcon />}
+                disabled={saving || !form.firstName.trim() || !form.lastName.trim()}
+              >
+                {saving ? clientsCopy.saving : clientsCopy.createClient}
+              </PanelButton>
+            </PanelFooter>
+          </>
+        ) : !useResponsiveDesktopCreatePanels ? (
           <SimpleClientCreatePage
                 title={clientsCopy.newClientTitle}
                 closeLabel={t('mobileNavClose')}
@@ -6104,7 +6334,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
               <>
                 <PanelHeader
                   title={clientsCopy.newClientTitle}
-                  subtitle={locale === 'sl' ? 'Dodaj novega uporabnika (stranko)' : 'Add a new customer'}
                   onClose={closeModal}
                   closeLabel={t('mobileNavClose')}
                 />
@@ -6159,70 +6388,115 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         className="clients-standard-entity-panel clients-standard-company-panel clients-standard-entity-panel--create"
       >
             {isClientsMobile ? (
-              <form className="clients-create-modal-form clients-simple-create-form" autoComplete="off" onSubmit={submitCompanyForm}>
-                <div className="clients-simple-create-header">
-                  <button
-                    type="button"
-                    className="clients-simple-create-close"
-                    onClick={closeCompanyModal}
-                    aria-label={t('mobileNavClose')}
-                  >
-                    ×
-                  </button>
-                  <h2>{clientsCopy.newCompanyTitle}</h2>
-                </div>
-                <div className="clients-simple-create-body">
-                  <div className="clients-detail-shell clients-create-shell clients-simple-create-shell">
-                    <div className="clients-detail-fields clients-create-fields clients-simple-create-fields">
-                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{clientsCopy.companyName} *</span>
-                        <input {...mobileAutofillGuardProps('calendra-new-company-name', 'words')} required placeholder={`${clientsCopy.companyName} *`} value={companyForm.name} onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })} />
-                      </label>
-                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{clientsCopy.vatId}</span>
-                        <input {...mobileAutofillGuardProps('calendra-new-company-vat-id')} inputMode="text" placeholder={clientsCopy.vatId} value={companyForm.vatId} onChange={(e) => setCompanyForm({ ...companyForm, vatId: e.target.value })} />
-                      </label>
-                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{clientsCopy.email}</span>
-                        <input {...mobileAutofillGuardProps('calendra-new-company-email')} type="email" inputMode="email" placeholder={clientsCopy.email} value={companyForm.email} onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })} />
-                      </label>
-                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{clientsCopy.telephone}</span>
-                        <input {...mobileAutofillGuardProps('calendra-new-company-telephone')} type="tel" inputMode="tel" placeholder={clientsCopy.telephone} value={companyForm.telephone} onChange={(e) => setCompanyForm({ ...companyForm, telephone: e.target.value })} />
-                      </label>
-                      <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
-                        <span>{clientsCopy.address}</span>
-                        <input {...mobileAutofillGuardProps('calendra-new-company-address', 'words')} placeholder={clientsCopy.address} value={companyForm.address} onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })} />
-                      </label>
-                      <label className="clients-detail-field-card clients-create-field">
-                        <span>{clientsCopy.postalCode}</span>
-                        <input {...mobileAutofillGuardProps('calendra-new-company-postal-code')} inputMode="text" placeholder={clientsCopy.postalCode} value={companyForm.postalCode} onChange={(e) => setCompanyForm({ ...companyForm, postalCode: e.target.value })} />
-                      </label>
-                      <label className="clients-detail-field-card clients-create-field">
-                        <span>{clientsCopy.city}</span>
-                        <input {...mobileAutofillGuardProps('calendra-new-company-city', 'words')} placeholder={clientsCopy.city} value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} />
-                      </label>
-                      <AssignedLocationsPicker
-                        locations={businessLocations}
-                        selectedIds={companyForm.assignedLocationIds}
-                        onChange={(assignedLocationIds) => setCompanyForm((current) => ({ ...current, assignedLocationIds }))}
-                        locale={locale}
-                      />
-                      {renderCustomFieldInputs(companyCustomFieldDefs, companyCustomValues, (fieldId, value) =>
-                        setCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
-                      )}
-                    </div>
-                    {companyErrorMessage && <div className="error">{companyErrorMessage}</div>}
+              <>
+                <PanelHeader
+                  title={clientsCopy.newCompanyTitle}
+                  onClose={closeCompanyModal}
+                  closeLabel={t('mobileNavClose')}
+                  leading={(
                     <button
-                      type="submit"
-                      className="clients-gapp-save-button clients-simple-create-submit"
-                      disabled={savingCompany || !companyForm.name.trim()}
+                      type="button"
+                      className="clients-customer-mobile-back"
+                      onClick={closeCompanyModal}
+                      aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}
+                      title={locale === 'sl' ? 'Nazaj' : 'Back'}
                     >
-                      {savingCompany ? clientsCopy.saving : clientsCopy.createCompany}
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="m15 18-6-6 6-6" />
+                      </svg>
                     </button>
+                  )}
+                />
+                <PanelBody as="form" id="clients-new-company-form" onSubmit={submitCompanyForm}>
+                  <div className="clients-mobile-create-form">
+                    <div className="clients-mobile-create-fields">
+                      {renderMobileCreateField({
+                        icon: 'company',
+                        label: clientsCopy.companyName,
+                        value: companyForm.name,
+                        onChange: (value) => setCompanyForm((current) => ({ ...current, name: value })),
+                        fieldName: 'calendra-new-company-name-mobile',
+                        required: true,
+                        autoFocus: true,
+                        autoCapitalize: 'words',
+                      })}
+                      {renderMobileCreateField({
+                        icon: 'document',
+                        label: clientsCopy.vatId,
+                        value: companyForm.vatId,
+                        onChange: (value) => setCompanyForm((current) => ({ ...current, vatId: value })),
+                        fieldName: 'calendra-new-company-vat-id-mobile',
+                      })}
+                      {renderMobileCreateField({
+                        icon: 'email',
+                        label: clientsCopy.email,
+                        value: companyForm.email,
+                        onChange: (value) => setCompanyForm((current) => ({ ...current, email: value })),
+                        fieldName: 'calendra-new-company-email-mobile',
+                        inputType: 'email',
+                      })}
+                      {renderMobileCreateField({
+                        icon: 'phone',
+                        label: clientsCopy.telephone,
+                        value: companyForm.telephone,
+                        onChange: (value) => setCompanyForm((current) => ({ ...current, telephone: value })),
+                        fieldName: 'calendra-new-company-telephone-mobile',
+                        inputType: 'tel',
+                      })}
+                      {renderMobileCreateField({
+                        icon: 'address',
+                        label: clientsCopy.address,
+                        value: companyForm.address,
+                        onChange: (value) => setCompanyForm((current) => ({ ...current, address: value })),
+                        fieldName: 'calendra-new-company-address-mobile',
+                        autoCapitalize: 'words',
+                      })}
+                      {renderMobileCreateField({
+                        icon: 'postal',
+                        label: clientsCopy.postalCode,
+                        value: companyForm.postalCode,
+                        onChange: (value) => setCompanyForm((current) => ({ ...current, postalCode: value })),
+                        fieldName: 'calendra-new-company-postal-code-mobile',
+                      })}
+                      {renderMobileCreateField({
+                        icon: 'city',
+                        label: clientsCopy.city,
+                        value: companyForm.city,
+                        onChange: (value) => setCompanyForm((current) => ({ ...current, city: value })),
+                        fieldName: 'calendra-new-company-city-mobile',
+                        autoCapitalize: 'words',
+                      })}
+                    </div>
+                    {businessLocations.length > 1 || companyCustomFieldDefs.length > 0 ? (
+                      <div className="clients-mobile-create-extra">
+                        {businessLocations.length > 1 ? (
+                          <AssignedLocationsPicker
+                            locations={businessLocations}
+                            selectedIds={companyForm.assignedLocationIds}
+                            onChange={(assignedLocationIds) => setCompanyForm((current) => ({ ...current, assignedLocationIds }))}
+                            locale={locale}
+                          />
+                        ) : null}
+                        {renderCustomFieldInputs(companyCustomFieldDefs, companyCustomValues, (fieldId, value) =>
+                          setCompanyCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                        )}
+                      </div>
+                    ) : null}
+                    {companyErrorMessage && <div className="error">{companyErrorMessage}</div>}
                   </div>
-                </div>
-              </form>
+                </PanelBody>
+                <PanelFooter>
+                  <PanelButton
+                    type="submit"
+                    form="clients-new-company-form"
+                    variant="primary"
+                    icon={<GuestConfigSaveIcon />}
+                    disabled={savingCompany || !companyForm.name.trim()}
+                  >
+                    {savingCompany ? clientsCopy.saving : clientsCopy.createCompany}
+                  </PanelButton>
+                </PanelFooter>
+              </>
             ) : (
               <>
                 <PanelHeader
@@ -6666,7 +6940,79 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         size="lg"
         className="clients-standard-entity-panel clients-standard-group-panel clients-standard-entity-panel--create"
       >
-            {!useResponsiveDesktopCreatePanels ? (
+            {isClientsMobile ? (
+              <>
+                <PanelHeader
+                  title={clientsCopy.newGroupTitle}
+                  onClose={closeGroupModal}
+                  closeLabel={t('mobileNavClose')}
+                  leading={(
+                    <button
+                      type="button"
+                      className="clients-customer-mobile-back"
+                      onClick={closeGroupModal}
+                      aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}
+                      title={locale === 'sl' ? 'Nazaj' : 'Back'}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="m15 18-6-6 6-6" />
+                      </svg>
+                    </button>
+                  )}
+                />
+                <PanelBody as="form" id="clients-new-group-form" onSubmit={(e) => { e.preventDefault(); void handleCreateGroup() }}>
+                  <div className="clients-mobile-create-form">
+                    <div className="clients-mobile-create-fields">
+                      {renderMobileCreateField({
+                        icon: 'group',
+                        label: clientsCopy.groupName,
+                        value: groupForm.name,
+                        onChange: (value) => setGroupForm((current) => ({ ...current, name: value })),
+                        fieldName: 'calendra-new-group-name-mobile',
+                        required: true,
+                        autoFocus: true,
+                        autoCapitalize: 'words',
+                      })}
+                      {renderMobileCreateField({
+                        icon: 'email',
+                        label: clientsCopy.groupEmail,
+                        value: groupForm.email,
+                        onChange: (value) => setGroupForm((current) => ({ ...current, email: value })),
+                        fieldName: 'calendra-new-group-email-mobile',
+                        inputType: 'email',
+                      })}
+                    </div>
+                    {businessLocations.length > 1 || groupCustomFieldDefs.length > 0 ? (
+                      <div className="clients-mobile-create-extra">
+                        {businessLocations.length > 1 ? (
+                          <AssignedLocationsPicker
+                            locations={businessLocations}
+                            selectedIds={groupForm.assignedLocationIds}
+                            onChange={(assignedLocationIds) => setGroupForm((current) => ({ ...current, assignedLocationIds }))}
+                            locale={locale}
+                          />
+                        ) : null}
+                        {renderCustomFieldInputs(groupCustomFieldDefs, groupCustomValues, (fieldId, value) =>
+                          setGroupCustomValues((prev) => ({ ...prev, [fieldId]: value }))
+                        )}
+                      </div>
+                    ) : null}
+                    {groupErrorMessage && <div className="error">{groupErrorMessage}</div>}
+                  </div>
+                </PanelBody>
+                <PanelFooter>
+                  <PanelButton
+                    type="submit"
+                    form="clients-new-group-form"
+                    variant="primary"
+                    icon={<GuestConfigSaveIcon />}
+                    disabled={savingGroup || !groupForm.name.trim()}
+                  >
+                    {savingGroup ? clientsCopy.saving : clientsCopy.createGroup}
+                  </PanelButton>
+                </PanelFooter>
+              </>
+            ) : !useResponsiveDesktopCreatePanels ? (
               <form className="clients-create-modal-form clients-simple-create-form" autoComplete="off" onSubmit={(e) => { e.preventDefault(); handleCreateGroup() }}>
                 <div className="clients-simple-create-header">
                   <button
