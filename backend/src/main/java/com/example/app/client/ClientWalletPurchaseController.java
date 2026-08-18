@@ -157,7 +157,11 @@ public class ClientWalletPurchaseController {
             List<String> locationNames
     ) {}
 
-    public record CreateWalletPurchaseOpenBillRequest(Long locationId, String giftCardTo, String giftCardText) {}
+    public record CreateWalletPurchaseOpenBillRequest(Long locationId, String giftCardTo, String giftCardText, Long paymentMethodId) {
+        public CreateWalletPurchaseOpenBillRequest(Long locationId, String giftCardTo, String giftCardText) {
+            this(locationId, giftCardTo, giftCardText, null);
+        }
+    }
     public record CreateWalletPurchaseOpenBillResponse(Long openBillId, Long orderId, Long productId) {}
     public record WalletPurchaseErrorResponse(String message) {}
 
@@ -214,7 +218,11 @@ public class ClientWalletPurchaseController {
                 ? resolveOperationalLocation(companyId, request == null ? null : request.locationId())
                 : commerceLocations.resolveProductPurchaseLocation(companyId, product, request == null ? null : request.locationId());
         GuestTenantLink link = resolveOrCreateGuestLink(client);
-        var paymentMethod = resolveDefaultPaymentMethod(companyId, location);
+        var paymentMethod = resolvePurchasePaymentMethod(
+                companyId,
+                location,
+                request == null ? null : request.paymentMethodId()
+        );
         var order = createPendingWalletOrder(client, link.getGuestUser(), product, request, me, location);
 
         var open = new OpenBill();
@@ -472,6 +480,21 @@ public class ClientWalletPurchaseController {
                 .filter(method -> method.getPaymentType() != PaymentType.ADVANCE)
                 .findFirst()
                 .orElse(all.getFirst());
+    }
+
+    private PaymentMethod resolvePurchasePaymentMethod(Long companyId, Location location, Long requestedPaymentMethodId) {
+        if (requestedPaymentMethodId == null) {
+            return resolveDefaultPaymentMethod(companyId, location);
+        }
+        var paymentMethod = paymentMethods.findByIdAndCompanyId(requestedPaymentMethodId, companyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid payment method."));
+        if (paymentMethod.getPaymentType() == PaymentType.ADVANCE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Advance payment method cannot be used for wallet product purchase.");
+        }
+        if (location != null && commerceLocations != null && !commerceLocations.paymentMethodAvailableAt(paymentMethod, location.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected payment method is not available at this location.");
+        }
+        return paymentMethod;
     }
 
     private String buildMetadataJson(GuestProduct product, CreateWalletPurchaseOpenBillRequest request, User actor) {

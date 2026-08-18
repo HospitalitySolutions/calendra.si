@@ -3145,6 +3145,419 @@
     margin: -4px 0 0;
 }
 
+/* Nakup ugodnosti — wide checkout workspace matching Uredi stranko. */
+.clients-wallet-purchase-panel {
+    --clients-wallet-checkout-blue: #0b6ff5;
+    --clients-wallet-checkout-border: #dfe7f2;
+    --clients-wallet-checkout-muted: #64748b;
+    --clients-wallet-checkout-rail: 112px;
+    --clients-wallet-checkout-header: 88px;
+}
+
+.clients-wallet-purchase-panel .clients-wallet-checkout-body {
+    min-height: 0;
+}
+
+.clients-wallet-checkout-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(320px, .92fr);
+    gap: 24px;
+    min-height: 100%;
+}
+
+.clients-wallet-catalog-pane,
+.clients-wallet-review-pane {
+    min-width: 0;
+}
+
+.clients-wallet-catalog-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.clients-wallet-purchase-panel .clients-wallet-product-search {
+    min-height: 46px;
+    padding: 0 15px;
+    border-color: #d7e2ef;
+    border-radius: 10px;
+    box-shadow: none;
+}
+
+.clients-wallet-purchase-panel .clients-wallet-product-search svg {
+    width: 17px;
+    height: 17px;
+}
+
+.clients-wallet-purchase-panel .clients-wallet-product-search input {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.clients-wallet-product-list--checkout {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow: auto;
+    border: 1px solid var(--clients-wallet-checkout-border);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.clients-wallet-product-row--checkout {
+    grid-template-columns: 22px minmax(0, 1fr) auto auto;
+    gap: 14px;
+    min-height: 88px;
+    padding: 15px 16px;
+    border: 0;
+    border-bottom: 1px solid #e8eef5;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.clients-wallet-product-row--checkout:last-child {
+    border-bottom: 0;
+}
+
+.clients-wallet-product-row--checkout:hover {
+    border-color: #e8eef5;
+    background: #fbfdff;
+}
+
+.clients-wallet-product-row--checkout.clients-wallet-product-row--selected {
+    position: relative;
+    z-index: 1;
+    margin: -1px;
+    border: 1px solid var(--clients-wallet-checkout-blue);
+    border-radius: 9px;
+    background: #f8fbff;
+    box-shadow: none;
+}
+
+.clients-wallet-product-copy {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+}
+
+.clients-wallet-product-copy .clients-wallet-product-name {
+    display: block;
+    font-size: 15px;
+    font-weight: 750;
+    line-height: 1.25;
+}
+
+.clients-wallet-product-copy small {
+    display: block;
+    overflow: hidden;
+    color: #718096;
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.clients-wallet-product-row--checkout .clients-wallet-product-badge {
+    align-self: center;
+    padding: 5px 9px;
+    font-size: 11px;
+}
+
+.clients-wallet-product-row--checkout .clients-wallet-product-price {
+    align-self: center;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.clients-wallet-review-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    padding: 22px 22px 0;
+    border: 1px solid var(--clients-wallet-checkout-border);
+    border-radius: 12px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.clients-wallet-review-section,
+.clients-wallet-payment-section {
+    display: grid;
+    gap: 14px;
+}
+
+.clients-wallet-review-section h3,
+.clients-wallet-payment-section h3 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.clients-wallet-review-card {
+    overflow: hidden;
+    border: 1px solid var(--clients-wallet-checkout-border);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.clients-wallet-review-product {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    min-height: 80px;
+    padding: 14px 16px;
+    border-bottom: 1px solid #e9eef5;
+}
+
+.clients-wallet-review-product-icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: #eef5ff;
+    color: var(--clients-wallet-checkout-blue);
+}
+
+.clients-wallet-review-product-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.clients-wallet-review-product > strong {
+    min-width: 0;
+    overflow: hidden;
+    color: #111827;
+    font-size: 15px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.clients-wallet-review-product .clients-wallet-product-badge {
+    padding: 5px 9px;
+    font-size: 11px;
+}
+
+.clients-wallet-review-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    min-height: 50px;
+    padding: 0 16px;
+    border-bottom: 1px solid #edf1f6;
+    color: #718096;
+    font-size: 13px;
+}
+
+.clients-wallet-review-line:last-child {
+    border-bottom: 0;
+}
+
+.clients-wallet-review-line strong {
+    color: #0f172a;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.clients-wallet-review-empty {
+    padding: 28px 18px;
+    color: #718096;
+    font-size: 13px;
+    text-align: center;
+}
+
+.clients-wallet-payment-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.clients-wallet-payment-option {
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 9px;
+    min-width: 0;
+    min-height: 88px;
+    padding: 12px 8px;
+    border: 1px solid #dce5f0;
+    border-radius: 10px;
+    background: #fff;
+    color: #334155;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, color .15s ease, box-shadow .15s ease;
+}
+
+.clients-wallet-payment-option:hover {
+    border-color: #bfd7fb;
+    background: #fbfdff;
+}
+
+.clients-wallet-payment-option.is-selected {
+    border-color: var(--clients-wallet-checkout-blue);
+    background: #f8fbff;
+    color: #17345d;
+    box-shadow: 0 0 0 1px rgba(11, 111, 245, .06);
+}
+
+.clients-wallet-payment-option__icon {
+    display: grid;
+    place-items: center;
+    color: var(--clients-wallet-checkout-blue);
+}
+
+.clients-wallet-payment-option--cash .clients-wallet-payment-option__icon {
+    color: #22a45a;
+}
+
+.clients-wallet-payment-option--bank_transfer .clients-wallet-payment-option__icon {
+    color: #7c4dff;
+}
+
+.clients-wallet-payment-loading,
+.clients-wallet-payment-empty {
+    padding: 18px;
+    border: 1px dashed #dbe4ef;
+    border-radius: 10px;
+    color: #718096;
+    font-size: 13px;
+    text-align: center;
+}
+
+.clients-wallet-checkout-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    margin: auto -22px 0;
+    min-height: 66px;
+    padding: 0 22px;
+    border-top: 1px solid #e6edf5;
+    background: #fbfcfe;
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.clients-wallet-checkout-total strong {
+    font-size: 17px;
+    font-weight: 850;
+}
+
+@media (min-width: 1025px) {
+    .clients-wallet-purchase-panel {
+        position: relative;
+        width: min(1040px, 96vw) !important;
+        max-width: min(1040px, 96vw) !important;
+    }
+
+    .clients-wallet-purchase-panel > .cp-panel-header,
+    .clients-wallet-purchase-panel > .cp-panel-body,
+    .clients-wallet-purchase-panel > .cp-panel-footer {
+        margin-left: var(--clients-wallet-checkout-rail);
+    }
+
+    .clients-wallet-purchase-panel > .cp-panel-header {
+        min-height: var(--clients-wallet-checkout-header);
+        padding: 22px 28px 18px;
+    }
+
+    .clients-wallet-purchase-panel > .cp-panel-header .cp-panel-header__title {
+        font-size: 20px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+    }
+
+    .clients-wallet-purchase-panel > .cp-panel-body {
+        padding: 24px 28px;
+        overflow: hidden;
+    }
+
+    .clients-wallet-purchase-panel > .cp-panel-footer {
+        min-height: 82px;
+        padding: 14px 28px;
+    }
+
+    .clients-wallet-purchase-panel > .cp-panel-footer .cp-btn--primary {
+        min-width: 150px;
+        min-height: 46px;
+        border-radius: 9px;
+    }
+
+    .clients-wallet-purchase-panel > .cp-panel-tabs {
+        position: absolute;
+        inset: 0 auto 0 0;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        width: var(--clients-wallet-checkout-rail);
+        min-height: 100%;
+        height: 100%;
+        padding: var(--clients-wallet-checkout-header) 0 0;
+        gap: 0;
+        border: 0;
+        border-right: 1px solid #e7edf5;
+        background: #fff;
+        overflow: hidden auto;
+    }
+
+    .clients-wallet-purchase-panel > .cp-panel-tabs .cp-panel-tab {
+        position: relative;
+        display: flex;
+        flex: 0 0 auto;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-width: 0;
+        min-height: 106px;
+        height: 106px;
+        padding: 12px 9px;
+        gap: 9px;
+        border: 0;
+        border-radius: 0;
+        background: #fff;
+        color: #334155;
+        box-shadow: none;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.28;
+        text-align: center;
+        white-space: normal;
+    }
+
+    .clients-wallet-purchase-panel > .cp-panel-tabs .cp-panel-tab::after {
+        display: none;
+    }
+
+    .clients-wallet-purchase-panel > .cp-panel-tabs .cp-panel-tab svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .clients-wallet-purchase-panel > .cp-panel-tabs .cp-panel-tab:hover {
+        background: #f8fafc;
+        color: #0f172a;
+    }
+
+    .clients-wallet-purchase-panel > .cp-panel-tabs .cp-panel-tab.is-active {
+        color: var(--clients-wallet-checkout-blue);
+        background: #eef5ff;
+        box-shadow: inset 3px 0 0 var(--clients-wallet-checkout-blue);
+    }
+}
+
 @media (max-width: 1024px) {
     .clients-wallet-action-bar {
         flex-direction: column;
@@ -3163,6 +3576,35 @@
     .clients-wallet-product-row strong {
         grid-column: 2 / -1;
         justify-self: start;
+    }
+
+    .clients-wallet-purchase-panel .clients-wallet-checkout-body {
+        padding: 18px;
+    }
+
+    .clients-wallet-checkout-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 18px;
+    }
+
+    .clients-wallet-product-row--checkout {
+        grid-template-columns: 22px minmax(0, 1fr) auto;
+        min-height: 82px;
+    }
+
+    .clients-wallet-product-row--checkout .clients-wallet-product-badge {
+        grid-column: 3;
+        grid-row: 1;
+    }
+
+    .clients-wallet-product-row--checkout .clients-wallet-product-price {
+        grid-column: 2 / -1;
+        justify-self: start;
+        margin-top: -4px;
+    }
+
+    .clients-wallet-review-pane {
+        padding-top: 18px;
     }
 }
 

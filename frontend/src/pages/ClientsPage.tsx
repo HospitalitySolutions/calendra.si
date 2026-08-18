@@ -13,7 +13,7 @@ import { api, getApiErrorMessage } from '../api'
 import { useAuthenticatedUser } from '../authUserContext'
 import { useLocale } from '../locale'
 import { useMediaMaxWidth } from '../hooks/useCalendarResponsiveLayout'
-import type { Client, ClientGroup, Company, CompanyBillSummary, CustomFieldAppliesTo, CustomFieldDefinition, CustomFieldType, Location as BusinessLocation, SessionType, StoredFile, User } from '../lib/types'
+import { normalizePaymentMethod, type Client, type ClientGroup, type Company, type CompanyBillSummary, type CustomFieldAppliesTo, type CustomFieldDefinition, type CustomFieldType, type Location as BusinessLocation, type PaymentMethod, type SessionType, type StoredFile, type User } from '../lib/types'
 import { Card, EmptyState } from '../components/ui'
 import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
 import { urlForEditForm } from './calendarFormRoutes'
@@ -29,7 +29,7 @@ import { queryKeys } from '../queries/queryKeys'
 import { clientMutationErrorMessage, skipConflictToastHeaders } from '../lib/clientErrors'
 import { useToast } from '../components/Toast'
 import { ConfirmDialog, PanelBody, PanelButton, PanelFooter, PanelHeader, PanelTabs, SidePanel, useConfirm } from '../components/panel'
-import { BILLING_DRAWERS, CLIENTS_DRAWERS, buildDrawerUrl, useDrawerRoute } from '../lib/drawerRoutes'
+import { CLIENTS_DRAWERS, buildDrawerUrl, useDrawerRoute } from '../lib/drawerRoutes'
 import { GuestConfigSaveIcon } from '../components/GuestConfigSaveIcon'
 
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
@@ -38,6 +38,7 @@ type EntityTab = 'clients' | 'companies' | 'groups'
 type ClientDetailView = 'basic' | 'sessions' | 'wallet' | 'files' | 'settings'
 type CompanyDetailView = 'basic' | 'datoteke' | 'nastavitve'
 type GroupDetailView = 'basic' | 'sessions' | 'members' | 'settings'
+type WalletPurchaseTab = 'entitlements' | 'giftCards'
 
 function parseEntityTab(search: string): EntityTab {
   const tab = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search).get('tab')
@@ -547,6 +548,103 @@ function localizeWalletPurchaseError(message: string, locale: string): string {
 function walletProductPrice(product: WalletProduct): number {
   const raw = typeof product.priceGross === 'string' ? Number(product.priceGross) : product.priceGross
   return Number.isFinite(raw ?? NaN) ? Number(raw) : 0
+}
+
+function walletProductSecondaryText(product: WalletProduct, locale: string): string {
+  const transactionDescription = product.transactionServiceDescription?.trim()
+  if (transactionDescription && transactionDescription.toLowerCase() !== product.name.trim().toLowerCase()) {
+    return transactionDescription
+  }
+  if (product.sessionTypeName?.trim()) return product.sessionTypeName.trim()
+  if (product.usageLimit && product.usageLimit > 0) {
+    return locale === 'sl'
+      ? `${product.usageLimit} ${product.usageLimit === 1 ? 'obisk' : 'obiskov'}`
+      : `${product.usageLimit} ${product.usageLimit === 1 ? 'visit' : 'visits'}`
+  }
+  if (product.validityDays && product.validityDays > 0) {
+    return locale === 'sl' ? `Velja ${product.validityDays} dni` : `Valid for ${product.validityDays} days`
+  }
+  return walletProductTypeLabel(product.productType, locale, product.voucherRedemptionMode)
+}
+
+function WalletPurchaseTabIcon({ kind }: { kind: WalletPurchaseTab }) {
+  const common = {
+    width: 22,
+    height: 22,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.9,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  }
+  if (kind === 'giftCards') {
+    return (
+      <svg {...common}>
+        <rect x="3.5" y="9" width="17" height="11" rx="2.5" />
+        <path d="M12 9v11" />
+        <path d="M3.5 13h17" />
+        <path d="M12 9H8.8a2.3 2.3 0 1 1 2.1-3.2L12 9Z" />
+        <path d="M12 9h3.2a2.3 2.3 0 1 0-2.1-3.2L12 9Z" />
+      </svg>
+    )
+  }
+  return (
+    <svg {...common}>
+      <circle cx="12" cy="12" r="7" />
+      <path d="M12 8.5v7" />
+      <path d="M8.5 12h7" />
+    </svg>
+  )
+}
+
+function WalletPaymentMethodIcon({ method }: { method: PaymentMethod }) {
+  const common = {
+    width: 25,
+    height: 25,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  }
+  if (method.paymentType === 'CASH') {
+    return (
+      <svg {...common}>
+        <rect x="3" y="6" width="18" height="12" rx="2.5" />
+        <circle cx="12" cy="12" r="2.5" />
+        <path d="M6.5 9.5h.01M17.5 14.5h.01" />
+      </svg>
+    )
+  }
+  if (method.paymentType === 'BANK_TRANSFER') {
+    return (
+      <svg {...common}>
+        <path d="m4 9 8-5 8 5" />
+        <path d="M5.5 10.5h13" />
+        <path d="M7 10.5v6M12 10.5v6M17 10.5v6" />
+        <path d="M4 19h16" />
+      </svg>
+    )
+  }
+  if (method.paymentType === 'CARD') {
+    return (
+      <svg {...common}>
+        <rect x="3" y="5.5" width="18" height="13" rx="2.5" />
+        <path d="M3 10h18" />
+        <path d="M7 15h4" />
+      </svg>
+    )
+  }
+  return (
+    <svg {...common}>
+      <rect x="4" y="4" width="16" height="16" rx="3" />
+      <path d="M8 12h8M12 8v8" />
+    </svg>
+  )
 }
 
 function storedFileExtension(fileName: string): string {
@@ -1707,10 +1805,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [companyFileSearch, setCompanyFileSearch] = useState('')
   const [walletFilter, setWalletFilter] = useState<'all' | 'packs' | 'memberships' | 'giftCards' | 'courses'>('all')
   const [walletPurchaseDrawerOpen, setWalletPurchaseDrawerOpen] = useState(false)
+  const [walletPurchaseTab, setWalletPurchaseTab] = useState<WalletPurchaseTab>('entitlements')
   const [walletProducts, setWalletProducts] = useState<WalletProduct[]>([])
   const [walletProductsLoading, setWalletProductsLoading] = useState(false)
   const [walletProductSearch, setWalletProductSearch] = useState('')
   const [selectedWalletProductId, setSelectedWalletProductId] = useState<number | null>(null)
+  const [walletPaymentMethods, setWalletPaymentMethods] = useState<PaymentMethod[]>([])
+  const [walletPaymentMethodsLoading, setWalletPaymentMethodsLoading] = useState(false)
+  const [selectedWalletPaymentMethodId, setSelectedWalletPaymentMethodId] = useState<number | null>(null)
   const [walletPurchaseError, setWalletPurchaseError] = useState('')
   const [creatingWalletOpenBill, setCreatingWalletOpenBill] = useState(false)
   const [deletingWalletEntitlementId, setDeletingWalletEntitlementId] = useState<number | null>(null)
@@ -2336,16 +2438,32 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     const q = walletProductSearch.trim().toLowerCase()
     const rows = walletProducts.filter((product) => {
       if (!giftCardsFeatureEnabled && isGiftCardWalletProduct(product)) return false
+      if (walletPurchaseTab === 'giftCards' && !isGiftCardWalletProduct(product)) return false
+      if (walletPurchaseTab === 'entitlements' && isGiftCardWalletProduct(product)) return false
       if (!q) return true
       const haystack = `${product.name ?? ''} ${product.productType ?? ''} ${product.sessionTypeName ?? ''} ${product.transactionServiceDescription ?? ''}`.toLowerCase()
       return haystack.includes(q)
     })
     return rows
-  }, [walletProducts, walletProductSearch, giftCardsFeatureEnabled])
+  }, [walletProducts, walletProductSearch, giftCardsFeatureEnabled, walletPurchaseTab])
 
   const selectedWalletProduct = useMemo(() => {
     return filteredWalletProducts.find((product) => product.id === selectedWalletProductId) ?? filteredWalletProducts[0] ?? null
   }, [selectedWalletProductId, filteredWalletProducts])
+
+  const visibleWalletPaymentMethods = useMemo(() => {
+    return walletPaymentMethods.filter((method) => {
+      if (method.paymentType === 'ADVANCE') return false
+      if (selectedLocationId == null || method.availableAllLocations !== false) return true
+      return method.locationIds.includes(selectedLocationId)
+    })
+  }, [walletPaymentMethods, selectedLocationId])
+
+  const selectedWalletPaymentMethod = useMemo(() => {
+    return visibleWalletPaymentMethods.find((method) => method.id === selectedWalletPaymentMethodId)
+      ?? visibleWalletPaymentMethods[0]
+      ?? null
+  }, [visibleWalletPaymentMethods, selectedWalletPaymentMethodId])
 
   const loadWalletProducts = useCallback(async (clientId: number) => {
     setWalletProductsLoading(true)
@@ -2366,16 +2484,38 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     }
   }, [locale, giftCardsFeatureEnabled, selectedLocationId])
 
+  const loadWalletPaymentMethods = useCallback(async () => {
+    setWalletPaymentMethodsLoading(true)
+    try {
+      const res = await api.get<PaymentMethod[]>('/billing/payment-methods')
+      const rows = (res.data ?? [])
+        .map((method) => normalizePaymentMethod(method))
+        .filter((method): method is PaymentMethod => Boolean(method))
+        .filter((method) => method.paymentType !== 'ADVANCE')
+      setWalletPaymentMethods(rows)
+      setSelectedWalletPaymentMethodId((prev) => rows.some((row) => row.id === prev) ? prev : (rows[0]?.id ?? null))
+    } catch {
+      setWalletPaymentMethods([])
+      setSelectedWalletPaymentMethodId(null)
+      setWalletPurchaseError(locale === 'sl' ? 'Načinov plačila ni bilo mogoče naložiti.' : 'Failed to load payment methods.')
+    } finally {
+      setWalletPaymentMethodsLoading(false)
+    }
+  }, [locale])
+
   const openWalletPurchaseDrawer = useCallback(() => {
     if (!detailClient || !entitlementsFeatureEnabled) return
     setWalletPurchaseDrawerOpen(true)
+    setWalletPurchaseTab('entitlements')
     setWalletProductSearch('')
     setWalletPurchaseError('')
     void loadWalletProducts(detailClient.id)
-  }, [detailClient, entitlementsFeatureEnabled, loadWalletProducts])
+    void loadWalletPaymentMethods()
+  }, [detailClient, entitlementsFeatureEnabled, loadWalletProducts, loadWalletPaymentMethods])
 
   const closeWalletPurchaseDrawer = useCallback(() => {
     setWalletPurchaseDrawerOpen(false)
+    setWalletPurchaseTab('entitlements')
     setWalletPurchaseError('')
     setWalletProductSearch('')
     setGiftCardPersonalizationOpen(false)
@@ -2392,12 +2532,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }, [clientDetailPanelOpen])
 
   const createWalletPurchaseOpenBill = useCallback(async (giftCardDetails?: { to?: string; text?: string }) => {
-    if (!detailClient || !selectedWalletProduct) return
+    if (!detailClient || !selectedWalletProduct || !selectedWalletPaymentMethod) return
     setCreatingWalletOpenBill(true)
     setWalletPurchaseError('')
     try {
       const payload = {
         locationId: selectedLocationId ?? undefined,
+        paymentMethodId: selectedWalletPaymentMethod.id,
         ...(isGiftCardWalletProduct(selectedWalletProduct)
           ? {
               giftCardTo: giftCardDetails?.to?.trim() || '',
@@ -2407,24 +2548,37 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
       }
       const res = await api.post<WalletPurchaseOpenBillResponse>(`/clients/${detailClient.id}/wallet/products/${selectedWalletProduct.id}/open-bill`, payload)
       const openBillId = res.data?.openBillId
+      if (!openBillId) throw new Error(locale === 'sl' ? 'Računa ni bilo mogoče ustvariti.' : 'Could not create the invoice.')
+
+      const billResponse = await api.post<{
+        id?: number
+        paymentStatus?: string | null
+        paymentMethod?: { paymentType?: string | null; stripeEnabled?: boolean | null } | null
+        paymentSplits?: Array<{ paymentMethod?: { paymentType?: string | null } | null; amountGross?: number | null }>
+      }>(`/billing/open-bills/${openBillId}/create-bill`)
+
+      const createdBill = billResponse.data
+      const hasBankTransfer = createdBill?.paymentMethod?.paymentType === 'BANK_TRANSFER'
+        || (createdBill?.paymentSplits ?? []).some((split) => split?.paymentMethod?.paymentType === 'BANK_TRANSFER')
+      if (createdBill?.id && (createdBill.paymentMethod?.stripeEnabled === true || hasBankTransfer)) {
+        await api.post(`/billing/bills/${createdBill.id}/checkout-session`).catch(() => undefined)
+      }
+
       setGiftCardPersonalizationOpen(false)
       setGiftCardRecipientName('')
       setGiftCardMessage('')
       setWalletPurchaseDrawerOpen(false)
-      setDetailClient(null)
-      if (openBillId) {
-        navigate(buildDrawerUrl(BILLING_DRAWERS.openBill, { params: { id: String(openBillId) } }))
-      } else {
-        navigate('/billing')
-      }
+      await queryClient.invalidateQueries({ queryKey: queryKeys.billing.all, refetchType: 'none' })
+      await loadDetailWallet(detailClient.id, { silent: true })
+      showToast('success', locale === 'sl' ? 'Račun je zaključen.' : 'Invoice closed.')
     } catch (err: unknown) {
-      const fallback = locale === 'sl' ? 'Odprtega računa za ugodnost ni bilo mogoče ustvariti.' : 'Could not create the entitlement open bill.'
+      const fallback = locale === 'sl' ? 'Računa za izbrano ugodnost ni bilo mogoče zaključiti.' : 'Could not close the invoice for the selected entitlement.'
       const message = localizeWalletPurchaseError(getApiErrorMessage(err, fallback), locale)
       setWalletPurchaseError(message)
     } finally {
       setCreatingWalletOpenBill(false)
     }
-  }, [detailClient, selectedWalletProduct, selectedLocationId, navigate, locale])
+  }, [detailClient, selectedWalletProduct, selectedWalletPaymentMethod, selectedLocationId, locale, queryClient, loadDetailWallet, showToast])
 
   const continueWalletPurchaseOpenBill = useCallback(() => {
     if (!selectedWalletProduct) return
@@ -5411,64 +5565,151 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         open={clientDetailPanelOpen && walletPurchaseDrawerOpen}
         onClose={closeWalletPurchaseDrawer}
         ariaLabel={locale === 'sl' ? 'Nakup ugodnosti' : 'Entitlement purchase'}
-        size="lg"
+        size="xl"
+        className="clients-wallet-purchase-panel"
       >
         <PanelHeader
           title={locale === 'sl' ? 'Nakup ugodnosti' : 'Entitlement purchase'}
           onClose={closeWalletPurchaseDrawer}
           closeLabel={t('mobileNavClose')}
         />
-        <PanelBody>
-          <div className="clients-wallet-stepper" aria-hidden>
-            <div className="clients-wallet-step clients-wallet-step--active"><span>1</span><strong>{locale === 'sl' ? 'Izbira ugodnosti' : 'Select entitlement'}</strong></div>
-            <div className="clients-wallet-step-line" />
-            <div className="clients-wallet-step"><span>2</span><strong>{locale === 'sl' ? 'Račun' : 'Bill'}</strong></div>
-          </div>
-          <label className="clients-wallet-product-search">
-            <ClientsModernIcon name="search" />
-            <input value={walletProductSearch} onChange={(e) => setWalletProductSearch(e.target.value)} placeholder={locale === 'sl' ? 'Išči ugodnost...' : 'Search entitlement...'} />
-          </label>
-          {walletPurchaseError && <div className="error clients-wallet-purchase-error">{walletPurchaseError}</div>}
-          <div className="clients-wallet-product-list">
-            {walletProductsLoading ? (
-              <div className="muted clients-wallet-product-loading">{locale === 'sl' ? 'Nalaganje ugodnosti…' : 'Loading entitlements…'}</div>
-            ) : filteredWalletProducts.length === 0 ? (
-              <div className="clients-wallet-product-empty">{locale === 'sl' ? 'Ni ustvarjenih aktivnih kart, paketov, članarin, tečajev ali bonov.' : 'No active cards, packs, memberships, courses or vouchers are configured.'}</div>
-            ) : (
-              filteredWalletProducts.map((product) => {
-                const selected = selectedWalletProduct?.id === product.id
-                const tone = walletProductTypeTone(product.productType)
-                return (
-                  <button
-                    key={product.id}
-                    type="button"
-                    className={`clients-wallet-product-row${selected ? ' clients-wallet-product-row--selected' : ''}`}
-                    onClick={() => setSelectedWalletProductId(product.id)}
-                  >
-                    <span className="clients-wallet-radio" aria-hidden>{selected ? '●' : ''}</span>
-                    <span className="clients-wallet-product-name">{product.name}</span>
-                    <span className={`clients-wallet-product-badge clients-wallet-product-badge--${tone}`}>{walletProductTypeLabel(product.productType, locale, product.voucherRedemptionMode)}</span>
-                    <strong>{currency(walletProductPrice(product))}</strong>
-                  </button>
-                )
-              })
-            )}
-          </div>
-          <div className="clients-wallet-purchase-summary">
-            <h4>{locale === 'sl' ? 'Povzetek' : 'Summary'}</h4>
-            <div className="clients-wallet-summary-line"><span>{locale === 'sl' ? 'Izbrana ugodnost' : 'Selected entitlement'}</span><strong>{selectedWalletProduct?.name ?? '—'}</strong></div>
-            <div className="clients-wallet-summary-line"><span>{locale === 'sl' ? 'Cena' : 'Price'}</span><strong>{selectedWalletProduct ? currency(walletProductPrice(selectedWalletProduct)) : '—'}</strong></div>
-            <div className="clients-wallet-summary-info"><span aria-hidden>i</span>{locale === 'sl' ? 'Račun se odpre v novem obrazcu odprtega računa z možnostjo Zaključi račun.' : 'The bill opens in the open-bill form with the option to close the bill.'}</div>
+        <PanelTabs
+          label={locale === 'sl' ? 'Vrsta nakupa' : 'Purchase type'}
+          activeId={walletPurchaseTab}
+          onSelect={(id) => {
+            const nextTab = id as WalletPurchaseTab
+            setWalletPurchaseTab(nextTab)
+            setWalletProductSearch('')
+            setSelectedWalletProductId(null)
+            setWalletPurchaseError('')
+          }}
+          tabs={[
+            { id: 'entitlements', label: locale === 'sl' ? 'Ugodnosti' : 'Entitlements', icon: <WalletPurchaseTabIcon kind="entitlements" /> },
+            { id: 'giftCards', label: locale === 'sl' ? 'Boni' : 'Vouchers', icon: <WalletPurchaseTabIcon kind="giftCards" />, hidden: !giftCardsFeatureEnabled },
+          ]}
+        />
+        <PanelBody className="clients-wallet-checkout-body">
+          <div className="clients-wallet-checkout-grid">
+            <section className="clients-wallet-catalog-pane" aria-label={walletPurchaseTab === 'giftCards' ? (locale === 'sl' ? 'Boni' : 'Vouchers') : (locale === 'sl' ? 'Ugodnosti' : 'Entitlements')}>
+              <label className="clients-wallet-product-search">
+                <ClientsModernIcon name="search" />
+                <input
+                  value={walletProductSearch}
+                  onChange={(e) => setWalletProductSearch(e.target.value)}
+                  placeholder={walletPurchaseTab === 'giftCards'
+                    ? (locale === 'sl' ? 'Išči bon...' : 'Search voucher...')
+                    : (locale === 'sl' ? 'Išči ugodnost...' : 'Search entitlement...')}
+                />
+              </label>
+              {walletPurchaseError && <div className="error clients-wallet-purchase-error">{walletPurchaseError}</div>}
+              <div className="clients-wallet-product-list clients-wallet-product-list--checkout">
+                {walletProductsLoading ? (
+                  <div className="muted clients-wallet-product-loading">
+                    {walletPurchaseTab === 'giftCards'
+                      ? (locale === 'sl' ? 'Nalaganje bonov…' : 'Loading vouchers…')
+                      : (locale === 'sl' ? 'Nalaganje ugodnosti…' : 'Loading entitlements…')}
+                  </div>
+                ) : filteredWalletProducts.length === 0 ? (
+                  <div className="clients-wallet-product-empty">
+                    {walletPurchaseTab === 'giftCards'
+                      ? (locale === 'sl' ? 'Ni ustvarjenih aktivnih bonov.' : 'No active vouchers are configured.')
+                      : (locale === 'sl' ? 'Ni ustvarjenih aktivnih ugodnosti.' : 'No active entitlements are configured.')}
+                  </div>
+                ) : (
+                  filteredWalletProducts.map((product) => {
+                    const selected = selectedWalletProduct?.id === product.id
+                    const tone = walletProductTypeTone(product.productType)
+                    return (
+                      <button
+                        key={product.id}
+                        type="button"
+                        className={`clients-wallet-product-row clients-wallet-product-row--checkout${selected ? ' clients-wallet-product-row--selected' : ''}`}
+                        onClick={() => setSelectedWalletProductId(product.id)}
+                      >
+                        <span className="clients-wallet-radio" aria-hidden>{selected ? '●' : ''}</span>
+                        <span className="clients-wallet-product-copy">
+                          <strong className="clients-wallet-product-name">{product.name}</strong>
+                          <small>{walletProductSecondaryText(product, locale)}</small>
+                        </span>
+                        <span className={`clients-wallet-product-badge clients-wallet-product-badge--${tone}`}>
+                          {walletProductTypeLabel(product.productType, locale, product.voucherRedemptionMode)}
+                        </span>
+                        <strong className="clients-wallet-product-price">{currency(walletProductPrice(product))}</strong>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            </section>
+
+            <aside className="clients-wallet-review-pane">
+              <div className="clients-wallet-review-section">
+                <h3>{locale === 'sl' ? 'Pregled nakupa' : 'Purchase review'}</h3>
+                <div className="clients-wallet-review-card">
+                  {selectedWalletProduct ? (
+                    <>
+                      <div className="clients-wallet-review-product">
+                        <span className="clients-wallet-review-product-icon" aria-hidden><ClientWorkspaceIcon name="wallet" /></span>
+                        <strong>{selectedWalletProduct.name}</strong>
+                        <span className={`clients-wallet-product-badge clients-wallet-product-badge--${walletProductTypeTone(selectedWalletProduct.productType)}`}>
+                          {walletProductTypeLabel(selectedWalletProduct.productType, locale, selectedWalletProduct.voucherRedemptionMode)}
+                        </span>
+                      </div>
+                      <div className="clients-wallet-review-line">
+                        <span>{locale === 'sl' ? 'Količina' : 'Quantity'}</span>
+                        <strong>1</strong>
+                      </div>
+                      <div className="clients-wallet-review-line">
+                        <span>{locale === 'sl' ? 'Cena na enoto' : 'Unit price'}</span>
+                        <strong>{currency(walletProductPrice(selectedWalletProduct))}</strong>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="clients-wallet-review-empty">{locale === 'sl' ? 'Izberite ugodnost ali bon.' : 'Select an entitlement or voucher.'}</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="clients-wallet-payment-section">
+                <h3>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</h3>
+                {walletPaymentMethodsLoading ? (
+                  <div className="muted clients-wallet-payment-loading">{locale === 'sl' ? 'Nalaganje načinov plačila…' : 'Loading payment methods…'}</div>
+                ) : visibleWalletPaymentMethods.length === 0 ? (
+                  <div className="clients-wallet-payment-empty">{locale === 'sl' ? 'Ni nastavljenih načinov plačila.' : 'No payment methods are configured.'}</div>
+                ) : (
+                  <div className="clients-wallet-payment-grid">
+                    {visibleWalletPaymentMethods.map((method) => {
+                      const selected = selectedWalletPaymentMethod?.id === method.id
+                      return (
+                        <button
+                          key={method.id}
+                          type="button"
+                          className={`clients-wallet-payment-option clients-wallet-payment-option--${method.paymentType.toLowerCase()}${selected ? ' is-selected' : ''}`}
+                          onClick={() => setSelectedWalletPaymentMethodId(method.id)}
+                        >
+                          <span className="clients-wallet-payment-option__icon"><WalletPaymentMethodIcon method={method} /></span>
+                          <span>{method.name}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="clients-wallet-checkout-total">
+                <span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span>
+                <strong>{selectedWalletProduct ? currency(walletProductPrice(selectedWalletProduct)) : currency(0)}</strong>
+              </div>
+            </aside>
           </div>
         </PanelBody>
         <PanelFooter>
-          <PanelButton onClick={closeWalletPurchaseDrawer}>{t('cancel')}</PanelButton>
           <PanelButton
             variant="primary"
             onClick={continueWalletPurchaseOpenBill}
-            disabled={!selectedWalletProduct || walletProductsLoading || creatingWalletOpenBill}
+            disabled={!selectedWalletProduct || !selectedWalletPaymentMethod || walletProductsLoading || walletPaymentMethodsLoading || creatingWalletOpenBill}
           >
-            {creatingWalletOpenBill ? (locale === 'sl' ? 'Odpiram…' : 'Opening…') : (locale === 'sl' ? 'Odpri nov račun' : 'Open new bill')}
+            {creatingWalletOpenBill ? (locale === 'sl' ? 'Zaključujem…' : 'Closing…') : (locale === 'sl' ? 'Zaključi račun' : 'Close invoice')}
           </PanelButton>
         </PanelFooter>
       </SidePanel>
@@ -5532,7 +5773,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             {locale === 'sl' ? 'Nazaj' : 'Back'}
           </PanelButton>
           <PanelButton variant="primary" onClick={submitGiftCardPersonalization} disabled={creatingWalletOpenBill}>
-            {creatingWalletOpenBill ? (locale === 'sl' ? 'Odpiram…' : 'Opening…') : (locale === 'sl' ? 'Nadaljuj na račun' : 'Continue to bill')}
+            {creatingWalletOpenBill ? (locale === 'sl' ? 'Zaključujem…' : 'Closing…') : (locale === 'sl' ? 'Zaključi račun' : 'Close invoice')}
           </PanelButton>
         </PanelFooter>
       </SidePanel>
