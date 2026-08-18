@@ -10763,30 +10763,57 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         <SidePanel
           open
           onClose={closeFolioPanel}
-          ariaLabel={detailFolioBill ? `Folio #${detailFolioBill.billNumber || detailFolioBill.id}` : 'Folio'}
+          ariaLabel={detailFolioBill
+            ? `${locale === 'sl' || locale === 'sr' ? 'Račun' : 'Invoice'} #${detailFolioBill.billNumber || detailFolioBill.id}`
+            : (locale === 'sl' || locale === 'sr' ? 'Račun' : 'Invoice')}
           size="lg"
+          className="billing-folio-side-panel"
         >
-            <PanelHeader
-              title={detailFolioBill ? `Folio #${detailFolioBill.billNumber || detailFolioBill.id}` : 'Folio'}
-              subtitle={detailFolioBill
-                ? `${detailFolioBill.billingTarget === 'COMPANY'
-                  ? (detailFolioBill.recipientCompany?.name || '—')
-                  : (detailFolioBill.client ? fullName(detailFolioBill.client) : '—')} · ${formatDate(detailFolioBill.issueDate || '')}`
-                : undefined}
-              onClose={closeFolioPanel}
-              closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
-            />
-            <PanelTabs
-              label={locale === 'sl' ? 'Podrobnosti računa' : 'Invoice details'}
-              activeId={folioPanelTab}
-              onSelect={(id) => setFolioPanelTab(id === 'fiscal' ? 'fiscal' : 'invoice')}
-              tabs={[
-                { id: 'invoice', label: locale === 'sl' ? 'Račun' : 'Invoice' },
-                { id: 'fiscal', label: locale === 'sl' ? 'Davčno potrjevanje' : 'Tax confirmation', hidden: !fiscalCashRegisterEnabled },
-              ]}
-            />
+          <PanelHeader
+            title={detailFolioBill
+              ? `${locale === 'sl' || locale === 'sr' ? 'Račun' : 'Invoice'} #${detailFolioBill.billNumber || detailFolioBill.id}`
+              : (locale === 'sl' || locale === 'sr' ? 'Račun' : 'Invoice')}
+            subtitle={detailFolioBill
+              ? `${detailFolioBill.billingTarget === 'COMPANY'
+                ? (detailFolioBill.recipientCompany?.name || '—')
+                : (detailFolioBill.client ? fullName(detailFolioBill.client) : '—')} · ${formatDate(detailFolioBill.issueDate || '')}`
+              : undefined}
+            onClose={closeFolioPanel}
+            closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+          />
+          <PanelTabs
+            label={locale === 'sl' ? 'Podrobnosti računa' : 'Invoice details'}
+            activeId={folioPanelTab}
+            onSelect={(id) => setFolioPanelTab(id === 'fiscal' ? 'fiscal' : 'invoice')}
+            tabs={[
+              {
+                id: 'invoice',
+                label: locale === 'sl' ? 'Račun' : 'Invoice',
+                icon: (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M6 3h9l3 3v15H6z" />
+                    <path d="M15 3v4h4" />
+                    <path d="M9 11h6M9 15h6" />
+                  </svg>
+                ),
+              },
+              {
+                id: 'fiscal',
+                label: locale === 'sl' ? 'Davčno potrjevanje' : 'Tax confirmation',
+                hidden: !fiscalCashRegisterEnabled,
+                icon: (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M7 3h10v4a5 5 0 0 1-10 0z" />
+                    <path d="M12 12v9" />
+                    <path d="M8 21h8" />
+                    <path d="m9.5 7 1.7 1.7L15 5" />
+                  </svg>
+                ),
+              },
+            ]}
+          />
 
-            <PanelBody>
+          <PanelBody>
             <div className="billing-folio-modal-body">
               {folioPanelTab === 'invoice' ? (
                 detailFolioBill ? (
@@ -10795,68 +10822,134 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <div className="billing-folio-reference-note">{detailFolioBill.refundReference}</div>
                     ) : null}
 
-                    <div className="billing-folio-detail-grid">
-                      <div className="billing-folio-detail-field">
-                        <span>{locale === 'sl' ? 'Order ID' : 'Order ID'}</span>
-                        <strong>{displayInvoiceOrderId(detailFolioBill)}</strong>
+                    <section className="billing-folio-section">
+                      <h3 className="billing-folio-section-title">
+                        <span className="billing-folio-section-title__icon" aria-hidden>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M6 3h9l3 3v15H6z" />
+                            <path d="M15 3v4h4" />
+                            <path d="M9 11h6M9 15h6" />
+                          </svg>
+                        </span>
+                        {locale === 'sl' ? 'Podatki o računu' : 'Invoice details'}
+                      </h3>
+                      <div className="billing-folio-detail-grid">
+                        <div className="billing-folio-detail-field">
+                          <span>{locale === 'sl' ? 'Order ID' : 'Order ID'}</span>
+                          <strong>{displayInvoiceOrderId(detailFolioBill)}</strong>
+                        </div>
+                        <div className="billing-folio-detail-field">
+                          <span>{locale === 'sl' ? 'Izdano' : 'Issued'}</span>
+                          <strong>{formatDate(detailFolioBill.issueDate)}</strong>
+                        </div>
+                        <div className="billing-folio-detail-field">
+                          <span>{locale === 'sl' ? 'Zaposleni' : 'Employee'}</span>
+                          <strong>{fullName(detailFolioBill.consultant)}</strong>
+                        </div>
+                        <div className="billing-folio-detail-field">
+                          <span>{locale === 'sl' ? 'Posvetovanje' : 'Session'}</span>
+                          <strong>{formatBillingSessionIdDisplay(detailFolioBill.sessionId)}</strong>
+                        </div>
+                        <div className="billing-folio-detail-field">
+                          <span>{locale === 'sl' ? 'Način plačila' : 'Payment method'}</span>
+                          <strong>{detailFolioBill.paymentMethod ? detailFolioBill.paymentMethod.name : '—'}</strong>
+                        </div>
+                        <div className="billing-folio-detail-field billing-folio-detail-field--status">
+                          <span>{locale === 'sl' ? 'Status plačila' : 'Payment status'}</span>
+                          <strong>
+                            <span className={`billing-status-pill billing-status-pill--${paymentStatusClass(detailFolioBill.paymentStatus)}`}>
+                              {paymentStatusLabel(detailFolioBill.paymentStatus)}
+                            </span>
+                          </strong>
+                        </div>
                       </div>
-                      <div className="billing-folio-detail-field">
-                        <span>{locale === 'sl' ? 'Izdano' : 'Issued'}</span>
-                        <strong>{formatDate(detailFolioBill.issueDate)}</strong>
-                      </div>
-                      <div className="billing-folio-detail-field">
-                        <span>{locale === 'sl' ? 'Zaposleni' : 'Employee'}</span>
-                        <strong>{fullName(detailFolioBill.consultant)}</strong>
-                      </div>
-                      <div className="billing-folio-detail-field">
-                        <span>{locale === 'sl' ? 'Posvetovanje' : 'Session'}</span>
-                        <strong>{formatBillingSessionIdDisplay(detailFolioBill.sessionId)}</strong>
-                      </div>
-                      <div className="billing-folio-detail-field">
-                        <span>{locale === 'sl' ? 'Način plačila' : 'Payment method'}</span>
-                        <strong>{detailFolioBill.paymentMethod ? detailFolioBill.paymentMethod.name : '—'}</strong>
-                      </div>
-                      <div className="billing-folio-detail-field billing-folio-detail-field--status">
-                        <span>{locale === 'sl' ? 'Status plačila' : 'Payment status'}</span>
-                        <strong>
-                          <span className={`billing-status-pill billing-status-pill--${paymentStatusClass(detailFolioBill.paymentStatus)}`}>
-                            {paymentStatusLabel(detailFolioBill.paymentStatus)}
-                          </span>
-                        </strong>
-                      </div>
-                    </div>
+                    </section>
 
-                    <div className="billing-folio-total-card">
-                      <span>{locale === 'sl' ? 'Skupaj bruto' : 'Total gross'}</span>
-                      <strong>{currency(detailFolioBill.totalGross)}</strong>
-                    </div>
-
-                    <div className="billing-folio-items-table-wrap">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>{locale === 'sl' ? 'Storitev' : 'Service'}</th>
-                            <th>{locale === 'sl' ? 'Kol.' : 'Qty'}</th>
-                            <th>{locale === 'sl' ? 'Bruto' : 'Gross'}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {detailFolioBill.items?.map((item, index) => (
-                            <tr key={item.id ?? `${item.transactionService?.id || 'service'}-${index}`}>
-                              <td>{billingServiceDisplayLabel(item.transactionService)}</td>
-                              <td>{item.quantity}</td>
-                              <td>{currency(item.grossPrice)}</td>
+                    <section className="billing-folio-section">
+                      <h3 className="billing-folio-section-title">
+                        <span className="billing-folio-section-title__icon" aria-hidden>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M5 7h14v12H5z" />
+                            <path d="M8 7V5h8v2" />
+                          </svg>
+                        </span>
+                        {locale === 'sl' ? 'Storitve' : 'Services'}
+                      </h3>
+                      <div className="billing-folio-items-table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>{locale === 'sl' ? 'Storitev' : 'Service'}</th>
+                              <th>{locale === 'sl' ? 'Kol.' : 'Qty'}</th>
+                              <th>{locale === 'sl' ? 'Bruto' : 'Gross'}</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {detailFolioBill.items?.map((item, index) => (
+                              <tr key={item.id ?? `${item.transactionService?.id || 'service'}-${index}`}>
+                                <td>{billingServiceDisplayLabel(item.transactionService)}</td>
+                                <td>{item.quantity}</td>
+                                <td>{currency(item.grossPrice)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="billing-folio-total-card">
+                        <span>{locale === 'sl' ? 'Skupaj bruto' : 'Total gross'}</span>
+                        <strong>{currency(detailFolioBill.totalGross)}</strong>
+                      </div>
+                    </section>
+
+                    <section className="billing-folio-section">
+                      <h3 className="billing-folio-section-title">
+                        <span className="billing-folio-section-title__icon" aria-hidden>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M4 7h16v10H4z" />
+                            <path d="M4 10h16" />
+                          </svg>
+                        </span>
+                        {locale === 'sl' ? 'Plačila' : 'Payments'}
+                      </h3>
+                      <div className="billing-folio-payment-table">
+                        <div className="billing-folio-payment-table__head">
+                          <span>{locale === 'sl' ? 'Način plačila' : 'Payment method'}</span>
+                          <span>{locale === 'sl' ? 'Znesek' : 'Amount'}</span>
+                          <span>{locale === 'sl' ? 'Datum' : 'Date'}</span>
+                        </div>
+                        {(detailFolioBill.paymentSplits?.length
+                          ? detailFolioBill.paymentSplits
+                          : detailFolioBill.paymentMethod
+                            ? [{ paymentMethod: detailFolioBill.paymentMethod, amountGross: detailFolioBill.totalGross }]
+                            : []).map((split, index) => (
+                          <div className="billing-folio-payment-table__row" key={`${split.paymentMethod?.id ?? 'payment'}-${index}`}>
+                            <strong>{split.paymentMethod?.name || '—'}</strong>
+                            <strong>{currency(split.amountGross)}</strong>
+                            <strong>{formatDate(detailFolioBill.paidAt || detailFolioBill.issueDate)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section className="billing-folio-section billing-folio-section--notes">
+                      <h3 className="billing-folio-section-title">
+                        <span className="billing-folio-section-title__icon" aria-hidden>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M5 4h14v16H5z" />
+                            <path d="M8 8h8M8 12h8M8 16h5" />
+                          </svg>
+                        </span>
+                        {locale === 'sl' ? 'Opombe' : 'Notes'}
+                      </h3>
+                      <div className="billing-folio-notes-value">—</div>
+                    </section>
 
                     <div className="billing-folio-actions">
-                      {canRefundBill(detailFolioBill) && (
+                      {canRefundBill(detailFolioBill) ? (
                         <button
                           type="button"
-                          className="billing-folio-action-btn billing-folio-action-btn--danger"
+                          className="billing-folio-action-btn billing-folio-action-btn--danger billing-folio-action-btn--refund"
                           onClick={() => refundBill(detailFolioBill)}
                           disabled={refundingBillId === detailFolioBill.id}
                         >
@@ -10868,51 +10961,40 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                           </span>
                           {refundingBillId === detailFolioBill.id ? (locale === 'sl' ? 'Vračilo…' : 'Refunding…') : (locale === 'sl' ? 'Vračilo' : 'Refund')}
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        className="billing-folio-action-btn billing-folio-action-btn--secondary"
-                        onClick={() => void printFolioPdf(detailFolioBill, undefined, 'A4')}
-                        disabled={printingBillId === detailFolioBill.id}
-                      >
-                        <span aria-hidden>
-                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M6 9V2h12v7" />
-                            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                            <path d="M6 14h12v8H6z" />
-                          </svg>
-                        </span>
-                        {printingBillId === detailFolioBill.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : (locale === 'sl' ? 'Natisni A4' : locale === 'sr' ? 'Štampaj A4' : 'Print A4')}
-                      </button>
-                      <button
-                        type="button"
-                        className="billing-folio-action-btn billing-folio-action-btn--secondary billing-folio-action-btn--receipt"
-                        onClick={() => void printFolioPdf(detailFolioBill, undefined, 'POS_58')}
-                        disabled={printingBillId === detailFolioBill.id}
-                      >
-                        <span aria-hidden>{useDirectPosPrinting ? posPrintingPreferences.paperWidthMm : 58}</span>
-                        {printingBillId === detailFolioBill.id
-                          ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…')
-                          : useDirectPosPrinting
-                            ? (locale === 'sl'
-                              ? `Natisni POS (${posPrintingPreferences.paperWidthMm} mm)`
-                              : `Print POS (${posPrintingPreferences.paperWidthMm} mm)`)
-                            : (locale === 'sl' ? 'Natisni 58 mm' : locale === 'sr' ? 'Štampaj 58 mm' : 'Print 58 mm')}
-                      </button>
-                      <button type="button" className="billing-folio-action-btn billing-folio-action-btn--primary" onClick={() => void downloadFolioPdf(detailFolioBill, 'A4')}>
-                        <span aria-hidden>
-                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                            <path d="M7 10l5 5 5-5" />
-                            <path d="M12 15V3" />
-                          </svg>
-                        </span>
-                        {locale === 'sl' ? 'Prenesi A4 PDF' : locale === 'sr' ? 'Preuzmi A4 PDF' : 'Download A4 PDF'}
-                      </button>
-                      <button type="button" className="billing-folio-action-btn billing-folio-action-btn--primary billing-folio-action-btn--receipt" onClick={() => void downloadFolioPdf(detailFolioBill, 'POS_58')}>
-                        <span aria-hidden>58</span>
-                        {locale === 'sl' ? 'Prenesi 58 mm PDF' : locale === 'sr' ? 'Preuzmi 58 mm PDF' : 'Download 58 mm PDF'}
-                      </button>
+                      ) : null}
+                      <div className="billing-folio-actions__right">
+                        <button
+                          type="button"
+                          className="billing-folio-action-btn billing-folio-action-btn--secondary"
+                          onClick={() => void printFolioPdf(detailFolioBill)}
+                          disabled={printingBillId === detailFolioBill.id}
+                        >
+                          <span aria-hidden>
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M6 9V2h12v7" />
+                              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                              <path d="M6 14h12v8H6z" />
+                            </svg>
+                          </span>
+                          {printingBillId === detailFolioBill.id
+                            ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…')
+                            : (locale === 'sl' ? 'Natisni' : locale === 'sr' ? 'Štampaj' : 'Print')}
+                        </button>
+                        <button
+                          type="button"
+                          className="billing-folio-action-btn billing-folio-action-btn--secondary"
+                          onClick={() => void downloadFolioPdf(detailFolioBill, 'A4')}
+                        >
+                          <span aria-hidden>
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                              <path d="M7 10l5 5 5-5" />
+                              <path d="M12 15V3" />
+                            </svg>
+                          </span>
+                          {locale === 'sl' ? 'Prenesi PDF' : locale === 'sr' ? 'Preuzmi PDF' : 'Download PDF'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : null
@@ -10956,7 +11038,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 </div>
               )}
             </div>
-            </PanelBody>
+          </PanelBody>
         </SidePanel>
       )}
     </div>

@@ -10,6 +10,7 @@ import {
   PanelButton,
   PanelFooter,
   PanelHeader,
+  PanelTabs,
   SidePanel,
 } from "../../components/panel";
 import { CONFIGURATION_DRAWERS, useDrawerRoute } from "../../lib/drawerRoutes";
@@ -1460,6 +1461,49 @@ function NotificationEventIcon({
   );
 }
 
+function NotificationTemplateVariantIcon({
+  variant,
+}: {
+  variant: NotificationTemplateVariant;
+}) {
+  if (variant === "online") {
+    return (
+      <svg
+        width="23"
+        height="23"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18" />
+        <path d="M12 3c2.6 2.5 4 5.5 4 9s-1.4 6.5-4 9c-2.6-2.5-4-5.5-4-9s1.4-6.5 4-9Z" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      width="23"
+      height="23"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M16 3v4M8 3v4M3 10h18" />
+    </svg>
+  );
+}
+
 function NotificationChevronIcon({ expanded = false }: { expanded?: boolean }) {
   return (
     <svg
@@ -2492,6 +2536,95 @@ export function ConfigurationNotificationsSection({
           background-size: 6px 6px, 6px 6px;
           background-repeat: no-repeat;
         }
+        .notif-template-panel {
+          --notif-panel-orange: #ff5a00;
+          background: #fff;
+        }
+        @media (min-width: 1025px) {
+          .notif-template-panel--with-variants {
+            overflow: visible;
+          }
+          .notif-template-panel--with-variants > .cp-panel-tabs {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 8;
+            display: flex !important;
+            width: 108px;
+            min-height: 0;
+            height: 100%;
+            padding: 78px 8px 18px;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: flex-start;
+            gap: 6px;
+            transform: translateX(-100%);
+            border: 0;
+            border-right: 1px solid #e8edf4;
+            background: #ffffff;
+            box-shadow: -8px 0 24px rgba(15, 23, 42, 0.06);
+            overflow: hidden;
+          }
+          .notif-template-panel--with-variants > .cp-panel-tabs .cp-panel-tab {
+            position: relative;
+            flex: 0 0 auto;
+            width: 100%;
+            min-height: 84px;
+            padding: 12px 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: 0;
+            border-radius: 10px;
+            background: transparent;
+            color: #475467;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            line-height: 1.25;
+            text-align: center;
+            white-space: normal;
+            transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
+          }
+          .notif-template-panel--with-variants > .cp-panel-tabs .cp-panel-tab:hover {
+            background: #f7f9fc;
+            color: #1d2939;
+          }
+          .notif-template-panel--with-variants > .cp-panel-tabs .cp-panel-tab:focus-visible {
+            outline: none;
+            box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.24);
+          }
+          .notif-template-panel--with-variants > .cp-panel-tabs .cp-panel-tab.is-active {
+            background: #eef5ff;
+            color: #1266e3;
+          }
+          .notif-template-panel--with-variants > .cp-panel-tabs .cp-panel-tab::after {
+            content: '';
+            position: absolute;
+            top: 12px;
+            bottom: 12px;
+            left: -8px;
+            right: auto;
+            width: 3px;
+            height: auto;
+            border-radius: 0 3px 3px 0;
+            background: transparent;
+          }
+          .notif-template-panel--with-variants > .cp-panel-tabs .cp-panel-tab.is-active::after {
+            background: #1677ff;
+          }
+          .notif-template-panel--with-variants > .cp-panel-tabs .cp-panel-tab svg {
+            width: 23px;
+            height: 23px;
+            flex-shrink: 0;
+            stroke-width: 1.8;
+          }
+        }
+        .notif-template-panel-body {
+          background: #fff;
+        }
         .notif-template-subtitle {
           margin: 0 0 24px;
           color: var(--notif-muted);
@@ -2528,8 +2661,8 @@ export function ConfigurationNotificationsSection({
         }
         .notif-template-tags {
           margin: 0 0 20px;
-          padding-bottom: 18px;
-          border-bottom: 1px solid #e6edf6;
+          padding-bottom: 0;
+          border-bottom: 0;
           color: var(--notif-ink);
           font-size: 13px;
           font-weight: 850;
@@ -2583,52 +2716,25 @@ export function ConfigurationNotificationsSection({
           align-items: center;
           justify-content: space-between;
           gap: 16px;
-          margin: 0 0 18px;
-          padding: 14px 16px;
-          border: 1px solid #e1e8f3;
-          border-radius: 14px;
-          background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
-        }
-        .notif-online-toggle-copy {
-          display: grid;
-          gap: 3px;
-          min-width: 0;
-        }
-        .notif-online-toggle-copy strong {
-          color: var(--notif-ink);
-          font-size: 14px;
-          font-weight: 850;
-        }
-        .notif-online-toggle-copy span {
-          color: var(--notif-muted);
-          font-size: 13px;
-          line-height: 1.35;
-        }
-        .notif-template-variant-tabs {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 6px;
-          margin: 0 0 18px;
-          padding: 4px;
-          border: 1px solid #dce3ef;
-          border-radius: 14px;
-          background: #f6f9ff;
-        }
-        .notif-template-variant-tab {
+          margin: 0;
+          padding: 0;
           border: 0;
-          border-radius: 10px;
           background: transparent;
-          color: #46566f;
-          min-height: 38px;
-          padding: 0 12px;
+        }
+        .notif-online-toggle-row > strong {
+          color: var(--notif-ink);
           font-size: 13px;
           font-weight: 850;
-          cursor: pointer;
         }
-        .notif-template-variant-tab.is-active {
-          background: #ffffff;
-          color: var(--notif-blue);
-          box-shadow: 0 5px 14px rgba(15, 98, 254, 0.13), inset 0 0 0 1px rgba(15, 98, 254, 0.14);
+        .notif-online-toggle-control {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .notif-online-toggle-state {
+          color: var(--notif-muted);
+          font-size: 12px;
+          font-weight: 700;
         }
         .notif-template-field {
           display: grid;
@@ -3007,10 +3113,7 @@ export function ConfigurationNotificationsSection({
             grid-row: auto;
           }
           .notif-online-toggle-row {
-            margin-bottom: 14px;
-          }
-          .notif-template-variant-tabs {
-            margin-bottom: 14px;
+            margin-bottom: 0;
           }
           .notif-template-toolbar {
             gap: 4px;
@@ -3030,12 +3133,12 @@ export function ConfigurationNotificationsSection({
           }
           .notif-template-tags {
             position: relative;
-            margin: 24px 0 0;
-            padding: 18px;
-            border: 1px solid #dce6f4;
-            border-radius: 18px;
-            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
-            box-shadow: 0 12px 26px rgba(8, 23, 58, 0.055);
+            margin: 24px 0 20px;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
           }
           .notif-template-tags-heading {
             color: #263a5e;
@@ -3356,11 +3459,8 @@ export function ConfigurationNotificationsSection({
             padding: 0 12px;
           }
           .notif-online-toggle-row {
-            margin-bottom: 12px;
-            padding: 12px 13px;
-          }
-          .notif-template-variant-tabs {
-            margin-bottom: 12px;
+            margin-bottom: 0;
+            padding: 0;
           }
           .notif-template-toolbar {
             gap: 3px;
@@ -3376,9 +3476,9 @@ export function ConfigurationNotificationsSection({
             min-height: 190px;
           }
           .notif-template-tags {
-            margin-top: 18px;
-            padding: 16px;
-            border-radius: 16px;
+            margin: 18px 0 18px;
+            padding: 0;
+            border-radius: 0;
           }
           .notif-template-tag-scroll {
             max-height: 34dvh;
@@ -3761,6 +3861,14 @@ export function ConfigurationNotificationsSection({
                   onClose={closeTemplateEditor}
                   ariaLabel={`${channelCopy[channel].editLabel}: ${selectedEvent.title}`}
                   closeOnScrimClick={false}
+                  className={`notif-template-panel${
+                    onlineSessionBookingEnabled &&
+                    selectedEvent.id !== "invoiceDelivery" &&
+                    selectedEvent.supportsOnline !== false &&
+                    selectedOnlineTemplateEnabled
+                      ? " notif-template-panel--with-variants"
+                      : ""
+                  }`}
                 >
                   <PanelHeader
                     title={channelCopy[channel].editLabel}
@@ -3789,77 +3897,38 @@ export function ConfigurationNotificationsSection({
                       </span>
                     }
                   />
-                  <PanelBody>
-                    <p className="notif-template-subtitle">
-                      {selectedEvent.id === "invoiceDelivery"
-                        ? "Uredite vsebino e-pošte, ki bo poslana gostu ob dostavi računa."
-                        : channel === "email"
-                          ? "Uredite vsebino e-pošte, ki bo poslana gostu ob izbranem dogodku."
-                          : channel === "sms"
-                          ? "Uredite kratko SMS sporočilo, ki bo poslano gostu ob izbranem dogodku."
-                          : "Uredite obvestilo, ki se prikaže gostu v aplikaciji."}
-                    </p>
-                    {onlineSessionBookingEnabled &&
-                    selectedEvent.id !== "invoiceDelivery" &&
-                    selectedEvent.supportsOnline !== false ? (
-                      <div className="notif-online-toggle-row">
-                        <span className="notif-online-toggle-copy">
-                          <strong>Online</strong>
-                          <span>
-                            Uporabi posebno predlogo za online termine.
-                          </span>
-                        </span>
-                        <NotificationSwitch
-                          checked={selectedOnlineTemplateEnabled}
-                          onChange={(checked) =>
-                            setOnlineTemplateEnabled(selectedEvent.id, checked)
-                          }
-                        />
-                      </div>
-                    ) : null}
-                    {onlineSessionBookingEnabled &&
-                    selectedEvent.id !== "invoiceDelivery" &&
-                    selectedEvent.supportsOnline !== false &&
-                    selectedOnlineTemplateEnabled ? (
-                      <div
-                        className="notif-template-variant-tabs"
-                        role="tablist"
-                        aria-label="Vrsta predloge"
-                      >
-                        <button
-                          type="button"
-                          className={
-                            selectedTemplateVariant === "regular"
-                              ? "notif-template-variant-tab is-active"
-                              : "notif-template-variant-tab"
-                          }
-                          onClick={() => {
-                            setPreviewTemplate(false);
-                            setTemplateVariant("regular");
-                          }}
-                          role="tab"
-                          aria-selected={selectedTemplateVariant === "regular"}
-                        >
-                          Običajna seja
-                        </button>
-                        <button
-                          type="button"
-                          className={
-                            selectedTemplateVariant === "online"
-                              ? "notif-template-variant-tab is-active"
-                              : "notif-template-variant-tab"
-                          }
-                          onClick={() => {
-                            setPreviewTemplate(false);
-                            setTemplateVariant("online");
-                          }}
-                          role="tab"
-                          aria-selected={selectedTemplateVariant === "online"}
-                        >
-                          Online seja
-                        </button>
-                      </div>
-                    ) : null}
+                  {onlineSessionBookingEnabled &&
+                  selectedEvent.id !== "invoiceDelivery" &&
+                  selectedEvent.supportsOnline !== false &&
+                  selectedOnlineTemplateEnabled ? (
+                    <PanelTabs
+                      label="Vrsta predloge"
+                      activeId={selectedTemplateVariant}
+                      onSelect={(id) => {
+                        setPreviewTemplate(false);
+                        setTemplateVariant(
+                          id === "online" ? "online" : "regular",
+                        );
+                      }}
+                      tabs={[
+                        {
+                          id: "regular",
+                          label: "Običajna seja",
+                          icon: (
+                            <NotificationTemplateVariantIcon variant="regular" />
+                          ),
+                        },
+                        {
+                          id: "online",
+                          label: "Spletna seja",
+                          icon: (
+                            <NotificationTemplateVariantIcon variant="online" />
+                          ),
+                        },
+                      ]}
+                    />
+                  ) : null}
+                  <PanelBody className="notif-template-panel-body">
                     <div className="notif-template-field">
                       <label
                         htmlFor={`notif-template-title-${channel}-${selectedEvent.id}-${selectedTemplateVariant}`}
@@ -4160,11 +4229,28 @@ export function ConfigurationNotificationsSection({
                         </div>
                       </div>
                     </div>
+                    {onlineSessionBookingEnabled &&
+                    selectedEvent.id !== "invoiceDelivery" &&
+                    selectedEvent.supportsOnline !== false ? (
+                      <div className="notif-online-toggle-row notif-online-toggle-row--after-tags">
+                        <strong>Spletno</strong>
+                        <span className="notif-online-toggle-control">
+                          <span className="notif-online-toggle-state">
+                            {selectedOnlineTemplateEnabled
+                              ? "Vklopljeno"
+                              : "Izklopljeno"}
+                          </span>
+                          <NotificationSwitch
+                            checked={selectedOnlineTemplateEnabled}
+                            onChange={(checked) =>
+                              setOnlineTemplateEnabled(selectedEvent.id, checked)
+                            }
+                          />
+                        </span>
+                      </div>
+                    ) : null}
                   </PanelBody>
                   <PanelFooter>
-                    <PanelButton onClick={closeTemplateEditor}>
-                      {locale === "sl" ? "Zapri" : "Close"}
-                    </PanelButton>
                     <PanelButton
                       variant="primary"
                       onClick={() => void handleSave()}

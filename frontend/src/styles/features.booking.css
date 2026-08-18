@@ -5107,3 +5107,569 @@ button.session-type-color-swatch span {
     border-right-color: rgba(148, 163, 184, 0.2);
     color: #94a3b8;
 }
+
+/* ========================================================================== */
+/* Nova/Uredi storitev — visual parity with Dodaj termin.                     */
+/* Left tabs use the exact same external rail geometry and states as the       */
+/* calendar appointment panel. The content is one continuous white surface.    */
+/* ========================================================================== */
+.session-type-standard-panel {
+    --session-type-standard-orange: #ff5a00;
+    --session-type-standard-border: #d8dee8;
+    --session-type-standard-muted: #667085;
+    --session-type-standard-text: #111827;
+    width: 560px !important;
+    max-width: min(560px, 100vw) !important;
+    background: #fff;
+    color: var(--session-type-standard-text);
+    box-shadow: -12px 0 42px rgba(15, 23, 42, 0.14);
+}
+
+.session-type-standard-panel .cp-panel-header {
+    min-height: 0;
+    padding: 22px 32px 18px;
+    gap: 16px;
+    border-bottom: 0;
+    background: #fff;
+}
+
+.session-type-standard-panel .cp-panel-header__title {
+    color: var(--session-type-standard-text);
+    font-size: 1.625rem;
+    font-weight: 700;
+    line-height: 1.16;
+    letter-spacing: -0.025em;
+}
+
+.session-type-standard-panel .cp-panel-header__actions {
+    padding-top: 1px;
+}
+
+.session-type-standard-panel .cp-panel-header .cp-icon-btn {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    color: #344054;
+}
+
+.session-type-standard-panel .cp-panel-header .cp-icon-btn svg {
+    width: 22px;
+    height: 22px;
+}
+
+.session-type-standard-panel .session-type-standard-panel-body {
+    flex: 1;
+    gap: 0;
+    padding: 0 32px 8px;
+    overflow-y: auto;
+    background: #fff;
+    scrollbar-width: none;
+}
+
+.session-type-standard-panel .session-type-standard-panel-body::-webkit-scrollbar {
+    display: none;
+}
+
+/* No section cards / grey blocks. */
+.session-type-standard-panel .session-type-standard-panel-body > .cp-section {
+    padding: 22px 0 24px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.session-type-standard-panel .session-type-standard-panel-body > .cp-section .cp-section__head {
+    min-height: 28px;
+    gap: 14px;
+}
+
+.session-type-standard-panel .session-type-standard-panel-body > .cp-section .cp-section__toggle {
+    gap: 14px;
+}
+
+.session-type-standard-panel .session-type-standard-panel-body > .cp-section .cp-section__icon {
+    width: 24px;
+    height: 24px;
+    color: var(--session-type-standard-orange);
+}
+
+.session-type-standard-panel .session-type-standard-panel-body > .cp-section .cp-section__icon svg {
+    width: 24px;
+    height: 24px;
+    stroke-width: 1.8;
+}
+
+.session-type-standard-panel .session-type-standard-panel-body > .cp-section .cp-section__title {
+    color: var(--session-type-standard-text);
+    font-size: 1.125rem;
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: -0.012em;
+}
+
+.session-type-standard-panel .session-type-standard-panel-body > .cp-section .cp-section__desc,
+.session-type-standard-panel .session-type-standard-panel-body > .cp-section .cp-section__summary {
+    color: var(--session-type-standard-muted);
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+
+.session-type-standard-panel .session-type-standard-panel-body > .cp-section .cp-section__body {
+    gap: 14px;
+    padding-top: 16px;
+}
+
+/* Basic form labels and controls match the appointment drawer scale. */
+.session-type-standard-panel .field {
+    gap: 7px;
+}
+
+.session-type-standard-panel .field-label,
+.session-type-standard-panel .session-type-color-picker__label {
+    color: #475467;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.25;
+    letter-spacing: 0;
+}
+
+.session-type-standard-panel input:not([type='checkbox']):not([type='radio']):not([type='range']),
+.session-type-standard-panel select,
+.session-type-standard-panel textarea,
+.session-type-standard-panel .guest-booking-select-trigger {
+    min-height: 50px;
+    padding: 0 15px;
+    border: 1px solid var(--session-type-standard-border);
+    border-radius: 9px;
+    background: #fff;
+    color: var(--session-type-standard-text);
+    font-size: 0.9375rem;
+    font-weight: 400;
+    line-height: 1.3;
+    box-shadow: none;
+}
+
+.session-type-standard-panel textarea {
+    min-height: 72px;
+    height: auto;
+    padding: 13px 14px;
+    line-height: 1.4;
+    resize: vertical;
+}
+
+.session-type-standard-panel input::placeholder,
+.session-type-standard-panel textarea::placeholder {
+    color: #7b879c;
+    opacity: 1;
+}
+
+.session-type-standard-panel input:focus,
+.session-type-standard-panel select:focus,
+.session-type-standard-panel textarea:focus,
+.session-type-standard-panel .guest-booking-select-trigger:focus-visible,
+.session-type-standard-panel .guest-booking-select.is-open .guest-booking-select-trigger {
+    outline: none;
+    border-color: #9fb9e5;
+    box-shadow: 0 0 0 3px rgba(22, 114, 243, 0.08);
+}
+
+.session-type-standard-panel select.app-desktop-select:not([multiple]) {
+    min-height: 50px !important;
+    height: 50px;
+    padding: 0 42px 0 15px !important;
+    border: 1px solid var(--session-type-standard-border) !important;
+    border-radius: 9px !important;
+    background-color: #fff !important;
+    color: var(--session-type-standard-text) !important;
+    font-size: 0.9375rem !important;
+    font-weight: 400 !important;
+    line-height: 1.3 !important;
+    box-shadow: none !important;
+}
+
+.session-type-standard-panel .session-type-price-input {
+    min-height: 50px;
+    height: 50px;
+    border: 1px solid var(--session-type-standard-border);
+    border-radius: 9px;
+    background: #fff;
+    box-shadow: none;
+}
+
+.session-type-standard-panel .session-type-price-input > span {
+    min-width: 42px;
+    color: #475467;
+    font-size: 0.9375rem;
+}
+
+.session-type-standard-panel .session-type-price-input input {
+    min-height: 48px !important;
+    height: 48px !important;
+    padding: 0 15px !important;
+    border: 0 !important;
+    border-radius: 0 9px 9px 0 !important;
+    box-shadow: none !important;
+}
+
+/* Keep color selector inline and clean, with the requested orange label icon. */
+.session-type-standard-panel .session-type-color-picker {
+    gap: 11px;
+    margin-top: 8px;
+}
+
+.session-type-standard-panel .session-type-color-picker__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--session-type-standard-text);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.session-type-standard-panel .session-type-color-picker__label-icon,
+.session-type-standard-panel .session-type-panel-section-icon--orange {
+    color: var(--session-type-standard-orange);
+}
+
+.session-type-standard-panel .session-type-color-picker__label-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.session-type-standard-panel .session-type-color-picker__swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.session-type-standard-panel .session-type-color-swatch,
+.session-type-standard-panel button.session-type-color-swatch {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    min-height: 38px;
+    border-radius: 10px;
+    box-shadow: none;
+}
+
+.session-type-standard-panel .session-type-color-picker__hint {
+    color: var(--session-type-standard-muted);
+    font-size: 0.75rem;
+    line-height: 1.4;
+}
+
+/* Predplačilo / Neprihod stay clean rows instead of nested cards. */
+.session-type-standard-panel .transaction-service-switch-list {
+    margin-top: 12px;
+    border: 0;
+    background: transparent;
+}
+
+.session-type-standard-panel .transaction-service-switch-row {
+    min-height: 70px;
+    padding: 10px 0;
+    gap: 14px;
+    background: transparent;
+    border: 0;
+}
+
+.session-type-standard-panel .transaction-service-switch-row + .transaction-service-switch-row {
+    border-top: 0;
+}
+
+.session-type-standard-panel .transaction-service-switch-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+}
+
+.session-type-standard-panel .transaction-service-switch-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.session-type-standard-panel .transaction-service-switch-row--group-booking .transaction-service-switch-icon {
+    color: #f97316;
+    background: rgba(249, 115, 22, 0.08);
+    border-color: rgba(249, 115, 22, 0.16);
+}
+
+.session-type-standard-panel .transaction-service-switch-copy {
+    gap: 3px;
+}
+
+.session-type-standard-panel .transaction-service-switch-copy strong {
+    font-size: 0.9375rem;
+    line-height: 1.3;
+}
+
+.session-type-standard-panel .transaction-service-switch-copy span {
+    color: var(--session-type-standard-muted);
+    font-size: 0.75rem;
+    line-height: 1.4;
+}
+
+/* Linked group / empty states are plain white content, not cards. */
+.session-type-standard-panel .session-type-linked-card,
+.session-type-standard-panel .session-type-linked-service-row,
+.session-type-standard-panel .session-type-linked-empty {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.session-type-standard-panel .session-type-linked-card,
+.session-type-standard-panel .session-type-linked-service-row {
+    padding: 10px 0;
+}
+
+.session-type-standard-panel .session-type-linked-empty {
+    padding: 18px 0;
+    color: var(--session-type-standard-muted);
+    font-size: 0.8125rem;
+    text-align: left;
+}
+
+.session-type-standard-panel .session-type-linked-card-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+}
+
+.session-type-standard-panel .session-type-linked-card-copy strong {
+    color: var(--session-type-standard-text);
+    font-size: 0.9375rem;
+}
+
+.session-type-standard-panel .session-type-linked-card-copy span {
+    color: var(--session-type-standard-muted);
+    font-size: 0.75rem;
+}
+
+/* Section actions use the same compact, clean control language. */
+.session-type-standard-panel .session-type-config-unified-actions {
+    gap: 8px;
+}
+
+.session-type-standard-panel .session-type-config-unified-actions .cp-btn,
+.session-type-standard-panel .session-type-linked-card-actions .slim-btn,
+.session-type-standard-panel .session-type-consumable-add-panel .small-btn {
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--session-type-standard-border);
+    border-radius: 9px;
+    background: #fff;
+    color: #344054;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    box-shadow: none;
+}
+
+/* Consumables remain table-like, but remove the surrounding card/background. */
+.session-type-standard-panel .session-type-consumables-list {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.session-type-standard-panel .session-type-consumables-head {
+    padding: 9px 0;
+    background: transparent;
+    border-bottom: 1px solid #edf0f4;
+}
+
+.session-type-standard-panel .session-type-consumable-row {
+    padding: 10px 0;
+    background: transparent;
+    border-bottom: 1px solid #edf0f4;
+}
+
+.session-type-standard-panel .session-type-consumable-row > select,
+.session-type-standard-panel .session-type-consumable-quantity {
+    min-height: 44px;
+    border: 1px solid var(--session-type-standard-border);
+    border-radius: 9px;
+    background: #fff;
+}
+
+.session-type-standard-panel .session-type-consumable-add-panel {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+/* Booking picker matches a standard 50px appointment field. */
+.session-type-standard-panel .guest-booking-select-trigger {
+    min-height: 50px;
+    padding: 8px 14px;
+}
+
+.session-type-standard-panel .guest-booking-select-value {
+    color: var(--session-type-standard-text);
+    font-size: 0.9375rem;
+    font-weight: 500;
+}
+
+.session-type-standard-panel .guest-booking-select-line {
+    color: var(--session-type-standard-muted);
+    font-size: 0.75rem;
+}
+
+/* Footer: only the primary action, same placement as Dodaj termin. */
+.session-type-standard-panel .cp-panel-footer {
+    min-height: 0;
+    padding: 10px 32px 18px;
+    border-top: 0;
+    background: #fff;
+}
+
+.session-type-standard-panel .cp-panel-footer__actions {
+    width: 100%;
+    justify-content: flex-end;
+}
+
+.session-type-standard-panel .cp-panel-footer .cp-btn--primary {
+    min-height: 50px;
+    padding: 0 18px;
+    border-radius: 9px;
+    font-size: 0.9375rem;
+    font-weight: 700;
+}
+
+/* Exact Dodaj termin external side rail on desktop. */
+@media (min-width: 1025px) {
+    .session-type-standard-panel {
+        overflow: visible;
+    }
+
+    .session-type-standard-panel > .cp-panel-header,
+    .session-type-standard-panel > .cp-panel-body,
+    .session-type-standard-panel > .cp-panel-footer {
+        margin-left: 0 !important;
+    }
+
+    .session-type-standard-panel > .cp-panel-tabs {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 8;
+        display: flex !important;
+        width: 108px;
+        min-height: 0;
+        height: 100%;
+        padding: 78px 8px 18px;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        gap: 6px;
+        transform: translateX(-100%);
+        border: 0;
+        border-right: 1px solid #e8edf4;
+        background: #ffffff;
+        box-shadow: -8px 0 24px rgba(15, 23, 42, 0.06);
+        overflow: hidden;
+    }
+
+    .session-type-standard-panel > .cp-panel-tabs .cp-panel-tab {
+        position: relative;
+        flex: 0 0 auto;
+        width: 100%;
+        min-height: 84px;
+        padding: 12px 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: #475467;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        line-height: 1.25;
+        text-align: center;
+        white-space: normal;
+        transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
+    }
+
+    .session-type-standard-panel > .cp-panel-tabs .cp-panel-tab:hover {
+        background: #f7f9fc;
+        color: #1d2939;
+    }
+
+    .session-type-standard-panel > .cp-panel-tabs .cp-panel-tab:focus-visible {
+        outline: none;
+        box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.24);
+    }
+
+    .session-type-standard-panel > .cp-panel-tabs .cp-panel-tab.is-active {
+        background: #eef5ff;
+        color: #1266e3;
+    }
+
+    .session-type-standard-panel > .cp-panel-tabs .cp-panel-tab::after {
+        content: '';
+        position: absolute;
+        top: 12px;
+        bottom: 12px;
+        left: -8px;
+        right: auto;
+        width: 3px;
+        height: auto;
+        border-radius: 0 3px 3px 0;
+        background: transparent;
+    }
+
+    .session-type-standard-panel > .cp-panel-tabs .cp-panel-tab.is-active::after {
+        background: #1677ff;
+    }
+
+    .session-type-standard-panel > .cp-panel-tabs .cp-panel-tab svg {
+        width: 23px;
+        height: 23px;
+        flex-shrink: 0;
+        stroke-width: 1.8;
+    }
+}
+
+/* Tablet/mobile keep the same white form language and use the existing routed-tab row. */
+@media (max-width: 1024px) {
+    .session-type-standard-panel {
+        width: 560px !important;
+        max-width: min(560px, 100vw) !important;
+    }
+
+    .session-type-standard-panel > .cp-panel-tabs {
+        min-height: 58px;
+        padding: 0 20px;
+        gap: 12px;
+        border-bottom: 1px solid #e8edf4;
+        background: #fff;
+    }
+
+    .session-type-standard-panel > .cp-panel-tabs .cp-panel-tab {
+        min-height: 58px;
+        padding: 0 8px;
+        background: transparent;
+        font-size: 0.8125rem;
+    }
+
+    .session-type-standard-panel .session-type-standard-panel-body {
+        padding: 0 24px 8px;
+    }
+
+    .session-type-standard-panel .cp-panel-header {
+        padding: 20px 24px 16px;
+    }
+
+    .session-type-standard-panel .cp-panel-footer {
+        padding: 10px 24px 16px;
+    }
+}

@@ -13064,3 +13064,370 @@
     display: flex !important;
   }
 }
+
+/* ========================================================================== */
+/* Zgodovina računov detail drawer — same outer tab rail as Dodaj termin.     */
+/* ========================================================================== */
+.billing-folio-side-panel > .cp-panel-body {
+  padding: 0;
+  overflow: hidden;
+}
+
+.billing-folio-side-panel .billing-folio-modal-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 24px 28px 26px;
+}
+
+.billing-folio-side-panel .billing-folio-invoice-view {
+  flex: 1;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.billing-folio-section {
+  display: grid;
+  gap: 15px;
+}
+
+.billing-folio-section-title {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #0f172a;
+  font-size: 1rem;
+  line-height: 1.25;
+  font-weight: 850;
+  letter-spacing: -0.018em;
+}
+
+.billing-folio-section-title__icon {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff5f00;
+  flex: 0 0 20px;
+}
+
+.billing-folio-section-title__icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Invoice metadata is intentionally plain text, not input-like blocks. */
+.billing-folio-side-panel .billing-folio-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #e8edf4;
+}
+
+.billing-folio-side-panel .billing-folio-detail-field {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(130px, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: 20px;
+  min-height: 30px;
+}
+
+.billing-folio-side-panel .billing-folio-detail-field > span {
+  color: #475467;
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.billing-folio-side-panel .billing-folio-detail-field > strong {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #101828;
+  font-size: 0.92rem;
+  line-height: 1.35;
+  font-weight: 760;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.billing-folio-side-panel .billing-folio-detail-field--status > strong {
+  justify-content: flex-start;
+}
+
+.billing-folio-side-panel .billing-folio-items-table-wrap {
+  overflow: visible;
+}
+
+.billing-folio-side-panel .billing-folio-items-table-wrap th {
+  padding: 0 6px 11px;
+  font-size: 0.73rem;
+  letter-spacing: 0.045em;
+}
+
+.billing-folio-side-panel .billing-folio-items-table-wrap td {
+  padding: 14px 6px;
+  font-size: 0.9rem;
+}
+
+.billing-folio-side-panel .billing-folio-total-card {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, rgba(22, 114, 243, 0.11), rgba(96, 165, 250, 0.17));
+}
+
+.billing-folio-payment-table {
+  display: grid;
+  border-bottom: 1px solid #e8edf4;
+}
+
+.billing-folio-payment-table__head,
+.billing-folio-payment-table__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(90px, 0.8fr) minmax(105px, 0.9fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.billing-folio-payment-table__head {
+  padding: 0 2px 10px;
+  color: #667085;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.billing-folio-payment-table__row {
+  padding: 0 2px 15px;
+  color: #101828;
+  font-size: 0.9rem;
+}
+
+.billing-folio-payment-table__row strong {
+  font-weight: 760;
+}
+
+.billing-folio-notes-value {
+  min-height: 26px;
+  color: #667085;
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.billing-folio-side-panel .billing-folio-actions {
+  margin-top: auto;
+  padding-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.billing-folio-actions__right {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.billing-folio-side-panel .billing-folio-action-btn {
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 11px;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.billing-folio-side-panel .billing-folio-action-btn--secondary {
+  box-shadow: none;
+}
+
+@media (min-width: 1025px) {
+  .billing-folio-side-panel {
+    overflow: visible;
+  }
+
+  .billing-folio-side-panel > .cp-panel-tabs {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 8;
+    display: flex !important;
+    width: 108px;
+    min-height: 0;
+    height: 100%;
+    padding: 78px 8px 18px;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 6px;
+    transform: translateX(-100%);
+    border: 0;
+    border-right: 1px solid #e8edf4;
+    background: #ffffff;
+    box-shadow: -8px 0 24px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+  }
+
+  .billing-folio-side-panel > .cp-panel-tabs .cp-panel-tab {
+    position: relative;
+    flex: 0 0 auto;
+    width: 100%;
+    min-height: 84px;
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: #475467;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: center;
+    white-space: normal;
+    transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
+  }
+
+  .billing-folio-side-panel > .cp-panel-tabs .cp-panel-tab:hover {
+    background: #f7f9fc;
+    color: #1d2939;
+  }
+
+  .billing-folio-side-panel > .cp-panel-tabs .cp-panel-tab:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.24);
+  }
+
+  .billing-folio-side-panel > .cp-panel-tabs .cp-panel-tab.is-active {
+    background: #eef5ff;
+    color: #1266e3;
+  }
+
+  .billing-folio-side-panel > .cp-panel-tabs .cp-panel-tab::after {
+    content: '';
+    position: absolute;
+    top: 12px;
+    bottom: 12px;
+    left: -8px;
+    right: auto;
+    width: 3px;
+    height: auto;
+    border-radius: 0 3px 3px 0;
+    background: transparent;
+  }
+
+  .billing-folio-side-panel > .cp-panel-tabs .cp-panel-tab.is-active::after {
+    background: #1677ff;
+  }
+
+  .billing-folio-side-panel > .cp-panel-tabs .cp-panel-tab svg {
+    width: 23px;
+    height: 23px;
+    flex-shrink: 0;
+    stroke-width: 1.8;
+  }
+}
+
+@media (max-width: 1024px) {
+  .billing-folio-side-panel .billing-folio-modal-body {
+    padding: 20px 20px max(22px, env(safe-area-inset-bottom));
+  }
+
+  .billing-folio-side-panel .billing-folio-detail-field {
+    grid-template-columns: minmax(112px, 0.9fr) minmax(0, 1.1fr);
+    gap: 14px;
+  }
+
+  .billing-folio-side-panel .billing-folio-actions {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .billing-folio-actions__right {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .billing-folio-side-panel .billing-folio-action-btn {
+    width: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .billing-folio-payment-table__head,
+  .billing-folio-payment-table__row {
+    grid-template-columns: minmax(0, 1.2fr) minmax(82px, 0.8fr) minmax(92px, 0.9fr);
+    gap: 8px;
+  }
+
+  .billing-folio-side-panel .billing-folio-actions {
+    align-items: stretch;
+  }
+
+  .billing-folio-actions__right {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .billing-folio-actions__right .billing-folio-action-btn {
+    flex: 1 1 0;
+  }
+
+  .billing-folio-action-btn--refund {
+    flex: 0 0 auto;
+  }
+}
+
+[data-theme="dark"] .billing-folio-section-title,
+[data-theme="dark"] .billing-folio-side-panel .billing-folio-detail-field > strong,
+[data-theme="dark"] .billing-folio-payment-table__row {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .billing-folio-side-panel .billing-folio-detail-field > span,
+[data-theme="dark"] .billing-folio-payment-table__head,
+[data-theme="dark"] .billing-folio-notes-value {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .billing-folio-side-panel .billing-folio-detail-grid,
+[data-theme="dark"] .billing-folio-payment-table {
+  border-bottom-color: #243247;
+}
+
+@media (min-width: 1025px) {
+  [data-theme="dark"] .billing-folio-side-panel > .cp-panel-tabs {
+    background: #0f172a;
+    border-right-color: #243247;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.22);
+  }
+
+  [data-theme="dark"] .billing-folio-side-panel > .cp-panel-tabs .cp-panel-tab {
+    color: #94a3b8;
+  }
+
+  [data-theme="dark"] .billing-folio-side-panel > .cp-panel-tabs .cp-panel-tab:hover {
+    background: #111c31;
+    color: #f8fafc;
+  }
+
+  [data-theme="dark"] .billing-folio-side-panel > .cp-panel-tabs .cp-panel-tab.is-active {
+    background: #17213a;
+    color: #60a5fa;
+  }
+}

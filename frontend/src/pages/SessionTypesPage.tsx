@@ -98,6 +98,12 @@ const SESSION_TYPES_SUBTAB_COURSES = "courses";
 
 type SessionTypeSortKey = "name" | "category" | "duration" | "price" | "status";
 type BillingServiceSortKey = "name" | "category" | "price" | "tax" | "status";
+type SessionTypeEditorTab =
+  | "basic"
+  | "serviceGroups"
+  | "consumables"
+  | "bookingRules"
+  | "groupBooking";
 
 const SERVICE_TYPE_DEFAULT_COLOR = "#D7DFF0";
 const SERVICE_TYPE_COLOR_PALETTE = [
@@ -680,6 +686,25 @@ function ServiceConfigTabIcon({ name }: { name: ServiceConfigTabIconName }) {
   );
 }
 
+function SessionTypeColorLabelIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M13.7 4.3a3.2 3.2 0 0 1 4.5 0l1.5 1.5a3.2 3.2 0 0 1 0 4.5L9.9 20.1 4 21l.9-5.9L13.7 4.3Z" />
+      <path d="m12.3 5.7 6 6" />
+    </svg>
+  );
+}
+
 type ServiceConfigVisual = {
   icon:
     | "calendar"
@@ -1023,6 +1048,8 @@ export function SessionTypesPage() {
     useState<TypeFormState | null>(null);
   const isTypeEditorMobileTablet = useMediaMaxWidth(939);
   const typeEditorKeyboardOpen = useMobileKeyboardOpen(939);
+  const [typeEditorTab, setTypeEditorTab] =
+    useState<SessionTypeEditorTab>("basic");
   const [guestBookingPickerOpen, setGuestBookingPickerOpen] = useState(false);
   const guestBookingSelectRef = useRef<HTMLDivElement>(null);
   const [priceCalculationPickerOpen, setPriceCalculationPickerOpen] = useState(false);
@@ -1263,6 +1290,8 @@ export function SessionTypesPage() {
     if (!typeDrawerOpen) {
       setGuestBookingPickerOpen(false);
       setPriceCalculationPickerOpen(false);
+      setGuestLimitPickerOpen(false);
+      setTypeEditorTab("basic");
     }
   }, [typeDrawerOpen]);
 
@@ -1778,6 +1807,28 @@ export function SessionTypesPage() {
   const groupBookingModuleEnabled = settings.GROUP_BOOKING_ENABLED === "true";
   const noShowModuleEnabled = settings.NO_SHOW_ENABLED !== "false";
   const advanceModuleEnabled = settings.BILLING_ADVANCE_ENABLED !== "false";
+
+  useEffect(() => {
+    const availableTabs: SessionTypeEditorTab[] = [
+      "basic",
+      ...(serviceGroupsModuleEnabled ? ["serviceGroups" as const] : []),
+      ...(consumablesCapabilityEnabled ? ["consumables" as const] : []),
+      "bookingRules",
+      ...(groupBookingModuleEnabled && typeForm.groupBookingEnabled
+        ? ["groupBooking" as const]
+        : []),
+    ];
+    if (!availableTabs.includes(typeEditorTab)) {
+      setTypeEditorTab("basic");
+    }
+  }, [
+    consumablesCapabilityEnabled,
+    groupBookingModuleEnabled,
+    serviceGroupsModuleEnabled,
+    typeForm.groupBookingEnabled,
+    typeEditorTab,
+  ]);
+
   const advanceDeductionIds = useMemo(
     () =>
       advanceModuleEnabled
@@ -4385,21 +4436,62 @@ export function SessionTypesPage() {
         onClose={dismissTypeModal}
         ariaLabel={editingType ? t("Edit type") : t("New type")}
         size="xl"
+        className="session-type-standard-panel"
       >
         <PanelHeader
           title={editingType ? t("Edit type") : t("New type")}
           onClose={dismissTypeModal}
           closeLabel={locale === "sl" ? "Zapri" : "Close"}
         />
-        <PanelBody as="form" id="session-type-edit-form" onSubmit={submitType} sectioned>
+        <PanelTabs
+          label={locale === "sl" ? "Zavihki storitve" : "Service tabs"}
+          activeId={typeEditorTab}
+          onSelect={(id) => setTypeEditorTab(id as SessionTypeEditorTab)}
+          tabs={[
+            {
+              id: "basic",
+              label: locale === "sl" ? "Osnovni podatki" : "Basic information",
+              icon: <PanelSectionIcon name="service" />,
+            },
+            ...(serviceGroupsModuleEnabled
+              ? [{
+                  id: "serviceGroups",
+                  label: locale === "sl" ? "Storitvene skupine" : "Service groups",
+                  icon: <PanelSectionIcon name="group" />,
+                }]
+              : []),
+            ...(consumablesCapabilityEnabled
+              ? [{
+                  id: "consumables",
+                  label: locale === "sl" ? "Porabni material" : "Consumables",
+                  icon: <PanelSectionIcon name="consumables" />,
+                }]
+              : []),
+            {
+              id: "bookingRules",
+              label: locale === "sl" ? "Pravila rezervacij" : "Booking rules",
+              icon: <PanelSectionIcon name="schedule" />,
+            },
+            ...(groupBookingModuleEnabled && typeForm.groupBookingEnabled
+              ? [{
+                  id: "groupBooking",
+                  label: locale === "sl" ? "Skupinske rezervacije" : "Group bookings",
+                  icon: <PanelSectionIcon name="group" />,
+                }]
+              : []),
+          ]}
+        />
+        <PanelBody
+          as="form"
+          id="session-type-edit-form"
+          onSubmit={submitType}
+          className="session-type-standard-panel-body"
+        >
+          {typeEditorTab === "basic" ? (
           <PanelSection
             title={locale === "sl" ? "Osnovni podatki" : "Basic information"}
-            icon={<PanelSectionIcon name="service" />}
-            description={
-              locale === "sl"
-                ? "Uredite osnovne informacije o storitvi."
-                : "Edit the basic service information."
-            }
+            icon={<span className="session-type-panel-section-icon session-type-panel-section-icon--orange"><PanelSectionIcon name="service" /></span>}
+            collapsible={false}
             summary={typeForm.description.trim() || "—"}
           >
                   <div className="session-type-config-grid session-type-config-grid--two session-type-config-description-grid">
@@ -4475,62 +4567,44 @@ export function SessionTypesPage() {
                     </Field>
                     <Field label={locale === "sl" ? "Pavza" : "Break"}>
                       <div className="session-type-break-control">
-                        <label className="session-type-break-override">
-                          <input
-                            type="checkbox"
-                            checked={typeForm.breakMinutesOverridden}
-                            onChange={(event) =>
+                        <DesktopSelect
+                          value={
+                            typeForm.breakMinutesOverridden
+                              ? String(typeForm.breakMinutes)
+                              : "default"
+                          }
+                          onChange={(event) => {
+                            if (event.target.value === "default") {
                               setTypeForm({
                                 ...typeForm,
-                                breakMinutesOverridden: event.target.checked,
-                              })
+                                breakMinutesOverridden: false,
+                              });
+                              return;
                             }
-                          />
-                          <span
-                            className="session-type-break-toggle"
-                            aria-hidden="true"
-                          >
-                            <span />
-                          </span>
-                          <span>
-                            {locale === "sl"
-                              ? "Določi posebno pavzo"
-                              : "Set a specific break"}
-                          </span>
-                        </label>
-                        {typeForm.breakMinutesOverridden ? (
-                          <DesktopSelect
-                            value={typeForm.breakMinutes}
-                            onChange={(event) =>
-                              setTypeForm({
-                                ...typeForm,
-                                breakMinutes: clampSessionTypeInt0to999(
-                                  Number(event.target.value),
-                                ),
-                              })
-                            }
-                          >
-                            {!SERVICE_BREAK_MINUTE_OPTIONS.includes(
-                              typeForm.breakMinutes,
-                            ) ? (
-                              <option value={typeForm.breakMinutes}>
-                                {typeForm.breakMinutes} min
-                              </option>
-                            ) : null}
-                            {SERVICE_BREAK_MINUTE_OPTIONS.map((minutes) => (
-                              <option key={minutes} value={minutes}>
-                                {minutes} min
-                              </option>
-                            ))}
-                          </DesktopSelect>
-                        ) : null}
-                        {!typeForm.breakMinutesOverridden ? (
-                          <small>
-                            {locale === "sl"
-                              ? `Uporabljena bo privzeta pavza: ${settings.DEFAULT_SERVICE_BREAK_MINUTES || "0"} min.`
-                              : `The default break will be used: ${settings.DEFAULT_SERVICE_BREAK_MINUTES || "0"} min.`}
-                          </small>
-                        ) : null}
+                            setTypeForm({
+                              ...typeForm,
+                              breakMinutesOverridden: true,
+                              breakMinutes: clampSessionTypeInt0to999(
+                                Number(event.target.value),
+                              ),
+                            });
+                          }}
+                        >
+                          <option value="default">
+                            {locale === "sl" ? "Privzeta pavza" : "Default break"}
+                          </option>
+                          {typeForm.breakMinutesOverridden &&
+                          !SERVICE_BREAK_MINUTE_OPTIONS.includes(typeForm.breakMinutes) ? (
+                            <option value={typeForm.breakMinutes}>
+                              {typeForm.breakMinutes} min
+                            </option>
+                          ) : null}
+                          {SERVICE_BREAK_MINUTE_OPTIONS.map((minutes) => (
+                            <option key={minutes} value={minutes}>
+                              {minutes} min
+                            </option>
+                          ))}
+                        </DesktopSelect>
                       </div>
                     </Field>
                   </div>
@@ -4573,7 +4647,7 @@ export function SessionTypesPage() {
                     </Field>
                   </div>
 
-                  {(advanceModuleEnabled || noShowModuleEnabled) ? (
+                  {(advanceModuleEnabled || noShowModuleEnabled || groupBookingModuleEnabled) ? (
                     <div className="transaction-service-switch-list session-type-transaction-flags">
                       {advanceModuleEnabled ? (
                         <label className="transaction-service-switch-row transaction-service-switch-row--advance">
@@ -4625,11 +4699,58 @@ export function SessionTypesPage() {
                           </span>
                         </label>
                       ) : null}
+
+                      {groupBookingModuleEnabled ? (
+                        <label className="transaction-service-switch-row transaction-service-switch-row--group-booking">
+                          <span className="transaction-service-switch-icon" aria-hidden>
+                            <ServiceConfigTabIcon name="group" />
+                          </span>
+                          <span className="transaction-service-switch-copy">
+                            <strong>
+                              {locale === "sl"
+                                ? "Skupinske rezervacije"
+                                : locale === "sr"
+                                  ? "Grupne rezervacije"
+                                  : "Group bookings"}
+                            </strong>
+                            <span>
+                              {locale === "sl"
+                                ? "Omogoči nastavitve za skupinske rezervacije te storitve."
+                                : "Enable group-booking settings for this service."}
+                            </span>
+                          </span>
+                          <span className="session-type-config-switch transaction-service-option-switch">
+                            <input
+                              type="checkbox"
+                              checked={typeForm.groupBookingEnabled}
+                              onChange={(event) =>
+                                setTypeForm({
+                                  ...typeForm,
+                                  groupBookingEnabled: event.target.checked,
+                                })
+                              }
+                              aria-label={
+                                locale === "sl"
+                                  ? "Skupinske rezervacije"
+                                  : "Group bookings"
+                              }
+                            />
+                            <span className="session-type-config-switch-track" aria-hidden>
+                              <span className="session-type-config-switch-thumb">
+                                {typeForm.groupBookingEnabled ? "✓" : ""}
+                              </span>
+                            </span>
+                          </span>
+                        </label>
+                      ) : null}
                     </div>
                   ) : null}
 
                   <div className="session-type-color-picker">
                     <div className="session-type-color-picker__label">
+                      <span className="session-type-color-picker__label-icon" aria-hidden>
+                        <SessionTypeColorLabelIcon />
+                      </span>
                       {locale === "sl" ? "Barva storitve" : "Service color"}
                     </div>
                     <div
@@ -4672,16 +4793,13 @@ export function SessionTypesPage() {
                   </div>
           </PanelSection>
 
-                {serviceGroupsModuleEnabled ? (
+          ) : null}
+
+                {typeEditorTab === "serviceGroups" && serviceGroupsModuleEnabled ? (
           <PanelSection
-            title={locale === "sl" ? "Skupina storitve" : "Service group"}
+            title={locale === "sl" ? "Storitvene skupine" : "Service groups"}
             icon={<PanelSectionIcon name="group" />}
-            description={
-              locale === "sl"
-                ? "Povežite različna trajanja ali različice iste storitve."
-                : "Group related durations or variants of the same service."
-            }
-            defaultOpen={false}
+            collapsible={false}
             summary={selectedTypeServiceGroup?.name?.trim() || "—"}
             action={
               <span className="session-type-config-unified-actions">
@@ -4733,16 +4851,11 @@ export function SessionTypesPage() {
           </PanelSection>
                 ) : null}
 
-                {consumablesCapabilityEnabled ? (
+                {typeEditorTab === "consumables" && consumablesCapabilityEnabled ? (
           <PanelSection
-            title={locale === "sl" ? "Porabni materiali" : "Consumables"}
+            title={locale === "sl" ? "Porabni material" : "Consumables"}
             icon={<PanelSectionIcon name="consumables" />}
-            description={
-              locale === "sl"
-                ? "Povežite porabni material, ki se privzeto uporabi pri izvedbi te storitve."
-                : "Link the consumables used by default when this service is delivered."
-            }
-            defaultOpen={false}
+            collapsible={false}
             summary={
               locale === "sl"
                 ? `${typeForm.consumableLines.length} privzeti`
@@ -4892,10 +5005,11 @@ export function SessionTypesPage() {
           </PanelSection>
                 ) : null}
 
+          {typeEditorTab === "bookingRules" ? (
           <PanelSection
             title={locale === "sl" ? "Pravila rezervacij" : "Booking rules"}
             icon={<PanelSectionIcon name="schedule" />}
-            defaultOpen={false}
+            collapsible={false}
             summary={
               typeForm.guestBookingMode === "DISABLED"
                 ? (locale === "sl" ? "Gostje OFF" : "Guests OFF")
@@ -5081,36 +5195,14 @@ export function SessionTypesPage() {
                 ) : null}
           </PanelSection>
 
-                {groupBookingModuleEnabled ? (
+          ) : null}
+
+                {typeEditorTab === "groupBooking" && groupBookingModuleEnabled && typeForm.groupBookingEnabled ? (
           <PanelSection
-            title={locale === "sl" ? "Skupinska rezervacija" : locale === "sr" ? "Grupna rezervacija" : "Group booking"}
+            title={locale === "sl" ? "Skupinske rezervacije" : locale === "sr" ? "Grupne rezervacije" : "Group bookings"}
             icon={<PanelSectionIcon name="group" />}
-            description={
-              locale === "sl"
-                ? "Ko je vklopljeno, je to storitev mogoče izbrati za skupinske termine, ki jih ustvarja osebje."
-                : "When on, this type can be selected for staff-created group booked sessions."
-            }
-            defaultOpen={false}
+            collapsible={false}
             summary={typeForm.groupBookingEnabled ? "ON" : "OFF"}
-            action={
-              <label className="session-type-config-switch" onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="checkbox"
-                  checked={typeForm.groupBookingEnabled}
-                  onChange={(e) =>
-                    setTypeForm({
-                      ...typeForm,
-                      groupBookingEnabled: e.target.checked,
-                    })
-                  }
-                />
-                <span className="session-type-config-switch-track">
-                  <span className="session-type-config-switch-thumb">
-                    {typeForm.groupBookingEnabled ? "✓" : ""}
-                  </span>
-                </span>
-              </label>
-            }
           >
                   {typeForm.groupBookingEnabled ? (
                     <div className="session-type-config-conditional-grid">
@@ -5344,9 +5436,6 @@ export function SessionTypesPage() {
         </PanelBody>
         {(!isTypeEditorMobileTablet || !typeEditorKeyboardOpen) ? (
           <PanelFooter>
-            <PanelButton onClick={dismissTypeModal}>
-              {locale === "sl" ? "Prekliči" : "Cancel"}
-            </PanelButton>
             <PanelButton
               type="submit"
               form="session-type-edit-form"
