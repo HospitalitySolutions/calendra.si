@@ -4822,7 +4822,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                     <article key={c.id} className="clients-mobile-card" onClick={() => openDetailModal(c)}>
                       <div className="clients-mobile-card-head">
                         <div className="clients-name-cell">
-                          <span className="clients-name-avatar" aria-hidden>{initials(c.firstName, c.lastName)}</span>
                           <div className="clients-name-stack">
                             <span className="clients-name">
                               {fullName(c)}
@@ -4947,7 +4946,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                     <article key={c.id} className="clients-mobile-card" onClick={() => openCompanyDetailModal(c)}>
                       <div className="clients-mobile-card-head">
                         <div className="clients-name-cell">
-                          <span className="clients-name-avatar clients-name-avatar--company" aria-hidden><ClientsModernIcon name="companies" /></span>
                           <div className="clients-name-stack">
                             <span className="clients-name">{c.name}{c.active === false && <span className="clients-inactive-badge">{clientsCopy.inactive}</span>}</span>
                             <span className="clients-id">{c.vatId || `ID #${c.id}`}</span>
@@ -5055,7 +5053,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                     <article key={g.id} className="clients-mobile-card" onClick={() => openGroupDetailModal(g)}>
                       <div className="clients-mobile-card-head">
                         <div className="clients-name-cell">
-                          <span className="clients-name-avatar clients-name-avatar--group" aria-hidden><ClientsModernIcon name="groups" /></span>
                           <div className="clients-name-stack">
                             <span className="clients-name">{g.name}{g.active === false && <span className="clients-inactive-badge">{clientsCopy.inactive}</span>}</span>
                             <span className="clients-id">{(g.members ?? []).length} {clientsCopy.groupMembers.toLowerCase()}</span>

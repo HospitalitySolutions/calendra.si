@@ -4345,11 +4345,11 @@
         display: block;
         margin: 0;
         padding: 0;
-        border: 1px solid #dce2ea;
-        border-radius: 12px;
-        background: #ffffff;
-        box-shadow: 0 2px 7px rgba(15, 23, 42, 0.025);
-        overflow: hidden;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        overflow: visible;
     }
 
     .clients-modern-page--mobile .clients-mobile-card {

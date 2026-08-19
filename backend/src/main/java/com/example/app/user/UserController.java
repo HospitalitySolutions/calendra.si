@@ -542,6 +542,60 @@ public class UserController {
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "User not found.")));
     }
 
+    @PostMapping(value = "/{id}/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public ResponseEntity<?> uploadUserAvatar(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal User me
+    ) {
+        validateAvatar(file);
+        Long companyId = me.getCompany().getId();
+        Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(companyId);
+        return userRepository.findByIdAndCompanyId(id, companyId)
+                .<ResponseEntity<?>>map(existing -> {
+                    var beforeAudit = employeeSnapshot(existing);
+                    String previousKey = existing.getAvatarS3Key();
+                    var stored = fileStorage.uploadUserAvatar(me.getCompany(), existing.getId(), file);
+                    existing.setAvatarS3Key(stored.objectKey());
+                    existing.setAvatarContentType(stored.contentType());
+                    existing.setUpdatedAt(Instant.now());
+                    User saved = userRepository.save(existing);
+                    if (previousKey != null && !previousKey.isBlank() && !previousKey.equals(stored.objectKey())) {
+                        fileStorage.deleteQuietly(previousKey);
+                    }
+                    recordEmployee(me, ActivityAction.EMPLOYEE_UPDATED, saved, "Updated employee image", beforeAudit);
+                    return ResponseEntity.ok(toResponse(saved, tenantOwnerId));
+                })
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("message", "Consultant not found.")));
+    }
+
+    @DeleteMapping("/{id}/avatar")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public ResponseEntity<?> removeUserAvatar(@PathVariable Long id, @AuthenticationPrincipal User me) {
+        Long companyId = me.getCompany().getId();
+        Long tenantOwnerId = tenantOwnerAccessService.tenantOwnerId(companyId);
+        return userRepository.findByIdAndCompanyId(id, companyId)
+                .<ResponseEntity<?>>map(existing -> {
+                    var beforeAudit = employeeSnapshot(existing);
+                    String previousKey = existing.getAvatarS3Key();
+                    existing.setAvatarS3Key(null);
+                    existing.setAvatarContentType(null);
+                    existing.setUpdatedAt(Instant.now());
+                    User saved = userRepository.save(existing);
+                    if (previousKey != null && !previousKey.isBlank()) {
+                        fileStorage.deleteQuietly(previousKey);
+                    }
+                    recordEmployee(me, ActivityAction.EMPLOYEE_UPDATED, saved, "Removed employee image", beforeAudit);
+                    return ResponseEntity.ok(toResponse(saved, tenantOwnerId));
+                })
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("message", "Consultant not found.")));
+    }
+
     @GetMapping("/{id}/avatar")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<byte[]> downloadUserAvatar(@PathVariable Long id, @AuthenticationPrincipal User me) {
@@ -585,6 +639,7 @@ public class UserController {
                 "consultant", response.consultant(),
                 "active", response.active(),
                 "accessRole", response.accessRoleName(),
+                "avatarPath", response.avatarPath(),
                 "availableAllLocations", response.availableAllLocations(),
                 "locationIds", response.locationIds(),
                 "workingHours", response.workingHours(),

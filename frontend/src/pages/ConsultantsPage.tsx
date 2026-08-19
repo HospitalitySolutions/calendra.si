@@ -5,7 +5,7 @@ import '../styles/features.booking.css'
 import '../styles/features/employee-roles.css'
 import '../styles/features/modern-clients.css'
 import { DesktopSelect } from '../components/DesktopSelect'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import '../styles/features/employees-popup.css'
@@ -175,6 +175,24 @@ function EmployeeFormIcon({ name }: { name: 'person' | 'clock' | 'calendar' | 'e
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M2.75 12s3.25-6 9.25-6 9.25 6 9.25 6-3.25 6-9.25 6-9.25-6-9.25-6Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  )
+}
+
+function EmployeeAvatarActionIcon({ name }: { name: 'upload' | 'replace' }) {
+  if (name === 'replace') {
+    return (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M20 7v5h-5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M18.4 15.6A7.5 7.5 0 1 1 19.7 9" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 15V4m0 0-4 4m4-4 4 4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
     </svg>
   )
 }
@@ -506,6 +524,8 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const mobileKeyboardOpen = useMobileKeyboardOpen(1024)
   const [formSectionTab, setFormSectionTab] = useState<ConsultantFormSectionTab>('basic')
   const [passwordResetSending, setPasswordResetSending] = useState(false)
+  const [employeeAvatarBusy, setEmployeeAvatarBusy] = useState(false)
+  const employeeAvatarInputRef = useRef<HTMLInputElement | null>(null)
   const formBaselineRef = useRef<ConsultantForm | null>(null)
   const [loadingSelfProfile, setLoadingSelfProfile] = useState(false)
   const [activatingEmployeeId, setActivatingEmployeeId] = useState<number | null>(null)
@@ -762,6 +782,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     setSuccessMessage('')
     setFormSectionTab('basic')
     setPasswordResetSending(false)
+    setEmployeeAvatarBusy(false)
   }
 
   const startCreate = () => {
@@ -814,6 +835,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     setSuccessMessage('')
     setFormSectionTab('basic')
     setPasswordResetSending(false)
+    setEmployeeAvatarBusy(false)
   }
 
   const startEdit = (c: Consultant) => {
@@ -925,6 +947,87 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
       )
     } finally {
       setPasswordResetSending(false)
+    }
+  }
+
+  const editingAvatarSrc = String(editing?.avatarPath || '').trim()
+  const employeeAvatarInitials = `${(form.firstName?.[0] || '').toUpperCase()}${(form.lastName?.[0] || '').toUpperCase()}` || '?'
+
+  const openEmployeeAvatarPicker = () => {
+    if (!editing || employeeAvatarBusy) return
+    employeeAvatarInputRef.current?.click()
+  }
+
+  const syncOwnSessionUser = async (updatedEmployeeId: number) => {
+    if (myUserId == null || updatedEmployeeId !== myUserId) return
+    try {
+      const authRes = await api.get<{ user: unknown }>('/auth/me')
+      if (authRes.data?.user) sessionStorage.setItem('user', JSON.stringify(authRes.data.user))
+    } catch {
+      // The employee/calendar avatar is already updated; the account avatar will refresh on the next auth refresh.
+    }
+  }
+
+  const applyEmployeeAvatarResponse = async (updated: Consultant, successText: string) => {
+    setEditing(updated)
+    setConsultants((rows) => rows.map((row) => row.id === updated.id ? { ...row, ...updated } : row))
+    await queryClient.invalidateQueries({ queryKey: queryKeys.users.all, refetchType: 'none' })
+    await syncOwnSessionUser(updated.id)
+    setSuccessMessage(successText)
+    window.dispatchEvent(new Event('users-updated'))
+  }
+
+  const onEmployeeAvatarPicked = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !editing || employeeAvatarBusy) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMessage(locale === 'sl' ? 'Slika je lahko velika največ 5 MB.' : 'Avatar image must be 5 MB or smaller.')
+      return
+    }
+    if (!(file.type || '').toLowerCase().startsWith('image/')) {
+      setErrorMessage(locale === 'sl' ? 'Dovoljene so samo slikovne datoteke.' : 'Only image files are allowed.')
+      return
+    }
+
+    setEmployeeAvatarBusy(true)
+    setErrorMessage('')
+    setSuccessMessage('')
+    try {
+      const payload = new FormData()
+      payload.append('file', file)
+      const { data } = await api.post<Consultant>(`/users/${editing.id}/avatar`, payload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      await applyEmployeeAvatarResponse(
+        data,
+        locale === 'sl' ? 'Slika zaposlenega je posodobljena.' : 'Employee image updated.',
+      )
+    } catch (error: any) {
+      const backendMessage = error?.response?.data?.message || error?.response?.data?.detail
+      setErrorMessage(backendMessage || (locale === 'sl' ? 'Nalaganje slike ni uspelo.' : 'Failed to upload employee image.'))
+    } finally {
+      setEmployeeAvatarBusy(false)
+    }
+  }
+
+  const removeEmployeeAvatar = async () => {
+    if (!editing || !editingAvatarSrc || employeeAvatarBusy) return
+    setEmployeeAvatarBusy(true)
+    setErrorMessage('')
+    setSuccessMessage('')
+    try {
+      const { data } = await api.delete<Consultant>(`/users/${editing.id}/avatar`)
+      await applyEmployeeAvatarResponse(
+        data,
+        locale === 'sl' ? 'Slika zaposlenega je odstranjena.' : 'Employee image removed.',
+      )
+    } catch (error: any) {
+      const backendMessage = error?.response?.data?.message || error?.response?.data?.detail
+      setErrorMessage(backendMessage || (locale === 'sl' ? 'Slike ni bilo mogoče odstraniti.' : 'Failed to remove employee image.'))
+    } finally {
+      setEmployeeAvatarBusy(false)
     }
   }
 
@@ -1595,6 +1698,64 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                 {errorMessage && <div className="error employees-form-alert">{errorMessage}</div>}
                 {(selfService || formSectionTab === 'basic') && (
                   <div className="employee-standard-basic" role="tabpanel">
+                    {editing && !selfService && canEditEmployees && (
+                      <section className="employee-avatar-section" aria-label={locale === 'sl' ? 'Slika zaposlenega' : 'Employee image'}>
+                        <div className="employee-avatar-section-title">
+                          <EmployeeFormIcon name="person" />
+                          <strong>{locale === 'sl' ? 'Slika zaposlenega' : 'Employee image'}</strong>
+                        </div>
+                        <div className="employee-avatar-row">
+                          <div className={`employee-avatar-preview${editingAvatarSrc ? ' employee-avatar-preview--image' : ''}`}>
+                            {editingAvatarSrc ? (
+                              <img src={editingAvatarSrc} alt="" />
+                            ) : (
+                              <span>{employeeAvatarInitials}</span>
+                            )}
+                          </div>
+                          <input
+                            ref={employeeAvatarInputRef}
+                            className="employee-avatar-file-input"
+                            type="file"
+                            accept="image/*"
+                            onChange={(event) => void onEmployeeAvatarPicked(event)}
+                            tabIndex={-1}
+                            aria-hidden="true"
+                          />
+                          {!editingAvatarSrc ? (
+                            <button
+                              type="button"
+                              className="employee-avatar-upload-button"
+                              onClick={openEmployeeAvatarPicker}
+                              disabled={employeeAvatarBusy}
+                            >
+                              <EmployeeAvatarActionIcon name="upload" />
+                              <span>{locale === 'sl' ? 'Naloži sliko' : 'Upload image'}</span>
+                            </button>
+                          ) : (
+                            <div className="employee-avatar-existing-actions">
+                              <button
+                                type="button"
+                                className="employee-avatar-action employee-avatar-action--replace"
+                                onClick={openEmployeeAvatarPicker}
+                                disabled={employeeAvatarBusy}
+                              >
+                                <EmployeeAvatarActionIcon name="replace" />
+                                <span>{locale === 'sl' ? 'Zamenjaj' : 'Replace'}</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="employee-avatar-action employee-avatar-action--remove"
+                                onClick={() => void removeEmployeeAvatar()}
+                                disabled={employeeAvatarBusy}
+                              >
+                                <EmployeeFormIcon name="trash" />
+                                <span>{locale === 'sl' ? 'Odstrani' : 'Remove'}</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </section>
+                    )}
                     <div className="employee-standard-fields-grid">
                       <EmployeeFormField icon="person" label={t('signupFirstName')} required>
                         <input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} placeholder={locale === 'sl' ? 'Vnesite ime' : 'Enter first name'} />
