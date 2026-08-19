@@ -35,6 +35,8 @@ export type PanelHeaderProps = {
   subtitle?: ReactNode
   onClose: () => void
   closeLabel: string
+  /** Hide the default close button when the right-side action is repurposed. */
+  closeVisible?: boolean
   /** Optional leading control, normally a mobile back button for detail panels. */
   leading?: ReactNode
   /** Rendered left of the overflow menu and close button. */
@@ -43,7 +45,7 @@ export type PanelHeaderProps = {
 }
 
 /** Standard panel header: title left, secondary actions then close on the right. */
-export function PanelHeader({ title, subtitle, onClose, closeLabel, leading, actions, overflow }: PanelHeaderProps) {
+export function PanelHeader({ title, subtitle, onClose, closeLabel, closeVisible = true, leading, actions, overflow }: PanelHeaderProps) {
   return (
     <div className="cp-panel-header">
       {leading ? <div className="cp-panel-header__leading">{leading}</div> : null}
@@ -54,9 +56,11 @@ export function PanelHeader({ title, subtitle, onClose, closeLabel, leading, act
       <div className="cp-panel-header__actions">
         {actions}
         {overflow}
-        <button type="button" className="cp-icon-btn" onClick={onClose} aria-label={closeLabel} title={closeLabel}>
-          <CloseIcon />
-        </button>
+        {closeVisible ? (
+          <button type="button" className="cp-icon-btn" onClick={onClose} aria-label={closeLabel} title={closeLabel}>
+            <CloseIcon />
+          </button>
+        ) : null}
       </div>
     </div>
   )

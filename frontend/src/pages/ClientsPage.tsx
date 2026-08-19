@@ -1394,6 +1394,20 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }, [closeDrawerRoute, drawerMatch, embeddedDetailMode, navigate])
   const isClientCreatePage = useMediaMaxWidth(1024)
   const isClientsDesktop = !useMediaMaxWidth(1100)
+  const renderMobileHeaderConfirmAction = (onClick: () => void, disabled: boolean, label: string) => (
+    <button
+      type="button"
+      className="cp-icon-btn clients-mobile-header-confirm"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M20 6 9 17l-5-5" />
+      </svg>
+    </button>
+  )
   const clientsCopy = locale === 'sl' ? {
     details: 'Podrobnosti',
     editClientTitle: 'Uredi stranko',
@@ -5168,6 +5182,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           subtitle={detailClient ? `${fullName(detailClient)} · ID #${detailClient.id}` : undefined}
           onClose={closeDetailModal}
           closeLabel={t('mobileNavClose')}
+          closeVisible={!isClientsMobile}
           leading={(
             <button
               type="button"
@@ -5181,6 +5196,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
               </svg>
             </button>
           )}
+          actions={isClientsMobile
+            ? renderMobileHeaderConfirmAction(
+                () => { void saveDetailClientInline() },
+                !detailClient || savingDetailEdit || !clientDetailHasChanges,
+                clientsCopy.saveChanges,
+              )
+            : undefined}
         />
         <PanelTabs
           label={clientsCopy.clientDetailMainTabsAria}
@@ -5719,34 +5741,36 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
               </div>
           ) : null}
         </PanelBody>
-        <PanelFooter>
-          {detailClient ? (
+        {!isClientsMobile ? (
+          <PanelFooter>
+            {detailClient ? (
+              <PanelButton
+                variant="danger"
+                icon={(
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M3 6h18" />
+                    <path d="M8 6V4h8v2" />
+                    <path d="M19 6l-1 14H6L5 6" />
+                    <path d="M10 11v5" />
+                    <path d="M14 11v5" />
+                  </svg>
+                )}
+                onClick={() => void deleteClientById(detailClient.id)}
+                disabled={deletingClientId === detailClient.id || detailClient.removalBlocked}
+              >
+                {locale === 'sl' ? 'Izbriši stranko' : 'Delete client'}
+              </PanelButton>
+            ) : null}
             <PanelButton
-              variant="danger"
-              icon={(
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M3 6h18" />
-                  <path d="M8 6V4h8v2" />
-                  <path d="M19 6l-1 14H6L5 6" />
-                  <path d="M10 11v5" />
-                  <path d="M14 11v5" />
-                </svg>
-              )}
-              onClick={() => void deleteClientById(detailClient.id)}
-              disabled={deletingClientId === detailClient.id || detailClient.removalBlocked}
+              variant="primary"
+              icon={<GuestConfigSaveIcon />}
+              onClick={() => void saveDetailClientInline()}
+              disabled={!detailClient || savingDetailEdit || !clientDetailHasChanges}
             >
-              {locale === 'sl' ? 'Izbriši stranko' : 'Delete client'}
+              {savingDetailEdit ? clientsCopy.savingChanges : clientsCopy.saveChanges}
             </PanelButton>
-          ) : null}
-          <PanelButton
-            variant="primary"
-            icon={<GuestConfigSaveIcon />}
-            onClick={() => void saveDetailClientInline()}
-            disabled={!detailClient || savingDetailEdit || !clientDetailHasChanges}
-          >
-            {savingDetailEdit ? clientsCopy.savingChanges : clientsCopy.saveChanges}
-          </PanelButton>
-        </PanelFooter>
+          </PanelFooter>
+        ) : null}
       </SidePanel>
 
       <SidePanel
@@ -5977,6 +6001,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           subtitle={detailCompany ? `${detailCompany.name} · ID #${detailCompany.id}` : undefined}
           onClose={closeCompanyDetailModal}
           closeLabel={t('mobileNavClose')}
+          closeVisible={!isClientsMobile}
           leading={isClientsMobile ? (
             <button
               type="button"
@@ -5990,6 +6015,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
               </svg>
             </button>
           ) : undefined}
+          actions={isClientsMobile
+            ? renderMobileHeaderConfirmAction(
+                () => { void saveDetailCompanyInline() },
+                !detailCompany || savingCompanyDetailEdit || !companyDetailHasChanges,
+                clientsCopy.saveChanges,
+              )
+            : undefined}
         />
         <PanelTabs
           label={clientsCopy.companyDetailMainTabsAria}
@@ -6334,26 +6366,28 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
               </div>
           ) : null}
         </PanelBody>
-        <PanelFooter>
-          {detailCompany ? (
+        {!isClientsMobile ? (
+          <PanelFooter>
+            {detailCompany ? (
+              <PanelButton
+                variant="danger"
+                icon={<MobileDeleteActionIcon />}
+                onClick={() => void deleteCompanyById(detailCompany.id)}
+                disabled={deletingCompanyId === detailCompany.id}
+              >
+                {locale === 'sl' ? 'Izbriši podjetje' : 'Delete company'}
+              </PanelButton>
+            ) : null}
             <PanelButton
-              variant="danger"
-              icon={<MobileDeleteActionIcon />}
-              onClick={() => void deleteCompanyById(detailCompany.id)}
-              disabled={deletingCompanyId === detailCompany.id}
+              variant="primary"
+              icon={<GuestConfigSaveIcon />}
+              onClick={() => void saveDetailCompanyInline()}
+              disabled={!detailCompany || savingCompanyDetailEdit || !companyDetailHasChanges}
             >
-              {locale === 'sl' ? 'Izbriši podjetje' : 'Delete company'}
+              {savingCompanyDetailEdit ? clientsCopy.savingChanges : clientsCopy.saveChanges}
             </PanelButton>
-          ) : null}
-          <PanelButton
-            variant="primary"
-            icon={<GuestConfigSaveIcon />}
-            onClick={() => void saveDetailCompanyInline()}
-            disabled={!detailCompany || savingCompanyDetailEdit || !companyDetailHasChanges}
-          >
-            {savingCompanyDetailEdit ? clientsCopy.savingChanges : clientsCopy.saveChanges}
-          </PanelButton>
-        </PanelFooter>
+          </PanelFooter>
+        ) : null}
       </SidePanel>
 
       <SidePanel
@@ -6369,6 +6403,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
               title={clientsCopy.newClientTitle}
               onClose={closeModal}
               closeLabel={t('mobileNavClose')}
+              closeVisible={false}
               leading={(
                 <button
                   type="button"
@@ -6381,6 +6416,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                     <path d="m15 18-6-6 6-6" />
                   </svg>
                 </button>
+              )}
+              actions={renderMobileHeaderConfirmAction(
+                () => {
+                  const formElement = document.getElementById('clients-new-client-form') as HTMLFormElement | null
+                  formElement?.requestSubmit()
+                },
+                saving || !form.firstName.trim() || !form.lastName.trim(),
+                clientsCopy.createClient,
               )}
             />
             <PanelBody as="form" id="clients-new-client-form" onSubmit={handleSubmit}>
@@ -6435,17 +6478,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 {errorMessage && <div className="error">{errorMessage}</div>}
               </div>
             </PanelBody>
-            <PanelFooter>
-              <PanelButton
-                type="submit"
-                form="clients-new-client-form"
-                variant="primary"
-                icon={<GuestConfigSaveIcon />}
-                disabled={saving || !form.firstName.trim() || !form.lastName.trim()}
-              >
-                {saving ? clientsCopy.saving : clientsCopy.createClient}
-              </PanelButton>
-            </PanelFooter>
           </>
         ) : !useResponsiveDesktopCreatePanels ? (
           <SimpleClientCreatePage
@@ -6538,6 +6570,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   title={clientsCopy.newCompanyTitle}
                   onClose={closeCompanyModal}
                   closeLabel={t('mobileNavClose')}
+                  closeVisible={false}
                   leading={(
                     <button
                       type="button"
@@ -6550,6 +6583,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         <path d="m15 18-6-6 6-6" />
                       </svg>
                     </button>
+                  )}
+                  actions={renderMobileHeaderConfirmAction(
+                    () => {
+                      const formElement = document.getElementById('clients-new-company-form') as HTMLFormElement | null
+                      formElement?.requestSubmit()
+                    },
+                    savingCompany || !companyForm.name.trim(),
+                    clientsCopy.createCompany,
                   )}
                 />
                 <PanelBody as="form" id="clients-new-company-form" onSubmit={submitCompanyForm}>
@@ -6630,17 +6671,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                     {companyErrorMessage && <div className="error">{companyErrorMessage}</div>}
                   </div>
                 </PanelBody>
-                <PanelFooter>
-                  <PanelButton
-                    type="submit"
-                    form="clients-new-company-form"
-                    variant="primary"
-                    icon={<GuestConfigSaveIcon />}
-                    disabled={savingCompany || !companyForm.name.trim()}
-                  >
-                    {savingCompany ? clientsCopy.saving : clientsCopy.createCompany}
-                  </PanelButton>
-                </PanelFooter>
               </>
             ) : (
               <>
@@ -6702,6 +6732,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           subtitle={detailGroup ? `${detailGroup.name} · ID #${detailGroup.id}` : undefined}
           onClose={closeGroupDetailModal}
           closeLabel={t('mobileNavClose')}
+          closeVisible={!isClientsMobile}
           leading={isClientsMobile ? (
             <button
               type="button"
@@ -6715,6 +6746,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
               </svg>
             </button>
           ) : undefined}
+          actions={isClientsMobile
+            ? renderMobileHeaderConfirmAction(
+                () => { void saveDetailGroupInline() },
+                !detailGroup || savingGroupDetailEdit || !groupDetailHasChanges,
+                clientsCopy.saveChanges,
+              )
+            : undefined}
         />
         <PanelTabs
           label={clientsCopy.groupDetailMainTabsAria}
@@ -7108,26 +7146,28 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
               </div>
           ) : null}
         </PanelBody>
-        <PanelFooter>
-          {detailGroup ? (
+        {!isClientsMobile ? (
+          <PanelFooter>
+            {detailGroup ? (
+              <PanelButton
+                variant="danger"
+                icon={<MobileDeleteActionIcon />}
+                onClick={() => void deleteGroupById(detailGroup.id)}
+                disabled={deletingGroupId === detailGroup.id}
+              >
+                {locale === 'sl' ? 'Izbriši skupino' : 'Delete group'}
+              </PanelButton>
+            ) : null}
             <PanelButton
-              variant="danger"
-              icon={<MobileDeleteActionIcon />}
-              onClick={() => void deleteGroupById(detailGroup.id)}
-              disabled={deletingGroupId === detailGroup.id}
+              variant="primary"
+              icon={<GuestConfigSaveIcon />}
+              onClick={() => void saveDetailGroupInline()}
+              disabled={!detailGroup || savingGroupDetailEdit || !groupDetailHasChanges}
             >
-              {locale === 'sl' ? 'Izbriši skupino' : 'Delete group'}
+              {savingGroupDetailEdit ? clientsCopy.savingChanges : clientsCopy.saveChanges}
             </PanelButton>
-          ) : null}
-          <PanelButton
-            variant="primary"
-            icon={<GuestConfigSaveIcon />}
-            onClick={() => void saveDetailGroupInline()}
-            disabled={!detailGroup || savingGroupDetailEdit || !groupDetailHasChanges}
-          >
-            {savingGroupDetailEdit ? clientsCopy.savingChanges : clientsCopy.saveChanges}
-          </PanelButton>
-        </PanelFooter>
+          </PanelFooter>
+        ) : null}
       </SidePanel>
 
       <SidePanel
@@ -7143,6 +7183,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   title={clientsCopy.newGroupTitle}
                   onClose={closeGroupModal}
                   closeLabel={t('mobileNavClose')}
+                  closeVisible={false}
                   leading={(
                     <button
                       type="button"
@@ -7155,6 +7196,14 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                         <path d="m15 18-6-6 6-6" />
                       </svg>
                     </button>
+                  )}
+                  actions={renderMobileHeaderConfirmAction(
+                    () => {
+                      const formElement = document.getElementById('clients-new-group-form') as HTMLFormElement | null
+                      formElement?.requestSubmit()
+                    },
+                    savingGroup || !groupForm.name.trim(),
+                    clientsCopy.createGroup,
                   )}
                 />
                 <PanelBody as="form" id="clients-new-group-form" onSubmit={(e) => { e.preventDefault(); void handleCreateGroup() }}>
@@ -7197,17 +7246,6 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                     {groupErrorMessage && <div className="error">{groupErrorMessage}</div>}
                   </div>
                 </PanelBody>
-                <PanelFooter>
-                  <PanelButton
-                    type="submit"
-                    form="clients-new-group-form"
-                    variant="primary"
-                    icon={<GuestConfigSaveIcon />}
-                    disabled={savingGroup || !groupForm.name.trim()}
-                  >
-                    {savingGroup ? clientsCopy.saving : clientsCopy.createGroup}
-                  </PanelButton>
-                </PanelFooter>
               </>
             ) : !useResponsiveDesktopCreatePanels ? (
               <form className="clients-create-modal-form clients-simple-create-form" autoComplete="off" onSubmit={(e) => { e.preventDefault(); handleCreateGroup() }}>
