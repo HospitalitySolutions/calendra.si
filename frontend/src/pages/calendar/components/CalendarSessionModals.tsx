@@ -4857,14 +4857,14 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
           onClose={closeBookingSelection}
           ariaLabel={renderBookingModeTitle()}
           closeOnScrimClick={false}
-          className={`cp-panel--calendar-form${activeNewFormPanel === 'booking' ? ' cp-panel--calendar-new-booking' : ''}${activeNewFormPanel === 'todo' ? ' cp-panel--calendar-standardized cp-panel--calendar-new-todo' : ''}${activeNewFormPanel === 'personal' ? ' cp-panel--calendar-standardized cp-panel--calendar-new-personal' : ''}${activeNewFormPanel === 'availability' ? ' cp-panel--calendar-standardized cp-panel--calendar-new-availability' : ''}`}
+          className={`cp-panel--calendar-form${activeNewFormPanel !== 'booking' ? ' cp-panel--calendar-mobile-create' : ''}${activeNewFormPanel === 'booking' ? ' cp-panel--calendar-new-booking' : ''}${activeNewFormPanel === 'todo' ? ' cp-panel--calendar-standardized cp-panel--calendar-new-todo' : ''}${activeNewFormPanel === 'personal' ? ' cp-panel--calendar-standardized cp-panel--calendar-new-personal' : ''}${activeNewFormPanel === 'availability' ? ' cp-panel--calendar-standardized cp-panel--calendar-new-availability' : ''}`}
         >
           <PanelHeader
             title={renderBookingModeTitle()}
             subtitle={newFormPanelSubtitle}
             onClose={closeBookingSelection}
             closeLabel={t('formBookSessionCloseAria')}
-            leading={activeNewFormPanel === 'booking' ? (
+            leading={(
               <button
                 type="button"
                 className="calendar-booking-mobile-back"
@@ -4876,7 +4876,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   <path d="m15 18-6-6 6-6" />
                 </svg>
               </button>
-            ) : undefined}
+            )}
           />
           {!isNativeAndroid && (
             <PanelTabs
@@ -4944,7 +4944,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   collapsible={false}
                 >
                   {locationFilterId == null && metaLocations.filter((item: any) => item?.active !== false).length > 1 && (
-                    <div className="form-row form-row-infield">
+                    <div className="form-row form-row-infield calendar-new-create-availability-location">
                       <span className="form-field-inline-label">{locale === 'sl' ? 'Lokacija' : 'Location'}</span>
                       <div className="form-field-inline-control">
                         <DesktopSelect
@@ -4973,7 +4973,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     </div>
                   )}
                   {showBookingConsultantRow && (
-                    <div className="form-row form-row-infield">
+                    <div className="form-row form-row-infield calendar-new-create-availability-consultant">
                       <span className="form-field-inline-label">{t('formConsultant')}</span>
                       <div className="form-field-inline-control">
                       <DesktopSelect
@@ -4992,27 +4992,17 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       </div>
                     </div>
                   )}
-                  <div className="form-row form-row-infield form-row--bare">
+                  <div className="form-row form-row-infield form-row--bare calendar-new-create-availability-action">
                     <span className="form-field-inline-label">{t('formAvailabilityAction')}</span>
                     <div className="form-field-inline-control">
-                      <div className="online-live-switch-row online-live-switch-row--inline online-live-switch-row--binary" role="group" aria-label={`${t('formAvailabilityOpenShort')} / ${t('formBlockAvailabilityShort')}`}>
-                        <button
-                          type="button"
-                          className={`online-live-switch-choice${availabilityIntent === 'add' ? ' online-live-switch-choice--active' : ''}`}
-                          aria-pressed={availabilityIntent === 'add'}
-                          onClick={() => setAvailabilityIntent('add')}
-                        >
-                          {t('formAvailabilityOpenShort')}
-                        </button>
-                        <button
-                          type="button"
-                          className={`online-live-switch-choice online-live-switch-choice--block${availabilityIntent === 'block' ? ' online-live-switch-choice--active' : ''}`}
-                          aria-pressed={availabilityIntent === 'block'}
-                          onClick={() => setAvailabilityIntent('block')}
-                        >
-                          {t('formBlockAvailabilityShort')}
-                        </button>
-                      </div>
+                      <DesktopSelect
+                        aria-label={t('formAvailabilityAction')}
+                        value={availabilityIntent}
+                        onChange={(e) => setAvailabilityIntent(e.target.value === 'block' ? 'block' : 'add')}
+                      >
+                        <option value="add">{t('formAvailabilityOpenShort')}</option>
+                        <option value="block">{t('formBlockAvailabilityShort')}</option>
+                      </DesktopSelect>
                     </div>
                   </div>
                 </PanelSection>
@@ -5097,27 +5087,17 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                       }}
                     />
                   </div>
-                  <div className="form-row form-row-infield form-row--bare">
+                  <div className="form-row form-row-infield form-row--bare calendar-new-create-availability-repeat">
                     <span className="form-field-inline-label">{t('calendarRepeat')}</span>
                     <div className="form-field-inline-control">
-                      <div className="online-live-switch-row online-live-switch-row--inline online-live-switch-row--binary" role="group" aria-label={`${t('formLimited')} / ${t('formIndefinite')}`}>
-                        <button
-                          type="button"
-                          className={`online-live-switch-choice${!availabilitySelection.indefinite ? ' online-live-switch-choice--active' : ''}`}
-                          aria-pressed={!availabilitySelection.indefinite}
-                          onClick={() => setAvailabilitySelection({ ...availabilitySelection, indefinite: false })}
-                        >
-                          {t('formLimited')}
-                        </button>
-                        <button
-                          type="button"
-                          className={`online-live-switch-choice${availabilitySelection.indefinite ? ' online-live-switch-choice--active' : ''}`}
-                          aria-pressed={!!availabilitySelection.indefinite}
-                          onClick={() => setAvailabilitySelection({ ...availabilitySelection, indefinite: true })}
-                        >
-                          {t('formIndefinite')}
-                        </button>
-                      </div>
+                      <DesktopSelect
+                        aria-label={t('calendarRepeat')}
+                        value={availabilitySelection.indefinite ? 'indefinite' : 'limited'}
+                        onChange={(e) => setAvailabilitySelection({ ...availabilitySelection, indefinite: e.target.value === 'indefinite' })}
+                      >
+                        <option value="limited">{t('formLimited')}</option>
+                        <option value="indefinite">{t('formIndefinite')}</option>
+                      </DesktopSelect>
                     </div>
                   </div>
                   {!availabilitySelection.indefinite && !isLocalBookingAllDay(availabilitySelection.startTime, availabilitySelection.endTime) && (
@@ -5164,7 +5144,12 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   <div className="form-row form-row-infield calendar-new-create-primary-field calendar-new-create-todo-field">
                     <span className="form-field-inline-label">{t('formTaskNamePlaceholder')}</span>
                     <div className="form-field-inline-control">
-                    <input aria-label={t('formTaskNamePlaceholder')} value={form.task || ''} onChange={(e) => setForm({ ...form, task: e.target.value })} />
+                    <input
+                      aria-label={t('formTaskNamePlaceholder')}
+                      placeholder={locale === 'sl' ? 'Vnesi opravilo' : locale === 'sr' ? 'Unesite zadatak' : 'Enter task'}
+                      value={form.task || ''}
+                      onChange={(e) => setForm({ ...form, task: e.target.value })}
+                    />
                     </div>
                   </div>
                 </PanelSection>
@@ -5219,7 +5204,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   collapsible={isCalendarCreateMobile}
                   summary={newFormNotesSummary}
                 >
-                  <div className="form-row form-row-infield stretch">
+                  <div className="form-row form-row-infield stretch calendar-new-create-notes-field">
                     <div className="form-field-inline-control">
                     <SessionNotesTextarea value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                     </div>
@@ -5267,13 +5252,28 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     <PersonalTaskCombo
                       value={form.task || ''}
                       onChange={(task) => setForm({ ...form, task })}
-                      placeholder={t('formTaskCalendarNamePlaceholder')}
+                      placeholder={locale === 'sl' ? 'Vnesi osebno' : locale === 'sr' ? 'Unesite lično vreme' : 'Enter personal time'}
                       presets={personalTaskPresets}
                       dropdownOpen={personalTaskPresetDropdownOpen}
                       onDropdownOpenChange={setPersonalTaskPresetDropdownOpen}
                       selectPredefinedLabel={t('formSelectPredefinedTask')}
                       noMatchLabel={t('formNoTaskPresetsMatch')}
                     />
+                    </div>
+                  </div>
+                  <div className="form-row form-row-infield calendar-new-create-personal-visibility">
+                    <div className="form-field-inline-control">
+                      <div className="calendar-mobile-inline-toggle" role="group" aria-label={t('formVisibleToAdmins')}>
+                        <span className="calendar-mobile-inline-toggle__label">{t('formVisibleToAdmins')}</span>
+                        <label className="repeats-toggle-switch online-live-repeats-switch calendar-mobile-inline-toggle__switch" title={t('formVisibleToAdmins')}>
+                          <input
+                            type="checkbox"
+                            checked={!!form.visibleToAdmins}
+                            onChange={(e) => setForm({ ...form, visibleToAdmins: e.target.checked })}
+                          />
+                          <span className="repeats-toggle-slider" />
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </PanelSection>
@@ -5341,7 +5341,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   collapsible={isCalendarCreateMobile}
                   summary={newFormNotesSummary}
                 >
-                  <div className="form-row form-row-infield stretch">
+                  <div className="form-row form-row-infield stretch calendar-new-create-notes-field">
                     <div className="form-field-inline-control">
                     <SessionNotesTextarea value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                     </div>
