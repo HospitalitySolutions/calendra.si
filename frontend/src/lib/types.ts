@@ -559,6 +559,8 @@ export type Bill = {
 export type CompanyBillSummary = {
   id: number
   billNumber: string
+  billType?: 'INVOICE' | 'ADVANCE' | string | null
+  refundOfBillId?: number | null
   orderId?: string | null
   orderCounter?: number | null
   issueDate: string

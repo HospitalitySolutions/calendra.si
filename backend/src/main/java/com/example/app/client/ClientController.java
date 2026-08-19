@@ -187,6 +187,8 @@ public class ClientController {
     public record ClientBillSummary(
             Long id,
             String billNumber,
+            String billType,
+            Long refundOfBillId,
             LocalDate issueDate,
             BigDecimal totalNet,
             BigDecimal totalGross,
@@ -683,6 +685,8 @@ public class ClientController {
                 .map(b -> new ClientBillSummary(
                         b.getId(),
                         b.getBillNumber(),
+                        b.getBillType() == null ? null : b.getBillType().name(),
+                        b.getRefundOfBillId(),
                         b.getIssueDate(),
                         b.getTotalNet(),
                         b.getTotalGross(),

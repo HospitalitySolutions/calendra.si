@@ -29,7 +29,7 @@ import { queryKeys } from '../queries/queryKeys'
 import { clientMutationErrorMessage, skipConflictToastHeaders } from '../lib/clientErrors'
 import { useToast } from '../components/Toast'
 import { ConfirmDialog, PanelBody, PanelButton, PanelFooter, PanelHeader, PanelTabs, SidePanel, useConfirm } from '../components/panel'
-import { CLIENTS_DRAWERS, buildDrawerUrl, useDrawerRoute } from '../lib/drawerRoutes'
+import { BILLING_DRAWERS, CLIENTS_DRAWERS, buildDrawerUrl, useDrawerRoute } from '../lib/drawerRoutes'
 import { GuestConfigSaveIcon } from '../components/GuestConfigSaveIcon'
 
 type UserSummary = Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>
@@ -4529,6 +4529,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     window.URL.revokeObjectURL(url)
   }
 
+  const openClientCreateBill = () => {
+    if (!detailClient) return
+    navigate(buildDrawerUrl(BILLING_DRAWERS.newBill, {
+      search: new URLSearchParams({ clientId: String(detailClient.id) }),
+    }))
+  }
+
   const portalClientMenuTarget =
     openClientMenuId != null ? clients.find((r) => r.id === openClientMenuId) ?? null : null
   const portalCompanyMenuTarget =
@@ -5460,7 +5467,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               <span className="clients-company-invoices-count">
                                 <ClientWorkspaceIcon name="files" /> {clientBills.length} {locale === 'sl' ? 'računi' : 'invoices'}
                               </span>
-                              <button type="button" className="clients-file-upload-button" onClick={() => navigate('/billing')}>
+                              <button type="button" className="clients-file-upload-button" onClick={openClientCreateBill}>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                                   <path d="M12 5v14" />
                                   <path d="M5 12h14" />
@@ -5482,31 +5489,47 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                                   <span />
                                 </div>
                                 {clientBills.map((bill) => {
-                                  const statusTone = bill.fiscalStatus === 'FAILED'
-                                    ? 'danger'
-                                    : bill.paymentStatus === 'paid'
-                                      ? 'success'
-                                      : bill.paymentStatus === 'payment_pending'
-                                        ? 'warning'
-                                        : bill.paymentStatus === 'cancelled'
-                                          ? 'muted'
-                                          : 'info'
-                                  const statusLabel = bill.fiscalStatus === 'FAILED'
-                                    ? 'FAILED'
-                                    : bill.paymentStatus === 'paid'
-                                      ? (locale === 'sl' ? 'Plačano' : 'Paid')
-                                      : bill.paymentStatus === 'payment_pending'
-                                        ? (locale === 'sl' ? 'V teku' : 'Pending')
-                                        : bill.paymentStatus === 'cancelled'
-                                          ? (locale === 'sl' ? 'Preklicano' : 'Cancelled')
-                                          : (locale === 'sl' ? 'Odprto' : 'Open')
+                                  const statusTone = bill.paymentStatus === 'paid'
+                                    ? 'success'
+                                    : bill.paymentStatus === 'payment_pending'
+                                      ? 'warning'
+                                      : bill.paymentStatus === 'cancelled'
+                                        ? 'muted'
+                                        : 'info'
+                                  const statusLabel = bill.paymentStatus === 'paid'
+                                    ? (locale === 'sl' ? 'Plačano' : 'Paid')
+                                    : bill.paymentStatus === 'payment_pending'
+                                      ? (locale === 'sl' ? 'Delno plačano' : 'Partially paid')
+                                      : bill.paymentStatus === 'cancelled'
+                                        ? (locale === 'sl' ? 'Arhivirano' : 'Archived')
+                                        : (locale === 'sl' ? 'Neplačano' : 'Unpaid')
+                                  const billTypeLabel = bill.refundOfBillId != null
+                                    ? (locale === 'sl' ? 'Dobropis' : 'Credit note')
+                                    : String(bill.billType || 'INVOICE').toUpperCase() === 'ADVANCE'
+                                      ? (locale === 'sl' ? 'Predplačilo' : 'Advance')
+                                      : (locale === 'sl' ? 'Račun' : 'Invoice')
                                   return (
                                     <div key={bill.id} className="clients-company-invoice-row" role="row">
-                                      <strong>{bill.billNumber}</strong>
+                                      <strong><span className="clients-invoice-type-mobile">{billTypeLabel} </span>{bill.billNumber}</strong>
                                       <span>{formatDate(bill.issueDate)}</span>
                                       <span>{currency(bill.totalGross)}</span>
                                       <span className={`clients-company-invoice-status clients-company-invoice-status--${statusTone}`}>{statusLabel}</span>
-                                      <button type="button" onClick={() => downloadBillPdf(bill.id, bill.billNumber)} aria-label={`${locale === 'sl' ? 'Odpri račun' : 'Open invoice'} ${bill.billNumber}`}>⋯</button>
+                                      <button
+                                        type="button"
+                                        className="clients-company-invoice-download"
+                                        onClick={() => downloadBillPdf(bill.id, bill.billNumber)}
+                                        aria-label={`${locale === 'sl' ? 'Prenesi PDF računa' : 'Download invoice PDF'} ${bill.billNumber}`}
+                                        title={locale === 'sl' ? 'Prenesi PDF' : 'Download PDF'}
+                                      >
+                                        <span className="clients-company-invoice-download__icon" aria-hidden>
+                                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M14 3H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V9z" />
+                                            <path d="M14 3v6h6" />
+                                            <path d="M12 11v5" />
+                                            <path d="m9.5 13.5 2.5 2.5 2.5-2.5" />
+                                          </svg>
+                                        </span>
+                                      </button>
                                     </div>
                                   )
                                 })}
@@ -6277,7 +6300,22 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                                       <span>{formatDate(bill.issueDate)}</span>
                                       <span>{currency(bill.totalGross)}</span>
                                       <span className={`clients-company-invoice-status clients-company-invoice-status--${statusTone}`}>{statusLabel}</span>
-                                      <button type="button" onClick={() => downloadBillPdf(bill.id, bill.billNumber)} aria-label={`${locale === 'sl' ? 'Odpri račun' : 'Open invoice'} ${bill.billNumber}`}>⋯</button>
+                                      <button
+                                        type="button"
+                                        className="clients-company-invoice-download"
+                                        onClick={() => downloadBillPdf(bill.id, bill.billNumber)}
+                                        aria-label={`${locale === 'sl' ? 'Prenesi PDF računa' : 'Download invoice PDF'} ${bill.billNumber}`}
+                                        title={locale === 'sl' ? 'Prenesi PDF' : 'Download PDF'}
+                                      >
+                                        <span className="clients-company-invoice-download__icon" aria-hidden>
+                                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M14 3H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V9z" />
+                                            <path d="M14 3v6h6" />
+                                            <path d="M12 11v5" />
+                                            <path d="m9.5 13.5 2.5 2.5 2.5-2.5" />
+                                          </svg>
+                                        </span>
+                                      </button>
                                     </div>
                                   )
                                 })}

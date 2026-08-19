@@ -1319,6 +1319,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const workspaceBillsPanelOpen = embeddedMode ? showWorkspaceBills : workspaceBillsDrawerOpen
   const [workspaceBillsLoading, setWorkspaceBillsLoading] = useState(false)
   const [billForm, setBillForm] = useState<BillForm>({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', wholeBillDiscountPercent: '0', itemDiscounts: {} })
+  const seededCreateBillClientRef = useRef('')
   const [showCreateBillModal, setShowCreateBillModal] = useState(false)
   const createBillPanelOpen = embeddedCreateMode ? showCreateBillModal : newBillDrawerOpen
   const [editingCreateBillPayee, setEditingCreateBillPayee] = useState(false)
@@ -4381,6 +4382,60 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     if (embeddedMode) setShowCreateBillModal(true)
     else openDrawer(BILLING_DRAWERS.newBill, { search: pageSearch })
   }
+
+  useEffect(() => {
+    if (embeddedMode || !newBillDrawerOpen) {
+      seededCreateBillClientRef.current = ''
+      return
+    }
+
+    const params = new URLSearchParams(location.search)
+    const seededClientId = Number(params.get('clientId') ?? 0)
+    if (!Number.isInteger(seededClientId) || seededClientId <= 0) return
+
+    const seedKey = `${activeUnitId ?? 'none'}:${selectedLocationId ?? 'all'}:${seededClientId}`
+    if (seededCreateBillClientRef.current === seedKey) return
+    seededCreateBillClientRef.current = seedKey
+
+    if (!canIssueOpenInvoice) {
+      showToast('error', locale === 'sl' ? 'Nimate dovoljenja za izdajo odprtih računov.' : 'You do not have permission to issue open invoices.')
+      closeDrawer()
+      return
+    }
+
+    let cancelled = false
+    void loadBillingEditorDependencies(false)
+      .then((dependencies) => {
+        if (cancelled) return
+        const stripeEnabled = dependencies.settings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== 'false'
+        const advanceEnabled = dependencies.settings.BILLING_ADVANCE_ENABLED !== 'false'
+        const availablePaymentMethods = dependencies.paymentMethods
+          .filter((method) => stripeEnabled || !isStripePaymentMethod(method))
+          .filter((method) => advanceEnabled || !isDepositPaymentMethod(method))
+        const defaultPaymentMethodId = availablePaymentMethods.find((method) => !isDepositPaymentMethod(method))?.id ?? availablePaymentMethods[0]?.id
+
+        setBillForm({
+          items: [],
+          paymentMethodId: defaultPaymentMethodId,
+          billingTarget: 'PERSON',
+          billType: 'INVOICE',
+          clientId: seededClientId,
+          consultantId: me.id,
+          discountType: 'PERCENT',
+          discountValue: '0',
+          wholeBillDiscountPercent: '0',
+          itemDiscounts: {},
+        })
+        setEditingCreateBillPayee(false)
+      })
+      .catch(() => {
+        if (!cancelled) seededCreateBillClientRef.current = ''
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeUnitId, canIssueOpenInvoice, closeDrawer, embeddedMode, locale, location.search, me.id, newBillDrawerOpen, selectedLocationId, showToast])
 
   const openCreateAdvanceBillModal = async () => {
     if (!advanceBillingEnabled) return
