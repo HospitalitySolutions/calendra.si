@@ -4857,6 +4857,30 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               subtitle={todoPanelSubtitle}
               onClose={closeTodoModal}
               closeLabel={t('mobileNavClose')}
+              leading={(
+                <button
+                  type="button"
+                  className="calendar-todo-edit-mobile-back"
+                  onClick={closeTodoModal}
+                  aria-label={locale === 'sl' ? 'Nazaj' : locale === 'sr' ? 'Nazad' : 'Back'}
+                  title={locale === 'sl' ? 'Nazaj' : locale === 'sr' ? 'Nazad' : 'Back'}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                </button>
+              )}
+              actions={(
+                <button
+                  type="button"
+                  className="calendar-todo-edit-mobile-save"
+                  onClick={updateTodo}
+                  aria-label={t('formSave')}
+                  title={t('formSave')}
+                >
+                  <CalendarBookingHeaderSaveIcon />
+                </button>
+              )}
               overflow={
                 <PanelOverflowMenu label={t('formDelete')}>
                   {(close) => (
@@ -4882,9 +4906,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 summary={joinSummary(truncateSummary(selectedTodo.task, 40))}
                 collapsible={isCalendarCreateMobile}
               >
-                <div className="form-row form-row-infield">
+                <div className="form-row form-row-infield calendar-edit-todo-task-field">
                   <div className="form-field-inline-control">
-                  <input value={selectedTodo.task || ''} onChange={(e) => setSelectedTodo({ ...selectedTodo, task: e.target.value })} />
+                  <input placeholder={locale === 'sl' ? 'Vnesi opravilo' : locale === 'sr' ? 'Unesite zadatak' : 'Enter task'} value={selectedTodo.task || ''} onChange={(e) => setSelectedTodo({ ...selectedTodo, task: e.target.value })} />
                   </div>
                 </div>
               </PanelSection>
@@ -4913,7 +4937,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   </div>
                 ) : undefined}
               >
-                <div className="form-row form-row-timespan">
+                <div className="form-row form-row-timespan calendar-edit-todo-date-time">
                   <CalendarLocalTimeDateRow
                     value={selectedTodo.startTime}
                     onCommit={(s) => setSelectedTodo((prev: any) => (prev ? { ...prev, startTime: s } : prev))}
@@ -4941,7 +4965,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 collapsible={isCalendarCreateMobile}
                 summary={joinSummary(truncateSummary(selectedTodo.notes))}
               >
-                <div className="form-row form-row-infield stretch">
+                <div className="form-row form-row-infield stretch calendar-edit-todo-notes-field">
                   <div className="form-field-inline-control">
                   <SessionNotesTextarea value={selectedTodo.notes || ''} onChange={(e) => setSelectedTodo({ ...selectedTodo, notes: e.target.value })} />
                   </div>

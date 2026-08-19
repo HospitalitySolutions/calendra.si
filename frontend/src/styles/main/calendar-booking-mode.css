@@ -14013,3 +14013,382 @@
         transform: translateY(-7px) !important;
     }
 }
+
+/* ========================================================================== */
+/* Uredi opravilo — Nova stranka-style mobile/tablet layout (2026-08-19).     */
+/* ========================================================================== */
+.calendar-todo-edit-mobile-back,
+.calendar-todo-edit-mobile-save {
+    display: none;
+}
+
+@media (max-width: 1024px) {
+    .cp-panel--calendar-edit-todo {
+        --todo-edit-blue: #0878ff;
+        --todo-edit-line: #cdd8e6;
+        --todo-edit-text: #172033;
+        --todo-edit-muted: #67748b;
+    }
+
+    /* Nova stranka-style top row: back, centered title, save check. */
+    .cp-panel--calendar-edit-todo .cp-panel-header {
+        position: relative;
+        display: grid !important;
+        grid-template-columns: 42px minmax(0, 1fr) 42px !important;
+        align-items: center !important;
+        min-height: 72px !important;
+        padding: 13px 20px 9px !important;
+        gap: 0 !important;
+        border: 0 !important;
+        background: #fff !important;
+    }
+
+    .cp-panel--calendar-edit-todo .cp-panel-header__leading,
+    .cp-panel--calendar-edit-todo .cp-panel-header__actions {
+        position: static !important;
+        width: 42px !important;
+        min-width: 42px !important;
+        height: 42px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin: 0 !important;
+    }
+
+    .cp-panel--calendar-edit-todo .cp-panel-header__text {
+        min-width: 0 !important;
+        text-align: center !important;
+        align-self: center !important;
+    }
+
+    .cp-panel--calendar-edit-todo .cp-panel-header__title {
+        margin: 0 !important;
+        color: #0f172a !important;
+        font-size: 1.42rem !important;
+        line-height: 1.15 !important;
+        font-weight: 750 !important;
+        letter-spacing: -0.025em !important;
+        text-align: center !important;
+    }
+
+    .cp-panel--calendar-edit-todo .cp-panel-header__subtitle,
+    .cp-panel--calendar-edit-todo .cp-panel-header__actions > .cp-menu,
+    .cp-panel--calendar-edit-todo .cp-panel-header__actions > .cp-icon-btn {
+        display: none !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-todo-edit-mobile-back,
+    .cp-panel--calendar-edit-todo .calendar-todo-edit-mobile-save {
+        appearance: none !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 42px !important;
+        min-width: 42px !important;
+        height: 42px !important;
+        min-height: 42px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 9px !important;
+        background: transparent !important;
+        color: #172033 !important;
+        box-shadow: none !important;
+        cursor: pointer !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-todo-edit-mobile-back svg,
+    .cp-panel--calendar-edit-todo .calendar-todo-edit-mobile-save svg {
+        width: 24px !important;
+        height: 24px !important;
+        stroke: currentColor !important;
+    }
+
+    /* Remove the desktop section headings completely. */
+    .cp-panel--calendar-edit-todo .calendar-standardized__section > .cp-section__head {
+        display: none !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-standardized-body {
+        gap: 0 !important;
+        padding: 14px 22px 92px !important;
+        background: #fff !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-standardized-body > .cp-section {
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-standardized__section .cp-section__body {
+        padding-top: 0 !important;
+        gap: 0 !important;
+    }
+
+    /* Shared Nova stranka field geometry: icon outside, underline starts at input. */
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-task-field,
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-notes-field,
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .calendar-timespan-field:first-child {
+        position: relative !important;
+        padding-left: 62px !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-task-field::before,
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-notes-field::before,
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .calendar-timespan-field:first-child::before {
+        content: "";
+        position: absolute;
+        left: 6px;
+        top: 28px;
+        width: 26px;
+        height: 26px;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 26px 26px;
+        z-index: 2;
+        pointer-events: none;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-task-field::before {
+        top: 22px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24' fill='none' stroke='%230878ff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='7' width='18' height='13' rx='2'/%3E%3Cpath d='M8 7V5.5A2.5 2.5 0 0 1 10.5 3h3A2.5 2.5 0 0 1 16 5.5V7'/%3E%3C/svg%3E");
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .calendar-timespan-field:first-child::before {
+        top: 52px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24' fill='none' stroke='%230878ff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3.3 2'/%3E%3C/svg%3E");
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-notes-field::before {
+        top: 28px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24' fill='none' stroke='%230878ff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 4.5h16v13H8l-4 3v-16Z'/%3E%3Cpath d='M8 8.5h8M8 12h6'/%3E%3C/svg%3E");
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-task-field input {
+        min-height: 70px !important;
+        height: 70px !important;
+        padding: 0 0 10px !important;
+        border: 0 !important;
+        border-bottom: 1px solid var(--todo-edit-line) !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: var(--todo-edit-text) !important;
+        font-size: 1.1rem !important;
+        font-weight: 400 !important;
+        box-shadow: none !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-task-field input::placeholder,
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-notes-field textarea::placeholder {
+        color: #7f8794 !important;
+        opacity: 1 !important;
+    }
+
+    /* Time/date are stacked. Time gets an icon; date intentionally does not. */
+    .cp-panel--calendar-edit-todo .calendar-standardized__schedule--todo .calendar-timespan-row {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 0 !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .calendar-timespan-field {
+        min-width: 0 !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .calendar-timespan-field:first-child {
+        padding-top: 12px !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .calendar-timespan-field--date {
+        padding-left: 62px !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-standardized__schedule--todo .calendar-timespan-input-inner {
+        min-height: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .calendar-timespan-label {
+        display: block !important;
+        margin: 0 0 15px !important;
+        color: var(--todo-edit-muted) !important;
+        font-size: 0.84rem !important;
+        font-weight: 500 !important;
+        line-height: 1.2 !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .modern-time-picker__trigger {
+        min-height: 62px !important;
+        height: 62px !important;
+        padding: 0 34px 10px 0 !important;
+        border: 0 !important;
+        border-bottom: 1px solid var(--todo-edit-line) !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: var(--todo-edit-text) !important;
+        font-size: 1.08rem !important;
+        box-shadow: none !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .modern-time-picker__icon {
+        display: none !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .calendar-timespan-field:first-child .calendar-timespan-input-inner {
+        position: relative !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .calendar-timespan-field:first-child .calendar-timespan-input-inner::after {
+        content: "";
+        position: absolute;
+        right: 1px;
+        bottom: 26px;
+        width: 10px;
+        height: 10px;
+        border-right: 2px solid #65748a;
+        border-bottom: 2px solid #65748a;
+        transform: rotate(45deg);
+        pointer-events: none;
+    }
+
+    /* Datum label + Cel dan on one line, matching the reference Opravilo form. */
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .calendar-timespan-date-head {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 16px !important;
+        min-height: 34px !important;
+        margin-top: 12px !important;
+        margin-bottom: 13px !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .calendar-timespan-date-head .calendar-timespan-label {
+        margin: 0 !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-timespan-all-day-line {
+        display: inline-flex !important;
+        flex-direction: row-reverse !important;
+        align-items: center !important;
+        gap: 8px !important;
+        margin: 0 !important;
+        white-space: nowrap !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-timespan-all-day-caption {
+        color: #56647b !important;
+        font-size: 0.84rem !important;
+        font-weight: 500 !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-timespan-all-day-switch {
+        margin: 0 !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time input[type='date'] {
+        width: 100% !important;
+        min-height: 62px !important;
+        height: 62px !important;
+        padding: 0 0 10px !important;
+        border: 0 !important;
+        border-bottom: 1px solid var(--todo-edit-line) !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: var(--todo-edit-text) !important;
+        font-size: 1.08rem !important;
+        font-weight: 400 !important;
+        box-shadow: none !important;
+        -webkit-appearance: none !important;
+        appearance: none !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time input[type='date']::-webkit-calendar-picker-indicator {
+        width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+
+    /* Notes: same speech-bubble icon as Opravilo, underline begins at input. */
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-notes-field {
+        padding-top: 18px !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-edit-todo-notes-field textarea {
+        width: 100% !important;
+        min-height: 84px !important;
+        height: 84px !important;
+        padding: 20px 0 10px !important;
+        border: 0 !important;
+        border-bottom: 1px solid var(--todo-edit-line) !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: var(--todo-edit-text) !important;
+        font-size: 1.08rem !important;
+        font-weight: 400 !important;
+        line-height: 1.35 !important;
+        box-shadow: none !important;
+        resize: none !important;
+    }
+
+    /* Bottom panel contains only Izbriši + Opravljeno; save lives in header. */
+    .cp-panel--calendar-edit-todo .cp-panel-footer {
+        position: sticky !important;
+        bottom: 0 !important;
+        z-index: 8 !important;
+        margin-top: auto !important;
+        padding: 16px 20px 20px !important;
+        border-top: 1px solid #e7edf4 !important;
+        background: rgba(255, 255, 255, 0.98) !important;
+    }
+
+    .cp-panel--calendar-edit-todo .cp-panel-footer__actions {
+        display: grid !important;
+        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr) !important;
+        gap: 14px !important;
+        width: 100% !important;
+        align-items: stretch !important;
+    }
+
+    .cp-panel--calendar-edit-todo .cp-panel-footer .cp-btn--primary {
+        display: none !important;
+    }
+
+    .cp-panel--calendar-edit-todo .calendar-standardized-desktop-delete {
+        display: contents !important;
+        margin: 0 !important;
+    }
+
+    .cp-panel--calendar-edit-todo .cp-panel-footer .cp-btn--danger,
+    .cp-panel--calendar-edit-todo .cp-panel-footer .cp-btn--success {
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 52px !important;
+        height: 52px !important;
+        margin: 0 !important;
+        border-radius: 10px !important;
+        font-size: 1rem !important;
+        font-weight: 700 !important;
+        justify-content: center !important;
+        box-shadow: none !important;
+    }
+
+    .cp-panel--calendar-edit-todo .cp-panel-footer .cp-btn--danger {
+        border-color: #ffd6d6 !important;
+        background: #ffe6e6 !important;
+        color: #f02828 !important;
+    }
+
+    .cp-panel--calendar-edit-todo .cp-panel-footer .cp-btn--success {
+        border-color: #079b64 !important;
+        background: #08a86e !important;
+        color: #fff !important;
+    }
+}
