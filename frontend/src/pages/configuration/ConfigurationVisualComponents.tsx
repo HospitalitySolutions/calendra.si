@@ -351,9 +351,6 @@ export function ModulesDesignSettingLine({
   return (
     <div className={nested ? "modules-design-subtree" : "modules-design-tree"}>
       <div className={lineClassName}>
-        <span className="modules-design-setting-icon">
-          <ModulesDesignIcon kind={line.icon} />
-        </span>
         {hasValueControl ? (
           <span className="modules-design-setting-copy modules-design-setting-copy--static">
             {copy}
@@ -398,7 +395,7 @@ export function ModulesDesignSettingLine({
             }
             aria-expanded={expanded}
           >
-            <span>⌄</span>
+            <span aria-hidden>{expanded ? "−" : "+"}</span>
           </button>
         ) : null}
       </div>

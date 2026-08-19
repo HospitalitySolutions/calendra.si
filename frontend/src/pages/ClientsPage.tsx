@@ -5538,10 +5538,12 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                           />
                         </div>
                       ) : null}
-                      {globalWhatsAppEnabled ? renderClientSettingToggleRow('whatsappOptIn', clientsCopy.whatsappOptIn, 'message') : null}
-                      {renderClientSettingToggleRow('batchPaymentEnabled', clientsCopy.batchPayment, 'wallet')}
-                      {invoiceEmailDeliveryEnabled ? renderClientSettingToggleRow('suppressInvoiceEmails', clientsCopy.suppressInvoiceEmails, 'emailOff') : null}
-                      {renderClientSettingToggleRow('onlineBookingBlocked', clientsCopy.onlineBookingBlocked, 'lock')}
+                      <div className="clients-standard-settings-switch-list">
+                        {globalWhatsAppEnabled ? renderClientSettingToggleRow('whatsappOptIn', clientsCopy.whatsappOptIn, 'message') : null}
+                        {renderClientSettingToggleRow('batchPaymentEnabled', clientsCopy.batchPayment, 'wallet')}
+                        {invoiceEmailDeliveryEnabled ? renderClientSettingToggleRow('suppressInvoiceEmails', clientsCopy.suppressInvoiceEmails, 'emailOff') : null}
+                        {renderClientSettingToggleRow('onlineBookingBlocked', clientsCopy.onlineBookingBlocked, 'lock')}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -6080,41 +6082,43 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                       />
                     </div>
                     <div className="clients-detail-fields clients-action-workspace-settings-grid clients-action-workspace-settings-switches">
-                    <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
-                      <span>{clientsCopy.batchPayment}</span>
-                      <button
-                        type="button"
-                        className={`clients-batch-switch${companyDetailEditDraft.batchPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
-                        onClick={() =>
-                          setCompanyDetailEditDraft({
-                            ...companyDetailEditDraft,
-                            batchPaymentEnabled: !companyDetailEditDraft.batchPaymentEnabled,
-                          })
-                        }
-                        aria-pressed={companyDetailEditDraft.batchPaymentEnabled}
-                      >
-                        {companyDetailEditDraft.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
-                      </button>
-                    </div>
-                    {invoiceEmailDeliveryEnabled && (
-                      <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide">
-                        <span>{clientsCopy.suppressInvoiceEmails}</span>
-                        <button
-                          type="button"
-                          className={`clients-batch-switch${companyDetailEditDraft.suppressInvoiceEmails ? ' clients-batch-switch--on' : ''}`}
-                          onClick={() =>
-                            setCompanyDetailEditDraft({
-                              ...companyDetailEditDraft,
-                              suppressInvoiceEmails: !companyDetailEditDraft.suppressInvoiceEmails,
-                            })
-                          }
-                          aria-pressed={companyDetailEditDraft.suppressInvoiceEmails}
-                        >
-                          {companyDetailEditDraft.suppressInvoiceEmails ? clientsCopy.toggleOn : clientsCopy.toggleOff}
-                        </button>
+                      <div className="clients-standard-entity-switch-list clients-standard-company-switch-list">
+                        <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide clients-standard-entity-switch-row">
+                          <span>{clientsCopy.batchPayment}</span>
+                          <button
+                            type="button"
+                            className={`clients-batch-switch${companyDetailEditDraft.batchPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
+                            onClick={() =>
+                              setCompanyDetailEditDraft({
+                                ...companyDetailEditDraft,
+                                batchPaymentEnabled: !companyDetailEditDraft.batchPaymentEnabled,
+                              })
+                            }
+                            aria-pressed={companyDetailEditDraft.batchPaymentEnabled}
+                          >
+                            {companyDetailEditDraft.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+                          </button>
+                        </div>
+                        {invoiceEmailDeliveryEnabled && (
+                          <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide clients-standard-entity-switch-row">
+                            <span>{clientsCopy.suppressInvoiceEmails}</span>
+                            <button
+                              type="button"
+                              className={`clients-batch-switch${companyDetailEditDraft.suppressInvoiceEmails ? ' clients-batch-switch--on' : ''}`}
+                              onClick={() =>
+                                setCompanyDetailEditDraft({
+                                  ...companyDetailEditDraft,
+                                  suppressInvoiceEmails: !companyDetailEditDraft.suppressInvoiceEmails,
+                                })
+                              }
+                              aria-pressed={companyDetailEditDraft.suppressInvoiceEmails}
+                            >
+                              {companyDetailEditDraft.suppressInvoiceEmails ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    </div>
                   </div>
                 )}
 
@@ -7021,38 +7025,42 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
 
                 {groupDetailMainTab === 'settings' && (
                   <div className="clients-action-workspace-settings clients-standard-entity-settings clients-standard-group-settings" onClick={(e) => e.stopPropagation()} role="tabpanel">
-                    <div className="clients-detail-fields clients-action-workspace-settings-grid clients-action-workspace-settings-switches clients-standard-group-settings-list">
-                    {renderGroupEditableField('billingCompanyId', clientsCopy.linkedCompany, true)}
-                    {renderGroupEditableField('defaultSessionTypeId', locale === 'sl' ? 'Privzeta storitev' : 'Default service', true)}
-                    <AssignedLocationsPicker
-                      locations={businessLocations}
-                      selectedIds={groupDetailEditDraft.assignedLocationIds}
-                      onChange={(assignedLocationIds) => setGroupDetailEditDraft((current) => ({ ...current, assignedLocationIds }))}
-                      locale={locale}
-                    />
-                    <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide clients-standard-group-setting-toggle">
-                      <span>{clientsCopy.batchPayment}</span>
-                      <button
-                        type="button"
-                        className={`clients-batch-switch${groupDetailEditDraft.batchPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
-                        onClick={() => setGroupDetailEditDraft({ ...groupDetailEditDraft, batchPaymentEnabled: !groupDetailEditDraft.batchPaymentEnabled })}
-                        aria-pressed={groupDetailEditDraft.batchPaymentEnabled}
-                      >
-                        {groupDetailEditDraft.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
-                      </button>
+                    <div className="clients-detail-fields clients-action-workspace-settings-grid clients-standard-group-settings-list">
+                      {renderGroupEditableField('billingCompanyId', clientsCopy.linkedCompany, true)}
+                      {renderGroupEditableField('defaultSessionTypeId', locale === 'sl' ? 'Privzeta storitev' : 'Default service', true)}
+                      <AssignedLocationsPicker
+                        locations={businessLocations}
+                        selectedIds={groupDetailEditDraft.assignedLocationIds}
+                        onChange={(assignedLocationIds) => setGroupDetailEditDraft((current) => ({ ...current, assignedLocationIds }))}
+                        locale={locale}
+                      />
                     </div>
-                    <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide clients-standard-group-setting-toggle">
-                      <span>{clientsCopy.individualPayment}</span>
-                      <button
-                        type="button"
-                        className={`clients-batch-switch${groupDetailEditDraft.individualPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
-                        onClick={() => setGroupDetailEditDraft({ ...groupDetailEditDraft, individualPaymentEnabled: !groupDetailEditDraft.individualPaymentEnabled })}
-                        aria-pressed={groupDetailEditDraft.individualPaymentEnabled}
-                      >
-                        {groupDetailEditDraft.individualPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
-                      </button>
+                    <div className="clients-detail-fields clients-action-workspace-settings-grid clients-action-workspace-settings-switches">
+                      <div className="clients-standard-entity-switch-list clients-standard-group-switch-list">
+                        <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide clients-standard-group-setting-toggle clients-standard-entity-switch-row">
+                          <span>{clientsCopy.batchPayment}</span>
+                          <button
+                            type="button"
+                            className={`clients-batch-switch${groupDetailEditDraft.batchPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
+                            onClick={() => setGroupDetailEditDraft({ ...groupDetailEditDraft, batchPaymentEnabled: !groupDetailEditDraft.batchPaymentEnabled })}
+                            aria-pressed={groupDetailEditDraft.batchPaymentEnabled}
+                          >
+                            {groupDetailEditDraft.batchPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+                          </button>
+                        </div>
+                        <div className="clients-detail-batch-switch-row clients-detail-field-card clients-detail-field-card--wide clients-standard-group-setting-toggle clients-standard-entity-switch-row">
+                          <span>{clientsCopy.individualPayment}</span>
+                          <button
+                            type="button"
+                            className={`clients-batch-switch${groupDetailEditDraft.individualPaymentEnabled ? ' clients-batch-switch--on' : ''}`}
+                            onClick={() => setGroupDetailEditDraft({ ...groupDetailEditDraft, individualPaymentEnabled: !groupDetailEditDraft.individualPaymentEnabled })}
+                            aria-pressed={groupDetailEditDraft.individualPaymentEnabled}
+                          >
+                            {groupDetailEditDraft.individualPaymentEnabled ? clientsCopy.toggleOn : clientsCopy.toggleOff}
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
                   </div>
                 )}
               </div>

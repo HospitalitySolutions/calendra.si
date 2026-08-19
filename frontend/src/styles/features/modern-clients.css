@@ -9487,7 +9487,7 @@
         position: relative;
         width: min(1040px, 96vw) !important;
         max-width: min(1040px, 96vw) !important;
-        --clients-customer-rail-width: 112px;
+        --clients-customer-rail-width: 108px;
         --clients-customer-header-height: 104px;
     }
 
@@ -9514,21 +9514,22 @@
     .clients-standard-customer-panel--edit > .cp-panel-tabs {
         position: absolute;
         inset: 0 auto 0 0;
-        z-index: 2;
-        display: flex;
+        z-index: 8;
+        display: flex !important;
+        width: var(--clients-customer-rail-width);
+        min-height: 0;
+        height: 100%;
+        padding: var(--clients-customer-header-height) 8px 18px;
         flex-direction: column;
         align-items: stretch;
         justify-content: flex-start;
-        width: var(--clients-customer-rail-width);
-        min-height: 100%;
-        height: 100%;
-        padding: var(--clients-customer-header-height) 0 0;
-        gap: 0;
+        gap: 6px;
         border: 0;
-        border-right: 1px solid #e7edf5;
+        border-right: 1px solid #e8edf4;
         background: #ffffff;
+        box-shadow: -8px 0 24px rgba(15, 23, 42, 0.06);
         overflow-x: hidden;
-        overflow-y: auto;
+        overflow-y: hidden;
         scrollbar-width: none;
     }
 
@@ -9538,56 +9539,65 @@
 
     .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab {
         position: relative;
-        display: flex;
         flex: 0 0 auto;
+        width: 100%;
+        min-height: 84px;
+        padding: 12px 8px;
+        display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        width: 100%;
-        min-width: 0;
-        min-height: 106px;
-        height: 106px;
-        padding: 12px 9px;
-        gap: 9px;
+        gap: 8px;
         border: 0;
-        border-radius: 0;
-        background: #ffffff;
-        color: #334155;
-        box-shadow: none;
-        font-size: 13px;
+        border-radius: 10px;
+        background: transparent;
+        color: #475467;
+        font-size: 0.8125rem;
         font-weight: 600;
-        line-height: 1.28;
+        line-height: 1.25;
         text-align: center;
         white-space: normal;
-        transition: color .16s ease, background .16s ease, box-shadow .16s ease;
+        transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
     }
 
     .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab::after {
-        display: none;
+        content: '';
+        position: absolute;
+        top: 12px !important;
+        bottom: 12px !important;
+        left: -8px !important;
+        right: auto !important;
+        width: 3px !important;
+        height: auto !important;
+        border-radius: 0 3px 3px 0;
+        background: transparent;
     }
 
     .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab svg {
-        width: 22px;
-        height: 22px;
+        width: 23px;
+        height: 23px;
         color: currentColor;
-        stroke-width: 1.85;
+        stroke-width: 1.8;
     }
 
     .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab:hover {
-        background: #f8fafc;
-        color: #0f172a;
+        background: #f7f9fc;
+        color: #1d2939;
     }
 
     .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab.is-active {
-        color: #0b6ff5;
+        color: #1266e3;
         background: #eef5ff;
-        box-shadow: inset 3px 0 0 #0b6ff5;
+        box-shadow: none;
+    }
+
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab.is-active::after {
+        background: #1677ff;
     }
 
     .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab:focus-visible {
-        outline: 2px solid rgba(11, 111, 245, .32);
-        outline-offset: -3px;
-        box-shadow: inset 3px 0 0 #0b6ff5;
+        outline: none;
+        box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.24);
     }
 
     .clients-standard-customer-panel--edit .clients-action-workspace-shell {
@@ -9704,7 +9714,7 @@
 .clients-standard-group-panel.clients-standard-entity-panel--edit {
     width: min(920px, 94vw) !important;
     max-width: min(920px, 94vw) !important;
-    --clients-entity-rail-width: 112px;
+    --clients-entity-rail-width: 108px;
     --clients-entity-header-height: 104px;
 }
 
@@ -9738,21 +9748,22 @@
 .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs {
     position: absolute;
     inset: 0 auto 0 0;
-    z-index: 2;
-    display: flex;
+    z-index: 8;
+    display: flex !important;
+    width: var(--clients-entity-rail-width);
+    min-height: 0;
+    height: 100%;
+    padding: var(--clients-entity-header-height) 8px 18px;
     flex-direction: column;
     align-items: stretch;
     justify-content: flex-start;
-    width: var(--clients-entity-rail-width);
-    min-height: 100%;
-    height: 100%;
-    padding: var(--clients-entity-header-height) 0 0;
-    gap: 0;
+    gap: 6px;
     border: 0;
-    border-right: 1px solid #e7edf5;
+    border-right: 1px solid #e8edf4;
     background: #ffffff;
+    box-shadow: -8px 0 24px rgba(15, 23, 42, 0.06);
     overflow-x: hidden;
-    overflow-y: auto;
+    overflow-y: hidden;
     scrollbar-width: none;
 }
 
@@ -9764,56 +9775,71 @@
 .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab,
 .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab {
     position: relative;
-    display: flex;
     flex: 0 0 auto;
+    width: 100%;
+    min-height: 84px;
+    padding: 12px 8px;
+    display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    width: 100%;
-    min-width: 0;
-    min-height: 106px;
-    height: 106px;
-    padding: 12px 9px;
-    gap: 9px;
+    gap: 8px;
     border: 0;
-    border-radius: 0;
-    background: #ffffff;
-    color: #334155;
-    box-shadow: none;
-    font-size: 13px;
+    border-radius: 10px;
+    background: transparent;
+    color: #475467;
+    font-size: 0.8125rem;
     font-weight: 600;
-    line-height: 1.28;
+    line-height: 1.25;
     text-align: center;
     white-space: normal;
-    transition: color .16s ease, background .16s ease, box-shadow .16s ease;
+    transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+
+.clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab::after,
+.clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab::after {
+    content: '';
+    position: absolute;
+    top: 12px !important;
+    bottom: 12px !important;
+    left: -8px !important;
+    right: auto !important;
+    width: 3px !important;
+    height: auto !important;
+    border-radius: 0 3px 3px 0;
+    background: transparent;
 }
 
 .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab svg,
 .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab svg {
-    width: 22px;
-    height: 22px;
+    width: 23px;
+    height: 23px;
     color: currentColor;
-    stroke-width: 1.85;
+    stroke-width: 1.8;
 }
 
 .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab:hover,
 .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab:hover {
-    background: #f8fafc;
-    color: #0f172a;
+    background: #f7f9fc;
+    color: #1d2939;
 }
 
 .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab.is-active,
 .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab.is-active {
-    color: #0b6ff5;
+    color: #1266e3;
     background: #eef5ff;
-    box-shadow: inset 3px 0 0 #0b6ff5;
+    box-shadow: none;
+}
+
+.clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab.is-active::after,
+.clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab.is-active::after {
+    background: #1677ff;
 }
 
 .clients-standard-company-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab:focus-visible,
 .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab:focus-visible {
-    outline: 2px solid rgba(11, 111, 245, .32);
-    outline-offset: -3px;
-    box-shadow: inset 3px 0 0 #0b6ff5;
+    outline: none;
+    box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.24);
 }
 
 .clients-standard-company-panel.clients-standard-entity-panel--edit .clients-action-workspace-shell,
@@ -11943,5 +11969,235 @@
     .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-tabs .cp-panel-tab {
         min-height: 84px;
         height: 84px;
+    }
+}
+
+/* ========================================================================== */
+/* Desktop settings switches parity — Uredi stranko/podjetje/skupino          */
+/* Match Uredi storitev switch rows: switch outside the block, clean rows.    */
+/* ========================================================================== */
+@media (min-width: 1025px) {
+    .clients-standard-customer-panel--edit .clients-standard-settings-switch-list,
+    .clients-standard-entity-switch-list {
+        margin-top: 8px;
+        border-top: 1px solid rgba(15, 23, 42, 0.10);
+        border-bottom: 1px solid rgba(15, 23, 42, 0.10);
+        background: transparent;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-toggle-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 18px;
+        min-height: 70px;
+        padding: 10px 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-toggle-row + .clients-settings-toggle-row,
+    .clients-standard-entity-switch-list .clients-detail-batch-switch-row + .clients-detail-batch-switch-row {
+        border-top: 1px solid rgba(15, 23, 42, 0.10);
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-toggle-main {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-width: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-card-icon {
+        width: 38px;
+        height: 38px;
+        min-width: 38px;
+        border-radius: 10px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-toggle-label,
+    .clients-standard-entity-switch-list .clients-detail-batch-switch-row > span {
+        color: #111827;
+        font-size: 0.95rem;
+        font-weight: 800;
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+    }
+
+    .clients-standard-entity-switch-list .clients-detail-field-card,
+    .clients-standard-group-settings .clients-standard-entity-switch-list .clients-standard-group-setting-toggle {
+        width: 100%;
+        margin: 0;
+        min-height: 70px;
+        padding: 10px 0 !important;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-switch-list .clients-batch-switch,
+    .clients-standard-entity-switch-list .clients-batch-switch {
+        position: relative;
+        width: 54px;
+        min-width: 54px;
+        height: 30px;
+        min-height: 30px;
+        padding: 0;
+        border: 0;
+        border-radius: 999px;
+        background: #cbd5e1;
+        color: transparent;
+        font-size: 0;
+        line-height: 0;
+        box-shadow: none;
+        transition: background 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-switch-list .clients-batch-switch::after,
+    .clients-standard-entity-switch-list .clients-batch-switch::after {
+        content: '';
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #1672f3;
+        background: #ffffff;
+        font-size: 0.72rem;
+        font-weight: 900;
+        box-shadow: 0 2px 7px rgba(15, 23, 42, 0.2);
+        transition: transform 0.2s ease, color 0.2s ease, content 0.2s ease;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-switch-list .clients-batch-switch--on,
+    .clients-standard-entity-switch-list .clients-batch-switch--on {
+        background: linear-gradient(135deg, #2563eb 0%, #1672f3 100%);
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-switch-list .clients-batch-switch--on::after,
+    .clients-standard-entity-switch-list .clients-batch-switch--on::after {
+        content: '✓';
+        transform: translateX(24px);
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-switch-list .clients-batch-switch:focus-visible,
+    .clients-standard-entity-switch-list .clients-batch-switch:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+    }
+}
+
+/* ========================================================================== */
+/* Desktop-only switch refinements — customer/company/group settings          */
+/* ========================================================================== */
+@media (min-width: 1025px) {
+    /* No divider lines around or between switch rows. */
+    .clients-standard-customer-panel--edit .clients-standard-settings-switch-list,
+    .clients-standard-entity-switch-list {
+        border-top: 0 !important;
+        border-bottom: 0 !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-settings-toggle-row + .clients-settings-toggle-row,
+    .clients-standard-entity-switch-list .clients-detail-batch-switch-row + .clients-detail-batch-switch-row {
+        border-top: 0 !important;
+    }
+
+    /* Uredi stranko: switch rows are text + switch only; no leading icons. */
+    .clients-standard-customer-panel--edit .clients-standard-settings-switch-list .clients-settings-toggle-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-switch-list .clients-settings-card-icon {
+        display: none !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-switch-list .clients-settings-toggle-main {
+        gap: 0;
+    }
+
+    /* Uredi podjetje: keep normal sentence casing instead of legacy uppercase. */
+    .clients-standard-company-panel.clients-standard-entity-panel--edit
+        .clients-standard-company-switch-list
+        .clients-detail-batch-switch-row > span {
+        text-transform: none !important;
+        letter-spacing: -0.01em !important;
+    }
+}
+
+/* ========================================================================== */
+/* Desktop Uredi skupino — use exactly the same switch visual as Uredi podjetje */
+/* ========================================================================== */
+@media (min-width: 1025px) {
+    .clients-standard-group-panel.clients-standard-entity-panel--edit
+        .clients-standard-group-settings
+        .clients-standard-group-switch-list
+        .clients-standard-group-setting-toggle
+        .clients-batch-switch {
+        position: relative;
+        width: 54px;
+        min-width: 54px;
+        height: 30px;
+        min-height: 30px;
+        padding: 0;
+        border: 0;
+        border-radius: 999px;
+        background: #cbd5e1;
+        color: transparent;
+        font-size: 0;
+        line-height: 0;
+        box-shadow: none !important;
+        transition: background 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .clients-standard-group-panel.clients-standard-entity-panel--edit
+        .clients-standard-group-settings
+        .clients-standard-group-switch-list
+        .clients-standard-group-setting-toggle
+        .clients-batch-switch::after {
+        content: '';
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #1672f3;
+        background: #ffffff;
+        font-size: 0.72rem;
+        font-weight: 900;
+        box-shadow: 0 2px 7px rgba(15, 23, 42, 0.2);
+        transition: transform 0.2s ease;
+    }
+
+    .clients-standard-group-panel.clients-standard-entity-panel--edit
+        .clients-standard-group-settings
+        .clients-standard-group-switch-list
+        .clients-standard-group-setting-toggle
+        .clients-batch-switch--on {
+        border: 0;
+        background: linear-gradient(135deg, #2563eb 0%, #1672f3 100%);
+    }
+
+    .clients-standard-group-panel.clients-standard-entity-panel--edit
+        .clients-standard-group-settings
+        .clients-standard-group-switch-list
+        .clients-standard-group-setting-toggle
+        .clients-batch-switch--on::after {
+        content: '✓';
+        transform: translateX(24px);
     }
 }
