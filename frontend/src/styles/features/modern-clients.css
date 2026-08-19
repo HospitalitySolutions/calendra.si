@@ -12049,6 +12049,21 @@
     .clients-standard-group-panel.clients-standard-entity-panel--edit > .cp-panel-footer .cp-panel-footer__actions {
         gap: 0;
     }
+
+    /* Uredi stranko -> Nastavitve: remove the leading icons on mobile/tablet. */
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab .clients-settings-card-icon {
+        display: none !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab .clients-settings-linked-editor {
+        padding-left: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab .clients-settings-location-head,
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab .clients-settings-linked-head,
+    .clients-standard-customer-panel--edit .clients-standard-settings-tab .clients-settings-toggle-main {
+        gap: 0;
+    }
 }
 
 @media (max-width: 640px) {
