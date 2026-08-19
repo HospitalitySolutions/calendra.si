@@ -112,9 +112,7 @@ function CalendarBookingQuickOptionIcon({ name }: { name: 'group' | 'online' | '
 function CalendarBookingHeaderSaveIcon() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M5 3h11l3 3v15H5z" />
-      <path d="M8 3v6h8V3" />
-      <path d="M8 21v-7h8v7" />
+      <path d="m5 12 4 4L19 6" />
     </svg>
   )
 }
