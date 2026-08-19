@@ -231,6 +231,22 @@ function SwapIcon() {
   )
 }
 
+function BackIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M15 18 9 12l6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function CheckIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="m5 12 4 4L19 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 type SessionConsumableDraft = {
   consumableId: number
   itemName: string
@@ -339,6 +355,8 @@ export function CalendarServiceChainEditor({
   const [workingConsumables, setWorkingConsumables] = useState<SessionConsumableDraft[]>([])
   const [workingConsumablesReset, setWorkingConsumablesReset] = useState(false)
   const [consumableCatalog, setConsumableCatalog] = useState<ConsumableCatalogItem[]>([])
+  const [mobileViewport, setMobileViewport] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 1024 : false))
+  const [mobileSelectedTypeId, setMobileSelectedTypeId] = useState<number | null>(null)
 
   const count = services.filter((service) => service.typeId != null).length
   const isMultiMode = count > 1
@@ -349,6 +367,14 @@ export function CalendarServiceChainEditor({
     : null
 
   const primaryTypeId = services.find((service) => service.typeId != null)?.typeId ?? null
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const apply = () => setMobileViewport(window.innerWidth <= 1024)
+    apply()
+    window.addEventListener('resize', apply)
+    return () => window.removeEventListener('resize', apply)
+  }, [])
 
   const loadConsumableCatalog = async (): Promise<ConsumableCatalogItem[]> => {
     try {
@@ -526,6 +552,7 @@ export function CalendarServiceChainEditor({
     setPickerQuery('')
     setMenuIndex(null)
     setReorderMenuIndex(null)
+    setMobileSelectedTypeId(null)
     setPickerOpen(true)
   }
 
@@ -534,6 +561,7 @@ export function CalendarServiceChainEditor({
     setPickerQuery('')
     setMenuIndex(null)
     setReorderMenuIndex(null)
+    setMobileSelectedTypeId(Number(services[index]?.typeId) || null)
     setPickerOpen(true)
   }
 
@@ -541,6 +569,7 @@ export function CalendarServiceChainEditor({
     setPickerOpen(false)
     setPickerReplaceIndex(null)
     setPickerQuery('')
+    setMobileSelectedTypeId(null)
   }
 
   const addOrReplaceService = (typeId: number) => {
@@ -568,6 +597,19 @@ export function CalendarServiceChainEditor({
     }
     onChange([...services, { typeId, spaceId: fallbackSpaceId }])
     setPickerOpen(false)
+  }
+
+  const handlePickerRowSelect = (typeId: number) => {
+    if (mobileViewport) {
+      setMobileSelectedTypeId(typeId)
+      return
+    }
+    addOrReplaceService(typeId)
+  }
+
+  const confirmPickerSelection = () => {
+    if (mobileSelectedTypeId == null) return
+    addOrReplaceService(mobileSelectedTypeId)
   }
 
   const openEditService = (index: number) => {
@@ -832,6 +874,24 @@ export function CalendarServiceChainEditor({
             subtitle={copy.pickerDescription}
             onClose={closePicker}
             closeLabel={copy.close}
+            closeVisible={!mobileViewport}
+            leading={mobileViewport ? (
+              <button type="button" className="cp-icon-btn" onClick={closePicker} aria-label={copy.close} title={copy.close}>
+                <BackIcon />
+              </button>
+            ) : undefined}
+            actions={mobileViewport ? (
+              <button
+                type="button"
+                className="cp-icon-btn calendar-service-picker-panel__confirm"
+                onClick={confirmPickerSelection}
+                aria-label={copy.addAction}
+                title={copy.addAction}
+                disabled={mobileSelectedTypeId == null}
+              >
+                <CheckIcon />
+              </button>
+            ) : undefined}
           />
           <PanelBody className="calendar-service-picker-panel__body">
             <label className="cp-field calendar-service-picker-panel__search">
@@ -850,21 +910,32 @@ export function CalendarServiceChainEditor({
             <div className="cp-stack cp-stack--tight calendar-service-picker-panel__list">
               {filteredSessionTypes.length === 0 ? (
                 <PanelEmpty>{copy.pickerEmpty}</PanelEmpty>
-              ) : filteredSessionTypes.map((entry) => (
-                <PanelRow
-                  key={entry.id}
-                  title={serviceName(entry, locale)}
-                  meta={
-                    <>
-                      <ClockIcon /> {formatMinutes(Number(entry?.durationMinutes ?? 0), locale)}
-                      {Number.isFinite(Number(entry?.priceGross)) ? <span className="calendar-service-picker-panel__price-meta"> • {currency(Number(entry.priceGross))}</span> : null}
-                    </>
-                  }
-                  leading={<span className="calendar-service-picker-panel__row-icon" aria-hidden><CalendarSectionIcon name="service" /></span>}
-                  trailing={<span className="calendar-service-picker-panel__row-chevron" aria-hidden>›</span>}
-                  onClick={() => addOrReplaceService(Number(entry.id))}
-                />
-              ))}
+              ) : filteredSessionTypes.map((entry) => {
+                const entryId = Number(entry.id)
+                const selected = mobileViewport && mobileSelectedTypeId === entryId
+                return (
+                  <PanelRow
+                    key={entry.id}
+                    title={serviceName(entry, locale)}
+                    meta={
+                      <>
+                        <ClockIcon /> {formatMinutes(Number(entry?.durationMinutes ?? 0), locale)}
+                        {Number.isFinite(Number(entry?.priceGross)) ? <span className="calendar-service-picker-panel__price-meta"> • {currency(Number(entry.priceGross))}</span> : null}
+                      </>
+                    }
+                    value={selected ? (
+                      <span className="calendar-service-picker-panel__selected-badge">
+                        <CheckIcon />
+                        <span>{locale === 'sl' ? 'Izbrano' : locale === 'sr' ? 'Izabrano' : 'Selected'}</span>
+                      </span>
+                    ) : undefined}
+                    leading={!mobileViewport ? <span className="calendar-service-picker-panel__row-icon" aria-hidden><CalendarSectionIcon name="service" /></span> : undefined}
+                    trailing={!mobileViewport ? <span className="calendar-service-picker-panel__row-chevron" aria-hidden>›</span> : undefined}
+                    accent={selected}
+                    onClick={() => handlePickerRowSelect(entryId)}
+                  />
+                )
+              })}
             </div>
           </PanelBody>
         </SidePanel>
@@ -880,6 +951,23 @@ export function CalendarServiceChainEditor({
             }
             onClose={closeEditService}
             closeLabel={copy.close}
+            closeVisible={!mobileViewport}
+            leading={mobileViewport ? (
+              <button type="button" className="cp-icon-btn" onClick={closeEditService} aria-label={copy.close} title={copy.close}>
+                <BackIcon />
+              </button>
+            ) : undefined}
+            actions={mobileViewport ? (
+              <button
+                type="button"
+                className="cp-icon-btn calendar-service-edit-panel__confirm"
+                onClick={saveEditService}
+                aria-label={copy.saveChanges}
+                title={copy.saveChanges}
+              >
+                <CheckIcon />
+              </button>
+            ) : undefined}
           />
           <PanelBody className="calendar-service-edit-panel__body">
             <PanelField
@@ -1050,7 +1138,7 @@ export function CalendarServiceChainEditor({
               </section>
             ) : null}
           </PanelBody>
-          {!editServiceKeyboardOpen ? (
+          {!mobileViewport && !editServiceKeyboardOpen ? (
             <PanelFooter>
               <PanelButton variant="ghost" onClick={closeEditService}>
                 {copy.close}

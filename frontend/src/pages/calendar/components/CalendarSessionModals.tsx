@@ -10,7 +10,6 @@ import { CalendarServiceChainEditor, serviceDescription } from './CalendarServic
 import { CalendarSectionIcon } from './CalendarIcons'
 import { CalendarSessionQuickBilling } from './CalendarSessionQuickBilling'
 import { useMobileKeyboardOpen } from '../../../hooks/useMobileKeyboardOpen'
-import { SimpleClientCreatePage } from '../../clients/SimpleClientCreatePage'
 import { hasEmployeePermission } from '../../../lib/employeePermissions'
 import { urlForNewForm } from '../../calendarFormRoutes'
 import {
@@ -886,6 +885,9 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [newSlotWaitlistOpen, setNewSlotWaitlistOpen] = useState(false)
   const [mobileBookingStatusDraft, setMobileBookingStatusDraft] = useState<string | null>(null)
   const [isCalendarCreateMobile, setIsCalendarCreateMobile] = useState(false)
+  const [isCalendarClientCreateMobile, setIsCalendarClientCreateMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 1024px)').matches : false,
+  )
   const [newBookingMobileNotesOpen, setNewBookingMobileNotesOpen] = useState(false)
   // Appointment panels now use the same information architecture at every breakpoint.
   // Responsive CSS may stack/reflow controls, but tablet/mobile must not switch back
@@ -932,6 +934,15 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     if (typeof window === 'undefined') return
     const media = window.matchMedia('(max-width: 1024px)')
     const sync = () => setIsCalendarCreateMobile(false)
+    sync()
+    media.addEventListener?.('change', sync)
+    return () => media.removeEventListener?.('change', sync)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const media = window.matchMedia('(max-width: 1024px)')
+    const sync = () => setIsCalendarClientCreateMobile(media.matches)
     sync()
     media.addEventListener?.('change', sync)
     return () => media.removeEventListener?.('change', sync)
@@ -1481,6 +1492,58 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
 
   const calendarCreateClientLabel = locale === 'sl' ? 'Ustvari stranko' : 'Create client'
   const calendarCreateClientDisabled = savingClient || !String(newClientForm.firstName ?? '').trim() || !String(newClientForm.lastName ?? '').trim()
+
+  const renderCalendarMobileClientHeaderConfirmAction = () => (
+    <button
+      type="button"
+      className="cp-icon-btn clients-mobile-header-confirm"
+      onClick={() => {
+        const formElement = document.getElementById('calendar-new-client-form') as HTMLFormElement | null
+        formElement?.requestSubmit()
+      }}
+      disabled={calendarCreateClientDisabled}
+      aria-label={calendarCreateClientLabel}
+      title={calendarCreateClientLabel}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M20 6 9 17l-5-5" />
+      </svg>
+    </button>
+  )
+
+  const renderCalendarMobileClientField = (
+    key: 'firstName' | 'lastName' | 'email' | 'phone',
+    label: string,
+    inputType: 'text' | 'email' | 'tel' = 'text',
+  ) => {
+    const required = key === 'firstName' || key === 'lastName'
+    const iconName = key === 'email' ? 'email' : key === 'phone' ? 'phone' : 'person'
+    return (
+      <label className="clients-mobile-create-field">
+        <span className="clients-mobile-create-field__icon" aria-hidden>
+          <CalendarClientProfileSectionIcon name={iconName} />
+        </span>
+        <input
+          autoFocus={key === 'firstName'}
+          required={required}
+          type={inputType}
+          name={`calendra-calendar-new-client-${key}-mobile`}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize={required ? 'words' : 'none'}
+          spellCheck={false}
+          inputMode={inputType === 'email' ? 'email' : inputType === 'tel' ? 'tel' : 'text'}
+          enterKeyHint={key === 'phone' ? 'done' : 'next'}
+          data-lpignore="true"
+          data-1p-ignore="true"
+          data-bwignore="true"
+          value={String(newClientForm[key] ?? '')}
+          placeholder={`${label}${required ? ' *' : ''}`}
+          onChange={(e) => setNewClientForm({ ...newClientForm, [key]: e.target.value })}
+        />
+      </label>
+    )
+  }
 
   const renderCalendarNewClientEditableField = (
     key: 'firstName' | 'lastName' | 'email' | 'phone',
@@ -6376,31 +6439,47 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         size="lg"
         className="clients-standard-customer-panel clients-standard-customer-panel--create"
       >
-        {!useResponsiveDesktopCreatePanels ? (
-          <SimpleClientCreatePage
-            title={locale === 'sl' ? 'Nova stranka' : 'New client'}
-            closeLabel={t('mobileNavClose')}
-            submitLabel={calendarCreateClientLabel}
-            savingLabel={locale === 'sl' ? 'Shranjujem…' : 'Saving…'}
-            draft={newClientForm}
-            labels={{
-              firstName: locale === 'sl' ? 'Ime' : 'First name',
-              lastName: locale === 'sl' ? 'Priimek' : 'Last name',
-              email: locale === 'sl' ? 'E-pošta' : 'Email',
-              phone: locale === 'sl' ? 'Telefon' : 'Phone',
-            }}
-            saving={savingClient}
-            submitDisabled={calendarCreateClientDisabled}
-            keyboardOpen={calendarCreateKeyboardOpen}
-            error={clientError}
-            inputNamePrefix="calendra-calendar-new-client"
-            onClose={closeCalendarAddClientModal}
-            onChange={(field, value) => setNewClientForm((current: any) => ({ ...current, [field]: value }))}
-            onSubmit={(event) => {
-              event.preventDefault()
-              if (!calendarCreateClientDisabled) void createClientFromBooking()
-            }}
-          />
+        {isCalendarClientCreateMobile ? (
+          <>
+            <PanelHeader
+              title={locale === 'sl' ? 'Nova stranka' : 'New client'}
+              onClose={closeCalendarAddClientModal}
+              closeLabel={t('mobileNavClose')}
+              closeVisible={false}
+              leading={(
+                <button
+                  type="button"
+                  className="clients-customer-mobile-back"
+                  onClick={closeCalendarAddClientModal}
+                  aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}
+                  title={locale === 'sl' ? 'Nazaj' : 'Back'}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                </button>
+              )}
+              actions={renderCalendarMobileClientHeaderConfirmAction()}
+            />
+            <PanelBody
+              as="form"
+              id="calendar-new-client-form"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (!calendarCreateClientDisabled) void createClientFromBooking()
+              }}
+            >
+              <div className="clients-mobile-create-form">
+                <div className="clients-mobile-create-fields">
+                  {renderCalendarMobileClientField('firstName', locale === 'sl' ? 'Ime' : 'First name')}
+                  {renderCalendarMobileClientField('lastName', locale === 'sl' ? 'Priimek' : 'Last name')}
+                  {renderCalendarMobileClientField('email', locale === 'sl' ? 'E-pošta' : 'Email', 'email')}
+                  {renderCalendarMobileClientField('phone', locale === 'sl' ? 'Telefon' : 'Phone', 'tel')}
+                </div>
+                {clientError && <div className="error">{clientError}</div>}
+              </div>
+            </PanelBody>
+          </>
         ) : (
           <>
             <PanelHeader
