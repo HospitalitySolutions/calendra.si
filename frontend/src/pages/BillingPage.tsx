@@ -4391,9 +4391,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
 
     const params = new URLSearchParams(location.search)
     const seededClientId = Number(params.get('clientId') ?? 0)
-    if (!Number.isInteger(seededClientId) || seededClientId <= 0) return
+    const seededCompanyId = Number(params.get('companyId') ?? params.get('recipientCompanyId') ?? 0)
+    const hasSeededClient = Number.isInteger(seededClientId) && seededClientId > 0
+    const hasSeededCompany = Number.isInteger(seededCompanyId) && seededCompanyId > 0
+    if (!hasSeededClient && !hasSeededCompany) return
 
-    const seedKey = `${activeUnitId ?? 'none'}:${selectedLocationId ?? 'all'}:${seededClientId}`
+    const seedEntityKey = hasSeededCompany ? `company:${seededCompanyId}` : `client:${seededClientId}`
+    const seedKey = `${activeUnitId ?? 'none'}:${selectedLocationId ?? 'all'}:${seedEntityKey}`
     if (seededCreateBillClientRef.current === seedKey) return
     seededCreateBillClientRef.current = seedKey
 
@@ -4417,9 +4421,10 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         setBillForm({
           items: [],
           paymentMethodId: defaultPaymentMethodId,
-          billingTarget: 'PERSON',
+          billingTarget: hasSeededCompany ? 'COMPANY' : 'PERSON',
           billType: 'INVOICE',
-          clientId: seededClientId,
+          clientId: hasSeededClient ? seededClientId : undefined,
+          recipientCompanyId: hasSeededCompany ? seededCompanyId : undefined,
           consultantId: me.id,
           discountType: 'PERCENT',
           discountValue: '0',

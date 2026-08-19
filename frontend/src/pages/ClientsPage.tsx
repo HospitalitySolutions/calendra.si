@@ -4536,6 +4536,13 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     }))
   }
 
+  const openCompanyCreateBill = () => {
+    if (!detailCompany) return
+    navigate(buildDrawerUrl(BILLING_DRAWERS.newBill, {
+      search: new URLSearchParams({ companyId: String(detailCompany.id) }),
+    }))
+  }
+
   const portalClientMenuTarget =
     openClientMenuId != null ? clients.find((r) => r.id === openClientMenuId) ?? null : null
   const portalCompanyMenuTarget =
@@ -6254,7 +6261,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                               <span className="clients-company-invoices-count">
                                 <ClientWorkspaceIcon name="files" /> {companyBills.length} {locale === 'sl' ? 'računi' : 'invoices'}
                               </span>
-                              <button type="button" className="clients-file-upload-button" onClick={() => navigate('/billing')}>
+                              <button type="button" className="clients-file-upload-button" onClick={openCompanyCreateBill}>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                                   <path d="M12 5v14" />
                                   <path d="M5 12h14" />
@@ -6997,30 +7004,30 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                                 </div>
                                 <div className="clients-modern-session-title">
                                   <strong>{sessionTitle(s, locale)}</strong>
-                                  <span>{formatDate(s.startTime)}</span>
+                                  <span className="clients-modern-session-date"><ClientSessionMetaIcon name="calendar" /> {formatDate(s.startTime)}</span>
                                 </div>
-                                <div className="clients-modern-session-info">
-                                  <span>{locale === 'sl' ? 'Ura' : 'Time'}</span>
+                                <div className="clients-modern-session-info clients-modern-session-info--time">
+                                  <span><ClientSessionMetaIcon name="clock" /><span className="clients-modern-session-info-label">{locale === 'sl' ? 'Ura' : 'Time'}</span></span>
                                   <strong>{formatShortTime(s.startTime)} – {formatShortTime(s.endTime)}</strong>
                                 </div>
-                                <div className="clients-modern-session-info">
-                                  <span>{locale === 'sl' ? 'Lokacija' : 'Location'}</span>
+                                <div className="clients-modern-session-info clients-modern-session-info--location">
+                                  <span><ClientSessionMetaIcon name="location" /><span className="clients-modern-session-info-label">{locale === 'sl' ? 'Lokacija' : 'Location'}</span></span>
                                   <strong>{sessionLocation(s)}</strong>
                                 </div>
-                                <div className="clients-modern-session-info">
-                                  <span>{locale === 'sl' ? 'Izvajalec' : 'Instructor'}</span>
+                                <div className="clients-modern-session-info clients-modern-session-info--consultant">
+                                  <span><ClientSessionMetaIcon name="person" /><span className="clients-modern-session-info-label">{locale === 'sl' ? 'Izvajalec' : 'Instructor'}</span></span>
                                   <strong>{consultantName || '—'}</strong>
                                 </div>
                                 <span className={`clients-modern-session-status clients-modern-session-status--${sessionStatusTone}`}>
                                   {lifecycleStatus === 'CANCELLED'
-                                    ? 'CANCELLED'
+                                    ? clientsCopy.statusCancelled
                                     : lifecycleStatus === 'NO_SHOW'
-                                      ? 'NO SHOW'
+                                      ? clientsCopy.statusNoShow
                                       : lifecycleStatus === 'ONGOING'
-                                        ? 'ONGOING'
+                                        ? clientsCopy.statusOngoing
                                         : lifecycleStatus === 'CHECKED_OUT'
-                                          ? 'CHECKED OUT'
-                                          : 'RESERVED'}
+                                          ? clientsCopy.statusCheckedOut
+                                          : clientsCopy.statusReserved}
                                 </span>
                               </article>
                             )
