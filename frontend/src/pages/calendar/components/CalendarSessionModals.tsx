@@ -49,7 +49,7 @@ function CalendarGroupFormIcon() {
   )
 }
 
-function CalendarBookingQuickOptionIcon({ name }: { name: 'group' | 'online' | 'allDay' | 'repeat' }) {
+function CalendarBookingQuickOptionIcon({ name }: { name: 'group' | 'online' | 'allDay' | 'repeat' | 'notes' }) {
   const common = {
     width: 28,
     height: 28,
@@ -90,12 +90,31 @@ function CalendarBookingQuickOptionIcon({ name }: { name: 'group' | 'online' | '
     )
   }
 
+  if (name === 'notes') {
+    return (
+      <svg {...common}>
+        <path d="M6 3.5h9l3 3V20a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 5 20V5a1.5 1.5 0 0 1 1-1.5Z" />
+        <path d="M15 3.5V7h3M8.5 11h7M8.5 14.5h7M8.5 18h4.5" />
+      </svg>
+    )
+  }
+
   return (
     <svg {...common}>
       <path d="M20 7h-5V2" />
       <path d="M4.6 9A8 8 0 0 1 18.8 5L20 7" />
       <path d="M4 17h5v5" />
       <path d="M19.4 15A8 8 0 0 1 5.2 19L4 17" />
+    </svg>
+  )
+}
+
+function CalendarBookingHeaderSaveIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 3h11l3 3v15H5z" />
+      <path d="M8 3v6h8V3" />
+      <path d="M8 21v-7h8v7" />
     </svg>
   )
 }
@@ -438,6 +457,32 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
       startTime: normalizeToLocalDateTime(`${d}T00:00:00`),
       endTime: normalizeToLocalDateTime(`${d}T23:59:59`),
     })
+  }
+
+  const scrollNewBookingMobileSectionIntoView = (selector: string, fallbackSelector?: string) => {
+    const tryScroll = (attempt: number) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          const body = document.getElementById('calendar-new-booking-scroll-body')
+          if (!body) return
+
+          const primaryTarget = body.querySelector(selector)
+          const fallbackTarget = attempt >= 3 && fallbackSelector ? body.querySelector(fallbackSelector) : null
+          const target = (primaryTarget || fallbackTarget) as HTMLElement | null
+          if (!target) {
+            if (attempt < 4) window.setTimeout(() => tryScroll(attempt + 1), 35)
+            return
+          }
+
+          const bodyRect = body.getBoundingClientRect()
+          const targetRect = target.getBoundingClientRect()
+          const targetTop = body.scrollTop + targetRect.top - bodyRect.top - 8
+          body.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' })
+        })
+      })
+    }
+
+    tryScroll(0)
   }
 
   const toggleNewBookingGroupMode = (next?: boolean) => {
@@ -843,12 +888,19 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const [newSlotWaitlistOpen, setNewSlotWaitlistOpen] = useState(false)
   const [mobileBookingStatusDraft, setMobileBookingStatusDraft] = useState<string | null>(null)
   const [isCalendarCreateMobile, setIsCalendarCreateMobile] = useState(false)
+  const [newBookingMobileNotesOpen, setNewBookingMobileNotesOpen] = useState(false)
   // Appointment panels now use the same information architecture at every breakpoint.
   // Responsive CSS may stack/reflow controls, but tablet/mobile must not switch back
   // to the legacy collapsed (+/−) section structure.
   const compactAppointmentStructure = false
   const calendarFormKeyboardOpen = useMobileKeyboardOpen(1024)
   const calendarCreateKeyboardOpen = calendarFormKeyboardOpen
+
+  useEffect(() => {
+    if (!selection || activeNewFormPanel !== 'booking') {
+      setNewBookingMobileNotesOpen(false)
+    }
+  }, [selection, activeNewFormPanel])
   const [releasedSlotWaitlistPrompt, setReleasedSlotWaitlistPrompt] = useState<any>(null)
   const [releasedSlotWaitlistLoading, setReleasedSlotWaitlistLoading] = useState(false)
   const bookedEntitlementVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -4864,6 +4916,28 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             subtitle={newFormPanelSubtitle}
             onClose={closeBookingSelection}
             closeLabel={t('formBookSessionCloseAria')}
+            actions={(
+              <button
+                type="button"
+                className="calendar-booking-mobile-header-save"
+                disabled={availabilitySelection != null ? availabilitySaving : saveBookingLoading}
+                aria-label={availabilitySelection != null
+                  ? (availabilitySaving ? t('formSaving') : t('formSave'))
+                  : (saveBookingLoading ? t('formSaving') : t('formSave'))}
+                title={availabilitySelection != null
+                  ? (availabilitySaving ? t('formSaving') : t('formSave'))
+                  : (saveBookingLoading ? t('formSaving') : t('formSave'))}
+                onClick={() => {
+                  if (availabilitySelection != null) {
+                    void confirmAvailabilityFromHeader()
+                    return
+                  }
+                  void saveBooking(false)
+                }}
+              >
+                <CalendarBookingHeaderSaveIcon />
+              </button>
+            )}
             leading={(
               <button
                 type="button"
@@ -4917,6 +4991,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
           )}
           <PanelBody
             sectioned
+            id={activeNewFormPanel === 'booking' ? 'calendar-new-booking-scroll-body' : undefined}
             className={activeNewFormPanel === 'booking'
               ? 'calendar-approved-booking-body'
               : (activeNewFormPanel === 'todo' || activeNewFormPanel === 'personal' || activeNewFormPanel === 'availability')
@@ -6028,7 +6103,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               ) : (
                 <PanelSection
                   title={sectionLabels.notes}
-                  className="calendar-approved-booking__section calendar-approved-booking__notes"
+                  className={`calendar-approved-booking__section calendar-approved-booking__notes${newBookingMobileNotesOpen ? ' is-mobile-open' : ''}`}
                   icon={<CalendarSectionIcon name="notes" />}
                   defaultOpen
                   collapsible={false}
@@ -6044,52 +6119,84 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 </>
               )}
           </PanelBody>
-          {activeNewFormPanel === 'booking' && availabilitySelection == null && !isNativeAndroid && (
-            <div className="calendar-booking-mobile-quick-options" aria-label={locale === 'sl' ? 'Možnosti termina' : 'Appointment options'}>
-              {groupBookingEnabled && (
+          {activeNewFormPanel === 'booking' && availabilitySelection == null && !isNativeAndroid && !calendarFormKeyboardOpen && (
+            <div className="calendar-booking-mobile-actionbar">
+              <div className="calendar-booking-mobile-quick-options" aria-label={locale === 'sl' ? 'Možnosti termina' : 'Appointment options'}>
                 <button
                   type="button"
-                  className={`calendar-booking-mobile-quick-option${bookingGroupMode ? ' is-active' : ''}`}
-                  aria-pressed={bookingGroupMode}
-                  aria-label={locale === 'sl' ? 'Skupinski' : 'Group'}
-                  onClick={() => toggleNewBookingGroupMode()}
+                  className={`calendar-booking-mobile-quick-option${isLocalBookingAllDay(form.startTime, form.endTime) ? ' is-active' : ''}`}
+                  aria-pressed={isLocalBookingAllDay(form.startTime, form.endTime)}
+                  aria-label={locale === 'sl' ? 'Cel dan' : t('formAllDay')}
+                  onClick={() => {
+                    toggleNewBookingAllDay()
+                    scrollNewBookingMobileSectionIntoView('.calendar-approved-booking__schedule')
+                  }}
                 >
-                  <span className="calendar-booking-mobile-quick-option__icon"><CalendarBookingQuickOptionIcon name="group" /></span>
-                  <span className="calendar-booking-mobile-quick-option__label">{locale === 'sl' ? 'Skupinski' : locale === 'sr' ? 'Grupno' : 'Group'}</span>
+                  <span className="calendar-booking-mobile-quick-option__icon"><CalendarBookingQuickOptionIcon name="allDay" /></span>
+                  <span className="calendar-booking-mobile-quick-option__label">{locale === 'sl' ? 'Cel dan' : t('formAllDay')}</span>
                 </button>
-              )}
-              {onlineSessionBookingEnabled && (
                 <button
                   type="button"
-                  className={`calendar-booking-mobile-quick-option${form.online ? ' is-active' : ''}`}
-                  aria-pressed={!!form.online}
-                  aria-label={locale === 'sl' ? 'Spletni' : 'Online'}
-                  onClick={() => toggleNewBookingOnline()}
+                  className={`calendar-booking-mobile-quick-option${form.repeats ? ' is-active' : ''}`}
+                  aria-pressed={!!form.repeats}
+                  aria-label={locale === 'sl' ? 'Ponavljanje' : t('formRepeats')}
+                  onClick={() => {
+                    const next = !form.repeats
+                    toggleNewBookingRepeats(next)
+                    scrollNewBookingMobileSectionIntoView(
+                      next ? '.calendar-approved-booking__repeat' : '.calendar-approved-booking__schedule',
+                      '.calendar-approved-booking__schedule',
+                    )
+                  }}
                 >
-                  <span className="calendar-booking-mobile-quick-option__icon"><CalendarBookingQuickOptionIcon name="online" /></span>
-                  <span className="calendar-booking-mobile-quick-option__label">{locale === 'sl' ? 'Spletni' : 'Online'}</span>
+                  <span className="calendar-booking-mobile-quick-option__icon"><CalendarBookingQuickOptionIcon name="repeat" /></span>
+                  <span className="calendar-booking-mobile-quick-option__label">{locale === 'sl' ? 'Ponavljanje' : t('formRepeats')}</span>
                 </button>
-              )}
-              <button
-                type="button"
-                className={`calendar-booking-mobile-quick-option${isLocalBookingAllDay(form.startTime, form.endTime) ? ' is-active' : ''}`}
-                aria-pressed={isLocalBookingAllDay(form.startTime, form.endTime)}
-                aria-label={locale === 'sl' ? 'Cel dan' : t('formAllDay')}
-                onClick={toggleNewBookingAllDay}
-              >
-                <span className="calendar-booking-mobile-quick-option__icon"><CalendarBookingQuickOptionIcon name="allDay" /></span>
-                <span className="calendar-booking-mobile-quick-option__label">{locale === 'sl' ? 'Cel dan' : t('formAllDay')}</span>
-              </button>
-              <button
-                type="button"
-                className={`calendar-booking-mobile-quick-option${form.repeats ? ' is-active' : ''}`}
-                aria-pressed={!!form.repeats}
-                aria-label={locale === 'sl' ? 'Ponavljanje' : t('formRepeats')}
-                onClick={() => toggleNewBookingRepeats()}
-              >
-                <span className="calendar-booking-mobile-quick-option__icon"><CalendarBookingQuickOptionIcon name="repeat" /></span>
-                <span className="calendar-booking-mobile-quick-option__label">{locale === 'sl' ? 'Ponavljanje' : t('formRepeats')}</span>
-              </button>
+                {onlineSessionBookingEnabled && (
+                  <button
+                    type="button"
+                    className={`calendar-booking-mobile-quick-option${form.online ? ' is-active' : ''}`}
+                    aria-pressed={!!form.online}
+                    aria-label={locale === 'sl' ? 'Spletni' : 'Online'}
+                    onClick={() => {
+                      toggleNewBookingOnline()
+                      scrollNewBookingMobileSectionIntoView('.calendar-booking-mobile-meeting-row', '.calendar-approved-booking__service')
+                    }}
+                  >
+                    <span className="calendar-booking-mobile-quick-option__icon"><CalendarBookingQuickOptionIcon name="online" /></span>
+                    <span className="calendar-booking-mobile-quick-option__label">{locale === 'sl' ? 'Spletni' : 'Online'}</span>
+                  </button>
+                )}
+                {groupBookingEnabled && (
+                  <button
+                    type="button"
+                    className={`calendar-booking-mobile-quick-option${bookingGroupMode ? ' is-active' : ''}`}
+                    aria-pressed={bookingGroupMode}
+                    aria-label={locale === 'sl' ? 'Skupinski' : 'Group'}
+                    onClick={() => {
+                      toggleNewBookingGroupMode()
+                      scrollNewBookingMobileSectionIntoView('.calendar-approved-booking__clients')
+                    }}
+                  >
+                    <span className="calendar-booking-mobile-quick-option__icon"><CalendarBookingQuickOptionIcon name="group" /></span>
+                    <span className="calendar-booking-mobile-quick-option__label">{locale === 'sl' ? 'Skupinski' : locale === 'sr' ? 'Grupno' : 'Group'}</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={`calendar-booking-mobile-quick-option${newBookingMobileNotesOpen ? ' is-active' : ''}`}
+                  aria-pressed={newBookingMobileNotesOpen}
+                  aria-label={locale === 'sl' ? 'Opombe' : t('formNotes')}
+                  onClick={() => {
+                    const next = !newBookingMobileNotesOpen
+                    setNewBookingMobileNotesOpen(next)
+                    if (next) scrollNewBookingMobileSectionIntoView('.calendar-approved-booking__notes')
+                  }}
+                >
+                  <span className="calendar-booking-mobile-quick-option__icon"><CalendarBookingQuickOptionIcon name="notes" /></span>
+                  <span className="calendar-booking-mobile-quick-option__label">{locale === 'sl' ? 'Opombe' : t('formNotes')}</span>
+                </button>
+              </div>
             </div>
           )}
           <PanelFooter>
