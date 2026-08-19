@@ -283,36 +283,103 @@ export function CalendarSessionQuickBilling({
     return []
   }, [session])
 
+  const advanceServiceByTaxRate = useMemo(() => {
+    const byTaxRate = new Map<string, BillingService>()
+    billingServices.forEach((service) => {
+      if (!advanceServiceIds.has(Number(service.id))) return
+      const taxRate = String(service.taxRate || '').trim().toUpperCase()
+      if (!taxRate || byTaxRate.has(taxRate)) return
+      byTaxRate.set(taxRate, service)
+    })
+    return byTaxRate
+  }, [advanceServiceIds, billingServices])
+
   const derived = useMemo(() => {
     const display: DisplayService[] = []
     const items: QuickItem[] = []
     sessionServiceRefs.forEach((ref: any, index: number) => {
       const typeId = Number(ref?.type?.id ?? ref?.typeId)
       const type = metaTypes.find((entry: any) => Number(entry?.id) === typeId) || ref?.type || {}
-      const linked = (Array.isArray(type?.linkedServices) ? type.linkedServices : []).filter((link: any) => {
+      const allLinked = (Array.isArray(type?.linkedServices) ? type.linkedServices : []).filter((link: any) => {
         const transactionServiceId = Number(link?.transactionServiceId)
-        if (!Number.isInteger(transactionServiceId) || transactionServiceId <= 0) return false
-        return mode === 'advance' ? advanceServiceIds.has(transactionServiceId) : !advanceServiceIds.has(transactionServiceId)
+        return Number.isInteger(transactionServiceId) && transactionServiceId > 0
       })
-      if (linked.length === 0) return
-      const duration = Math.max(1, Number(ref?.durationMinutesOverride ?? ref?.durationMinutes ?? type?.durationMinutes ?? 60) || 60)
-      const defaultGross = linked.reduce((sum: number, link: any) => sum + Math.max(0, parseNumber(link?.unitGross ?? link?.price)), 0)
-      const overrideGross = mode === 'invoice' && Number.isFinite(Number(ref?.grossPriceOverride ?? ref?.grossPrice))
-        ? Math.max(0, Number(ref?.grossPriceOverride ?? ref?.grossPrice))
-        : null
-      const displayGross = overrideGross != null ? overrideGross : defaultGross
-      const name = String(type?.name || type?.description || ref?.serviceName || (locale === 'sl' ? 'Storitev' : 'Service')).trim()
-      display.push({ key: `${typeId || 'service'}-${index}`, name, durationMinutes: duration, grossPrice: displayGross })
 
-      linked.forEach((link: any, linkIndex: number) => {
+      // Normal invoices continue to use the booked service's regular mapped
+      // transaction service(s). Advance invoices are different: the booked
+      // service determines the VAT rate and price, while the invoice line uses
+      // the single Predplačilo-enabled transaction service for that same VAT
+      // rate. This keeps advances VAT-correct without requiring every booked
+      // service itself to be marked as Predplačilo.
+      const regularLinked = allLinked.filter((link: any) => !advanceServiceIds.has(Number(link?.transactionServiceId)))
+      const sourceLinked = mode === 'advance'
+        ? (regularLinked.length > 0 ? regularLinked : allLinked)
+        : regularLinked
+      if (sourceLinked.length === 0) return
+
+      const sourceParts = sourceLinked.map((link: any) => {
         const serviceId = Number(link?.transactionServiceId)
         const service = billingServices.find((entry) => Number(entry.id) === serviceId)
-        let gross = Math.max(0, parseNumber(link?.unitGross ?? link?.price))
-        if (overrideGross != null && linked.length === 1) gross = overrideGross
-        const netFromLink = parseNumber(link?.price)
-        const net = netFromLink > 0 ? netFromLink : gross / (1 + taxMultiplier(service?.taxRate))
+        const gross = Math.max(0, parseNumber(link?.unitGross ?? link?.price))
+        return { link, serviceId, service, gross }
+      })
+      if (sourceParts.some((part) => !part.service)) return
+
+      const duration = Math.max(1, Number(ref?.durationMinutesOverride ?? ref?.durationMinutes ?? type?.durationMinutes ?? 60) || 60)
+      const defaultGross = sourceParts.reduce((sum: number, part: any) => sum + part.gross, 0)
+      const rawOverrideGross = Number(ref?.grossPriceOverride ?? ref?.grossPrice)
+      const overrideGross = Number.isFinite(rawOverrideGross) ? Math.max(0, rawOverrideGross) : null
+      const displayGross = overrideGross != null ? overrideGross : defaultGross
+      const name = String(type?.name || type?.description || ref?.serviceName || (locale === 'sl' ? 'Storitev' : 'Service')).trim()
+
+      if (mode === 'advance') {
+        const advanceParts = sourceParts.map((part: any) => {
+          const taxRate = String(part.service?.taxRate || '').trim().toUpperCase()
+          const advanceService = taxRate ? advanceServiceByTaxRate.get(taxRate) : null
+          return { ...part, taxRate, advanceService }
+        })
+        // Do not show the booked service unless every VAT component has a
+        // matching Predplačilo service. In the normal one-service/one-VAT case
+        // this means exactly the requested VAT-rate match.
+        if (advanceParts.some((part: any) => !part.advanceService)) return
+
+        display.push({ key: `${typeId || 'service'}-${index}`, name, durationMinutes: duration, grossPrice: displayGross })
+
+        const defaultTotal = advanceParts.reduce((sum: number, part: any) => sum + part.gross, 0)
+        advanceParts.forEach((part: any, partIndex: number) => {
+          let gross = part.gross
+          if (overrideGross != null) {
+            if (advanceParts.length === 1) {
+              gross = overrideGross
+            } else if (defaultTotal > 0) {
+              // Preserve the booked total when a legacy service contains more
+              // than one VAT component by allocating its override proportionally.
+              gross = overrideGross * (part.gross / defaultTotal)
+            } else {
+              gross = partIndex === 0 ? overrideGross : 0
+            }
+          }
+          const taxRate = part.advanceService?.taxRate
+          const net = gross / (1 + taxMultiplier(taxRate))
+          items.push({
+            transactionServiceId: Number(part.advanceService.id),
+            quantity: 1,
+            grossPrice: Number(gross.toFixed(4)),
+            netPrice: Number(net.toFixed(4)),
+            sourceSessionBookingId: sourceBookingId,
+          })
+        })
+        return
+      }
+
+      display.push({ key: `${typeId || 'service'}-${index}`, name, durationMinutes: duration, grossPrice: displayGross })
+      sourceParts.forEach((part: any) => {
+        let gross = part.gross
+        if (overrideGross != null && sourceParts.length === 1) gross = overrideGross
+        const netFromLink = parseNumber(part.link?.price)
+        const net = netFromLink > 0 ? netFromLink : gross / (1 + taxMultiplier(part.service?.taxRate))
         items.push({
-          transactionServiceId: serviceId,
+          transactionServiceId: part.serviceId,
           quantity: 1,
           grossPrice: Number(gross.toFixed(4)),
           netPrice: Number(net.toFixed(4)),
@@ -321,7 +388,7 @@ export function CalendarSessionQuickBilling({
       })
     })
     return { display, items }
-  }, [advanceServiceIds, billingServices, locale, metaTypes, mode, sessionServiceRefs, sourceBookingId])
+  }, [advanceServiceByTaxRate, advanceServiceIds, billingServices, locale, metaTypes, mode, sessionServiceRefs, sourceBookingId])
 
   const activeOpenBill = useMemo(() => {
     if (mode !== 'invoice') return null
@@ -485,7 +552,7 @@ export function CalendarSessionQuickBilling({
       return
     }
     if (quickItems.length === 0 || quickItems.some((item) => !advanceServiceIds.has(Number(item.transactionServiceId)))) {
-      showToast('error', locale === 'sl' ? 'Za izbrani termin ni storitev z omogočenim predplačilom.' : 'No advance-enabled service is available for this session.')
+      showToast('error', locale === 'sl' ? 'Za izbrani termin ni storitve z omogočenim predplačilom in ujemajočo stopnjo DDV.' : 'No advance-enabled service with a matching VAT rate is available for this session.')
       return
     }
     setSaving(true)
@@ -615,7 +682,7 @@ export function CalendarSessionQuickBilling({
             </div>
           ) : (
             <div className="calendar-quick-billing__empty-inline">{mode === 'advance'
-              ? (locale === 'sl' ? 'Za termin ni storitev z omogočenim predplačilom.' : 'No advance-enabled services are available for this session.')
+              ? (locale === 'sl' ? 'Za termin ni storitve z omogočenim predplačilom in ujemajočo stopnjo DDV.' : 'No advance-enabled service with a matching VAT rate is available for this session.')
               : (locale === 'sl' ? 'Za izbranega plačnika ni storitev za obračun.' : 'There are no services to bill for this payer.')}</div>
           )}
         </section>

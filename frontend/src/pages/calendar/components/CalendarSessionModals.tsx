@@ -5336,21 +5336,23 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                     />
                     </div>
                   </div>
-                  <div className="form-row form-row-infield calendar-new-create-personal-visibility">
-                    <div className="form-field-inline-control">
-                      <div className="calendar-mobile-inline-toggle" role="group" aria-label={t('formVisibleToAdmins')}>
-                        <span className="calendar-mobile-inline-toggle__label">{t('formVisibleToAdmins')}</span>
-                        <label className="repeats-toggle-switch online-live-repeats-switch calendar-mobile-inline-toggle__switch" title={t('formVisibleToAdmins')}>
-                          <input
-                            type="checkbox"
-                            checked={!!form.visibleToAdmins}
-                            onChange={(e) => setForm({ ...form, visibleToAdmins: e.target.checked })}
-                          />
-                          <span className="repeats-toggle-slider" />
-                        </label>
+                  {isCalendarCreateMobile && (
+                    <div className="form-row form-row-infield calendar-new-create-personal-visibility">
+                      <div className="form-field-inline-control">
+                        <div className="calendar-mobile-inline-toggle" role="group" aria-label={t('formVisibleToAdmins')}>
+                          <span className="calendar-mobile-inline-toggle__label">{t('formVisibleToAdmins')}</span>
+                          <label className="repeats-toggle-switch online-live-repeats-switch calendar-mobile-inline-toggle__switch" title={t('formVisibleToAdmins')}>
+                            <input
+                              type="checkbox"
+                              checked={!!form.visibleToAdmins}
+                              onChange={(e) => setForm({ ...form, visibleToAdmins: e.target.checked })}
+                            />
+                            <span className="repeats-toggle-slider" />
+                          </label>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </PanelSection>
                 <PanelSection
                   title={sectionLabels.schedule}

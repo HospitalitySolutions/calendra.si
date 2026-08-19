@@ -4420,7 +4420,7 @@
 /* ========================================================================== */
 @media (min-width: 1025px) {
     .cp-panel--calendar-new-booking {
-        --approved-booking-orange: #ff5a00;
+        --approved-booking-orange: #0b6ff5;
         --approved-booking-border: #d8dee8;
         --approved-booking-muted: #667085;
         --approved-booking-text: #111827;
@@ -5011,7 +5011,7 @@
 
 @media (min-width: 1025px) {
     .cp-panel--calendar-standardized {
-        --calendar-standard-orange: #ff5a00;
+        --calendar-standard-orange: #0b6ff5;
         --calendar-standard-border: #d8dee8;
         --calendar-standard-muted: #667085;
         --calendar-standard-text: #111827;
@@ -5809,7 +5809,7 @@
     .cp-panel--calendar-standardized .calendar-standardized__consumables .cp-section__icon {
         width: 24px;
         height: 24px;
-        color: #ff5a00;
+        color: #0b6ff5;
     }
 
     .cp-panel--calendar-new-booking .calendar-approved-booking__consumables .cp-section__icon svg,
@@ -6587,7 +6587,7 @@
 @media (max-width: 1024px) {
 
     .cp-panel--calendar-new-booking {
-        --approved-booking-orange: #ff5a00;
+        --approved-booking-orange: #0b6ff5;
         --approved-booking-border: #d8dee8;
         --approved-booking-muted: #667085;
         --approved-booking-text: #111827;
@@ -7162,7 +7162,7 @@
 
 .cp-panel--calendar-edit-booking {
 
-        --calendar-standard-orange: #ff5a00;
+        --calendar-standard-orange: #0b6ff5;
         --calendar-standard-border: #d8dee8;
         --calendar-standard-muted: #667085;
         --calendar-standard-text: #111827;
@@ -8857,7 +8857,7 @@
 /* Mobile/tablet parity for Personal / Opravilo / Dostopnost. */
 @media (max-width: 1024px) {
     .cp-panel--calendar-standardized {
-        --calendar-standard-orange: #ff5a00;
+        --calendar-standard-orange: #0b6ff5;
         --calendar-standard-border: #d8dee8;
         --calendar-standard-muted: #667085;
         --calendar-standard-text: #111827;
@@ -9609,7 +9609,7 @@
     flex: 0 0 19px;
     align-items: center;
     justify-content: center;
-    color: #ff5a00;
+    color: #0b6ff5;
 }
 
 .calendar-quick-billing__section-icon svg {

@@ -66,7 +66,7 @@ const DICT: Record<AppLocale, Record<string, string>> = {
     sessionTypesTxModalCreateService: 'Create service',
     sessionTypesTxAdvanceSwitch: 'Advance',
     sessionTypesTxAdvanceHint:
-      'When enabled, this service is used as the deduction line when applying unused advances to an open bill.',
+      'Used for advance invoices and advance deductions. Only one advance-enabled service can be configured per VAT rate; booked services use the one with the matching VAT rate.',
     sessionTypesTxAdvanceBadge: 'Advance',
     sessionTypesTxNoShowSwitch: 'No Show',
     sessionTypesTxNoShowHint:
@@ -748,7 +748,7 @@ const DICT: Record<AppLocale, Record<string, string>> = {
     sessionTypesTxModalCreateService: 'Ustvari storitev',
     sessionTypesTxAdvanceSwitch: 'Predplačilo',
     sessionTypesTxAdvanceHint:
-      'Če je vklopljeno, se ta storitev uporabi kot postavka za znižanje pri porabi neizkoriščenih predplačil na odprt račun.',
+      'Uporabi se za predplačila in porabo predplačil. Za vsako stopnjo DDV je lahko vklopljena samo ena taka storitev; termin uporabi storitev z ujemajočo stopnjo DDV.',
     sessionTypesTxAdvanceBadge: 'Predplačilo',
     sessionTypesTxNoShowSwitch: 'NO SHOW',
     sessionTypesTxNoShowHint:
@@ -1428,7 +1428,7 @@ const DICT: Record<AppLocale, Record<string, string>> = {
     sessionTypesTxModalSaveService: 'Sačuvaj izmene',
     sessionTypesTxModalCreateService: 'Kreiraj uslugu',
     sessionTypesTxAdvanceSwitch: 'Avans',
-    sessionTypesTxAdvanceHint: 'Kada je uključeno, ova usluga se koristi kao stavka za umanjenje pri korišćenju neiskorišćenih avansa na otvorenom računu.',
+    sessionTypesTxAdvanceHint: 'Koristi se za avanse i korišćenje avansa. Za svaku stopu PDV-a može biti uključena samo jedna takva usluga; termin koristi uslugu sa odgovarajućom stopom PDV-a.',
     sessionTypesTxAdvanceBadge: 'Avans',
     sessionTypesTxNoShowSwitch: 'NO SHOW',
     sessionTypesTxNoShowHint: 'Kada je uključeno, ova usluga zamenjuje uobičajenu stavku kada je klijent označen kao NO SHOW. Može biti izabrana samo jedna usluga.',

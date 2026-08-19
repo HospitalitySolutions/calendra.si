@@ -1843,6 +1843,30 @@ export function SessionTypesPage() {
     [settings.NO_SHOW_TRANSACTION_SERVICE_ID],
   );
 
+  const findAdvanceVatConflict = useCallback(
+    (taxRate: TaxRate, ignoredServiceIds: Iterable<number> = []) => {
+      if (!advanceModuleEnabled) return null;
+      const ignored = new Set(Array.from(ignoredServiceIds, (id) => Number(id)));
+      return services.find((service) =>
+        advanceDeductionIds.has(Number(service.id)) &&
+        !ignored.has(Number(service.id)) &&
+        service.taxRate === taxRate
+      ) ?? null;
+    },
+    [advanceDeductionIds, advanceModuleEnabled, services],
+  );
+
+  const showAdvanceVatConflict = useCallback((taxRate: TaxRate, conflict: BillingService) => {
+    const taxLabel = taxLabels[taxRate] ?? taxRate;
+    window.alert(
+      locale === "sl"
+        ? `Za DDV stopnjo ${taxLabel} je lahko samo ena storitev z vklopljenim Predplačilom. Predplačilo je že vklopljeno pri storitvi »${conflict.description}«.`
+        : locale === "sr"
+          ? `Za poresku stopu ${taxLabel} može postojati samo jedna usluga sa uključenim avansom. Avans je već uključen za „${conflict.description}“.`
+          : `Only one advance-enabled service can be configured for VAT rate ${taxLabel}. Advance is already enabled for “${conflict.description}”.`,
+    );
+  }, [locale]);
+
   const transactionServiceCategoryLabel = useCallback(
     (service: BillingService) => {
       const labels: string[] = [];
@@ -1961,6 +1985,16 @@ export function SessionTypesPage() {
           : "Enter a valid service price.",
       );
       return;
+    }
+    if (advanceModuleEnabled && typeForm.advanceDeduction) {
+      const ownLinkedServiceIds = (editingType?.linkedServices || [])
+        .map((link) => Number(link.transactionServiceId))
+        .filter((id) => Number.isInteger(id) && id > 0);
+      const conflict = findAdvanceVatConflict(typeForm.billingTaxRate, ownLinkedServiceIds);
+      if (conflict) {
+        showAdvanceVatConflict(typeForm.billingTaxRate, conflict);
+        return;
+      }
     }
     if (
       maxParticipantsParsed != null &&
@@ -2394,6 +2428,14 @@ export function SessionTypesPage() {
     };
     const wantAdvance = advanceModuleEnabled && serviceForm.advanceDeduction === true;
     const wantNoShow = noShowModuleEnabled && serviceForm.noShow === true;
+    if (wantAdvance) {
+      const ignoredIds = editingServiceId ? [Number(editingServiceId)] : [];
+      const conflict = findAdvanceVatConflict(serviceForm.taxRate, ignoredIds);
+      if (conflict) {
+        showAdvanceVatConflict(serviceForm.taxRate, conflict);
+        return;
+      }
+    }
 
     let savedId: number;
     try {

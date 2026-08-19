@@ -10,6 +10,7 @@ import com.example.app.session.SessionTypeBreakSettingsService;
 import com.example.app.observability.legacy.LegacyEndpointDefinition;
 import com.example.app.observability.legacy.TrackLegacyEndpoint;
 import com.example.app.billing.PaymentMethodRepository;
+import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.billingissuer.CompanyLegalEntity;
 import com.example.app.billingissuer.CompanyLegalEntityRepository;
 import com.example.app.billingissuer.InvoiceSeries;
@@ -125,6 +126,7 @@ public class SettingsController {
     private final TenantReservationRulesService tenantReservationRulesService;
     private final PaymentMethodRepository paymentMethodRepository;
     private final SessionTypeBreakSettingsService sessionTypeBreakSettingsService;
+    private TransactionServiceRepository transactionServiceRepository;
     private CompanyLegalEntityRepository billingIssuerAssignments;
     private InvoiceSeriesRepository invoiceSeriesRepository;
     private WorkspaceSubscriptionService workspaceSubscriptions;
@@ -184,6 +186,11 @@ public class SettingsController {
                 null,
                 null
         );
+    }
+
+    @Autowired(required = false)
+    void configureTransactionServiceRepository(TransactionServiceRepository transactionServiceRepository) {
+        this.transactionServiceRepository = transactionServiceRepository;
     }
 
     @Autowired(required = false)
@@ -319,6 +326,7 @@ public class SettingsController {
                 && courseModuleAccessService != null) {
             courseModuleAccessService.assertCanDisable(companyId);
         }
+        validateAdvanceDeductionVatUniqueness(companyId, normalizedPayload);
         Arrays.stream(SettingKey.values()).forEach(key -> {
             if (normalizedPayload.containsKey(key.name())) {
                 if (workspaceProjectionRequested && projectToDifferentCompany
@@ -462,6 +470,48 @@ public class SettingsController {
             normalized.put(SettingKey.TENANT_RESERVATION_RULES_JSON.name(), json);
         }
         return normalized;
+    }
+
+    private void validateAdvanceDeductionVatUniqueness(Long companyId, Map<String, String> payload) {
+        String key = SettingKey.ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID.name();
+        if (payload == null || !payload.containsKey(key) || transactionServiceRepository == null) {
+            return;
+        }
+        String raw = String.valueOf(payload.get(key) == null ? "" : payload.get(key)).trim();
+        if (raw.isEmpty()) {
+            return;
+        }
+
+        Map<String, Long> serviceByTaxRate = new LinkedHashMap<>();
+        Set<Long> seenServiceIds = new java.util.LinkedHashSet<>();
+        for (String part : raw.split(",")) {
+            String token = part == null ? "" : part.trim();
+            if (token.isEmpty()) continue;
+            final long serviceId;
+            try {
+                serviceId = Long.parseLong(token);
+            } catch (NumberFormatException ex) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Invalid ADVANCE_DEDUCTION_TRANSACTION_SERVICE_ID setting."
+                );
+            }
+            if (serviceId <= 0 || !seenServiceIds.add(serviceId)) continue;
+
+            var service = transactionServiceRepository.findByIdAndCompanyId(serviceId, companyId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "Configured advance transaction service does not exist for this tenant."
+                    ));
+            String taxRate = service.getTaxRate() == null ? "" : service.getTaxRate().name();
+            Long existingId = serviceByTaxRate.putIfAbsent(taxRate, serviceId);
+            if (existingId != null && existingId.longValue() != serviceId) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Only one advance-enabled transaction service can be configured for each VAT rate (" + taxRate + ")."
+                );
+            }
+        }
     }
 
     private Map<String, String> normalizeInvoicePrintFormatPayload(Map<String, String> payload) {

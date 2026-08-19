@@ -6816,7 +6816,7 @@
         flex: 0 0 auto;
         width: 20px;
         height: 20px;
-        color: #ff6200;
+        color: #0b6ff5;
         stroke-width: 1.9;
     }
 
@@ -7613,7 +7613,7 @@
     .clients-standard-entity-header-title > svg {
         width: 21px;
         height: 21px;
-        color: #ff6200;
+        color: #0b6ff5;
         stroke-width: 1.9;
     }
 
@@ -7715,7 +7715,7 @@
         width: 20px;
         height: 20px;
         flex: 0 0 auto;
-        color: #ff6200;
+        color: #0b6ff5;
         stroke-width: 1.9;
     }
 
@@ -8497,7 +8497,7 @@
         flex: 0 0 auto;
         width: 20px;
         height: 20px;
-        color: #ff6200;
+        color: #0b6ff5;
         stroke-width: 1.9;
     }
 
@@ -8763,7 +8763,7 @@
     .clients-standard-entity-header-title > svg {
         width: 21px;
         height: 21px;
-        color: #ff6200;
+        color: #0b6ff5;
         stroke-width: 1.9;
     }
 
@@ -8861,7 +8861,7 @@
         width: 20px;
         height: 20px;
         flex: 0 0 auto;
-        color: #ff6200;
+        color: #0b6ff5;
         stroke-width: 1.9;
     }
 
@@ -9396,7 +9396,7 @@
         justify-content: center;
         width: 34px;
         height: 34px;
-        color: #ff6200;
+        color: #0b6ff5;
     }
 
     .clients-mobile-create-field__icon svg {
@@ -9508,7 +9508,7 @@
     flex: 0 0 auto;
     width: 19px;
     height: 19px;
-    color: #ff6200;
+    color: #0b6ff5;
     stroke-width: 1.9;
 }
 
@@ -10177,7 +10177,7 @@
         width: 32px;
         min-width: 32px;
         height: 56px;
-        color: #ff6200;
+        color: #0b6ff5;
     }
 
     .clients-standard-company-panel.clients-standard-entity-panel--edit .clients-mobile-entity-edit-form .clients-mobile-create-field__icon svg,
@@ -10629,7 +10629,7 @@
         height: 56px;
         margin: 0;
         padding: 0;
-        color: #ff6200;
+        color: #0b6ff5;
     }
 
     .clients-standard-customer-panel--edit .clients-standard-profile-field__label strong {
@@ -10639,7 +10639,7 @@
     .clients-standard-customer-panel--edit .clients-standard-profile-field__label svg {
         width: 25px;
         height: 25px;
-        color: #ff6200;
+        color: #0b6ff5;
         stroke-width: 1.85;
     }
 
@@ -11509,7 +11509,7 @@
         margin: 0 auto 10px;
         border-radius: 999px;
         background: #fff3ec;
-        color: #ff6200;
+        color: #0b6ff5;
     }
 
     .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-upload-dropzone strong {
@@ -11634,7 +11634,7 @@
         min-width: 46px;
         border-radius: 14px;
         background: #fff3ec;
-        color: #ff6200;
+        color: #0b6ff5;
     }
 
     .clients-standard-customer-panel--edit .clients-settings-card-icon svg {
@@ -12582,7 +12582,7 @@
         height: 54px !important;
         margin-bottom: 8px !important;
         background: #fff3ec !important;
-        color: #ff6200 !important;
+        color: #0b6ff5 !important;
     }
 
     .clients-standard-customer-panel--edit .clients-standard-files-tab .clients-file-browse-button {
@@ -13003,7 +13003,7 @@
         margin: 0 auto 8px !important;
         border-radius: 999px;
         background: #fff3ec !important;
-        color: #ff6200 !important;
+        color: #0b6ff5 !important;
     }
 
     .clients-standard-company-panel.clients-standard-entity-panel--edit .clients-standard-files-tab .clients-file-upload-dropzone strong {
@@ -13844,5 +13844,12 @@
 @media (max-width: 640px) {
     .clients-standard-group-panel.clients-standard-entity-panel--edit .clients-standard-group-settings {
         gap: 18px;
+    }
+}
+
+/* 2026-08-19 — blue icon standardization for client/company/group panels. */
+@media (max-width: 1024px) {
+    .clients-standard-customer-panel--edit > .cp-panel-tabs .cp-panel-tab.is-active svg {
+        color: #0b6ff5;
     }
 }
