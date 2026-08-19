@@ -49,6 +49,84 @@ function CalendarGroupFormIcon() {
   )
 }
 
+function CalendarBookingQuickOptionIcon({ name }: { name: 'group' | 'online' | 'allDay' | 'repeat' }) {
+  const common = {
+    width: 28,
+    height: 28,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  }
+
+  if (name === 'group') {
+    return (
+      <svg {...common}>
+        <circle cx="9" cy="7" r="3" />
+        <path d="M3.5 19c.45-3.1 2.25-4.7 5.5-4.7s5.05 1.6 5.5 4.7" />
+        <path d="M16 4.7a2.7 2.7 0 0 1 0 5.2M15.2 14.5c3.1-.1 5 1.4 5.5 4.5" />
+      </svg>
+    )
+  }
+
+  if (name === 'online') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18M12 3c2.1 2.35 3.15 5.35 3.15 9S14.1 18.65 12 21M12 3C9.9 5.35 8.85 8.35 8.85 12S9.9 18.65 12 21" />
+      </svg>
+    )
+  }
+
+  if (name === 'allDay') {
+    return (
+      <svg {...common}>
+        <rect x="4" y="5" width="16" height="15" rx="2" />
+        <path d="M8 3v4M16 3v4M4 9h16" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg {...common}>
+      <path d="M20 7h-5V2" />
+      <path d="M4.6 9A8 8 0 0 1 18.8 5L20 7" />
+      <path d="M4 17h5v5" />
+      <path d="M19.4 15A8 8 0 0 1 5.2 19L4 17" />
+    </svg>
+  )
+}
+
+function CalendarBookingMeetingIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="m16 10 5-3v10l-5-3" />
+    </svg>
+  )
+}
+
+function CalendarBookingEditIcon() {
+  return (
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  )
+}
+
+function CalendarBookingAddIcon() {
+  return (
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  )
+}
+
 function CalendarClientProfileSectionIcon({ name }: { name: 'person' | 'email' | 'phone' }) {
   const common = {
     width: 20,
@@ -167,19 +245,10 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
   const todoPanelSubtitle = formatPanelSlotSubtitle(selectedTodo?.startTime, selectedTodo?.endTime, locale)
 
   const [bookedEditPanelTab, setBookedEditPanelTab] = useState<'basic' | 'notes' | 'invoice' | 'advance'>('basic')
-  const [newBookingDetailTab, setNewBookingDetailTab] = useState<'basic' | 'notes'>('basic')
 
   useEffect(() => {
     setBookedEditPanelTab('basic')
   }, [selectedBookedSession?.id])
-
-  useEffect(() => {
-    setNewBookingDetailTab('basic')
-  }, [selection?.start, selection?.end])
-
-  useEffect(() => {
-    if (activeNewFormPanel !== 'booking') setNewBookingDetailTab('basic')
-  }, [activeNewFormPanel])
 
   // --- Collapsed-section summaries -----------------------------------------
   // Each collapsed card reports what it holds, so nothing is hidden without a trace.
@@ -371,6 +440,57 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     })
   }
 
+  const toggleNewBookingGroupMode = (next?: boolean) => {
+    const on = typeof next === 'boolean' ? next : !bookingGroupMode
+    setBookingGroupMode(on)
+    if (on) {
+      const firstGroupType = metaTypes.find((type: any) => type?.active !== false && type?.groupBookingEnabled === true)
+      const compatibleServices = formServiceDrafts.filter((service: any) => {
+        if (service.typeId == null) return true
+        const type = metaTypes.find((entry: any) => Number(entry?.id) === Number(service.typeId))
+        return type?.active !== false && type?.groupBookingEnabled === true
+      })
+      const nextServices = compatibleServices.some((service: any) => service.typeId != null)
+        ? compatibleServices
+        : [{ typeId: firstGroupType?.id ?? null, spaceId: formServiceDrafts[0]?.spaceId ?? form.spaceId ?? null }]
+      setForm((prev: any) => ({ ...prev, clientId: null, clientIds: [] }))
+      updateBookingFormServices(nextServices)
+      return
+    }
+
+    const firstActiveType = metaTypes.find((type: any) => type?.active !== false)
+    setForm((prev: any) => ({ ...prev, groupId: null }))
+    if (!formServiceDrafts.some((service: any) => service.typeId != null) && firstActiveType) {
+      updateBookingFormServices([{ typeId: firstActiveType.id, spaceId: formServiceDrafts[0]?.spaceId ?? form.spaceId ?? null }])
+    }
+    setGroupSearch('')
+    setGroupDropdownOpen(false)
+    setEditingGroupSearch(false)
+  }
+
+  const toggleNewBookingOnline = (next?: boolean) => {
+    const on = typeof next === 'boolean' ? next : !form.online
+    if (on) {
+      setForm((prev: any) => ({ ...prev, online: true }))
+      setMeetingPickerCancelUnchecksOnline(true)
+      setMeetingProviderPickerTarget('create')
+      setMeetingProviderPickerOpen(true)
+      return
+    }
+
+    setForm((prev: any) => ({ ...prev, online: false }))
+    setMeetingProviderPickerOpen(false)
+    setMeetingProviderPickerTarget(null)
+    setMeetingPickerCancelUnchecksOnline(false)
+  }
+
+  const toggleNewBookingRepeats = (next?: boolean) => {
+    const on = typeof next === 'boolean' ? next : !form.repeats
+    const startDate = form.startTime ? new Date(form.startTime) : null
+    const sessionDay = startDate ? REPEAT_WEEKDAY_EN[startDate.getDay()] : 'Monday'
+    setForm((prev: any) => ({ ...prev, repeats: on, repeatDay: sessionDay }))
+  }
+
   const renderNewBookingRepeats = (includeToggleRow: boolean) => {
     const dateLoc = locale === 'sl' ? 'sl-SI' : 'en-GB'
     const startDate = form.startTime ? new Date(form.startTime) : null
@@ -412,18 +532,21 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         )}
         {form.repeats && (
           <div className="form-repeats-config">
-            <div className="form-repeats-row">
+            <div className="form-repeats-row form-repeats-row--every">
+              <span className="form-repeats-leading-icon" aria-hidden>
+                <CalendarBookingQuickOptionIcon name="repeat" />
+              </span>
               <span className="form-repeats-label">{t('formRepeatsEvery')}</span>
               <input
                 type="number"
                 min={1}
                 max={52}
-                className="form-repeats-number"
+                className="form-repeats-number form-repeats-number--interval"
                 value={repeatInterval}
                 onChange={(e) => setForm({ ...form, repeatInterval: Math.max(1, Number(e.target.value) || 1) })}
               />
               <DesktopSelect
-                className="form-repeats-select"
+                className="form-repeats-select form-repeats-select--unit"
                 value={repeatUnit}
                 onChange={(e) => setForm({ ...form, repeatUnit: e.target.value })}
               >
@@ -433,10 +556,10 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               </DesktopSelect>
             </div>
             {repeatUnit === 'weeks' && (
-              <div className="form-repeats-row">
+              <div className="form-repeats-row form-repeats-row--day">
                 <span className="form-repeats-label">{t('formRepeatsOnDay')}</span>
                 <DesktopSelect
-                  className="form-repeats-select"
+                  className="form-repeats-select form-repeats-select--day"
                   value={form.repeatDay ?? sessionDay}
                   onChange={(e) => setForm({ ...form, repeatDay: e.target.value })}
                 >
@@ -446,10 +569,10 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 </DesktopSelect>
               </div>
             )}
-            <div className="form-repeats-row">
+            <div className="form-repeats-row form-repeats-row--ends">
               <span className="form-repeats-label">{t('formRepeatsEnds')}</span>
               <DesktopSelect
-                className="form-repeats-select"
+                className="form-repeats-select form-repeats-select--end-type"
                 value={repeatEndType}
                 onChange={(e) => setForm({ ...form, repeatEndType: e.target.value })}
               >
@@ -461,7 +584,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   type="number"
                   min={2}
                   max={100}
-                  className="form-repeats-number"
+                  className="form-repeats-number form-repeats-number--end-count"
                   value={form.repeatEndCount ?? 5}
                   onChange={(e) => {
                     const raw = e.target.value
@@ -481,7 +604,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               {repeatEndType === 'on' && (
                 <input
                   type="date"
-                  className="form-repeats-date"
+                  className="form-repeats-date form-repeats-date--end-date"
                   value={repeatEndDate}
                   onChange={(e) => setForm({ ...form, repeatEndDate: e.target.value })}
                 />
@@ -489,9 +612,6 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             </div>
             <p className="form-repeats-summary muted">
               {summaryLine}
-            </p>
-            <p className="form-repeats-note muted">
-              {t('formRepeatsSameDurationNote')}
             </p>
           </div>
         )}
@@ -619,18 +739,21 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         )}
         {selectedBookedSession.repeats && (
           <div className="form-repeats-config">
-            <div className="form-repeats-row">
+            <div className="form-repeats-row form-repeats-row--every">
+              <span className="form-repeats-leading-icon" aria-hidden>
+                <CalendarBookingQuickOptionIcon name="repeat" />
+              </span>
               <span className="form-repeats-label">{t('formRepeatsEvery')}</span>
               <input
                 type="number"
                 min={1}
                 max={52}
-                className="form-repeats-number"
+                className="form-repeats-number form-repeats-number--interval"
                 value={repeatInterval}
                 onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatInterval: Math.max(1, Number(e.target.value) || 1) })}
               />
               <DesktopSelect
-                className="form-repeats-select"
+                className="form-repeats-select form-repeats-select--unit"
                 value={repeatUnit}
                 onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatUnit: e.target.value })}
               >
@@ -640,10 +763,10 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               </DesktopSelect>
             </div>
             {repeatUnit === 'weeks' && (
-              <div className="form-repeats-row">
+              <div className="form-repeats-row form-repeats-row--day">
                 <span className="form-repeats-label">{t('formRepeatsOnDay')}</span>
                 <DesktopSelect
-                  className="form-repeats-select"
+                  className="form-repeats-select form-repeats-select--day"
                   value={selectedBookedSession.repeatDay ?? sessionDay}
                   onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatDay: e.target.value })}
                 >
@@ -653,10 +776,10 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 </DesktopSelect>
               </div>
             )}
-            <div className="form-repeats-row">
+            <div className="form-repeats-row form-repeats-row--ends">
               <span className="form-repeats-label">{t('formRepeatsEnds')}</span>
               <DesktopSelect
-                className="form-repeats-select"
+                className="form-repeats-select form-repeats-select--end-type"
                 value={repeatEndType}
                 onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatEndType: e.target.value })}
               >
@@ -668,7 +791,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   type="number"
                   min={2}
                   max={100}
-                  className="form-repeats-number"
+                  className="form-repeats-number form-repeats-number--end-count"
                   value={selectedBookedSession.repeatEndCount ?? 5}
                   onChange={(e) => {
                     const raw = e.target.value
@@ -688,14 +811,13 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               {repeatEndType === 'on' && (
                 <input
                   type="date"
-                  className="form-repeats-date"
+                  className="form-repeats-date form-repeats-date--end-date"
                   value={repeatEndDate}
                   onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeatEndDate: e.target.value })}
                 />
               )}
             </div>
             <p className="form-repeats-summary muted">{summaryLine}</p>
-            <p className="form-repeats-note muted">{t('formRepeatsSameDurationNote')}</p>
           </div>
         )}
       </div>
@@ -3035,7 +3157,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           setShowAddClientModal(true)
                         }}
                       >
-                        <span aria-hidden>+</span>
+                        <CalendarBookingAddIcon />
                         <span className="calendar-client-picker__add-label">{clientSearchPlaceholder}</span>
                       </button>
                       {bookedSessionSelectedClients.length === 1 && bookedSessionSelectedClient?.id && (
@@ -4742,26 +4864,27 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
             subtitle={newFormPanelSubtitle}
             onClose={closeBookingSelection}
             closeLabel={t('formBookSessionCloseAria')}
+            leading={activeNewFormPanel === 'booking' ? (
+              <button
+                type="button"
+                className="calendar-booking-mobile-back"
+                onClick={closeBookingSelection}
+                aria-label={locale === 'sl' ? 'Nazaj' : locale === 'sr' ? 'Nazad' : 'Back'}
+                title={locale === 'sl' ? 'Nazaj' : locale === 'sr' ? 'Nazad' : 'Back'}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </button>
+            ) : undefined}
           />
           {!isNativeAndroid && (
             <PanelTabs
               label={t('formBookSession')}
-              activeId={activeNewFormPanel === 'booking' && newBookingDetailTab === 'notes' ? 'notes' : activeNewFormPanel}
+              activeId={activeNewFormPanel}
               onSelect={(id) => {
-                setNewBookingDetailTab('basic')
                 activateNewFormPanel(id)
               }}
-              footer={activeNewFormPanel === 'booking' ? (
-                <button
-                  type="button"
-                  className={`cp-panel-tab calendar-booking-notes-rail-tab${newBookingDetailTab === 'notes' ? ' is-active' : ''}`}
-                  aria-current={newBookingDetailTab === 'notes' ? 'page' : undefined}
-                  onClick={() => setNewBookingDetailTab('notes')}
-                >
-                  <CalendarSectionIcon name="notes" />
-                  <span>{sectionLabels.notes}</span>
-                </button>
-              ) : undefined}
               tabs={[
                 {
                   id: 'booking',
@@ -4795,7 +4918,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
           <PanelBody
             sectioned
             className={activeNewFormPanel === 'booking'
-              ? `calendar-approved-booking-body${newBookingDetailTab === 'notes' && !isNativeAndroid ? ' calendar-booking-notes-tab-active' : ''}`
+              ? 'calendar-approved-booking-body'
               : (activeNewFormPanel === 'todo' || activeNewFormPanel === 'personal' || activeNewFormPanel === 'availability')
                 ? 'calendar-standardized-body'
                 : ''}
@@ -5240,32 +5363,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         type="checkbox"
                         checked={bookingGroupMode}
                         aria-labelledby={addBookingGroupCaptionId}
-                        onChange={(e) => {
-                          const on = e.target.checked
-                          setBookingGroupMode(on)
-                          if (on) {
-                            const firstGroupType = metaTypes.find((type: any) => type?.active !== false && type?.groupBookingEnabled === true)
-                            const compatibleServices = formServiceDrafts.filter((service: any) => {
-                              if (service.typeId == null) return true
-                              const type = metaTypes.find((entry: any) => Number(entry?.id) === Number(service.typeId))
-                              return type?.active !== false && type?.groupBookingEnabled === true
-                            })
-                            const nextServices = compatibleServices.some((service: any) => service.typeId != null)
-                              ? compatibleServices
-                              : [{ typeId: firstGroupType?.id ?? null, spaceId: formServiceDrafts[0]?.spaceId ?? form.spaceId ?? null }]
-                            setForm((prev: any) => ({ ...prev, clientId: null, clientIds: [] }))
-                            updateBookingFormServices(nextServices)
-                          } else {
-                            const firstActiveType = metaTypes.find((type: any) => type?.active !== false)
-                            setForm((prev: any) => ({ ...prev, groupId: null }))
-                            if (!formServiceDrafts.some((service: any) => service.typeId != null) && firstActiveType) {
-                              updateBookingFormServices([{ typeId: firstActiveType.id, spaceId: formServiceDrafts[0]?.spaceId ?? form.spaceId ?? null }])
-                            }
-                            setGroupSearch('')
-                            setGroupDropdownOpen(false)
-                            setEditingGroupSearch(false)
-                          }
-                        }}
+                        onChange={(e) => toggleNewBookingGroupMode(e.target.checked)}
                       />
                       <span className="repeats-toggle-slider" />
                     </label>
@@ -5358,7 +5456,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               setShowAddGroupModal(true)
                             }}
                           >
-                            <span aria-hidden>+</span>
+                            <CalendarBookingAddIcon />
                           </button>
                         </div>
                       </div>
@@ -5525,7 +5623,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           setShowAddClientModal(true)
                         }}
                       >
-                        <span aria-hidden>+</span>
+                        <CalendarBookingAddIcon />
                       </button>
                       {waitlistModuleEnabled && Number(visibleNewSlotWaitlistMatches?.count) > 0 && (
                         <button
@@ -5654,20 +5752,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                               type="checkbox"
                               checked={!!form.online}
                               aria-labelledby={addBookingOnlineCaptionId}
-                              onChange={(e) => {
-                                const on = e.target.checked
-                                if (on) {
-                                  setForm({ ...form, online: true })
-                                  setMeetingPickerCancelUnchecksOnline(true)
-                                  setMeetingProviderPickerTarget('create')
-                                  setMeetingProviderPickerOpen(true)
-                                } else {
-                                  setForm({ ...form, online: false })
-                                  setMeetingProviderPickerOpen(false)
-                                  setMeetingProviderPickerTarget(null)
-                                  setMeetingPickerCancelUnchecksOnline(false)
-                                }
-                              }}
+                              onChange={(e) => toggleNewBookingOnline(e.target.checked)}
                             />
                             <span className="repeats-toggle-slider" />
                           </label>
@@ -5707,6 +5792,29 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   >
                     {compactAppointmentStructure ? newFormServiceExtraRows : null}
                   </CalendarServiceChainEditor>
+              )}
+              {showBookingTypeRow && form.online && !isNativeAndroid && (
+                <div className="calendar-booking-mobile-meeting-row" role="group" aria-label={t('formMeeting')}>
+                  <span className="calendar-booking-mobile-meeting-row__icon" aria-hidden>
+                    <CalendarBookingMeetingIcon />
+                  </span>
+                  <div className="calendar-booking-mobile-meeting-row__value">
+                    {form.meetingProvider === 'google' ? 'Google Meet' : 'Zoom'}
+                  </div>
+                  <button
+                    type="button"
+                    className="calendar-booking-mobile-meeting-row__edit"
+                    aria-label={locale === 'sl' ? 'Spremeni spletni sestanek' : t('formChange')}
+                    title={locale === 'sl' ? 'Spremeni spletni sestanek' : t('formChange')}
+                    onClick={() => {
+                      setMeetingPickerCancelUnchecksOnline(false)
+                      setMeetingProviderPickerTarget('create')
+                      setMeetingProviderPickerOpen(true)
+                    }}
+                  >
+                    <CalendarBookingEditIcon />
+                  </button>
+                </div>
               )}
               {!showBookingTypeRow && compactAppointmentStructure && newFormServiceExtraRows && (
                 <PanelSection
@@ -5825,7 +5933,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               {!compactAppointmentStructure && (
                 <PanelSection
                   title={sectionLabels.repeats}
-                  className="calendar-approved-booking__section calendar-approved-booking__repeat"
+                  className={`calendar-approved-booking__section calendar-approved-booking__repeat${form.repeats ? ' calendar-approved-booking__repeat--active' : ''}`}
                   icon={<CalendarSectionIcon name="repeat" />}
                   collapsible={false}
                   action={
@@ -5834,11 +5942,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         type="checkbox"
                         checked={!!form.repeats}
                         aria-label={sectionLabels.repeats}
-                        onChange={(e) => {
-                          const startDate = form.startTime ? new Date(form.startTime) : null
-                          const sessionDay = startDate ? REPEAT_WEEKDAY_EN[startDate.getDay()] : 'Monday'
-                          setForm({ ...form, repeats: e.target.checked, repeatDay: sessionDay })
-                        }}
+                        onChange={(e) => toggleNewBookingRepeats(e.target.checked)}
                       />
                       <span className="repeats-toggle-slider" />
                     </label>
@@ -5940,6 +6044,54 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 </>
               )}
           </PanelBody>
+          {activeNewFormPanel === 'booking' && availabilitySelection == null && !isNativeAndroid && (
+            <div className="calendar-booking-mobile-quick-options" aria-label={locale === 'sl' ? 'Možnosti termina' : 'Appointment options'}>
+              {groupBookingEnabled && (
+                <button
+                  type="button"
+                  className={`calendar-booking-mobile-quick-option${bookingGroupMode ? ' is-active' : ''}`}
+                  aria-pressed={bookingGroupMode}
+                  aria-label={locale === 'sl' ? 'Skupinski' : 'Group'}
+                  onClick={() => toggleNewBookingGroupMode()}
+                >
+                  <span className="calendar-booking-mobile-quick-option__icon"><CalendarBookingQuickOptionIcon name="group" /></span>
+                  <span className="calendar-booking-mobile-quick-option__label">{locale === 'sl' ? 'Skupinski' : locale === 'sr' ? 'Grupno' : 'Group'}</span>
+                </button>
+              )}
+              {onlineSessionBookingEnabled && (
+                <button
+                  type="button"
+                  className={`calendar-booking-mobile-quick-option${form.online ? ' is-active' : ''}`}
+                  aria-pressed={!!form.online}
+                  aria-label={locale === 'sl' ? 'Spletni' : 'Online'}
+                  onClick={() => toggleNewBookingOnline()}
+                >
+                  <span className="calendar-booking-mobile-quick-option__icon"><CalendarBookingQuickOptionIcon name="online" /></span>
+                  <span className="calendar-booking-mobile-quick-option__label">{locale === 'sl' ? 'Spletni' : 'Online'}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className={`calendar-booking-mobile-quick-option${isLocalBookingAllDay(form.startTime, form.endTime) ? ' is-active' : ''}`}
+                aria-pressed={isLocalBookingAllDay(form.startTime, form.endTime)}
+                aria-label={locale === 'sl' ? 'Cel dan' : t('formAllDay')}
+                onClick={toggleNewBookingAllDay}
+              >
+                <span className="calendar-booking-mobile-quick-option__icon"><CalendarBookingQuickOptionIcon name="allDay" /></span>
+                <span className="calendar-booking-mobile-quick-option__label">{locale === 'sl' ? 'Cel dan' : t('formAllDay')}</span>
+              </button>
+              <button
+                type="button"
+                className={`calendar-booking-mobile-quick-option${form.repeats ? ' is-active' : ''}`}
+                aria-pressed={!!form.repeats}
+                aria-label={locale === 'sl' ? 'Ponavljanje' : t('formRepeats')}
+                onClick={() => toggleNewBookingRepeats()}
+              >
+                <span className="calendar-booking-mobile-quick-option__icon"><CalendarBookingQuickOptionIcon name="repeat" /></span>
+                <span className="calendar-booking-mobile-quick-option__label">{locale === 'sl' ? 'Ponavljanje' : t('formRepeats')}</span>
+              </button>
+            </div>
+          )}
           <PanelFooter>
             <PanelButton variant="ghost" onClick={closeBookingSelection}>
               {t('formCancel')}
