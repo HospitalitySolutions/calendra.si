@@ -14132,7 +14132,7 @@
     .cp-panel--calendar-edit-todo .calendar-edit-todo-notes-field,
     .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .calendar-timespan-field:first-child {
         position: relative !important;
-        padding-left: 62px !important;
+        padding-left: 52px !important;
     }
 
     .cp-panel--calendar-edit-todo .calendar-edit-todo-task-field::before,
@@ -14169,7 +14169,7 @@
     .cp-panel--calendar-edit-todo .calendar-edit-todo-task-field input {
         min-height: 70px !important;
         height: 70px !important;
-        padding: 0 0 10px !important;
+        padding: 0 0 6px !important;
         border: 0 !important;
         border-bottom: 1px solid var(--todo-edit-line) !important;
         border-radius: 0 !important;
@@ -14202,7 +14202,8 @@
     }
 
     .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .calendar-timespan-field--date {
-        padding-left: 62px !important;
+        padding-top: 10px !important;
+        padding-left: 52px !important;
     }
 
     .cp-panel--calendar-edit-todo .calendar-standardized__schedule--todo .calendar-timespan-input-inner {
@@ -14216,7 +14217,7 @@
 
     .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .calendar-timespan-label {
         display: block !important;
-        margin: 0 0 15px !important;
+        margin: 0 0 12px !important;
         color: var(--todo-edit-muted) !important;
         font-size: 0.84rem !important;
         font-weight: 500 !important;
@@ -14224,9 +14225,9 @@
     }
 
     .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .modern-time-picker__trigger {
-        min-height: 62px !important;
-        height: 62px !important;
-        padding: 0 34px 10px 0 !important;
+        min-height: 58px !important;
+        height: 58px !important;
+        padding: 0 34px 6px 0 !important;
         border: 0 !important;
         border-bottom: 1px solid var(--todo-edit-line) !important;
         border-radius: 0 !important;
@@ -14248,7 +14249,7 @@
         content: "";
         position: absolute;
         right: 1px;
-        bottom: 26px;
+        bottom: 22px;
         width: 10px;
         height: 10px;
         border-right: 2px solid #65748a;
@@ -14264,8 +14265,8 @@
         justify-content: space-between !important;
         gap: 16px !important;
         min-height: 34px !important;
-        margin-top: 12px !important;
-        margin-bottom: 13px !important;
+        margin-top: 18px !important;
+        margin-bottom: 10px !important;
     }
 
     .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time .calendar-timespan-date-head .calendar-timespan-label {
@@ -14293,9 +14294,9 @@
 
     .cp-panel--calendar-edit-todo .calendar-edit-todo-date-time input[type='date'] {
         width: 100% !important;
-        min-height: 62px !important;
-        height: 62px !important;
-        padding: 0 0 10px !important;
+        min-height: 56px !important;
+        height: 56px !important;
+        padding: 0 0 6px !important;
         border: 0 !important;
         border-bottom: 1px solid var(--todo-edit-line) !important;
         border-radius: 0 !important;
@@ -14325,7 +14326,7 @@
         width: 100% !important;
         min-height: 84px !important;
         height: 84px !important;
-        padding: 20px 0 10px !important;
+        padding: 20px 0 6px !important;
         border: 0 !important;
         border-bottom: 1px solid var(--todo-edit-line) !important;
         border-radius: 0 !important;
