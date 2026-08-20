@@ -42,6 +42,93 @@ import { SESSION_TYPES_DRAWERS, useDrawerRoute } from "../lib/drawerRoutes";
 
 const SESSION_TYPES_SUBTAB_TRANSACTION = "transaction-services";
 
+function GuestProductMobileBackIcon() {
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m15 18-6-6 6-6" />
+    </svg>
+  );
+}
+
+function GuestProductMobileSaveIcon() {
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.1"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m5 12.5 4.2 4.2L19 7" />
+    </svg>
+  );
+}
+
+function GuestProductMobileFieldIcon({
+  name,
+}: {
+  name: "name" | "type" | "location" | "service" | "quantity" | "validity" | "visibility" | "renew" | "copy";
+}) {
+  const common = {
+    width: 24,
+    height: 24,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.9,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  if (name === "name") {
+    return <svg {...common}><rect x="4.5" y="7" width="15" height="12.5" rx="2.2"/><path d="M9 7V5.7A1.7 1.7 0 0 1 10.7 4h2.6A1.7 1.7 0 0 1 15 5.7V7"/></svg>;
+  }
+  if (name === "type") {
+    return <svg {...common}><rect x="4.5" y="4.5" width="15" height="15" rx="2.3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>;
+  }
+  if (name === "location") {
+    return <svg {...common}><path d="M12 21s6-5.5 6-11a6 6 0 1 0-12 0c0 5.5 6 11 6 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>;
+  }
+  if (name === "service") {
+    return <svg {...common}><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5v-9Z"/><path d="m4.5 7.8 7.5 4.3 7.5-4.3M12 12.1V21"/></svg>;
+  }
+  if (name === "quantity") {
+    return <svg {...common}><path d="M8.5 4.5 7 19.5M17 4.5l-1.5 15M4.5 9h15M4 15h15"/></svg>;
+  }
+  if (name === "validity") {
+    return <svg {...common}><rect x="4" y="5.5" width="16" height="14" rx="2.3"/><path d="M8 3.5v4M16 3.5v4M4 9.5h16"/></svg>;
+  }
+  if (name === "visibility") {
+    return <svg {...common}><path d="M2.5 12s3.4-5.5 9.5-5.5 9.5 5.5 9.5 5.5-3.4 5.5-9.5 5.5S2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.8"/></svg>;
+  }
+  if (name === "renew") {
+    return <svg {...common}><path d="M19 8V4l-2 2a7 7 0 1 0 1.2 9.5"/><path d="M19 4h-4"/></svg>;
+  }
+  return <svg {...common}><rect x="5" y="3.8" width="14" height="16.4" rx="2.2"/><path d="M9 8.2h6M9 12h6M9 15.8h4.4"/></svg>;
+}
+
+function GuestProductMobileChevron() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 export type GuestAdminProductType =
   | "CLASS_TICKET"
   | "PACK"
@@ -755,6 +842,7 @@ export const CardsMembershipsSection = forwardRef<
   const [guestProductKeyboardOpen, setGuestProductKeyboardOpen] =
     useState(false);
   const [guestProductEditorTab, setGuestProductEditorTab] = useState<GuestProductEditorTab>("basic");
+  const [isGuestProductMobileTablet, setIsGuestProductMobileTablet] = useState(() => typeof window !== "undefined" && window.innerWidth <= 1024);
 
   const guestProductHasChanges = useMemo(
     () =>
@@ -819,6 +907,18 @@ export const CardsMembershipsSection = forwardRef<
       window.removeEventListener("orientationchange", updateKeyboardState);
     };
   }, [cardDrawerOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const updateViewportState = () => setIsGuestProductMobileTablet(window.innerWidth <= 1024);
+    updateViewportState();
+    window.addEventListener("resize", updateViewportState);
+    window.addEventListener("orientationchange", updateViewportState);
+    return () => {
+      window.removeEventListener("resize", updateViewportState);
+      window.removeEventListener("orientationchange", updateViewportState);
+    };
+  }, []);
 
   const loadGuestProducts = useCallback(async () => {
     if (!isAdmin) return;
@@ -1939,7 +2039,7 @@ export const CardsMembershipsSection = forwardRef<
             : (locale === "sl" ? "Nova ugodnost" : "New entitlement")
         }
         size="xl"
-        className="session-type-standard-panel"
+        className="session-type-standard-panel cards-product-mobile-panel"
       >
         <PanelHeader
           title={
@@ -1951,6 +2051,31 @@ export const CardsMembershipsSection = forwardRef<
             if (!savingGuestProduct) closeDrawer();
           }}
           closeLabel={locale === "sl" ? "Zapri" : "Close"}
+          closeVisible={!isGuestProductMobileTablet}
+          leading={isGuestProductMobileTablet ? (
+            <button
+              type="button"
+              className="cards-product-mobile-header-btn cards-product-mobile-header-btn--back"
+              onClick={() => {
+                if (!savingGuestProduct) closeDrawer();
+              }}
+              aria-label={locale === "sl" ? "Nazaj" : "Back"}
+            >
+              <GuestProductMobileBackIcon />
+            </button>
+          ) : undefined}
+          actions={isGuestProductMobileTablet ? (
+            <button
+              type="submit"
+              form="guest-product-edit-form"
+              className="cards-product-mobile-header-btn cards-product-mobile-header-btn--save"
+              aria-label={editingGuestProductId ? t("formSaveChanges") : (locale === "sl" ? "Ustvari ugodnost" : "Create entitlement")}
+              title={editingGuestProductId ? t("formSaveChanges") : (locale === "sl" ? "Ustvari ugodnost" : "Create entitlement")}
+              disabled={savingGuestProduct || !guestProductHasChanges}
+            >
+              <GuestProductMobileSaveIcon />
+            </button>
+          ) : undefined}
         />
         <PanelTabs
           label={locale === "sl" ? "Zavihki ugodnosti" : "Entitlement tabs"}
@@ -1975,7 +2100,384 @@ export const CardsMembershipsSection = forwardRef<
           onSubmit={submitGuestProduct}
           className="session-type-standard-panel-body"
         >
-          {guestProductEditorTab === "basic" ? (
+          {isGuestProductMobileTablet && guestProductForm.productType !== "GIFT_CARD" && guestProductEditorTab === "basic" ? (
+            <div className="cards-product-mobile-editor">
+              <label className="cards-product-mobile-field">
+                <span className="cards-product-mobile-field__icon"><GuestProductMobileFieldIcon name="name" /></span>
+                <span className="cards-product-mobile-field__body">
+                  <span className="cards-product-mobile-field__label">{locale === "sl" ? "Naziv" : "Name"}</span>
+                  <input
+                    required
+                    className="cards-product-mobile-field__control"
+                    placeholder={locale === "sl" ? "Naziv" : "Name"}
+                    value={guestProductForm.name}
+                    onChange={(event) => setGuestProductForm({ ...guestProductForm, name: event.target.value })}
+                  />
+                </span>
+              </label>
+
+              <label className="cards-product-mobile-field">
+                <span className="cards-product-mobile-field__icon"><GuestProductMobileFieldIcon name="type" /></span>
+                <span className="cards-product-mobile-field__body">
+                  <span className="cards-product-mobile-field__label">{locale === "sl" ? "Tip ugodnosti" : "Entitlement type"}</span>
+                  <DesktopSelect
+                    className="cards-product-mobile-field__control cards-product-mobile-field__control--select"
+                    value={guestProductForm.productType}
+                    onChange={(event) => {
+                      const pt = event.target.value as GuestAdminProductType;
+                      const firstSessionTypeId = sessionTypes[0] ? String(sessionTypes[0].id) : "";
+                      setGuestProductForm((current) => {
+                        const normalized = normalizeGuestProductFormForType(current, pt, firstSessionTypeId);
+                        return syncGuestProductPriceFromSessionTypes(normalized, sessionTypes);
+                      });
+                    }}
+                  >
+                    {availableAdminGuestProductTypes.map((productType) => (
+                      <option key={productType} value={productType}>{productTypeLabel(productType, locale)}</option>
+                    ))}
+                  </DesktopSelect>
+                </span>
+              </label>
+
+              <label className="cards-product-mobile-field">
+                <span className="cards-product-mobile-field__icon"><GuestProductMobileFieldIcon name="location" /></span>
+                <span className="cards-product-mobile-field__body">
+                  <span className="cards-product-mobile-field__label">{locale === "sl" ? "Lokacije" : "Locations"}</span>
+                  <DesktopSelect
+                    className="cards-product-mobile-field__control cards-product-mobile-field__control--select"
+                    value={guestProductForm.availableAllLocations ? "ALL" : "SELECTED"}
+                    onChange={(event) =>
+                      setGuestProductForm((current) => ({
+                        ...current,
+                        availableAllLocations: event.target.value === "ALL",
+                        locationIds: event.target.value === "ALL" ? [] : current.locationIds,
+                      }))
+                    }
+                  >
+                    <option value="ALL">{locale === "sl" ? "Vse lokacije" : "All locations"}</option>
+                    <option value="SELECTED">{locale === "sl" ? "Izbrane lokacije" : "Selected locations"}</option>
+                  </DesktopSelect>
+                </span>
+              </label>
+
+              {!guestProductForm.availableAllLocations ? (
+                <div className="cards-product-mobile-location-options">
+                  {locations.map((location) => {
+                    const id = String(location.id);
+                    const checked = guestProductForm.locationIds.includes(id);
+                    return (
+                      <label key={location.id} className={`cards-product-mobile-check-row${checked ? " is-selected" : ""}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(event) =>
+                            setGuestProductForm((current) => ({
+                              ...current,
+                              locationIds: event.target.checked
+                                ? Array.from(new Set([...current.locationIds, id]))
+                                : current.locationIds.filter((value) => value !== id),
+                            }))
+                          }
+                        />
+                        <span>{location.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              <label className="cards-product-mobile-field">
+                <span className="cards-product-mobile-field__icon cards-product-mobile-field__icon--symbol" aria-hidden>€</span>
+                <span className="cards-product-mobile-field__body">
+                  <span className="cards-product-mobile-field__label">{locale === "sl" ? "Cena (bruto)" : "Price (gross)"}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="cards-product-mobile-field__control"
+                    readOnly={
+                      guestProductForm.productType === "CLASS_TICKET" &&
+                      guestProductForm.serviceScope === "SERVICES" &&
+                      guestProductTypeUsesAutoPrice(guestProductForm.productType, guestProductForm.sessionTypeIds.length)
+                    }
+                    value={guestProductForm.priceGross}
+                    onChange={(event) => {
+                      if (
+                        guestProductForm.productType === "CLASS_TICKET" &&
+                        guestProductForm.serviceScope === "SERVICES" &&
+                        guestProductTypeUsesAutoPrice(guestProductForm.productType, guestProductForm.sessionTypeIds.length)
+                      ) return;
+                      const nextPrice = event.target.value;
+                      setGuestProductForm((current) => ({
+                        ...current,
+                        priceGross: nextPrice,
+                        priceGrossManuallyOverridden: current.productType === "PACK" ? true : current.priceGrossManuallyOverridden,
+                        voucherFaceValueGross:
+                          current.productType === "GIFT_CARD" &&
+                          current.voucherRedemptionMode === "VALUE" &&
+                          (current.voucherFaceValueGross === current.priceGross || Number(current.voucherFaceValueGross) <= 0)
+                            ? nextPrice
+                            : current.voucherFaceValueGross,
+                      }));
+                    }}
+                  />
+                </span>
+              </label>
+
+              <label className="cards-product-mobile-field">
+                <span className="cards-product-mobile-field__icon cards-product-mobile-field__icon--symbol" aria-hidden>%</span>
+                <span className="cards-product-mobile-field__body">
+                  <span className="cards-product-mobile-field__label">{locale === "sl" ? "DDV" : "VAT"}</span>
+                  <DesktopSelect
+                    required
+                    className="cards-product-mobile-field__control cards-product-mobile-field__control--select"
+                    value={guestProductForm.taxRate}
+                    onChange={(event) => setGuestProductForm((current) => ({ ...current, taxRate: event.target.value as TaxRate }))}
+                  >
+                    <option value="VAT_22">{locale === "sl" ? "22 %" : "22%"}</option>
+                    <option value="VAT_9_5">{locale === "sl" ? "9,5 %" : "9.5%"}</option>
+                    <option value="VAT_0">0 %</option>
+                    <option value="NO_VAT">{locale === "sl" ? "Brez DDV" : "No VAT"}</option>
+                  </DesktopSelect>
+                </span>
+              </label>
+
+              <div className="cards-product-mobile-scope">
+                <span className="cards-product-mobile-scope__label">{locale === "sl" ? "Velja za" : "Valid for"}</span>
+                <div className="cards-product-mobile-scope__options" role="radiogroup" aria-label={locale === "sl" ? "Velja za" : "Valid for"}>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={guestProductForm.serviceScope === "SERVICES"}
+                    className={`cards-product-mobile-scope-card${guestProductForm.serviceScope === "SERVICES" ? " is-selected" : ""}`}
+                    onClick={() => setGuestProductForm((current) => ({ ...current, serviceScope: "SERVICES", serviceGroupId: "" }))}
+                  >
+                    <span className="cards-product-mobile-scope-card__radio" aria-hidden />
+                    <span className="cards-product-mobile-scope-card__icon" aria-hidden><GuestProductMobileFieldIcon name="service" /></span>
+                    <span className="cards-product-mobile-scope-card__copy">
+                      <strong>{locale === "sl" ? "Storitve" : "Services"}</strong>
+                      <span>{locale === "sl" ? "Velja za eno ali več izbranih storitev." : "Applies to one or more selected services."}</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={guestProductForm.serviceScope === "SERVICE_GROUP"}
+                    disabled={serviceGroups.length === 0}
+                    className={`cards-product-mobile-scope-card${guestProductForm.serviceScope === "SERVICE_GROUP" ? " is-selected" : ""}`}
+                    onClick={() => setGuestProductForm((current) => ({
+                      ...current,
+                      serviceScope: "SERVICE_GROUP",
+                      serviceGroupId: "",
+                      sessionTypeId: "",
+                      sessionTypeIds: [],
+                    }))}
+                  >
+                    <span className="cards-product-mobile-scope-card__radio" aria-hidden />
+                    <span className="cards-product-mobile-scope-card__icon cards-product-mobile-scope-card__icon--grid" aria-hidden>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>
+                      </svg>
+                    </span>
+                    <span className="cards-product-mobile-scope-card__copy">
+                      <strong>{locale === "sl" ? "Skupino storitev" : "Service group"}</strong>
+                      <span>{locale === "sl" ? "Velja za vse storitve v izbrani skupini." : "Applies to every service in the selected group."}</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {guestProductForm.serviceScope === "SERVICES" ? (
+                <div className="cards-product-mobile-field cards-product-mobile-field--details">
+                  <span className="cards-product-mobile-field__icon"><GuestProductMobileFieldIcon name="service" /></span>
+                  <span className="cards-product-mobile-field__body">
+                    <span className="cards-product-mobile-field__label">{locale === "sl" ? "Storitve" : "Services"}</span>
+                    <details className="cards-product-mobile-services-dropdown">
+                      <summary>
+                        <span>
+                          {guestProductForm.productType === "MEMBERSHIP" && guestProductForm.sessionTypeIds.length === 0
+                            ? (locale === "sl" ? "Vse storitve" : "All services")
+                            : guestProductForm.sessionTypeIds.length === 0
+                              ? (locale === "sl" ? "Izberite storitve" : "Select services")
+                              : guestProductForm.sessionTypeIds.length === 1
+                                ? sessionTypeDisplayLabel(sessionTypes.find((item) => String(item.id) === guestProductForm.sessionTypeIds[0]) || sessionTypes[0])
+                                : (locale === "sl" ? `${guestProductForm.sessionTypeIds.length} izbrane storitve` : `${guestProductForm.sessionTypeIds.length} selected services`)}
+                        </span>
+                        <GuestProductMobileChevron />
+                      </summary>
+                      <div className="cards-product-mobile-services-dropdown__menu">
+                        {guestProductForm.productType === "MEMBERSHIP" ? (
+                          <label className={`cards-product-mobile-check-row${guestProductForm.sessionTypeIds.length === 0 ? " is-selected" : ""}`}>
+                            <input
+                              type="checkbox"
+                              checked={guestProductForm.sessionTypeIds.length === 0}
+                              onChange={() => setGuestProductForm((current) => ({ ...current, sessionTypeId: "", sessionTypeIds: [] }))}
+                            />
+                            <span>{locale === "sl" ? "Vse storitve" : "All services"}</span>
+                          </label>
+                        ) : null}
+                        {sessionTypes.map((sessionType) => {
+                          const id = String(sessionType.id);
+                          const checked = guestProductForm.sessionTypeIds.includes(id);
+                          return (
+                            <label key={sessionType.id} className={`cards-product-mobile-check-row${checked ? " is-selected" : ""}`}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) => {
+                                  if (guestProductForm.productType === "PACK") {
+                                    const nextIds = event.target.checked
+                                      ? Array.from(new Set([...guestProductForm.sessionTypeIds, id]))
+                                      : guestProductForm.sessionTypeIds.filter((value) => value !== id);
+                                    setGuestProductForm((current) => syncGuestProductPriceFromSessionTypes({
+                                      ...current,
+                                      sessionTypeIds: nextIds,
+                                      sessionTypeId: nextIds[0] ?? "",
+                                      priceGrossManuallyOverridden: nextIds.length <= 1 ? false : current.priceGrossManuallyOverridden,
+                                    }, sessionTypes));
+                                    return;
+                                  }
+                                  setGuestProductForm((current) => ({
+                                    ...current,
+                                    sessionTypeIds: event.target.checked
+                                      ? Array.from(new Set([...current.sessionTypeIds, id]))
+                                      : current.sessionTypeIds.filter((value) => value !== id),
+                                    sessionTypeId: event.target.checked
+                                      ? current.sessionTypeIds.length === 0 ? id : current.sessionTypeId || id
+                                      : current.sessionTypeId === id
+                                        ? current.sessionTypeIds.filter((value) => value !== id)[0] ?? ""
+                                        : current.sessionTypeId,
+                                  }));
+                                }}
+                              />
+                              <span>{sessionTypeDisplayLabel(sessionType)}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </details>
+                  </span>
+                </div>
+              ) : (
+                <label className="cards-product-mobile-field">
+                  <span className="cards-product-mobile-field__icon"><GuestProductMobileFieldIcon name="service" /></span>
+                  <span className="cards-product-mobile-field__body">
+                    <span className="cards-product-mobile-field__label">{locale === "sl" ? "Skupina storitev" : "Service group"}</span>
+                    <DesktopSelect
+                      className="cards-product-mobile-field__control cards-product-mobile-field__control--select"
+                      value={guestProductForm.serviceGroupId}
+                      onChange={(event) => setGuestProductForm((current) => ({ ...current, serviceGroupId: event.target.value }))}
+                    >
+                      <option value="">{locale === "sl" ? "Izberite skupino" : "Choose a group"}</option>
+                      {serviceGroups.map((group) => <option key={group.id} value={String(group.id)}>{group.name}</option>)}
+                    </DesktopSelect>
+                  </span>
+                </label>
+              )}
+
+              {guestProductForm.productType === "PACK" ? (
+                <label className="cards-product-mobile-field">
+                  <span className="cards-product-mobile-field__icon"><GuestProductMobileFieldIcon name="quantity" /></span>
+                  <span className="cards-product-mobile-field__body">
+                    <span className="cards-product-mobile-field__label">{locale === "sl" ? "Količina" : "Quantity"}</span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      required
+                      className="cards-product-mobile-field__control"
+                      value={guestProductForm.usageLimit}
+                      onChange={(event) => setGuestProductForm({ ...guestProductForm, usageLimit: event.target.value })}
+                    />
+                  </span>
+                </label>
+              ) : null}
+
+              {(guestProductForm.productType === "CLASS_TICKET" || guestProductForm.productType === "MEMBERSHIP") ? (
+                <label className="cards-product-mobile-field">
+                  <span className="cards-product-mobile-field__icon"><GuestProductMobileFieldIcon name="validity" /></span>
+                  <span className="cards-product-mobile-field__body">
+                    <span className="cards-product-mobile-field__label">{locale === "sl" ? "Veljavnost (dni)" : "Validity (days)"}</span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      className="cards-product-mobile-field__control"
+                      placeholder={locale === "sl" ? "Brez omejitve" : "Unlimited"}
+                      value={guestProductForm.validityDays}
+                      onChange={(event) => setGuestProductForm({ ...guestProductForm, validityDays: event.target.value })}
+                    />
+                  </span>
+                </label>
+              ) : null}
+
+              <label className="cards-product-mobile-switch-row">
+                <span className="cards-product-mobile-switch-row__icon"><GuestProductMobileFieldIcon name="visibility" /></span>
+                <span className="cards-product-mobile-switch-row__text">{locale === "sl" ? "Vidno v aplikaciji za goste" : "Visible in guest app"}</span>
+                <span className="session-type-config-switch cards-product-switch">
+                  <input
+                    type="checkbox"
+                    checked={guestProductForm.guestVisible}
+                    onChange={(event) => setGuestProductForm({ ...guestProductForm, guestVisible: event.target.checked })}
+                  />
+                  <span className="session-type-config-switch-track"><span className="session-type-config-switch-thumb" /></span>
+                </span>
+              </label>
+
+              {guestProductForm.productType === "MEMBERSHIP" ? (
+                <label className="cards-product-mobile-switch-row">
+                  <span className="cards-product-mobile-switch-row__icon"><GuestProductMobileFieldIcon name="renew" /></span>
+                  <span className="cards-product-mobile-switch-row__text">{locale === "sl" ? "Samodejno podaljšanje" : "Auto-renew"}</span>
+                  <span className="session-type-config-switch cards-product-switch">
+                    <input
+                      type="checkbox"
+                      checked={guestProductForm.autoRenews}
+                      onChange={(event) => setGuestProductForm({ ...guestProductForm, autoRenews: event.target.checked })}
+                    />
+                    <span className="session-type-config-switch-track"><span className="session-type-config-switch-thumb" /></span>
+                  </span>
+                </label>
+              ) : null}
+
+              {coursesEnabled && (guestProductForm.productType === "MEMBERSHIP" || guestProductForm.productType === "COURSE") ? (
+                <div className="cards-product-mobile-courses">
+                  <div className="cards-product-mobile-courses__head">
+                    <strong>{locale === "sl" ? "Tečaji" : "Courses"}</strong>
+                    <div>
+                      <button type="button" onClick={openCoursePicker}>{locale === "sl" ? "Dodaj obstoječi" : "Add existing"}</button>
+                      <button type="button" onClick={openNewCourseModal}>{locale === "sl" ? "Ustvari novo" : "Create new"}</button>
+                    </div>
+                  </div>
+                  {selectedCourses.map((course) => (
+                    <div key={course.id} className="cards-product-mobile-course-row">
+                      <span><strong>{course.title}</strong><small>{course.mediaType === "VIDEO" ? "Video" : "Audio"}</small></span>
+                      <button type="button" onClick={() => setGuestProductForm((current) => ({ ...current, includedCourseIds: current.includedCourseIds.filter((courseId) => courseId !== String(course.id)) }))}>{locale === "sl" ? "Odstrani" : "Remove"}</button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {isGuestProductMobileTablet && guestProductForm.productType !== "GIFT_CARD" && guestProductEditorTab === "copy" ? (
+            <div className="cards-product-mobile-editor cards-product-mobile-editor--copy">
+              <label className="cards-product-mobile-field cards-product-mobile-field--copy">
+                <span className="cards-product-mobile-field__icon"><GuestProductMobileFieldIcon name="copy" /></span>
+                <span className="cards-product-mobile-field__body">
+                  <span className="cards-product-mobile-field__label">{locale === "sl" ? "Opis" : "Description"}</span>
+                  <textarea
+                    rows={7}
+                    className="cards-product-mobile-field__control cards-product-mobile-field__control--textarea"
+                    placeholder={locale === "sl" ? "Dodajte opis (neobvezno)" : "Add a description (optional)"}
+                    value={guestProductForm.description}
+                    onChange={(event) => setGuestProductForm({ ...guestProductForm, description: event.target.value })}
+                  />
+                </span>
+              </label>
+            </div>
+          ) : null}
+
+          {(!isGuestProductMobileTablet || guestProductForm.productType === "GIFT_CARD") && guestProductEditorTab === "basic" ? (
             <>
               <PanelSection
                 title={locale === "sl" ? "Osnovni podatki" : "Basic information"}
@@ -2684,7 +3186,8 @@ export const CardsMembershipsSection = forwardRef<
                 </PanelSection>
               )}
             </>
-          ) : (
+          ) : null}
+          {(!isGuestProductMobileTablet || guestProductForm.productType === "GIFT_CARD") && guestProductEditorTab === "copy" ? (
             <PanelSection
               title={locale === "sl" ? "Besedilo" : "Copy"}
               icon={<span className="session-type-panel-section-icon session-type-panel-section-icon--orange"><PanelSectionIcon name="notes" /></span>}
@@ -2708,9 +3211,9 @@ export const CardsMembershipsSection = forwardRef<
                 />
               </Field>
             </PanelSection>
-          )}
+          ) : null}
         </PanelBody>
-        {(!guestProductKeyboardOpen || guestProductHasChanges) ? (
+        {!isGuestProductMobileTablet && (!guestProductKeyboardOpen || guestProductHasChanges) ? (
           <PanelFooter>
             <PanelButton
               type="submit"
