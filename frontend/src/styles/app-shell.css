@@ -602,8 +602,9 @@
     top: 100%;
     right: 0;
     margin-top: 8px;
-    min-width: 320px;
-    max-width: 400px;
+    width: min(360px, calc(100vw - 24px));
+    min-width: 0;
+    max-width: 360px;
     background: var(--color-surface);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
@@ -617,23 +618,12 @@
     border-color: var(--border);
 }
 
-.credentials-popover-header {
-    padding: 14px 18px;
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: var(--color-text);
-    border-bottom: 1px solid var(--border);
-}
-
-[data-theme="dark"] .credentials-popover-header {
-    border-bottom-color: var(--border);
-}
-
 .credentials-popover-body {
     display: flex;
+    flex-direction: column;
     align-items: stretch;
-    gap: 0;
-    padding: 16px 18px;
+    gap: 18px;
+    padding: 20px;
 }
 
 .credentials-popover-account-column {
@@ -732,7 +722,11 @@ button.credentials-popover-user--clickable:focus-visible {
     border-radius: inherit;
 }
 
-.credentials-popover-user-text { min-width: 0; }
+.credentials-popover-user-text {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+}
 
 .credentials-popover-name {
     font-weight: 700;
@@ -743,37 +737,21 @@ button.credentials-popover-user--clickable:focus-visible {
 
 .credentials-popover-email {
     margin-top: 4px;
-    font-size: 0.8125rem;
+    max-width: 100%;
+    overflow: hidden;
     color: var(--color-text-muted);
-    word-break: break-word;
-}
-
-.credentials-popover-divider {
-    width: 1px;
-    margin: 0 12px;
-    background: #e2e8f0;
-    flex-shrink: 0;
-    align-self: stretch;
-}
-
-[data-theme="dark"] .credentials-popover-divider {
-    background: var(--border);
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .credentials-popover-actions {
     display: flex;
+    width: 100%;
+    min-width: 0;
     flex-direction: column;
     gap: 10px;
-    min-width: 140px;
-    flex-shrink: 0;
-}
-
-.credentials-popover-actions-title {
-    font-size: 0.6875rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--color-text-muted);
 }
 
 .credentials-popover-action-btn {
@@ -781,7 +759,8 @@ button.credentials-popover-user--clickable:focus-visible {
     align-items: center;
     gap: 10px;
     width: 100%;
-    padding: 10px 12px;
+    min-height: 46px;
+    padding: 11px 14px;
     border-radius: var(--radius-md);
     border: none;
     background: #f1f5f9;

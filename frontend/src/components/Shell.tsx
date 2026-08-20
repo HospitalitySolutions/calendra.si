@@ -1110,7 +1110,6 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
         </button>
         {accountOpen && (
           <div className="credentials-popover" role="dialog" aria-label={displayName}>
-            <div className="credentials-popover-header">{displayName}</div>
             <div className="credentials-popover-body">
               <div className="credentials-popover-account-column">
                 {user.role === 'CONSULTANT' ? (
@@ -1168,9 +1167,7 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
                   </div>
                 )}
               </div>
-              <div className="credentials-popover-divider" aria-hidden />
               <div className="credentials-popover-actions">
-                <div className="credentials-popover-actions-title">{t('actions')}</div>
                 <button
                   type="button"
                   className="credentials-popover-action-btn"
