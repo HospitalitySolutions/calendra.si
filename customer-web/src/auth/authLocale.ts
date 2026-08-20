@@ -9,7 +9,7 @@ type LocaleOption = {
   flag: string
 }
 
-const STORAGE_KEY = 'calendra.customer.auth.locale'
+const STORAGE_KEY = 'calendra.customer.auth.locale.v2'
 
 export const AUTH_LOCALE_OPTIONS: LocaleOption[] = [
   { code: 'sl', label: 'Slovenian', nativeLabel: 'Slovenščina', flag: '🇸🇮' },
@@ -25,9 +25,6 @@ function detectInitialLocale(): AuthLocale {
   if (typeof window !== 'undefined') {
     const stored = window.localStorage.getItem(STORAGE_KEY)
     if (isAuthLocale(stored)) return stored
-    const browserLanguage = window.navigator.language?.toLowerCase() || ''
-    if (browserLanguage.startsWith('en')) return 'en'
-    if (browserLanguage.startsWith('sr') || browserLanguage.startsWith('hr') || browserLanguage.startsWith('bs')) return 'sr'
   }
   return 'sl'
 }
@@ -53,7 +50,7 @@ export const authCopy = {
     authVisualTitleBefore: 'Vse rezervacije',
     authVisualTitleAccent: 'na enem mestu.',
     authVisualBody: 'Rezervirajte, spremljajte termine in upravljajte svoje pakete, članstva ter bone – hitro in enostavno.',
-    footerBack: 'Nazaj na Calendro',
+    footerBack: 'Nauči se Calendre',
     footerPrivacy: 'Zasebnost',
     loginTitle: 'Dobrodošli nazaj',
     loginSubtitle: 'Prijavite se in imejte vse svoje termine, pakete in sporočila na enem mestu.',
@@ -113,7 +110,7 @@ export const authCopy = {
     authVisualTitleBefore: 'All reservations',
     authVisualTitleAccent: 'in one place.',
     authVisualBody: 'Book, track appointments and manage your packages, memberships and vouchers – quickly and effortlessly.',
-    footerBack: 'Back to Calendra',
+    footerBack: 'Learn about Calendra',
     footerPrivacy: 'Privacy',
     loginTitle: 'Welcome back',
     loginSubtitle: 'Sign in and keep all your appointments, packages and messages in one place.',
@@ -173,7 +170,7 @@ export const authCopy = {
     authVisualTitleBefore: 'Sve rezervacije',
     authVisualTitleAccent: 'na jednom mestu.',
     authVisualBody: 'Rezervišite, pratite termine i upravljajte svojim paketima, članarinama i vaučerima – brzo i jednostavno.',
-    footerBack: 'Nazad na Calendru',
+    footerBack: 'Saznajte više o Calendri',
     footerPrivacy: 'Privatnost',
     loginTitle: 'Dobrodošli nazad',
     loginSubtitle: 'Prijavite se i držite sve svoje termine, pakete i poruke na jednom mestu.',

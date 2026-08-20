@@ -62,8 +62,8 @@ export function AuthLayout({ title, subtitle, children, locale, onLocaleChange }
   const t = authCopy[locale]
   return <div className="auth-page">
     <div className="auth-page__visual">
-      <a href="/za-stranke" className="auth-brand auth-brand--visual"><img src="/racun/calendra-wordmark.webp" alt="Calendra"/></a>
-      <div className="auth-visual-copy"><span>{t.authVisualEyebrow}</span><h2>{t.authVisualTitleBefore} <strong>{t.authVisualTitleAccent}</strong></h2><p>{t.authVisualBody}</p></div>
+      <a href="/za-stranke" className="auth-brand auth-brand--visual"><img src="/racun/calendra-wordmark-white.png" alt="Calendra"/></a>
+      <div className="auth-visual-copy"><span>{t.authVisualEyebrow}</span><h2><span>{t.authVisualTitleBefore}</span><strong>{t.authVisualTitleAccent}</strong></h2><p>{t.authVisualBody}</p></div>
     </div>
     <div className="auth-page__form">
       <LanguageSelector locale={locale} onChange={onLocaleChange}/>
