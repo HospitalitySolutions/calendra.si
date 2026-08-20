@@ -855,8 +855,8 @@
     }
     .clients-modern-page--mobile .service-config-filter-btn__count { display: none; }
 
-    .clients-modern-page--mobile .service-config-new-btn.clients-modern-new-btn,
-    .clients-modern-page--mobile .service-config-new-btn {
+    .clients-modern-page--mobile .service-config-fab-btn.clients-modern-new-btn,
+    .clients-modern-page--mobile .service-config-fab-btn {
         position: fixed;
         right: max(20px, env(safe-area-inset-right));
         bottom: calc(20px + env(safe-area-inset-bottom));

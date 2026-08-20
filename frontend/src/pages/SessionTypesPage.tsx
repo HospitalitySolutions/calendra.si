@@ -705,6 +705,88 @@ function SessionTypeColorLabelIcon() {
   );
 }
 
+function SessionTypeEditorMobileFieldIcon({
+  name,
+}: {
+  name: "service" | "note" | "duration" | "pause" | "price" | "vat";
+}) {
+  const common = {
+    width: 22,
+    height: 22,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.9,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  if (name === "service") {
+    return (
+      <svg {...common}>
+        <rect x="4" y="7" width="16" height="12" rx="2.5" />
+        <path d="M9 7V5.8A1.8 1.8 0 0 1 10.8 4h2.4A1.8 1.8 0 0 1 15 5.8V7" />
+      </svg>
+    );
+  }
+  if (name === "note") {
+    return (
+      <svg {...common}>
+        <rect x="5" y="3.8" width="14" height="16.4" rx="2.2" />
+        <path d="M9 8.2h6M9 12h6M9 15.8h4.4" />
+      </svg>
+    );
+  }
+  if (name === "duration") {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="8.2" />
+        <path d="M12 8.1v4.3l2.8 1.8" />
+      </svg>
+    );
+  }
+  if (name === "pause") {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="8.2" />
+        <path d="M10 8.7v6.6M14 8.7v6.6" />
+      </svg>
+    );
+  }
+  if (name === "price") {
+    return (
+      <svg {...common}>
+        <path d="M15.7 6.6c-.8-.7-2-.9-3.1-.9-2.4 0-4.3 1.4-4.8 3.7h8.3" />
+        <path d="M7.6 13.6h8.7" />
+        <path d="M8 17.2c.9.7 2 .9 3.2.9 2.4 0 4.3-1.4 4.8-3.7H7.7" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <circle cx="12" cy="12" r="8.2" />
+      <path d="M12 7.2v9.6" />
+      <path d="M7.2 12h9.6" />
+    </svg>
+  );
+}
+
+function SessionTypeEditorMobileBackIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m15 18-6-6 6-6" />
+    </svg>
+  );
+}
+
+function SessionTypeEditorMobileSaveIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m5 12.5 4.2 4.2L19 7" />
+    </svg>
+  );
+}
+
 type ServiceConfigVisual = {
   icon:
     | "calendar"
@@ -1046,10 +1128,11 @@ export function SessionTypesPage() {
   /** Snapshot when the type modal opens; used to detect edits (footer only when dirty). */
   const [typeFormSnapshot, setTypeFormSnapshot] =
     useState<TypeFormState | null>(null);
-  const isTypeEditorMobileTablet = useMediaMaxWidth(939);
-  const typeEditorKeyboardOpen = useMobileKeyboardOpen(939);
+  const isTypeEditorMobileTablet = useMediaMaxWidth(1024);
+  const typeEditorKeyboardOpen = useMobileKeyboardOpen(1024);
   const [typeEditorTab, setTypeEditorTab] =
     useState<SessionTypeEditorTab>("basic");
+  const [mobileTypeColorPickerOpen, setMobileTypeColorPickerOpen] = useState(false);
   const [guestBookingPickerOpen, setGuestBookingPickerOpen] = useState(false);
   const guestBookingSelectRef = useRef<HTMLDivElement>(null);
   const [priceCalculationPickerOpen, setPriceCalculationPickerOpen] = useState(false);
@@ -1814,9 +1897,7 @@ export function SessionTypesPage() {
       ...(serviceGroupsModuleEnabled ? ["serviceGroups" as const] : []),
       ...(consumablesCapabilityEnabled ? ["consumables" as const] : []),
       "bookingRules",
-      ...(groupBookingModuleEnabled && typeForm.groupBookingEnabled
-        ? ["groupBooking" as const]
-        : []),
+      ...(groupBookingModuleEnabled ? ["groupBooking" as const] : []),
     ];
     if (!availableTabs.includes(typeEditorTab)) {
       setTypeEditorTab("basic");
@@ -1828,6 +1909,12 @@ export function SessionTypesPage() {
     typeForm.groupBookingEnabled,
     typeEditorTab,
   ]);
+
+  useEffect(() => {
+    if (!typeDrawerOpen) {
+      setMobileTypeColorPickerOpen(false);
+    }
+  }, [typeDrawerOpen]);
 
   const advanceDeductionIds = useMemo(
     () =>
@@ -4035,16 +4122,7 @@ export function SessionTypesPage() {
               {cardServiceFilterControl}
             </div>
             <div className="clients-toolbar-actions service-config-toolbar-trailing">
-              {isSessionTypesNarrow ? (
-                <button
-                  type="button"
-                  className="clients-modern-new-btn service-config-filter-btn"
-                  onClick={openServiceConfigFilters}
-                >
-                  <ServiceConfigTabIcon name="filter" />
-                  <span>{locale === "sl" ? "Filtri" : "Filters"}</span>
-                </button>
-              ) : null}
+              
               <div
                 className="clients-session-tabs clients-filter-tabs"
                 style={{ marginBottom: 0 }}
@@ -4075,7 +4153,7 @@ export function SessionTypesPage() {
                     : inactiveFilterLabel}
                 </button>
               </div>
-              {(me.units?.length ?? 0) > 1 && (me.workspaceFeatures == null || me.workspaceFeatures.includes('CONFIGURATION_COPY')) && isWorkspaceRolloutEnabled(me, 'SHARED_SERVICES') && (
+              {!isSessionTypesNarrow && (me.units?.length ?? 0) > 1 && (me.workspaceFeatures == null || me.workspaceFeatures.includes('CONFIGURATION_COPY')) && isWorkspaceRolloutEnabled(me, 'SHARED_SERVICES') && (
                 <button
                   type="button"
                   className="clients-modern-new-btn service-config-new-btn"
@@ -4092,7 +4170,7 @@ export function SessionTypesPage() {
               )}
               <button
                 type="button"
-                className="clients-modern-new-btn service-config-new-btn"
+                className="clients-modern-new-btn service-config-new-btn service-config-fab-btn"
                 onClick={
                   showCourses
                     ? () => coursesRef.current?.openNew()
@@ -4266,16 +4344,7 @@ export function SessionTypesPage() {
               {cardServiceFilterControl}
             </div>
             <div className="clients-toolbar-actions service-config-toolbar-trailing">
-              {isSessionTypesNarrow ? (
-                <button
-                  type="button"
-                  className="clients-modern-new-btn service-config-filter-btn"
-                  onClick={openServiceConfigFilters}
-                >
-                  <ServiceConfigTabIcon name="filter" />
-                  <span>{locale === "sl" ? "Filtri" : "Filters"}</span>
-                </button>
-              ) : null}
+              
               <div
                 className="clients-session-tabs clients-filter-tabs"
                 style={{ marginBottom: 0 }}
@@ -4306,7 +4375,7 @@ export function SessionTypesPage() {
                     : inactiveFilterLabel}
                 </button>
               </div>
-              {(me.units?.length ?? 0) > 1 && (me.workspaceFeatures == null || me.workspaceFeatures.includes('CONFIGURATION_COPY')) && isWorkspaceRolloutEnabled(me, 'SHARED_SERVICES') && (
+              {!isSessionTypesNarrow && (me.units?.length ?? 0) > 1 && (me.workspaceFeatures == null || me.workspaceFeatures.includes('CONFIGURATION_COPY')) && isWorkspaceRolloutEnabled(me, 'SHARED_SERVICES') && (
                 <button
                   type="button"
                   className="clients-modern-new-btn service-config-new-btn"
@@ -4323,7 +4392,7 @@ export function SessionTypesPage() {
               )}
               <button
                 type="button"
-                className="clients-modern-new-btn service-config-new-btn"
+                className="clients-modern-new-btn service-config-new-btn service-config-fab-btn"
                 onClick={
                   showCourses
                     ? () => coursesRef.current?.openNew()
@@ -4484,6 +4553,29 @@ export function SessionTypesPage() {
           title={editingType ? t("Edit type") : t("New type")}
           onClose={dismissTypeModal}
           closeLabel={locale === "sl" ? "Zapri" : "Close"}
+          closeVisible={!isTypeEditorMobileTablet}
+          leading={isTypeEditorMobileTablet ? (
+            <button
+              type="button"
+              className="session-type-mobile-header-btn session-type-mobile-header-btn--back"
+              onClick={dismissTypeModal}
+              aria-label={locale === "sl" ? "Nazaj" : "Back"}
+            >
+              <SessionTypeEditorMobileBackIcon />
+            </button>
+          ) : undefined}
+          actions={isTypeEditorMobileTablet ? (
+            <button
+              type="submit"
+              form="session-type-edit-form"
+              className="session-type-mobile-header-btn session-type-mobile-header-btn--save"
+              aria-label={editingType ? t("formSaveChanges") : t("Create type")}
+              title={editingType ? t("formSaveChanges") : t("Create type")}
+              disabled={!isTypeFormDirty}
+            >
+              <SessionTypeEditorMobileSaveIcon />
+            </button>
+          ) : undefined}
         />
         <PanelTabs
           label={locale === "sl" ? "Zavihki storitve" : "Service tabs"}
@@ -4514,7 +4606,7 @@ export function SessionTypesPage() {
               label: locale === "sl" ? "Pravila rezervacij" : "Booking rules",
               icon: <PanelSectionIcon name="schedule" />,
             },
-            ...(groupBookingModuleEnabled && typeForm.groupBookingEnabled
+            ...(groupBookingModuleEnabled
               ? [{
                   id: "groupBooking",
                   label: locale === "sl" ? "Skupinske rezervacije" : "Group bookings",
@@ -4529,7 +4621,140 @@ export function SessionTypesPage() {
           onSubmit={submitType}
           className="session-type-standard-panel-body"
         >
-          {typeEditorTab === "basic" ? (
+          {typeEditorTab === "basic" && isTypeEditorMobileTablet ? (
+            <div className="session-type-mobile-basic-editor">
+              <label className="session-type-mobile-field">
+                <span className="session-type-mobile-field__icon"><SessionTypeEditorMobileFieldIcon name="service" /></span>
+                <span className="session-type-mobile-field__body">
+                  <textarea
+                    ref={sessionTypeDescriptionRef}
+                    rows={1}
+                    required
+                    className="session-type-mobile-field__control session-type-mobile-field__control--textarea"
+                    placeholder={locale === "sl" ? "Opis" : "Description"}
+                    value={typeForm.description}
+                    onChange={(e) => {
+                      const el = e.target;
+                      setTypeForm({ ...typeForm, description: el.value });
+                      el.style.height = "0px";
+                      el.style.height = `${Math.max(el.scrollHeight, 28)}px`;
+                    }}
+                  />
+                </span>
+              </label>
+
+              <label className="session-type-mobile-field">
+                <span className="session-type-mobile-field__icon"><SessionTypeEditorMobileFieldIcon name="note" /></span>
+                <span className="session-type-mobile-field__body">
+                  <textarea
+                    rows={1}
+                    className="session-type-mobile-field__control session-type-mobile-field__control--textarea"
+                    placeholder={locale === "sl" ? "Interni opis" : "Internal description"}
+                    value={typeForm.internalDescription}
+                    onChange={(e) => {
+                      const el = e.target;
+                      setTypeForm({ ...typeForm, internalDescription: el.value });
+                      el.style.height = "0px";
+                      el.style.height = `${Math.max(el.scrollHeight, 28)}px`;
+                    }}
+                  />
+                </span>
+              </label>
+
+              <label className="session-type-mobile-field">
+                <span className="session-type-mobile-field__icon"><SessionTypeEditorMobileFieldIcon name="duration" /></span>
+                <span className="session-type-mobile-field__body">
+                  <input
+                    type="number"
+                    min={0}
+                    max={999}
+                    step={1}
+                    inputMode="numeric"
+                    className="session-type-mobile-field__control"
+                    value={typeForm.durationMinutes}
+                    onChange={(e) =>
+                      setTypeForm({
+                        ...typeForm,
+                        durationMinutes: clampSessionTypeInt0to999(Number(e.target.value)),
+                      })
+                    }
+                  />
+                </span>
+              </label>
+
+              <label className="session-type-mobile-field">
+                <span className="session-type-mobile-field__icon"><SessionTypeEditorMobileFieldIcon name="pause" /></span>
+                <span className="session-type-mobile-field__body">
+                  <DesktopSelect
+                    className="session-type-mobile-field__control session-type-mobile-field__control--select"
+                    value={typeForm.breakMinutesOverridden ? String(typeForm.breakMinutes) : "default"}
+                    onChange={(event) => {
+                      if (event.target.value === "default") {
+                        setTypeForm({ ...typeForm, breakMinutesOverridden: false });
+                        return;
+                      }
+                      setTypeForm({
+                        ...typeForm,
+                        breakMinutesOverridden: true,
+                        breakMinutes: clampSessionTypeInt0to999(Number(event.target.value)),
+                      });
+                    }}
+                  >
+                    <option value="default">{locale === "sl" ? "Privzeta pavza" : "Default break"}</option>
+                    {typeForm.breakMinutesOverridden && !SERVICE_BREAK_MINUTE_OPTIONS.includes(typeForm.breakMinutes) ? (
+                      <option value={typeForm.breakMinutes}>{typeForm.breakMinutes} min</option>
+                    ) : null}
+                    {SERVICE_BREAK_MINUTE_OPTIONS.map((minutes) => (
+                      <option key={minutes} value={minutes}>{minutes} min</option>
+                    ))}
+                  </DesktopSelect>
+                </span>
+              </label>
+
+              <label className="session-type-mobile-field">
+                <span className="session-type-mobile-field__icon session-type-mobile-field__icon--symbol" aria-hidden>€</span>
+                <span className="session-type-mobile-field__body">
+                  <span className="session-type-mobile-price-line">
+                    <span aria-hidden>€</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      className="session-type-mobile-field__control"
+                      value={typeForm.billingGrossPrice}
+                      onChange={(event) =>
+                        setTypeForm({
+                          ...typeForm,
+                          billingGrossPrice: event.target.value,
+                        })
+                      }
+                    />
+                  </span>
+                </span>
+              </label>
+
+              <label className="session-type-mobile-field">
+                <span className="session-type-mobile-field__icon session-type-mobile-field__icon--symbol" aria-hidden>%</span>
+                <span className="session-type-mobile-field__body">
+                  <DesktopSelect
+                    className="session-type-mobile-field__control session-type-mobile-field__control--select"
+                    value={typeForm.billingTaxRate}
+                    onChange={(event) =>
+                      setTypeForm({
+                        ...typeForm,
+                        billingTaxRate: event.target.value as TaxRate,
+                      })
+                    }
+                  >
+                    <option value="VAT_22">22%</option>
+                    <option value="VAT_9_5">9.5%</option>
+                    <option value="VAT_0">0%</option>
+                    <option value="NO_VAT">{locale === "sl" ? "Brez DDV" : "No VAT"}</option>
+                  </DesktopSelect>
+                </span>
+              </label>
+            </div>
+          ) : null}
+          {typeEditorTab === "basic" && !isTypeEditorMobileTablet ? (
           <PanelSection
             title={locale === "sl" ? "Osnovni podatki" : "Basic information"}
             icon={<span className="session-type-panel-section-icon session-type-panel-section-icon--orange"><PanelSectionIcon name="service" /></span>}
@@ -5239,7 +5464,7 @@ export function SessionTypesPage() {
 
           ) : null}
 
-                {typeEditorTab === "groupBooking" && groupBookingModuleEnabled && typeForm.groupBookingEnabled ? (
+                {typeEditorTab === "groupBooking" && groupBookingModuleEnabled ? (
           <PanelSection
             title={locale === "sl" ? "Skupinske rezervacije" : locale === "sr" ? "Grupne rezervacije" : "Group bookings"}
             icon={<PanelSectionIcon name="group" />}
@@ -5472,11 +5697,98 @@ export function SessionTypesPage() {
                         </Field>
                       </div>
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="session-type-group-booking-empty-state">
+                      <p>{locale === "sl" ? "Vklopite Skupinska v spodnji vrstici, da nastavite največje število udeležencev in omejitve uporabnikov." : "Enable Group in the bottom row to configure participant limits and user restrictions."}</p>
+                      <button
+                        type="button"
+                        className="session-type-group-booking-empty-state__button"
+                        onClick={() => setTypeForm({ ...typeForm, groupBookingEnabled: true })}
+                      >
+                        {locale === "sl" ? "Omogoči skupinske rezervacije" : "Enable group bookings"}
+                      </button>
+                    </div>
+                  )}
           </PanelSection>
                 ) : null}
         </PanelBody>
-        {(!isTypeEditorMobileTablet || !typeEditorKeyboardOpen) ? (
+        {isTypeEditorMobileTablet && typeEditorTab === "basic" && !typeEditorKeyboardOpen ? (
+          <div className="session-type-mobile-bottom-tabs" role="toolbar" aria-label={locale === "sl" ? "Hitre nastavitve storitve" : "Quick service settings"}>
+            <button
+              type="button"
+              className={`session-type-mobile-bottom-tab${mobileTypeColorPickerOpen ? " is-active" : ""}`}
+              onClick={() => setMobileTypeColorPickerOpen(true)}
+            >
+              <span className="session-type-mobile-bottom-tab__icon" aria-hidden><SessionTypeColorLabelIcon /></span>
+              <span>{locale === "sl" ? "Barva" : "Color"}</span>
+            </button>
+            <button
+              type="button"
+              className={`session-type-mobile-bottom-tab${typeForm.advanceDeduction ? " is-active" : ""}`}
+              disabled={!advanceModuleEnabled}
+              onClick={() => setTypeForm({ ...typeForm, advanceDeduction: !typeForm.advanceDeduction })}
+            >
+              <span className="session-type-mobile-bottom-tab__icon session-type-mobile-bottom-tab__icon--symbol" aria-hidden>€</span>
+              <span>{locale === "sl" ? "Predplačilo" : "Advance"}</span>
+            </button>
+            <button
+              type="button"
+              className={`session-type-mobile-bottom-tab${typeForm.noShow ? " is-active" : ""}`}
+              disabled={!noShowModuleEnabled}
+              onClick={() => setTypeForm({ ...typeForm, noShow: !typeForm.noShow })}
+            >
+              <span className="session-type-mobile-bottom-tab__icon" aria-hidden>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="8.2" />
+                  <path d="M12 8v4.7M12 16h.01" />
+                </svg>
+              </span>
+              <span>{locale === "sl" ? "Neprihod" : "No show"}</span>
+            </button>
+            <button
+              type="button"
+              className={`session-type-mobile-bottom-tab${typeForm.groupBookingEnabled ? " is-active" : ""}`}
+              disabled={!groupBookingModuleEnabled}
+              onClick={() => setTypeForm({ ...typeForm, groupBookingEnabled: !typeForm.groupBookingEnabled })}
+            >
+              <span className="session-type-mobile-bottom-tab__icon" aria-hidden><ServiceConfigTabIcon name="group" /></span>
+              <span>{locale === "sl" ? "Skupinska" : "Group"}</span>
+            </button>
+          </div>
+        ) : null}
+        {isTypeEditorMobileTablet && mobileTypeColorPickerOpen ? (
+          <div className="session-type-mobile-color-sheet-backdrop" onClick={() => setMobileTypeColorPickerOpen(false)}>
+            <div className="session-type-mobile-color-sheet" role="dialog" aria-modal="true" aria-label={locale === "sl" ? "Barva storitve" : "Service color"} onClick={(event) => event.stopPropagation()}>
+              <div className="session-type-mobile-color-sheet__header">
+                <h3>{locale === "sl" ? "Barva storitve" : "Service color"}</h3>
+                <button type="button" onClick={() => setMobileTypeColorPickerOpen(false)}>{locale === "sl" ? "Zapri" : "Close"}</button>
+              </div>
+              <div className="session-type-mobile-color-sheet__swatches" role="radiogroup" aria-label={locale === "sl" ? "Barva storitve" : "Service color"}>
+                {SERVICE_TYPE_COLOR_PALETTE.map((color) => {
+                  const selected = normalizeServiceTypeColorForUi(typeForm.color) === color;
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      aria-label={color}
+                      className={`session-type-mobile-color-sheet__swatch${selected ? " is-selected" : ""}`}
+                      style={{ background: color } as CSSProperties}
+                      onClick={() => {
+                        setTypeForm({ ...typeForm, color });
+                        setMobileTypeColorPickerOpen(false);
+                      }}
+                    >
+                      {selected ? <span aria-hidden>✓</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : null}
+        {!isTypeEditorMobileTablet ? (
           <PanelFooter>
             <PanelButton
               type="submit"
