@@ -278,8 +278,12 @@ fun GuestMobileRoot() {
             wallet = repo.wallet(companyId),
             history = repo.bookingHistory(companyId),
             notifications = repo.notifications(companyId).items,
-            inboxThread = repo.inboxThreads(companyId).firstOrNull(),
-            inboxMessages = state.uiState.tenantDashboards[companyId]?.inboxMessages.orEmpty()
+            inboxThread = if (freshTenant.inboxEnabled) repo.inboxThreads(companyId).firstOrNull() else null,
+            inboxMessages = if (freshTenant.inboxEnabled) {
+                state.uiState.tenantDashboards[companyId]?.inboxMessages.orEmpty()
+            } else {
+                emptyList()
+            }
         )
         state.uiState = state.uiState.copy(
             linkedTenants = mergedTenants,
@@ -554,6 +558,9 @@ fun GuestMobileRoot() {
             }
             if (state.uiState.linkedTenants.any { it.companyId == companyId }) {
                 refreshTenant(companyId)
+                if (state.uiState.linkedTenants.none { it.companyId == companyId && it.inboxEnabled }) {
+                    return@runCatching
+                }
                 val items = repo.inboxMessages(companyId)
                 val refreshedThread = repo.inboxThreads(companyId).firstOrNull()
                 val dashboard = state.uiState.tenantDashboards[companyId]
@@ -3014,7 +3021,7 @@ private suspend fun refreshAfterSuccessfulJoin(
             wallet = repo.wallet(tenant.companyId),
             history = repo.bookingHistory(tenant.companyId),
             notifications = repo.notifications(tenant.companyId).items,
-            inboxThread = repo.inboxThreads(tenant.companyId).firstOrNull()
+            inboxThread = if (home.tenant.inboxEnabled) repo.inboxThreads(tenant.companyId).firstOrNull() else null
         )
         state.uiState = state.uiState.copy(
             tenantDashboards = state.uiState.tenantDashboards + (tenant.companyId to dashboard)

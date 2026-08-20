@@ -62,5 +62,6 @@ data class GuestSession(
 @Serializable
 data class ApiErrorResponse(
     val message: String? = null,
+    val error: String? = null,
     val path: String? = null
 )

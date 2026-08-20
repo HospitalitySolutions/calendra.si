@@ -619,15 +619,17 @@ final class GuestApiClient {
             return backendUnavailableMessage(statusCode: statusCode)
         }
 
-        if
-            let apiError = try? JSONDecoder().decode(ApiErrorResponse.self, from: data),
-            !apiError.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            return apiError.message
+        if let apiError = try? JSONDecoder().decode(ApiErrorResponse.self, from: data) {
+            if let message = apiError.message?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty {
+                return message
+            }
+            if let error = apiError.error?.trimmingCharacters(in: .whitespacesAndNewlines), !error.isEmpty {
+                return error
+            }
         }
 
         let payload = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !payload.isEmpty { return payload }
+        if !payload.isEmpty && !payload.hasPrefix("{") { return payload }
         return "Request failed with status \(statusCode)"
     }
 
@@ -665,7 +667,8 @@ final class GuestApiClient {
 }
 
 private struct ApiErrorResponse: Decodable {
-    let message: String
+    let message: String?
+    let error: String?
 }
 
 private struct EmptyResponse: Decodable {}

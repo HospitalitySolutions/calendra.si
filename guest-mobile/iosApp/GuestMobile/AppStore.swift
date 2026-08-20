@@ -834,6 +834,7 @@ final class AppStore: ObservableObject {
 
     func loadInboxMessages(companyId: String) async {
         guard !usePreviewData else { return }
+        guard linkedTenants.contains(where: { $0.id == companyId && $0.inboxEnabled != false }) else { return }
         await run {
             let items = try await self.api.inboxMessages(companyId: companyId)
             let refreshedThread = (try await self.api.inboxThreads(companyId: companyId)).first
@@ -855,6 +856,7 @@ final class AppStore: ObservableObject {
 
     func sendInboxMessage(companyId: String, body: String, attachmentFileIds: [Int64] = []) async {
         guard !usePreviewData else { return }
+        guard linkedTenants.contains(where: { $0.id == companyId && $0.inboxEnabled != false }) else { return }
         await run {
             _ = try await self.api.sendInboxMessage(companyId: companyId, body: body, attachmentFileIds: attachmentFileIds)
             try await self.refreshTenant(companyId: companyId)
@@ -1251,7 +1253,12 @@ final class AppStore: ObservableObject {
         let history = try await api.history(companyId: companyId)
         let feed = try await api.notifications(companyId: companyId)
         let catalog = try await scopedProducts(companyId: companyId)
-        let inboxThread = (try await api.inboxThreads(companyId: companyId)).first
+        let inboxThread: GuestInboxThreadModel?
+        if home.tenant.inboxEnabled == false {
+            inboxThread = nil
+        } else {
+            inboxThread = (try await api.inboxThreads(companyId: companyId)).first
+        }
         return TenantDashboardModel(
             tenant: home.tenant,
             upcomingBookings: home.upcomingBookings,
@@ -1261,7 +1268,7 @@ final class AppStore: ObservableObject {
             notifications: feed.items,
             products: catalog,
             inboxThread: inboxThread,
-            inboxMessages: tenantDashboards[companyId]?.inboxMessages ?? []
+            inboxMessages: home.tenant.inboxEnabled == false ? [] : (tenantDashboards[companyId]?.inboxMessages ?? [])
         )
     }
 

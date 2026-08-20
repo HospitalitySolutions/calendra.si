@@ -85,9 +85,10 @@ class RemoteGuestApi(
             return GuestApiErrorMessages.backendUnavailable(statusCode)
         }
 
-        val apiMessage = runCatching { json.decodeFromString<ApiErrorResponse>(payload).message }.getOrNull()
-        return apiMessage?.takeIf { it.isNotBlank() }
-            ?: payload.takeIf { it.isNotBlank() }
+        val apiError = runCatching { json.decodeFromString<ApiErrorResponse>(payload) }.getOrNull()
+        return apiError?.message?.takeIf { it.isNotBlank() }
+            ?: apiError?.error?.takeIf { it.isNotBlank() }
+            ?: payload.takeIf { it.isNotBlank() && !it.trimStart().startsWith("{") }
             ?: "Request failed with status $statusCode"
     }
 
