@@ -1,5 +1,5 @@
 import { DesktopSelect } from '../../../components/DesktopSelect'
-import { ReactNode, useEffect, useMemo, useState } from 'react'
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../../../api'
 import type { CalendarServiceDraft, CalendarServiceSegment } from '../calendarTypes'
 import {
@@ -357,6 +357,8 @@ export function CalendarServiceChainEditor({
   const [consumableCatalog, setConsumableCatalog] = useState<ConsumableCatalogItem[]>([])
   const [mobileViewport, setMobileViewport] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 1024 : false))
   const [mobileSelectedTypeId, setMobileSelectedTypeId] = useState<number | null>(null)
+  const [singleActionMenuOpen, setSingleActionMenuOpen] = useState(false)
+  const singleActionMenuRef = useRef<HTMLDivElement | null>(null)
 
   const count = services.filter((service) => service.typeId != null).length
   const isMultiMode = count > 1
@@ -375,6 +377,21 @@ export function CalendarServiceChainEditor({
     window.addEventListener('resize', apply)
     return () => window.removeEventListener('resize', apply)
   }, [])
+
+  useEffect(() => {
+    if (!singleActionMenuOpen) return undefined
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (!target || singleActionMenuRef.current?.contains(target)) return
+      setSingleActionMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [singleActionMenuOpen])
+
+  useEffect(() => {
+    if (!mobileViewport) setSingleActionMenuOpen(false)
+  }, [mobileViewport])
 
   const loadConsumableCatalog = async (): Promise<ConsumableCatalogItem[]> => {
     try {
@@ -797,7 +814,7 @@ export function CalendarServiceChainEditor({
         ) : (
           <label className="calendar-service-chain__single-field">
             <span className="calendar-service-chain__single-label">{copy.service}</span>
-            <div className={`calendar-service-chain__single-row${canAddServices ? '' : ' calendar-service-chain__single-row--single-only'}${showSingleEditButton ? ' calendar-service-chain__single-row--with-edit' : ''}`}>
+            <div className={`calendar-service-chain__single-row${canAddServices ? '' : ' calendar-service-chain__single-row--single-only'}${showSingleEditButton ? ' calendar-service-chain__single-row--with-edit' : ''}${mobileViewport && showSingleEditButton && canAddServices ? ' calendar-service-chain__single-row--merged-actions' : ''}`}>
               <div className={`calendar-service-chain__single-select-wrap${singleServiceGross != null ? ' calendar-service-chain__single-select-wrap--with-price' : ''}`}>
                 <DesktopSelect
                   className="calendar-service-chain__single-select"
@@ -814,29 +831,76 @@ export function CalendarServiceChainEditor({
                   <span className="calendar-service-chain__single-price" aria-hidden>{currency(singleServiceGross)}</span>
                 ) : null}
               </div>
-              {showSingleEditButton ? (
-                <button
-                  type="button"
-                  className="secondary client-add-btn calendar-client-picker__add-btn calendar-service-chain__head-add calendar-service-chain__single-edit"
-                  aria-label={copy.edit}
-                  title={copy.edit}
-                  disabled={!allowServiceEdit}
-                  onClick={() => openEditService(0)}
-                >
-                  <span aria-hidden><PencilIcon /></span>
-                </button>
-              ) : null}
-              {canAddServices ? (
-                <button
-                  type="button"
-                  className="secondary client-add-btn calendar-client-picker__add-btn calendar-service-chain__head-add"
-                  aria-label={copy.addTitle}
-                  title={copy.addTitle}
-                  onClick={openAddPicker}
-                >
-                  <span aria-hidden><PlusIcon /></span>
-                </button>
-              ) : null}
+              {mobileViewport && showSingleEditButton && canAddServices ? (
+                <div className="calendar-service-chain__single-actions" ref={singleActionMenuRef}>
+                  <button
+                    type="button"
+                    className={`calendar-service-chain__single-actions-trigger${singleActionMenuOpen ? ' is-open' : ''}`}
+                    aria-label={locale === 'sl' ? 'Možnosti storitve' : locale === 'sr' ? 'Opcije usluge' : 'Service actions'}
+                    aria-haspopup="menu"
+                    aria-expanded={singleActionMenuOpen}
+                    onClick={() => setSingleActionMenuOpen((open) => !open)}
+                  >
+                    <span aria-hidden className="calendar-service-chain__single-actions-trigger-icon"><PencilIcon /></span>
+                    <span aria-hidden className="calendar-service-chain__single-actions-trigger-icon"><PlusIcon /></span>
+                  </button>
+                  {singleActionMenuOpen ? (
+                    <div className="calendar-service-chain__single-actions-menu" role="menu">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="calendar-service-chain__single-actions-menu-item"
+                        disabled={!allowServiceEdit}
+                        onClick={() => {
+                          setSingleActionMenuOpen(false)
+                          openEditService(0)
+                        }}
+                      >
+                        <span aria-hidden><PencilIcon /></span>
+                        <span>{locale === 'sl' ? 'Uredi' : locale === 'sr' ? 'Uredi' : 'Edit'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="calendar-service-chain__single-actions-menu-item"
+                        onClick={() => {
+                          setSingleActionMenuOpen(false)
+                          openAddPicker()
+                        }}
+                      >
+                        <span aria-hidden><PlusIcon /></span>
+                        <span>{locale === 'sl' ? 'Dodaj' : locale === 'sr' ? 'Dodaj' : 'Add'}</span>
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <>
+                  {showSingleEditButton ? (
+                    <button
+                      type="button"
+                      className="secondary client-add-btn calendar-client-picker__add-btn calendar-service-chain__head-add calendar-service-chain__single-edit"
+                      aria-label={copy.edit}
+                      title={copy.edit}
+                      disabled={!allowServiceEdit}
+                      onClick={() => openEditService(0)}
+                    >
+                      <span aria-hidden><PencilIcon /></span>
+                    </button>
+                  ) : null}
+                  {canAddServices ? (
+                    <button
+                      type="button"
+                      className="secondary client-add-btn calendar-client-picker__add-btn calendar-service-chain__head-add"
+                      aria-label={copy.addTitle}
+                      title={copy.addTitle}
+                      onClick={openAddPicker}
+                    >
+                      <span aria-hidden><PlusIcon /></span>
+                    </button>
+                  ) : null}
+                </>
+              )}
             </div>
           </label>
         )}

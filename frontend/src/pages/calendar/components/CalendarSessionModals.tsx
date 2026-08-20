@@ -482,6 +482,33 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     tryScroll(0)
   }
 
+
+  const scrollBookedSessionMobileSectionIntoView = (selector: string, fallbackSelector?: string) => {
+    const tryScroll = (attempt: number) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          const body = document.getElementById('calendar-edit-booking-scroll-body')
+          if (!body) return
+
+          const primaryTarget = body.querySelector(selector)
+          const fallbackTarget = attempt >= 3 && fallbackSelector ? body.querySelector(fallbackSelector) : null
+          const target = (primaryTarget || fallbackTarget) as HTMLElement | null
+          if (!target) {
+            if (attempt < 4) window.setTimeout(() => tryScroll(attempt + 1), 35)
+            return
+          }
+
+          const bodyRect = body.getBoundingClientRect()
+          const targetRect = target.getBoundingClientRect()
+          const targetTop = body.scrollTop + targetRect.top - bodyRect.top - 8
+          body.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' })
+        })
+      })
+    }
+
+    tryScroll(0)
+  }
+
   const toggleNewBookingGroupMode = (next?: boolean) => {
     const on = typeof next === 'boolean' ? next : !bookingGroupMode
     setBookingGroupMode(on)
@@ -3054,6 +3081,32 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               subtitle={bookedPanelSubtitle}
               onClose={closeBookedModal}
               closeLabel={t('mobileNavClose')}
+              closeVisible={!compactSessionEditHeader || (bookedEditPanelTab !== 'basic' && bookedEditPanelTab !== 'notes')}
+              leading={compactSessionEditHeader ? (
+                <button
+                  type="button"
+                  className="calendar-booked-session-mobile-back"
+                  onClick={closeBookedModal}
+                  aria-label={locale === 'sl' ? 'Nazaj' : locale === 'sr' ? 'Nazad' : 'Back'}
+                  title={locale === 'sl' ? 'Nazaj' : locale === 'sr' ? 'Nazad' : 'Back'}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                </button>
+              ) : undefined}
+              actions={compactSessionEditHeader && (bookedEditPanelTab === 'basic' || bookedEditPanelTab === 'notes') ? (
+                <button
+                  type="button"
+                  className="calendar-booked-session-mobile-save"
+                  onClick={() => void updateBookedSession()}
+                  aria-label={t('formSave')}
+                  title={t('formSave')}
+                  disabled={bookedSessionSaveDisabled}
+                >
+                  <CalendarBookingHeaderSaveIcon />
+                </button>
+              ) : undefined}
             />
             <PanelTabs
               label={t('formBookedSession')}
@@ -3087,10 +3140,15 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   hidden: !bookedAdvanceTabVisible,
                   icon: <CalendarAdvancePaymentIcon />,
                 },
+                {
+                  id: 'notes',
+                  label: locale === 'sl' ? 'Opombe' : 'Notes',
+                  icon: <CalendarSectionIcon name="notes" />,
+                },
               ]}
             />
             {(bookedEditPanelTab === 'basic' || bookedEditPanelTab === 'notes') && (
-            <PanelBody sectioned className={`calendar-standardized-body calendar-standardized-edit-booking-body${bookedEditPanelTab === 'notes' ? ' calendar-booking-notes-tab-active' : ''}`}>
+            <PanelBody id="calendar-edit-booking-scroll-body" sectioned className={`calendar-standardized-body calendar-standardized-edit-booking-body${bookedEditPanelTab === 'notes' ? ' calendar-booking-notes-tab-active' : ''}`}>
             {selectedBookedSession.billedAt && (
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                 <span
@@ -3141,15 +3199,15 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                           <button
                             type="button"
                             className="secondary calendar-client-picker__details-btn calendar-client-picker__payee-tab-btn"
-                            title={locale === 'sl' ? 'Podrobnosti skupine' : 'Group details'}
-                            aria-label={locale === 'sl' ? 'Odpri podrobnosti skupine' : 'Open group details'}
+                            title={locale === 'sl' ? 'Gostje skupine' : 'Group guests'}
+                            aria-label={locale === 'sl' ? 'Odpri goste skupine' : 'Open group guests'}
                             disabled={!bookedSessionGroupId}
                             onClick={(e) => {
                               e.stopPropagation()
-                              openBookedSessionGroupDetail()
+                              openBookedSessionGroupGuests()
                             }}
                           >
-                            <CalendarPaymentPersonIcon />
+                            <CalendarBookingAddIcon />
                           </button>
                         </div>
                       </div>
@@ -3796,20 +3854,81 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                         </div>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      className={`calendar-booking-rail-notes-tab${bookedEditPanelTab === 'notes' ? ' is-active' : ''}`}
-                      aria-current={bookedEditPanelTab === 'notes' ? 'page' : undefined}
-                      onClick={() => {
-                        setBookedStatusMenuOpen(false)
-                        setNoShowClientPickerOpen(false)
-                        setBookedEditPanelTab('notes')
-                      }}
-                    >
-                      <CalendarSectionIcon name="notes" />
-                      <span>{sectionLabels.notes}</span>
-                    </button>
               </PanelActionBar>
+            )}
+            {showBookedSessionFooter && (bookedEditPanelTab === 'basic' || bookedEditPanelTab === 'notes') && !calendarFormKeyboardOpen && (
+              <div className="calendar-edit-booking-mobile-actionbar">
+                <button
+                  type="button"
+                  className={`calendar-edit-booking-mobile-action calendar-edit-booking-mobile-action--status calendar-edit-booking-mobile-action--${currentBookingStatusTone}`}
+                  aria-label={locale === 'sl' ? 'Status termina' : 'Appointment status'}
+                  onClick={() => {
+                    setBookedPaymentMenuOpen(false)
+                    setNoShowClientPickerOpen(false)
+                    setBookedStatusMenuOpen(true)
+                  }}
+                >
+                  <span className="calendar-edit-booking-mobile-action__icon" aria-hidden="true"><CalendarBookingStatusIcon statusKey={currentBookingStatusKey} /></span>
+                  <span className="calendar-edit-booking-mobile-action__label">{locale === 'sl' ? 'Status' : 'Status'}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`calendar-edit-booking-mobile-action${isLocalBookingAllDay(selectedBookedSession.startTime, selectedBookedSession.endTime) ? ' is-active' : ''}`}
+                  aria-pressed={isLocalBookingAllDay(selectedBookedSession.startTime, selectedBookedSession.endTime)}
+                  aria-label={locale === 'sl' ? 'Cel dan' : t('formAllDay')}
+                  onClick={() => {
+                    toggleBookedSessionAllDay()
+                    setBookedEditPanelTab('basic')
+                    scrollBookedSessionMobileSectionIntoView('.calendar-standardized__schedule')
+                  }}
+                >
+                  <span className="calendar-edit-booking-mobile-action__icon"><CalendarBookingQuickOptionIcon name="allDay" /></span>
+                  <span className="calendar-edit-booking-mobile-action__label">{locale === 'sl' ? 'Cel dan' : t('formAllDay')}</span>
+                </button>
+                <button
+                  type="button"
+                  className="calendar-edit-booking-mobile-action calendar-edit-booking-mobile-action--delete"
+                  aria-label={t('formDeleteSession')}
+                  onClick={() => void requestBookedSessionDelete()}
+                >
+                  <span className="calendar-edit-booking-mobile-action__icon"><CalendarFormFooterDeleteIcon /></span>
+                  <span className="calendar-edit-booking-mobile-action__label">{locale === 'sl' ? 'Izbriši' : 'Delete'}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`calendar-edit-booking-mobile-action${selectedBookedSession.repeats ? ' is-active' : ''}`}
+                  aria-pressed={!!selectedBookedSession.repeats}
+                  aria-label={locale === 'sl' ? 'Ponavljanje' : t('formRepeats')}
+                  onClick={() => {
+                    const startDate = selectedBookedSession?.startTime ? new Date(selectedBookedSession.startTime) : null
+                    const sessionDay = startDate ? REPEAT_WEEKDAY_EN[startDate.getDay()] : 'Monday'
+                    const next = !selectedBookedSession.repeats
+                    setSelectedBookedSession({ ...selectedBookedSession, repeats: next, repeatDay: sessionDay })
+                    setBookedEditPanelTab('basic')
+                    scrollBookedSessionMobileSectionIntoView(next ? '.calendar-standardized__repeat' : '.calendar-standardized__schedule', '.calendar-standardized__schedule')
+                  }}
+                >
+                  <span className="calendar-edit-booking-mobile-action__icon"><CalendarBookingQuickOptionIcon name="repeat" /></span>
+                  <span className="calendar-edit-booking-mobile-action__label">{locale === 'sl' ? 'Ponavljanje' : t('formRepeats')}</span>
+                </button>
+                <button
+                  type="button"
+                  className="calendar-edit-booking-mobile-action calendar-edit-booking-mobile-action--source"
+                  aria-label={`${bookingSourceFieldLabel}: ${bookingSourceMeta.label}`}
+                  onClick={() => {
+                    setBookedEditPanelTab('basic')
+                    scrollBookedSessionMobileSectionIntoView('.calendar-standardized__clients')
+                  }}
+                >
+                  <span className="calendar-edit-booking-mobile-action__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M7 4.5h7l4 4v11H7a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2Z" />
+                      <path d="M14 4.5v4h4M9 12h6M9 15.5h6" />
+                    </svg>
+                  </span>
+                  <span className="calendar-edit-booking-mobile-action__label">{locale === 'sl' ? 'Vir' : 'Source'}</span>
+                </button>
+              </div>
             )}
             {showBookedSessionFooter && (bookedEditPanelTab === 'basic' || bookedEditPanelTab === 'notes') && (
               <PanelFooter>
