@@ -1,5 +1,7 @@
 package com.example.app.admin;
 
+import com.example.app.register.RegisterCatalogService;
+import com.example.app.register.RegisterPriceCatalog;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import java.nio.charset.StandardCharsets;
@@ -7,6 +9,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import org.slf4j.Logger;
@@ -43,8 +46,45 @@ public class TenantCreatedAdminEmailService {
             String billingInterval,
             String paymentMethod,
             String accessStatus,
-            String billingStatus
+            String billingStatus,
+            Integer selectedUserCount,
+            List<String> selectedFeatureKeys,
+            List<String> selectedAddonKeys
     ) {
+        public TenantCreatedDetails(
+                Long tenantId,
+                String tenantName,
+                String tenantCode,
+                String companyType,
+                Instant createdAt,
+                String creationSource,
+                String ownerName,
+                String ownerEmail,
+                String packageName,
+                String billingInterval,
+                String paymentMethod,
+                String accessStatus,
+                String billingStatus
+        ) {
+            this(
+                    tenantId,
+                    tenantName,
+                    tenantCode,
+                    companyType,
+                    createdAt,
+                    creationSource,
+                    ownerName,
+                    ownerEmail,
+                    packageName,
+                    billingInterval,
+                    paymentMethod,
+                    accessStatus,
+                    billingStatus,
+                    null,
+                    List.of(),
+                    List.of()
+            );
+        }
     }
 
     private final JavaMailSender mailSender;
@@ -57,6 +97,9 @@ public class TenantCreatedAdminEmailService {
     @Autowired(required = false)
     @Qualifier("applicationTaskExecutor")
     private TaskExecutor applicationTaskExecutor;
+
+    @Autowired(required = false)
+    private RegisterCatalogService registerCatalogService;
 
     public TenantCreatedAdminEmailService(
             @Autowired(required = false) JavaMailSender mailSender,
@@ -155,11 +198,18 @@ public class TenantCreatedAdminEmailService {
         String source = htmlValue(details.creationSource());
         String ownerName = htmlValue(details.ownerName());
         String ownerEmail = htmlValue(details.ownerEmail());
-        String packageName = htmlValue(humanPackage(details.packageName()));
+        String packageName = htmlValue(humanPackage(details.packageName(), details.billingStatus()));
         String billingInterval = htmlValue(humanInterval(details.billingInterval()));
         String paymentMethod = htmlValue(humanPaymentMethod(details.paymentMethod()));
         String accessStatus = htmlValue(details.accessStatus());
         String billingStatus = htmlValue(details.billingStatus());
+        String selectedUserCount = details.selectedUserCount() == null
+                ? "—"
+                : String.valueOf(Math.max(1, details.selectedUserCount()));
+        List<String> selectedOptions = selectedOptionLabels(details);
+        boolean registrationSelectionAvailable = details.selectedUserCount() != null
+                || (details.selectedFeatureKeys() != null && !details.selectedFeatureKeys().isEmpty())
+                || (details.selectedAddonKeys() != null && !details.selectedAddonKeys().isEmpty());
         String platformUrl = escapeHtml(frontendBaseUrl + "/platform-admin");
 
         StringBuilder html = new StringBuilder(12_000);
@@ -174,7 +224,7 @@ public class TenantCreatedAdminEmailService {
         html.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\"><tr><td><img src=\"cid:").append(CALENDRA_LOGO_CONTENT_ID).append("\" width=\"190\" alt=\"Calendra\" style=\"display:block;width:190px;max-width:70%;height:auto;border:0\"></td><td align=\"right\" valign=\"top\"><span style=\"display:inline-block;background:#edf4ff;color:#1761e8;border:1px solid #d9e7ff;border-radius:12px;padding:8px 13px;font-size:13px;font-weight:700\">🔔 Nov najemnik</span></td></tr></table>");
         html.append("<h1 class=\"title\" style=\"margin:34px 0 12px;font-size:36px;line-height:1.16;letter-spacing:-.7px;color:#101827\">Nov najemnik je bil ustvarjen 🎉</h1>");
         html.append("<p style=\"margin:0 0 12px;color:#53627a;font-size:17px;line-height:1.65\">Pozdravljeni,</p>");
-        html.append("<p style=\"margin:0;color:#53627a;font-size:17px;line-height:1.65\">Na platformi Calendra je bil uspešno ustvarjen nov najemnik. Spodaj so osnovni podatki novega računa.</p>");
+        html.append("<p style=\"margin:0;color:#53627a;font-size:17px;line-height:1.65\">Na platformi Calendra je bil uspešno ustvarjen nov najemnik. Spodaj so osnovni podatki novega računa in izbire iz registracije.</p>");
 
         html.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin-top:28px;border:1px solid #dfe8f5;border-radius:18px;border-collapse:separate;overflow:hidden\">");
         html.append("<tr><td colspan=\"2\" style=\"background:#f7faff;padding:18px 20px;border-bottom:1px solid #dfe8f5;font-size:18px;font-weight:800;color:#162033\">🏢 &nbsp;Podatki o najemniku</td></tr>");
@@ -182,6 +232,9 @@ public class TenantCreatedAdminEmailService {
         appendRow(html, "Ime podjetja", tenantName, false);
         appendRow(html, "Koda najemnika", tenantCode, false);
         appendRow(html, "Tip podjetja", companyType, false);
+        if (details.selectedUserCount() != null) {
+            appendRow(html, "Število uporabnikov", selectedUserCount, false);
+        }
         appendRow(html, "Ustvarjeno", createdAt, false);
         appendRow(html, "Način ustvarjanja", source, false);
         appendRow(html, "Lastnik", ownerName, false);
@@ -192,6 +245,22 @@ public class TenantCreatedAdminEmailService {
         appendStatusRow(html, "Status dostopa", accessStatus, "ACTIVE".equalsIgnoreCase(details.accessStatus()));
         appendStatusRow(html, "Status obračuna", billingStatus, "PAID".equalsIgnoreCase(details.billingStatus()));
         html.append("</table>");
+
+        if (registrationSelectionAvailable) {
+            html.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin-top:24px;background:#f7faff;border:1px solid #d9e6fa;border-radius:16px\"><tr><td style=\"padding:22px\">");
+            html.append("<div style=\"font-size:18px;font-weight:800;color:#162033;margin-bottom:14px\">⚙️ &nbsp;Izbrane dodatne funkcionalnosti</div>");
+            if (selectedOptions.isEmpty()) {
+                html.append("<div style=\"font-size:15px;line-height:1.6;color:#596a84\">Med registracijo ni bilo izbranih dodatnih funkcionalnosti.</div>");
+            } else {
+                for (String option : selectedOptions) {
+                    html.append("<div style=\"display:flex;align-items:flex-start;margin:0 0 10px;font-size:15px;line-height:1.45;color:#24324a;font-weight:700\"><span style=\"display:inline-block;color:#2468ee;margin-right:10px\">✓</span><span>")
+                            .append(escapeHtml(option))
+                            .append("</span></div>");
+                }
+                html.append("<div style=\"margin-top:14px;padding-top:14px;border-top:1px solid #e1e9f5;font-size:13px;line-height:1.55;color:#7b8aa1\">Izbire so zabeležene za pregled. Novi spletni najemnik je ustvarjen na Osnovnem trial paketu.</div>");
+            }
+            html.append("</td></tr></table>");
+        }
 
         html.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" style=\"margin-top:24px;background:#f7faff;border:1px solid #d9e6fa;border-radius:16px\"><tr><td style=\"padding:22px\">");
         html.append("<div style=\"font-size:18px;font-weight:800;color:#162033;margin-bottom:8px\">ⓘ &nbsp;Naslednji koraki</div>");
@@ -212,15 +281,17 @@ public class TenantCreatedAdminEmailService {
                 + "Ime podjetja: " + textValue(details.tenantName()) + "\n"
                 + "Koda najemnika: " + textValue(details.tenantCode()) + "\n"
                 + "Tip podjetja: " + textValue(humanCompanyType(details.companyType())) + "\n"
+                + (details.selectedUserCount() == null ? "" : "Število uporabnikov: " + Math.max(1, details.selectedUserCount()) + "\n")
                 + "Ustvarjeno: " + formatCreatedAt(details.createdAt()) + "\n"
                 + "Način ustvarjanja: " + textValue(details.creationSource()) + "\n"
                 + "Lastnik: " + textValue(details.ownerName()) + "\n"
                 + "Lastnik (e-pošta): " + textValue(details.ownerEmail()) + "\n"
-                + "Izbrani paket: " + textValue(humanPackage(details.packageName())) + "\n"
+                + "Izbrani paket: " + textValue(humanPackage(details.packageName(), details.billingStatus())) + "\n"
                 + "Obdobje obračunavanja: " + textValue(humanInterval(details.billingInterval())) + "\n"
                 + "Način plačila: " + textValue(humanPaymentMethod(details.paymentMethod())) + "\n"
                 + "Status dostopa: " + textValue(details.accessStatus()) + "\n"
                 + "Status obračuna: " + textValue(details.billingStatus()) + "\n\n"
+                + (registrationSelectionAvailable(details) ? plainSelectedOptions(details) : "")
                 + "Odpri platformo Calendra: " + frontendBaseUrl + "/platform-admin\n\n"
                 + "Lep pozdrav,\nCalendra ekipa";
     }
@@ -269,28 +340,124 @@ public class TenantCreatedAdminEmailService {
             case "salon", "hair_salon" -> "Frizerski salon";
             case "beauty_salon" -> "Kozmetični salon";
             case "massage" -> "Masaža";
-            case "spa", "spa_sauna" -> "Spa / wellness";
-            case "tattooing_piercing" -> "Tetoviranje / piercing";
+            case "spa", "spa_sauna" -> "Spa & savna";
+            case "tattooing_piercing" -> "Tetoviranje & piercing";
             case "gym", "personal_training", "fitness_personal_training" -> "Fitnes / osebno trenerstvo";
             case "therapy", "physical_therapy" -> "Fizioterapija";
-            case "psychology_counselling" -> "Psihologija / svetovanje";
+            case "psychology_counselling" -> "Psihologija & svetovanje";
             case "yoga_pilates" -> "Joga / pilates";
             case "pet_services" -> "Storitve za hišne ljubljenčke";
-            case "education_coaching" -> "Izobraževanje / coaching";
+            case "education_coaching" -> "Izobraževanje & coaching";
             case "other" -> "Drugo";
             default -> raw.trim();
         };
     }
 
-    private static String humanPackage(String raw) {
+    private static String humanPackage(String raw, String billingStatus) {
         if (raw == null || raw.isBlank()) return "Ni določeno";
-        return switch (raw.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_')) {
+        String label = switch (raw.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_')) {
             case "BASIC", "TRIAL" -> "Osnovni";
             case "PRO", "PROFESSIONAL" -> "Poslovni";
             case "BUSINESS", "PREMIUM" -> "Premium";
             case "CUSTOM" -> "Po meri";
             default -> raw.trim();
         };
+        if (("BASIC".equalsIgnoreCase(raw) || "TRIAL".equalsIgnoreCase(raw))
+                && "TRIAL".equalsIgnoreCase(billingStatus)) {
+            return label + " (Trial)";
+        }
+        return label;
+    }
+
+    private String plainSelectedOptions(TenantCreatedDetails details) {
+        List<String> labels = selectedOptionLabels(details);
+        StringBuilder out = new StringBuilder("Izbrane dodatne funkcionalnosti:\n");
+        if (labels.isEmpty()) {
+            out.append("- Ni izbranih dodatnih funkcionalnosti.\n\n");
+            return out.toString();
+        }
+        for (String label : labels) {
+            out.append("- ").append(label).append('\n');
+        }
+        out.append("\n");
+        return out.toString();
+    }
+
+    private static boolean registrationSelectionAvailable(TenantCreatedDetails details) {
+        return details != null && (details.selectedUserCount() != null
+                || (details.selectedFeatureKeys() != null && !details.selectedFeatureKeys().isEmpty())
+                || (details.selectedAddonKeys() != null && !details.selectedAddonKeys().isEmpty()));
+    }
+
+    private List<String> selectedOptionLabels(TenantCreatedDetails details) {
+        LinkedHashSet<String> labels = new LinkedHashSet<>();
+        RegisterPriceCatalog catalog = registrationCatalog();
+        if (details.selectedFeatureKeys() != null) {
+            for (String key : details.selectedFeatureKeys()) {
+                String normalized = normalizeSelectionKey(key);
+                if (!normalized.isBlank()) labels.add(featureLabel(catalog, normalized));
+            }
+        }
+        if (details.selectedAddonKeys() != null) {
+            for (String key : details.selectedAddonKeys()) {
+                String normalized = normalizeSelectionKey(key);
+                if (!normalized.isBlank()) labels.add(addonLabel(catalog, normalized));
+            }
+        }
+        return List.copyOf(labels);
+    }
+
+    private RegisterPriceCatalog registrationCatalog() {
+        if (registerCatalogService != null) {
+            try {
+                RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
+                if (catalog != null) return catalog;
+            } catch (Exception ex) {
+                log.debug("Could not resolve register catalog for tenant-created email: {}", safeMessage(ex));
+            }
+        }
+        return RegisterPriceCatalog.defaults();
+    }
+
+    private static String featureLabel(RegisterPriceCatalog catalog, String key) {
+        if (catalog != null && catalog.getFeatureItems() != null) {
+            for (RegisterPriceCatalog.FeatureItem item : catalog.getFeatureItems()) {
+                if (item == null || item.getKey() == null || !key.equals(normalizeSelectionKey(item.getKey()))) continue;
+                return firstNonBlank(item.getNameSl(), item.getName(), humanSelectionKey(key));
+            }
+        }
+        return humanSelectionKey(key);
+    }
+
+    private static String addonLabel(RegisterPriceCatalog catalog, String key) {
+        if (catalog != null && catalog.getAddonItems() != null) {
+            for (RegisterPriceCatalog.AddonItem item : catalog.getAddonItems()) {
+                if (item == null || item.getKey() == null || !key.equals(normalizeSelectionKey(item.getKey()))) continue;
+                return firstNonBlank(item.getNameSl(), item.getName(), humanSelectionKey(key));
+            }
+        }
+        return humanSelectionKey(key);
+    }
+
+    private static String normalizeSelectionKey(String raw) {
+        if (raw == null) return "";
+        return raw.trim()
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-+|-+$", "");
+    }
+
+    private static String humanSelectionKey(String raw) {
+        String normalized = normalizeSelectionKey(raw);
+        if (normalized.isBlank()) return "Ni določeno";
+        String[] words = normalized.split("-");
+        StringBuilder label = new StringBuilder();
+        for (String word : words) {
+            if (word.isBlank()) continue;
+            if (!label.isEmpty()) label.append(' ');
+            label.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
+        }
+        return label.toString();
     }
 
     private static String humanInterval(String raw) {

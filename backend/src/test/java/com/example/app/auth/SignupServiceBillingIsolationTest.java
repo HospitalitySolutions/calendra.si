@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
@@ -168,7 +169,7 @@ class SignupServiceBillingIsolationTest {
     }
 
     @Test
-    void selfServeTrial_delaysBillingAndKeepsSelectedPackage() {
+    void selfServeTrial_delaysBillingAndAlwaysUsesBasicPackage() {
         Company company = new Company();
         company.setId(20L);
         company.setTenantCode("trial-co");
@@ -191,7 +192,7 @@ class SignupServiceBillingIsolationTest {
                 false,
                 "yoga_pilates",
                 true,
-                "locale=sl"
+                "?locale=sl&feature=reporting&addon=custom-addon"
         );
 
         ResponseEntity<?> response = service.provisionNewTenant(
@@ -203,13 +204,22 @@ class SignupServiceBillingIsolationTest {
         );
 
         assertTrue(response.getStatusCode().is2xxSuccessful());
-        assertEquals("PREMIUM", settingValue(20L, SettingKey.SIGNUP_PACKAGE_NAME));
+        assertEquals("BASIC", settingValue(20L, SettingKey.SIGNUP_PACKAGE_NAME));
+        assertEquals("MONTHLY", settingValue(20L, SettingKey.BILLING_SUBSCRIPTION_INTERVAL));
         assertEquals("TRIAL", settingValue(20L, SettingKey.BILLING_SUBSCRIPTION_STATUS));
         assertEquals(
                 java.time.LocalDate.now().plusDays(14).toString(),
                 settingValue(20L, SettingKey.BILLING_SUBSCRIPTION_START)
         );
-        assertEquals("custom-addon", settingValue(20L, SettingKey.SIGNUP_ADDON_KEYS));
+        assertEquals("", settingValue(20L, SettingKey.SIGNUP_ADDON_KEYS));
+
+        ArgumentCaptor<TenantCreatedAdminEmailService.TenantCreatedDetails> emailDetails =
+                ArgumentCaptor.forClass(TenantCreatedAdminEmailService.TenantCreatedDetails.class);
+        verify(tenantCreatedAdminEmailService).notifyAfterCommit(emailDetails.capture());
+        assertEquals("BASIC", emailDetails.getValue().packageName());
+        assertEquals(6, emailDetails.getValue().selectedUserCount());
+        assertEquals(List.of("reporting"), emailDetails.getValue().selectedFeatureKeys());
+        assertEquals(List.of("custom-addon"), emailDetails.getValue().selectedAddonKeys());
     }
 
     private String settingValue(Long companyId, SettingKey key) {

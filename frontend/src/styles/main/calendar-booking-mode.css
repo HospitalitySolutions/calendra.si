@@ -16615,3 +16615,470 @@
         height: 21px !important;
     }
 }
+
+/* ========================================================================== */
+/* Uredi termin mobile/tablet — final Stranka line parity with approved mockup */
+/* Single client: one short underline. Multiple clients: still one short line. */
+/* No underline should appear under the + action area or as a second divider.  */
+/* ========================================================================== */
+@media (max-width: 1024px) {
+    .cp-panel--calendar-edit-booking .calendar-standardized__clients .calendar-client-picker__search-row {
+        border: 0 !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+
+    .cp-panel--calendar-edit-booking .calendar-standardized__clients .calendar-client-picker__search-wrap,
+    .cp-panel--calendar-edit-booking .calendar-standardized__clients .client-search-wrap {
+        border: 0 !important;
+        border-bottom: 1px solid var(--calendar-edit-mobile-line, #d7deea) !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .cp-panel--calendar-edit-booking .calendar-standardized__clients .calendar-client-picker__search-wrap input,
+    .cp-panel--calendar-edit-booking .calendar-standardized__clients .calendar-client-picker__search-wrap .client-selected-display,
+    .cp-panel--calendar-edit-booking .calendar-standardized__clients .client-search-wrap input {
+        border: 0 !important;
+        border-bottom: 0 !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+
+    .cp-panel--calendar-edit-booking .calendar-standardized__clients .calendar-client-picker__actions,
+    .cp-panel--calendar-edit-booking .calendar-standardized__clients .calendar-client-picker__actions > button,
+    .cp-panel--calendar-edit-booking .calendar-standardized__clients .calendar-client-picker__add-btn,
+    .cp-panel--calendar-edit-booking .calendar-standardized__clients .calendar-client-picker__details-btn {
+        border: 0 !important;
+        border-bottom: 0 !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+
+    .cp-panel--calendar-edit-booking .calendar-standardized__clients .calendar-multi-client-chips,
+    .cp-panel--calendar-edit-booking .calendar-standardized__clients .calendar-client-picker > .calendar-multi-client-chips {
+        margin-top: 8px !important;
+        padding-top: 0 !important;
+        border-top: 0 !important;
+        border-bottom: 0 !important;
+        box-shadow: none !important;
+    }
+}
+
+/* ========================================================================== */
+/* Storitev merged edit/add trigger — mobile/tablet parity for Dodaj/Uredi.    */
+/* Same inline placement as Storitev, but without the blue outlined block.     */
+/* ========================================================================== */
+@media (max-width: 1024px) {
+    .cp-panel--calendar-edit-booking .calendar-standardized__service .calendar-service-chain__single-row--merged-actions,
+    .cp-panel--calendar-edit-booking .calendar-standardized__service .calendar-service-chain__single-row--merged-actions.calendar-service-chain__single-row--with-edit,
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-row--merged-actions,
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-row--merged-actions.calendar-service-chain__single-row--with-edit {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 58px !important;
+        column-gap: 8px !important;
+        align-items: end !important;
+        overflow: visible !important;
+    }
+
+    .cp-panel--calendar-edit-booking .calendar-standardized__service .calendar-service-chain__single-actions,
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-actions {
+        position: relative !important;
+        display: flex !important;
+        align-items: flex-end !important;
+        justify-content: center !important;
+        width: 58px !important;
+        min-width: 58px !important;
+        height: 56px !important;
+        min-height: 56px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        z-index: 30 !important;
+    }
+
+    .cp-panel--calendar-edit-booking .calendar-standardized__service .calendar-service-chain__single-actions-trigger,
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-actions-trigger {
+        appearance: none !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 4px !important;
+        width: 54px !important;
+        min-width: 54px !important;
+        height: 32px !important;
+        min-height: 32px !important;
+        margin: 0 0 9px !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: #17233a !important;
+        box-shadow: none !important;
+        cursor: pointer !important;
+    }
+
+    .cp-panel--calendar-edit-booking .calendar-standardized__service .calendar-service-chain__single-actions-trigger.is-open,
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-actions-trigger.is-open {
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .cp-panel--calendar-edit-booking .calendar-standardized__service .calendar-service-chain__single-actions-trigger-icon,
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-actions-trigger-icon {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 19px !important;
+        height: 19px !important;
+    }
+
+    .cp-panel--calendar-edit-booking .calendar-standardized__service .calendar-service-chain__single-actions-trigger-icon svg,
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-actions-trigger-icon svg {
+        width: 19px !important;
+        height: 19px !important;
+    }
+
+    /* Preserve the clean dropdown appearance when the merged trigger opens. */
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-actions-menu {
+        position: absolute !important;
+        top: calc(100% + 6px) !important;
+        right: 0 !important;
+        z-index: 12080 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        width: 144px !important;
+        min-width: 144px !important;
+        padding: 0 !important;
+        border: 1px solid #d9e1ec !important;
+        border-radius: 10px !important;
+        background: #fff !important;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16) !important;
+        overflow: hidden !important;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-actions-menu::before {
+        content: '' !important;
+        position: absolute !important;
+        top: -5px !important;
+        right: 21px !important;
+        width: 9px !important;
+        height: 9px !important;
+        border-top: 1px solid #d9e1ec !important;
+        border-left: 1px solid #d9e1ec !important;
+        background: #fff !important;
+        transform: rotate(45deg) !important;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-actions-menu-item {
+        appearance: none !important;
+        position: relative !important;
+        z-index: 1 !important;
+        display: grid !important;
+        grid-template-columns: 28px minmax(0, 1fr) !important;
+        align-items: center !important;
+        gap: 10px !important;
+        width: 100% !important;
+        min-height: 52px !important;
+        margin: 0 !important;
+        padding: 0 14px !important;
+        border: 0 !important;
+        border-bottom: 1px solid #e6ebf2 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        color: #17233a !important;
+        font: inherit !important;
+        font-size: 15px !important;
+        font-weight: 500 !important;
+        text-align: left !important;
+        box-shadow: none !important;
+        cursor: pointer !important;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-actions-menu-item:last-child {
+        border-bottom: 0 !important;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-actions-menu-item:hover,
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-actions-menu-item:focus-visible {
+        background: #f7f9fc !important;
+        outline: none !important;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-actions-menu-item:disabled {
+        opacity: 0.45 !important;
+        cursor: default !important;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-actions-menu-item > span:first-child {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 26px !important;
+        height: 26px !important;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service .calendar-service-chain__single-actions-menu-item svg {
+        width: 21px !important;
+        height: 21px !important;
+    }
+}
+
+/* ========================================================================== */
+/* Mobile/tablet final: inline Storitev action + text-only top form tabs.      */
+/* ========================================================================== */
+@media (max-width: 1024px) {
+    /* Force the merged edit/add action to remain in the Storitev row on Dodaj
+       termin. This intentionally outranks the older :has() feature-layout rule. */
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service
+    .calendar-service-chain__single-row--merged-actions:not(:has(.calendar-service-chain__single-edit)):not(:has(.calendar-service-chain__head-add)),
+    .cp-panel--calendar-edit-booking .calendar-standardized__service
+    .calendar-service-chain__single-row--merged-actions:not(:has(.calendar-service-chain__single-edit)):not(:has(.calendar-service-chain__head-add)) {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 54px !important;
+        grid-auto-flow: row !important;
+        align-items: end !important;
+        column-gap: 8px !important;
+        row-gap: 0 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        overflow: visible !important;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service
+    .calendar-service-chain__single-row--merged-actions > .calendar-service-chain__single-select-wrap,
+    .cp-panel--calendar-edit-booking .calendar-standardized__service
+    .calendar-service-chain__single-row--merged-actions > .calendar-service-chain__single-select-wrap {
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+        min-width: 0 !important;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service
+    .calendar-service-chain__single-row--merged-actions > .calendar-service-chain__single-actions,
+    .cp-panel--calendar-edit-booking .calendar-standardized__service
+    .calendar-service-chain__single-row--merged-actions > .calendar-service-chain__single-actions {
+        grid-column: 2 !important;
+        grid-row: 1 !important;
+        align-self: end !important;
+        width: 54px !important;
+        min-width: 54px !important;
+        max-width: 54px !important;
+        height: 56px !important;
+        min-height: 56px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__service
+    .calendar-service-chain__single-actions-trigger,
+    .cp-panel--calendar-edit-booking .calendar-standardized__service
+    .calendar-service-chain__single-actions-trigger {
+        width: 54px !important;
+        min-width: 54px !important;
+        height: 56px !important;
+        min-height: 56px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        gap: 5px !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    /* Dodaj termin / Opravilo / Osebno / Dostopnost: labels only, no icons. */
+    .cp-panel--calendar-new-booking > .cp-panel-tabs {
+        min-height: 58px !important;
+        height: 58px !important;
+        padding: 0 12px !important;
+        align-items: stretch !important;
+    }
+
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tab {
+        min-height: 58px !important;
+        height: 58px !important;
+        padding: 0 4px 6px !important;
+        gap: 0 !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: center !important;
+        color: #23324c !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        line-height: 1.15 !important;
+        white-space: nowrap !important;
+    }
+
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tab svg,
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tab > svg,
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tab .cp-panel-tab__icon {
+        display: none !important;
+    }
+
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tab.is-active {
+        color: var(--calendar-mobile-blue, #0b6ff5) !important;
+        font-weight: 600 !important;
+    }
+
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tab::after {
+        left: 12% !important;
+        right: 12% !important;
+        bottom: 0 !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .cp-panel--calendar-new-booking > .cp-panel-tabs {
+        padding-inline: 5px !important;
+    }
+
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tab {
+        padding-inline: 2px !important;
+        font-size: 12px !important;
+    }
+}
+
+/* ========================================================================== */
+/* Mobile/tablet create-mode tabs — text only on ALL four create pages.       */
+/* Applies equally to Termin / Opravilo / Osebno / Dostopnost and moves the  */
+/* row slightly higher to match the approved compact header treatment.        */
+/* ========================================================================== */
+@media (max-width: 1024px) {
+    .cp-panel--calendar-new-booking > .cp-panel-tabs,
+    .cp-panel--calendar-mobile-create > .cp-panel-tabs,
+    .cp-panel--calendar-new-todo > .cp-panel-tabs,
+    .cp-panel--calendar-new-personal > .cp-panel-tabs,
+    .cp-panel--calendar-new-availability > .cp-panel-tabs {
+        display: flex !important;
+        align-items: stretch !important;
+        width: 100% !important;
+        min-height: 56px !important;
+        height: 56px !important;
+        margin: -8px 0 0 !important;
+        padding: 0 10px !important;
+        gap: 0 !important;
+        border: 0 !important;
+        border-bottom: 0 !important;
+        background: #fff !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+    }
+
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tab,
+    .cp-panel--calendar-mobile-create > .cp-panel-tabs .cp-panel-tab,
+    .cp-panel--calendar-new-todo > .cp-panel-tabs .cp-panel-tab,
+    .cp-panel--calendar-new-personal > .cp-panel-tabs .cp-panel-tab,
+    .cp-panel--calendar-new-availability > .cp-panel-tabs .cp-panel-tab {
+        position: relative !important;
+        display: flex !important;
+        flex: 1 1 0 !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-width: 0 !important;
+        width: auto !important;
+        min-height: 56px !important;
+        height: 56px !important;
+        margin: 0 !important;
+        padding: 0 3px 5px !important;
+        gap: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: #23324c !important;
+        box-shadow: none !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        line-height: 1.15 !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+        overflow-wrap: normal !important;
+    }
+
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tab svg,
+    .cp-panel--calendar-mobile-create > .cp-panel-tabs .cp-panel-tab svg,
+    .cp-panel--calendar-new-todo > .cp-panel-tabs .cp-panel-tab svg,
+    .cp-panel--calendar-new-personal > .cp-panel-tabs .cp-panel-tab svg,
+    .cp-panel--calendar-new-availability > .cp-panel-tabs .cp-panel-tab svg,
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tab .cp-panel-tab__icon,
+    .cp-panel--calendar-mobile-create > .cp-panel-tabs .cp-panel-tab .cp-panel-tab__icon,
+    .cp-panel--calendar-new-todo > .cp-panel-tabs .cp-panel-tab .cp-panel-tab__icon,
+    .cp-panel--calendar-new-personal > .cp-panel-tabs .cp-panel-tab .cp-panel-tab__icon,
+    .cp-panel--calendar-new-availability > .cp-panel-tabs .cp-panel-tab .cp-panel-tab__icon {
+        display: none !important;
+    }
+
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tab::before,
+    .cp-panel--calendar-mobile-create > .cp-panel-tabs .cp-panel-tab::before,
+    .cp-panel--calendar-new-todo > .cp-panel-tabs .cp-panel-tab::before,
+    .cp-panel--calendar-new-personal > .cp-panel-tabs .cp-panel-tab::before,
+    .cp-panel--calendar-new-availability > .cp-panel-tabs .cp-panel-tab::before {
+        display: none !important;
+    }
+
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tab::after,
+    .cp-panel--calendar-mobile-create > .cp-panel-tabs .cp-panel-tab::after,
+    .cp-panel--calendar-new-todo > .cp-panel-tabs .cp-panel-tab::after,
+    .cp-panel--calendar-new-personal > .cp-panel-tabs .cp-panel-tab::after,
+    .cp-panel--calendar-new-availability > .cp-panel-tabs .cp-panel-tab::after {
+        content: '' !important;
+        position: absolute !important;
+        left: 12% !important;
+        right: 12% !important;
+        bottom: 0 !important;
+        width: auto !important;
+        height: 2px !important;
+        border-radius: 999px !important;
+        background: transparent !important;
+        transform: none !important;
+    }
+
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tab.is-active,
+    .cp-panel--calendar-mobile-create > .cp-panel-tabs .cp-panel-tab.is-active,
+    .cp-panel--calendar-new-todo > .cp-panel-tabs .cp-panel-tab.is-active,
+    .cp-panel--calendar-new-personal > .cp-panel-tabs .cp-panel-tab.is-active,
+    .cp-panel--calendar-new-availability > .cp-panel-tabs .cp-panel-tab.is-active {
+        color: var(--calendar-mobile-blue, #0b6ff5) !important;
+        font-weight: 600 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tab.is-active::after,
+    .cp-panel--calendar-mobile-create > .cp-panel-tabs .cp-panel-tab.is-active::after,
+    .cp-panel--calendar-new-todo > .cp-panel-tabs .cp-panel-tab.is-active::after,
+    .cp-panel--calendar-new-personal > .cp-panel-tabs .cp-panel-tab.is-active::after,
+    .cp-panel--calendar-new-availability > .cp-panel-tabs .cp-panel-tab.is-active::after {
+        background: var(--calendar-mobile-blue, #0b6ff5) !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .cp-panel--calendar-new-booking > .cp-panel-tabs,
+    .cp-panel--calendar-mobile-create > .cp-panel-tabs,
+    .cp-panel--calendar-new-todo > .cp-panel-tabs,
+    .cp-panel--calendar-new-personal > .cp-panel-tabs,
+    .cp-panel--calendar-new-availability > .cp-panel-tabs {
+        padding-inline: 4px !important;
+    }
+
+    .cp-panel--calendar-new-booking > .cp-panel-tabs .cp-panel-tab,
+    .cp-panel--calendar-mobile-create > .cp-panel-tabs .cp-panel-tab,
+    .cp-panel--calendar-new-todo > .cp-panel-tabs .cp-panel-tab,
+    .cp-panel--calendar-new-personal > .cp-panel-tabs .cp-panel-tab,
+    .cp-panel--calendar-new-availability > .cp-panel-tabs .cp-panel-tab {
+        padding-inline: 1px !important;
+        font-size: 12px !important;
+    }
+}
+
+/* ========================================================================== */
+/* Uredi termin — mobile/tablet top tabs slightly higher (2026-08-20).         */
+/* ========================================================================== */
+@media (max-width: 1024px) {
+    .cp-panel--calendar-edit-booking > .cp-panel-tabs {
+        margin-top: -8px !important;
+    }
+}

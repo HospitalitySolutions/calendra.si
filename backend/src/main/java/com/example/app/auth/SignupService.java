@@ -29,6 +29,7 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -577,9 +578,17 @@ public class SignupService {
             boolean skipPostProvisionConfirmationEmail
     ) {
         deactivateSignupIntentsForEmail(normalizedEmail);
-        String normalizedPackageType = normalizePackageType(request.packageName(), "PROFESSIONAL");
-        String interval = normalizeBillingInterval(request.billingInterval());
         boolean selfServeTrial = Boolean.TRUE.equals(request.trialRequested());
+        // Public self-serve registrations always start on the Basic monthly trial.
+        // The onboarding selection is still preserved in returnSearch so the admin
+        // notification can show what the prospect selected, but those selections
+        // must not silently provision a Professional/Premium tenant during trial.
+        String normalizedPackageType = selfServeTrial
+                ? "BASIC"
+                : normalizePackageType(request.packageName(), "PROFESSIONAL");
+        String interval = selfServeTrial
+                ? "MONTHLY"
+                : normalizeBillingInterval(request.billingInterval());
         boolean basicMonthlyTrial = isBasicMonthlyTrial(normalizedPackageType, interval);
         int selectedUserCount = Math.max(1, request.userCount() == null ? 1 : request.userCount());
         int selectedSmsCount = basicMonthlyTrial
@@ -680,7 +689,10 @@ public class SignupService {
                 "",
                 normalizedPackageType,
                 interval,
-                null
+                null,
+                selectedUserCount,
+                selectionValuesFromReturnSearch(request.returnSearch(), "feature"),
+                selectedRegistrationAddonKeys(request)
         );
 
         if (!passwordProvided) {
@@ -908,7 +920,10 @@ public class SignupService {
             String tenantType,
             String packageName,
             String billingInterval,
-            String paymentMethod
+            String paymentMethod,
+            Integer selectedUserCount,
+            List<String> selectedFeatureKeys,
+            List<String> selectedAddonKeys
     ) {
         if (tenantCreatedAdminEmailService == null || company == null) return;
         String ownerName = owner == null
@@ -928,7 +943,10 @@ public class SignupService {
                 billingInterval,
                 paymentMethod,
                 settingValue(company, SettingKey.TENANCY_ACCESS_STATUS, "ACTIVE"),
-                settingValue(company, SettingKey.BILLING_SUBSCRIPTION_STATUS, "PENDING_PAYMENT")
+                settingValue(company, SettingKey.BILLING_SUBSCRIPTION_STATUS, "PENDING_PAYMENT"),
+                selectedUserCount,
+                selectedFeatureKeys,
+                selectedAddonKeys
         ));
     }
 
@@ -986,6 +1004,48 @@ public class SignupService {
             }
         }
         return fallbackLocale;
+    }
+
+    private List<String> selectedRegistrationAddonKeys(AuthController.SignupRequest request) {
+        LinkedHashSet<String> selected = new LinkedHashSet<>(
+                selectionValuesFromReturnSearch(request == null ? null : request.returnSearch(), "addon")
+        );
+        if (request != null && request.addonKeys() != null) {
+            for (String raw : request.addonKeys()) {
+                String normalized = normalizeSelectionKey(raw);
+                if (!normalized.isBlank()) selected.add(normalized);
+            }
+        }
+        return List.copyOf(selected);
+    }
+
+    private List<String> selectionValuesFromReturnSearch(String returnSearch, String parameterName) {
+        if (returnSearch == null || returnSearch.isBlank() || parameterName == null || parameterName.isBlank()) {
+            return List.of();
+        }
+        String normalizedSearch = returnSearch.startsWith("?")
+                ? returnSearch.substring(1)
+                : returnSearch;
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (String pair : normalizedSearch.split("&")) {
+            if (pair.isBlank()) continue;
+            int separator = pair.indexOf('=');
+            String encodedKey = separator >= 0 ? pair.substring(0, separator) : pair;
+            String encodedValue = separator >= 0 ? pair.substring(separator + 1) : "";
+            String key = URLDecoder.decode(encodedKey, StandardCharsets.UTF_8).trim();
+            if (!parameterName.equalsIgnoreCase(key)) continue;
+            String value = normalizeSelectionKey(URLDecoder.decode(encodedValue, StandardCharsets.UTF_8));
+            if (!value.isBlank()) values.add(value);
+        }
+        return List.copyOf(values);
+    }
+
+    private static String normalizeSelectionKey(String raw) {
+        if (raw == null) return "";
+        return raw.trim()
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-+|-+$", "");
     }
 
     private String supportedSignupLocale(String rawLocale) {
