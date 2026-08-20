@@ -1608,3 +1608,644 @@
 [data-theme="dark"] .employee-standard-panel .employee-avatar-action:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.05);
 }
+
+/* ========================================================================== */
+/* Nova / Uredi zaposlenega — mobile + tablet rebuild                         */
+/* Matches the Nova storitev mobile visual language.                          */
+/* ========================================================================== */
+@media (max-width: 1024px) {
+    .employee-standard-panel.employee-standard-panel--mobile-tablet {
+        --employee-mobile-blue: #0b6ff5;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        min-width: 100vw !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        border-radius: 0 !important;
+        background: #ffffff !important;
+        box-shadow: none !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet > .cp-panel-header {
+        display: grid !important;
+        grid-template-columns: 42px minmax(0, 1fr) 42px !important;
+        align-items: center !important;
+        gap: 0 !important;
+        min-height: 78px !important;
+        padding: calc(12px + env(safe-area-inset-top, 0px)) 18px 8px !important;
+        border: 0 !important;
+        background: #ffffff !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .cp-panel-header__leading,
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .cp-panel-header__actions {
+        width: 42px !important;
+        min-width: 42px !important;
+        height: 42px !important;
+        min-height: 42px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .cp-panel-header__text {
+        min-width: 0 !important;
+        padding: 0 !important;
+        text-align: center !important;
+        transform: translateY(-4px);
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .cp-panel-header__title {
+        margin: 0 !important;
+        color: #0f172a !important;
+        font-size: 1.35rem !important;
+        line-height: 1.15 !important;
+        font-weight: 800 !important;
+        letter-spacing: -0.03em !important;
+        text-align: center !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .cp-panel-header__subtitle,
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .cp-panel-header__actions > .cp-icon-btn,
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .cp-panel-header__actions > .cp-menu {
+        display: none !important;
+    }
+
+    .employee-mobile-header-btn {
+        appearance: none;
+        width: 42px;
+        min-width: 42px;
+        height: 42px;
+        min-height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 12px;
+        background: transparent;
+        color: #101828;
+        box-shadow: none;
+    }
+
+    .employee-mobile-header-btn svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .employee-mobile-header-btn:focus-visible,
+    .employee-mobile-header-btn:hover:not(:disabled) {
+        outline: none;
+        background: #f4f7fb;
+    }
+
+    .employee-mobile-header-btn:disabled {
+        opacity: .38;
+    }
+
+    /* Two full-width tabs, same geometry as Nova storitev. */
+    .employee-standard-panel.employee-standard-panel--mobile-tablet > .cp-panel-tabs {
+        display: flex !important;
+        align-items: stretch !important;
+        width: 100% !important;
+        min-height: 56px !important;
+        height: 56px !important;
+        margin: -6px 0 0 !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        border: 0 !important;
+        border-bottom: 0 !important;
+        background: #ffffff !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet > .cp-panel-tabs .cp-panel-tab {
+        position: relative !important;
+        flex: 1 1 0 !important;
+        width: 50% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        min-height: 56px !important;
+        height: 56px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin: 0 !important;
+        padding: 0 8px 5px !important;
+        gap: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: #25334c !important;
+        box-shadow: none !important;
+        font-size: .94rem !important;
+        line-height: 1.15 !important;
+        font-weight: 500 !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet > .cp-panel-tabs .cp-panel-tab svg {
+        display: none !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet > .cp-panel-tabs .cp-panel-tab::after {
+        content: '' !important;
+        position: absolute !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100% !important;
+        height: 2px !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        transform: none !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet > .cp-panel-tabs .cp-panel-tab.is-active {
+        color: var(--employee-mobile-blue) !important;
+        font-weight: 600 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet > .cp-panel-tabs .cp-panel-tab.is-active::after {
+        background: var(--employee-mobile-blue) !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-panel-body {
+        display: block !important;
+        padding: 24px 22px 42px !important;
+        overflow-x: hidden !important;
+        background: #ffffff !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-basic,
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-working-hours {
+        width: 100%;
+        max-width: 760px;
+        margin: 0 auto;
+    }
+
+    /* Edit only: avatar section as a clean intro, with no icon/divider underneath. */
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-avatar-section {
+        margin: 0 0 24px !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-avatar-section-title {
+        margin: 0 0 18px !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        color: #101828 !important;
+        font-size: 1rem !important;
+        line-height: 1.3 !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-avatar-section-title svg {
+        display: none !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-avatar-section-title strong {
+        font-weight: 700 !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-avatar-row {
+        min-height: 72px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 22px !important;
+        flex-wrap: nowrap !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-avatar-preview {
+        width: 68px !important;
+        height: 68px !important;
+        flex: 0 0 68px !important;
+        background: #e8f1ff !important;
+        color: #1266e3 !important;
+        font-size: 1.45rem !important;
+        font-weight: 750 !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-avatar-upload-button {
+        min-height: 48px !important;
+        padding: 0 18px !important;
+        border: 1px solid var(--employee-mobile-blue) !important;
+        border-radius: 12px !important;
+        background: #ffffff !important;
+        color: var(--employee-mobile-blue) !important;
+        font-size: .94rem !important;
+        font-weight: 700 !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-avatar-existing-actions {
+        margin-left: 0 !important;
+        flex: 1 1 auto !important;
+        justify-content: flex-start !important;
+        gap: 16px !important;
+    }
+
+    /* Basic fields become one clean icon + label + underline row. */
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-fields-grid {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 0 !important;
+        width: 100% !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-fields-grid > [aria-hidden='true'] {
+        display: none !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field {
+        position: relative !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 0 !important;
+        min-width: 0 !important;
+        margin: 0 0 20px !important;
+        padding: 0 0 0 46px !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field--first-name { order: 1; }
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field--last-name { order: 2; }
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field--email { order: 3; }
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field--phone { order: 4; }
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field--vat { order: 5; }
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field--role { order: 6; }
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-reset-password-action--mobile-ordered { order: 7; }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field-label {
+        position: static !important;
+        display: block !important;
+        margin: 0 0 4px !important;
+        padding: 0 !important;
+        color: #101828 !important;
+        font-size: .9rem !important;
+        line-height: 1.3 !important;
+        font-weight: 600 !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field-label > svg {
+        position: absolute !important;
+        left: 0 !important;
+        top: 23px !important;
+        width: 22px !important;
+        height: 22px !important;
+        color: var(--employee-mobile-blue) !important;
+        stroke-width: 1.85 !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field input,
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field select,
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field .app-desktop-select {
+        width: 100% !important;
+        height: 42px !important;
+        min-height: 42px !important;
+        margin: 0 !important;
+        padding: 0 26px 9px 0 !important;
+        border: 0 !important;
+        border-bottom: 1px solid #cfd9e6 !important;
+        border-radius: 0 !important;
+        background-color: transparent !important;
+        color: #101828 !important;
+        box-shadow: none !important;
+        outline: none !important;
+        font-size: 1rem !important;
+        line-height: 1.25 !important;
+        font-weight: 500 !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field input::placeholder {
+        color: #7c8ba3 !important;
+        opacity: 1 !important;
+        font-weight: 450 !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field select,
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field .app-desktop-select {
+        appearance: none !important;
+        -webkit-appearance: none !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%230b6ff5' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-position: right 0 center !important;
+        background-size: 16px 16px !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field .field-hint {
+        margin: 6px 0 0 !important;
+        color: #718096 !important;
+        font-size: .76rem !important;
+        line-height: 1.35 !important;
+    }
+
+    /* Reset password is a standalone outline action; no divider underneath. */
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-reset-password-action {
+        min-width: 0 !important;
+        display: flex !important;
+        align-items: flex-start !important;
+        margin: 0 0 22px !important;
+        padding: 0 !important;
+        border: 0 !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-reset-password-button {
+        width: auto !important;
+        min-height: 48px !important;
+        padding: 0 16px !important;
+        border: 1px solid var(--employee-mobile-blue) !important;
+        border-radius: 12px !important;
+        background: #ffffff !important;
+        color: var(--employee-mobile-blue) !important;
+        font-size: .9rem !important;
+        font-weight: 700 !important;
+        box-shadow: none !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-reset-password-button::after,
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-reset-password-action::after {
+        display: none !important;
+        content: none !important;
+    }
+
+    /* Zaposleni row: shared switch geometry. */
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-form-consultant-row {
+        min-height: 66px !important;
+        width: 100% !important;
+        margin: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 16px !important;
+        background: #ffffff !important;
+        box-shadow: none !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet.employee-standard-panel--creating .employee-form-consultant-row {
+        position: relative !important;
+        padding: 0 0 0 46px !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet.employee-standard-panel--creating .employee-form-consultant-row::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 50%;
+        width: 24px;
+        height: 24px;
+        transform: translateY(-50%);
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230b6ff5' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8.5 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z'/%3E%3Cpath d='M3 20a5.5 5.5 0 0 1 11 0'/%3E%3Cpath d='M17 9.5a2.8 2.8 0 1 0 0-5.6M17 14.2a4.8 4.8 0 0 1 4 4.7'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 24px 24px;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet.employee-standard-panel--editing .employee-form-consultant-row {
+        margin-top: 4px !important;
+        padding: 0 16px 0 18px !important;
+        border: 1px solid #dce5f0 !important;
+        border-radius: 14px !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-form-consultant-row > span {
+        color: #172033 !important;
+        font-size: .92rem !important;
+        font-weight: 750 !important;
+        letter-spacing: .09em !important;
+        text-transform: uppercase !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-form-consultant-row .clients-batch-switch,
+    .employee-mobile-working-hours__switch.clients-batch-switch {
+        position: relative !important;
+        width: 50px !important;
+        min-width: 50px !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        padding: 0 !important;
+        border: 1px solid #d5dee9 !important;
+        border-radius: 999px !important;
+        background: #e7ecf3 !important;
+        color: transparent !important;
+        font-size: 0 !important;
+        line-height: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-form-consultant-row .clients-batch-switch::after,
+    .employee-mobile-working-hours__switch.clients-batch-switch::after {
+        content: '' !important;
+        position: absolute !important;
+        top: 3px !important;
+        left: 3px !important;
+        width: 22px !important;
+        height: 22px !important;
+        border-radius: 999px !important;
+        background: #ffffff !important;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, .18) !important;
+        transition: transform .16s ease !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-form-consultant-row .clients-batch-switch--on,
+    .employee-mobile-working-hours__switch.clients-batch-switch--on {
+        border-color: var(--employee-mobile-blue) !important;
+        background: var(--employee-mobile-blue) !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-form-consultant-row .clients-batch-switch--on::after,
+    .employee-mobile-working-hours__switch.clients-batch-switch--on::after {
+        transform: translateX(20px) !important;
+    }
+
+    /* Dedicated mobile/tablet working-hours layout. */
+    .employee-mobile-working-hours {
+        width: 100%;
+        padding: 4px 0 28px;
+        background: #ffffff;
+    }
+
+    .employee-mobile-working-hours__same-row {
+        min-height: 58px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        margin: 0 0 20px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+    }
+
+    .employee-mobile-working-hours__same-row > span {
+        color: #101828;
+        font-size: .98rem;
+        font-weight: 600;
+        line-height: 1.3;
+    }
+
+    .employee-mobile-working-hours__days {
+        display: flex;
+        flex-direction: column;
+        gap: 26px;
+    }
+
+    .employee-mobile-working-day {
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+    }
+
+    .employee-mobile-working-day__check {
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
+        margin: 0 0 10px;
+        color: #111827;
+        font-size: 1rem;
+        font-weight: 650;
+        line-height: 1.3;
+        cursor: pointer;
+    }
+
+    .employee-mobile-working-day__check input[type='checkbox'] {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 20px !important;
+        min-width: 20px !important;
+        max-width: 20px !important;
+        height: 20px !important;
+        min-height: 20px !important;
+        max-height: 20px !important;
+        padding: 0 !important;
+        margin: 0;
+        box-sizing: border-box;
+        display: grid;
+        place-items: center;
+        flex: 0 0 20px;
+        border: 1.5px solid #9aabc0;
+        border-radius: 3px;
+        background: #ffffff;
+        cursor: pointer;
+    }
+
+    .employee-mobile-working-day__check input[type='checkbox']::after {
+        content: '';
+        width: 10px;
+        height: 6px;
+        border-left: 2px solid #ffffff;
+        border-bottom: 2px solid #ffffff;
+        transform: translateY(-1px) rotate(-45deg) scale(0);
+        transition: transform .12s ease;
+    }
+
+    .employee-mobile-working-day__check input[type='checkbox']:checked {
+        border-color: var(--employee-mobile-blue);
+        background: var(--employee-mobile-blue);
+    }
+
+    .employee-mobile-working-day__check input[type='checkbox']:checked::after {
+        transform: translateY(-1px) rotate(-45deg) scale(1);
+    }
+
+    .employee-mobile-working-day__times {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 22px;
+        padding-left: 34px;
+    }
+
+    .employee-mobile-working-day__time {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .employee-mobile-working-day__time > span {
+        color: #53647d;
+        font-size: .78rem;
+        font-weight: 600;
+        line-height: 1.25;
+    }
+
+    .employee-mobile-working-day__picker.modern-time-picker__trigger {
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 42px !important;
+        height: 42px !important;
+        margin: 0 !important;
+        padding: 0 2px 8px 0 !important;
+        display: flex !important;
+        align-items: flex-end !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+        border: 0 !important;
+        border-bottom: 1px solid #7788a1 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: #101828 !important;
+        box-shadow: none !important;
+        font-size: 1rem !important;
+        font-weight: 500 !important;
+    }
+
+    .employee-mobile-working-day__picker.modern-time-picker__trigger::after {
+        display: none !important;
+        content: none !important;
+    }
+
+    .employee-mobile-working-day__picker .modern-time-picker__value {
+        min-width: 0;
+        color: #101828 !important;
+    }
+
+    .employee-mobile-working-day__picker .modern-time-picker__icon {
+        color: #31415b !important;
+        opacity: 1 !important;
+        margin-bottom: 1px;
+    }
+
+    .employee-mobile-working-day__picker .modern-time-picker__icon svg {
+        width: 19px !important;
+        height: 19px !important;
+    }
+
+    .employee-mobile-working-day.is-inactive {
+        opacity: .5;
+    }
+
+    /* The mobile designs use the top checkmark, never the bottom action bar. */
+    .employee-standard-panel.employee-standard-panel--mobile-tablet > .cp-panel-footer {
+        display: none !important;
+    }
+}
+
+@media (max-width: 600px) {
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-panel-body {
+        padding: 20px 18px 36px !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet .employee-standard-field {
+        padding-left: 42px !important;
+        margin-bottom: 18px !important;
+    }
+
+    .employee-standard-panel.employee-standard-panel--mobile-tablet.employee-standard-panel--creating .employee-form-consultant-row {
+        padding-left: 42px !important;
+    }
+
+    .employee-mobile-working-day__times {
+        gap: 18px;
+        padding-left: 34px;
+    }
+}

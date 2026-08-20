@@ -197,6 +197,22 @@ function EmployeeAvatarActionIcon({ name }: { name: 'upload' | 'replace' }) {
   )
 }
 
+function EmployeeMobileBackIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="m15 18-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function EmployeeMobileSaveIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 type EmployeeFieldIconName = 'person' | 'email' | 'phone' | 'vat' | 'role' | 'password'
 
 function EmployeeFormField({
@@ -521,6 +537,9 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   const [isConsultantsMobile, setIsConsultantsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 450px)').matches : false,
   )
+  const [isEmployeeFormMobileTablet, setIsEmployeeFormMobileTablet] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 1024px)').matches : false,
+  )
   const mobileKeyboardOpen = useMobileKeyboardOpen(1024)
   const [formSectionTab, setFormSectionTab] = useState<ConsultantFormSectionTab>('basic')
   const [passwordResetSending, setPasswordResetSending] = useState(false)
@@ -568,6 +587,14 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 450px)')
     const apply = () => setIsConsultantsMobile(mq.matches)
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1024px)')
+    const apply = () => setIsEmployeeFormMobileTablet(mq.matches)
     apply()
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
@@ -1180,6 +1207,83 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
     })
   }
 
+  const setWorkingHoursSameForAllDays = (same: boolean) => {
+    setForm((f) => {
+      const currentByDay = f.workingHours.byDay || {}
+      const firstConfiguredDay = dayOptions
+        .map((day) => currentByDay[day])
+        .find((row) => row?.start && row?.end)
+      const base = f.workingHours.allDays || firstConfiguredDay || { start: '09:00', end: '17:00' }
+      if (same) {
+        return {
+          ...f,
+          workingHours: {
+            sameForAllDays: true,
+            allDays: { start: base.start, end: base.end },
+            byDay: {},
+          },
+        }
+      }
+      const byDay: WorkingHoursConfig['byDay'] = {}
+      for (const day of dayOptions) {
+        const existing = currentByDay[day]
+        byDay[day] = existing?.start && existing?.end
+          ? { start: existing.start, end: existing.end }
+          : { start: base.start, end: base.end }
+      }
+      return {
+        ...f,
+        workingHours: {
+          sameForAllDays: false,
+          allDays: null,
+          byDay,
+        },
+      }
+    })
+  }
+
+  const setMobileWorkingDayActive = (day: DayOfWeek, active: boolean) => {
+    setForm((f) => {
+      if (f.workingHours.sameForAllDays) {
+        const base = f.workingHours.allDays || { start: '09:00', end: '17:00' }
+        const byDay: WorkingHoursConfig['byDay'] = {}
+        for (const optionDay of dayOptions) {
+          byDay[optionDay] = optionDay === day && !active ? null : { ...base }
+        }
+        return {
+          ...f,
+          workingHours: { sameForAllDays: false, allDays: null, byDay },
+        }
+      }
+      const nextByDay = { ...(f.workingHours.byDay || {}) }
+      if (!active) nextByDay[day] = null
+      else {
+        const previous = nextByDay[day]
+        nextByDay[day] = previous?.start && previous?.end ? previous : { start: '09:00', end: '17:00' }
+      }
+      return { ...f, workingHours: { sameForAllDays: false, allDays: null, byDay: nextByDay } }
+    })
+  }
+
+  const setMobileWorkingDayTime = (day: DayOfWeek, patch: { start?: string; end?: string }) => {
+    setForm((f) => {
+      if (f.workingHours.sameForAllDays) {
+        const previous = f.workingHours.allDays || { start: '09:00', end: '17:00' }
+        return {
+          ...f,
+          workingHours: {
+            ...f.workingHours,
+            allDays: { start: patch.start ?? previous.start, end: patch.end ?? previous.end },
+          },
+        }
+      }
+      const nextByDay = { ...(f.workingHours.byDay || {}) }
+      const previous = nextByDay[day] || { start: '09:00', end: '17:00' }
+      nextByDay[day] = { start: patch.start ?? previous.start, end: patch.end ?? previous.end }
+      return { ...f, workingHours: { sameForAllDays: false, allDays: null, byDay: nextByDay } }
+    })
+  }
+
   const setConsultantAllLocations = (allLocations: boolean) => {
     setForm((f) => ({
       ...f,
@@ -1663,12 +1767,35 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
           onClose={dismissFormPanel}
           ariaLabel={formTitle}
           closeOnScrimClick={false}
-          className={`employee-standard-panel${selfService ? ' employee-standard-panel--self-service' : ''}`}
+          className={`employee-standard-panel${selfService ? ' employee-standard-panel--self-service' : ''}${editing ? ' employee-standard-panel--editing' : ' employee-standard-panel--creating'}${isEmployeeFormMobileTablet ? ' employee-standard-panel--mobile-tablet' : ''}`}
         >
           <PanelHeader
             title={formTitle}
             onClose={dismissFormPanel}
             closeLabel={closeLabel}
+            closeVisible={!isEmployeeFormMobileTablet}
+            leading={isEmployeeFormMobileTablet ? (
+              <button
+                type="button"
+                className="employee-mobile-header-btn employee-mobile-header-btn--back"
+                onClick={dismissFormPanel}
+                aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}
+              >
+                <EmployeeMobileBackIcon />
+              </button>
+            ) : undefined}
+            actions={isEmployeeFormMobileTablet ? (
+              <button
+                type="submit"
+                form="consultant-edit-form"
+                className="employee-mobile-header-btn employee-mobile-header-btn--save"
+                disabled={formPrimaryDisabled}
+                aria-label={formPrimaryLabel}
+                title={formPrimaryLabel}
+              >
+                <EmployeeMobileSaveIcon />
+              </button>
+            ) : undefined}
           />
           {!selfService && (
             <PanelTabs
@@ -1757,28 +1884,28 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                       </section>
                     )}
                     <div className="employee-standard-fields-grid">
-                      <EmployeeFormField icon="person" label={t('signupFirstName')} required>
+                      <EmployeeFormField icon="person" label={t('signupFirstName')} required className="employee-standard-field--first-name">
                         <input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} placeholder={locale === 'sl' ? 'Vnesite ime' : 'Enter first name'} />
                       </EmployeeFormField>
 
-                      <EmployeeFormField icon="phone" label={t('employeesFormPhone')}>
+                      <EmployeeFormField icon="phone" label={t('employeesFormPhone')} className="employee-standard-field--phone">
                         <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder={t('employeesFormPhonePlaceholder')} />
                       </EmployeeFormField>
 
-                      <EmployeeFormField icon="person" label={t('signupLastName')} required>
+                      <EmployeeFormField icon="person" label={t('signupLastName')} required className="employee-standard-field--last-name">
                         <input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} placeholder={locale === 'sl' ? 'Vnesite priimek' : 'Enter last name'} />
                       </EmployeeFormField>
 
-                      <EmployeeFormField icon="vat" label={t('employeesFormVatId')}>
+                      <EmployeeFormField icon="vat" label={t('employeesFormVatId')} className="employee-standard-field--vat">
                         <input value={form.vatId} onChange={(e) => setForm({ ...form, vatId: e.target.value })} placeholder={t('employeesFormVatPlaceholder')} />
                       </EmployeeFormField>
 
-                      <EmployeeFormField icon="email" label={t('loginEmailLabel')} required>
+                      <EmployeeFormField icon="email" label={t('loginEmailLabel')} required className="employee-standard-field--email">
                         <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder={locale === 'sl' ? 'Vnesite e-pošto' : 'Enter email'} />
                       </EmployeeFormField>
 
                       {!selfService ? (
-                        <EmployeeFormField icon="role" label={t('employeesFormRole')} hint={isEditingTenantOwner ? ownerRoleLockHint : undefined}>
+                        <EmployeeFormField icon="role" label={t('employeesFormRole')} hint={isEditingTenantOwner ? ownerRoleLockHint : undefined} className="employee-standard-field--role">
                           <DesktopSelect
                             value={employeeRoleSelectValue}
                             onChange={(e) => applyEmployeeRoleSelection(e.target.value)}
@@ -1798,7 +1925,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                       ) : <div aria-hidden />}
 
                       {(editing || selfService) && (
-                        <div className="employee-standard-reset-password-action">
+                        <div className="employee-standard-reset-password-action employee-standard-reset-password-action--mobile-ordered">
                           <button
                             type="button"
                             className="employee-standard-reset-password-button"
@@ -1872,6 +1999,114 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
 
                 {(selfService || (form.consultant && formSectionTab === 'workingHours')) && (
                   <div className="employee-standard-working-hours" role="tabpanel">
+                    {isEmployeeFormMobileTablet ? (
+                      <div className="employee-mobile-working-hours">
+                        <div className="employee-mobile-working-hours__same-row">
+                          <span>{t('employeesFormSameHoursEveryDay')}</span>
+                          <button
+                            type="button"
+                            className={`clients-batch-switch employee-mobile-working-hours__switch${form.workingHours.sameForAllDays ? ' clients-batch-switch--on' : ''}`}
+                            aria-pressed={form.workingHours.sameForAllDays}
+                            onClick={() => setWorkingHoursSameForAllDays(!form.workingHours.sameForAllDays)}
+                          >
+                            <span className="sr-only">{t('employeesFormSameHoursEveryDay')}</span>
+                          </button>
+                        </div>
+                        <div className="employee-mobile-working-hours__days">
+                          {form.workingHours.sameForAllDays ? (() => {
+                            const row = form.workingHours.allDays || { start: '09:00', end: '17:00' }
+                            const startValue = (row.start || '09:00').slice(0, 5)
+                            const endValue = (row.end || '17:00').slice(0, 5)
+                            return (
+                              <div className="employee-mobile-working-day">
+                                <div className="employee-mobile-working-day__check employee-mobile-working-day__check--all-days">
+                                  <span>{t('employeesFormAllDays')}</span>
+                                </div>
+                                <div className="employee-mobile-working-day__times">
+                                  <div className="employee-mobile-working-day__time">
+                                    <span>{t('employeesFormStart')}</span>
+                                    <ModernTimePicker
+                                      className="employee-mobile-working-day__picker"
+                                      value={startValue}
+                                      ariaLabel={`${t('employeesFormStart')} – ${t('employeesFormAllDays')}`}
+                                      onChange={(value) => setForm((f) => ({
+                                        ...f,
+                                        workingHours: {
+                                          ...f.workingHours,
+                                          sameForAllDays: true,
+                                          allDays: {
+                                            start: value,
+                                            end: (f.workingHours.allDays?.end || '17:00').slice(0, 5),
+                                          },
+                                        },
+                                      }))}
+                                    />
+                                  </div>
+                                  <div className="employee-mobile-working-day__time">
+                                    <span>{t('employeesFormEnd')}</span>
+                                    <ModernTimePicker
+                                      className="employee-mobile-working-day__picker"
+                                      value={endValue}
+                                      ariaLabel={`${t('employeesFormEnd')} – ${t('employeesFormAllDays')}`}
+                                      onChange={(value) => setForm((f) => ({
+                                        ...f,
+                                        workingHours: {
+                                          ...f.workingHours,
+                                          sameForAllDays: true,
+                                          allDays: {
+                                            start: (f.workingHours.allDays?.start || '09:00').slice(0, 5),
+                                            end: value,
+                                          },
+                                        },
+                                      }))}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })() : dayOptions.map((day) => {
+                            const row = form.workingHours.byDay?.[day]
+                            const active = !!(row?.start && row?.end)
+                            const startValue = (row?.start || '09:00').slice(0, 5)
+                            const endValue = (row?.end || '17:00').slice(0, 5)
+                            return (
+                              <div key={day} className={`employee-mobile-working-day${active ? '' : ' is-inactive'}`}>
+                                <label className="employee-mobile-working-day__check">
+                                  <input
+                                    type="checkbox"
+                                    checked={active}
+                                    onChange={(event) => setMobileWorkingDayActive(day, event.target.checked)}
+                                  />
+                                  <span>{t(EMPLOYEE_DAY_LABEL_KEY[day])}</span>
+                                </label>
+                                <div className="employee-mobile-working-day__times">
+                                  <div className="employee-mobile-working-day__time">
+                                    <span>{t('employeesFormStart')}</span>
+                                    <ModernTimePicker
+                                      className="employee-mobile-working-day__picker"
+                                      disabled={!active}
+                                      value={startValue}
+                                      ariaLabel={`${t('employeesFormStart')} – ${t(EMPLOYEE_DAY_LABEL_KEY[day])}`}
+                                      onChange={(value) => setMobileWorkingDayTime(day, { start: value })}
+                                    />
+                                  </div>
+                                  <div className="employee-mobile-working-day__time">
+                                    <span>{t('employeesFormEnd')}</span>
+                                    <ModernTimePicker
+                                      className="employee-mobile-working-day__picker"
+                                      disabled={!active}
+                                      value={endValue}
+                                      ariaLabel={`${t('employeesFormEnd')} – ${t(EMPLOYEE_DAY_LABEL_KEY[day])}`}
+                                      onChange={(value) => setMobileWorkingDayTime(day, { end: value })}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ) : (
                     <div className="full-span consultant-wh-card employee-form-working-card">
                       <div className="consultant-wh-card-header">
                         <span className="consultant-wh-card-header-label" id="consultant-wh-same-hours-label">
@@ -1879,40 +2114,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                         </span>
                         <GuestSwitch
                           checked={form.workingHours.sameForAllDays}
-                          onChange={(same) => {
-                            setForm((f) => {
-                              const currentByDay = f.workingHours.byDay || {}
-                              const firstConfiguredDay = dayOptions
-                                .map((day) => currentByDay[day])
-                                .find((row) => row?.start && row?.end)
-                              const base = f.workingHours.allDays || firstConfiguredDay || { start: '09:00', end: '17:00' }
-                              if (same) {
-                                return {
-                                  ...f,
-                                  workingHours: {
-                                    sameForAllDays: true,
-                                    allDays: { start: base.start, end: base.end },
-                                    byDay: {},
-                                  },
-                                }
-                              }
-                              const byDay: WorkingHoursConfig['byDay'] = {}
-                              for (const d of dayOptions) {
-                                const existing = currentByDay[d]
-                                byDay[d] = existing?.start && existing?.end
-                                  ? { start: existing.start, end: existing.end }
-                                  : { start: base.start, end: base.end }
-                              }
-                              return {
-                                ...f,
-                                workingHours: {
-                                  sameForAllDays: false,
-                                  allDays: null,
-                                  byDay,
-                                },
-                              }
-                            })
-                          }}
+                          onChange={setWorkingHoursSameForAllDays}
                         />
                       </div>
                       <div className="consultant-wh-rows">
@@ -2029,6 +2231,8 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
                         )}
                       </div>
                     </div>
+
+                    )}
 
                     {!selfService && form.consultant && locations.length > 1 && workingHoursOverrideLocations.length > 0 && (
                       <div className="full-span employee-location-hours-section">
@@ -2154,7 +2358,7 @@ export function ConsultantsPage({ selfService = false }: ConsultantsPageProps) {
 
                 {successMessage && <div className="success employees-form-alert">{successMessage}</div>}
           </PanelBody>
-          {!mobileKeyboardOpen && (
+          {!isEmployeeFormMobileTablet && !mobileKeyboardOpen && (
             <PanelFooter>
               {editing && !selfService && !isEditingTenantOwner && canDeleteEmployees && (
                 <div className="employee-standard-footer-delete">
