@@ -387,12 +387,17 @@
 
     .session-type-standard-panel>.cp-panel-tabs {
         display: flex !important;
-        align-items: flex-end;
-        gap: 28px;
-        min-height: 52px;
-        padding: 0 18px;
-        border-bottom: 1px solid #e4eaf2;
-        background: #ffffff;
+        align-items: stretch !important;
+        width: 100% !important;
+        min-height: 56px !important;
+        height: 56px !important;
+        margin: -8px 0 0 !important;
+        padding: 0 10px !important;
+        gap: 0 !important;
+        border: 0 !important;
+        border-bottom: 0 !important;
+        background: #ffffff !important;
+        box-shadow: none !important;
         overflow-x: auto;
         overflow-y: hidden;
         scrollbar-width: none;
@@ -404,21 +409,29 @@
     }
 
     .session-type-standard-panel>.cp-panel-tabs .cp-panel-tab {
-        position: relative;
-        flex: 0 0 auto;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 52px;
-        padding: 0 0 11px;
-        border: 0;
-        border-radius: 0;
-        background: transparent;
-        color: #667085;
-        font-size: 0.93rem;
-        font-weight: 600;
-        line-height: 1.2;
-        white-space: nowrap;
+        position: relative !important;
+        flex: 0 0 auto !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-width: 0 !important;
+        width: auto !important;
+        min-height: 56px !important;
+        height: 56px !important;
+        margin: 0 !important;
+        padding: 0 12px 5px !important;
+        gap: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: #23324c !important;
+        box-shadow: none !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        line-height: 1.15 !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+        overflow-wrap: normal !important;
     }
 
     .session-type-standard-panel>.cp-panel-tabs .cp-panel-tab svg {
@@ -426,22 +439,27 @@
     }
 
     .session-type-standard-panel>.cp-panel-tabs .cp-panel-tab::after {
-        content: "";
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        height: 2.5px;
-        border-radius: 999px;
-        background: transparent;
+        content: "" !important;
+        position: absolute !important;
+        left: 12% !important;
+        right: 12% !important;
+        bottom: 0 !important;
+        width: auto !important;
+        height: 2px !important;
+        border-radius: 999px !important;
+        background: transparent !important;
+        transform: none !important;
     }
 
     .session-type-standard-panel>.cp-panel-tabs .cp-panel-tab.is-active {
-        color: #0877f9;
+        color: #0b6ff5 !important;
+        font-weight: 600 !important;
+        background: transparent !important;
+        box-shadow: none !important;
     }
 
     .session-type-standard-panel>.cp-panel-tabs .cp-panel-tab.is-active::after {
-        background: #0877f9;
+        background: #0b6ff5 !important;
     }
 
     .session-type-standard-panel .session-type-standard-panel-body {
@@ -608,6 +626,19 @@
         color: #0877f9;
     }
 
+    .session-type-mobile-bottom-tab--color {
+        background: var(--session-type-mobile-color, #ffffff);
+        border-color: rgba(148, 163, 184, 0.32);
+        color: #23324c;
+    }
+
+    .session-type-mobile-bottom-tab--color.is-active {
+        background: var(--session-type-mobile-color, #ffffff);
+        color: #23324c;
+        border-color: #8fbfff;
+        box-shadow: 0 0 0 2px rgba(11, 111, 245, 0.14);
+    }
+
     .session-type-mobile-bottom-tab:disabled {
         opacity: 0.45;
     }
@@ -721,8 +752,12 @@
     }
 
     .session-type-standard-panel>.cp-panel-tabs {
-        gap: 22px;
-        padding: 0 16px;
+        padding-inline: 4px !important;
+    }
+
+    .session-type-standard-panel>.cp-panel-tabs .cp-panel-tab {
+        padding-inline: 8px !important;
+        font-size: 12px !important;
     }
 
     .session-type-mobile-color-sheet__swatches {

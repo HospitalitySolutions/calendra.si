@@ -1897,7 +1897,9 @@ export function SessionTypesPage() {
       ...(serviceGroupsModuleEnabled ? ["serviceGroups" as const] : []),
       ...(consumablesCapabilityEnabled ? ["consumables" as const] : []),
       "bookingRules",
-      ...(groupBookingModuleEnabled ? ["groupBooking" as const] : []),
+      ...(groupBookingModuleEnabled && typeForm.groupBookingEnabled
+        ? ["groupBooking" as const]
+        : []),
     ];
     if (!availableTabs.includes(typeEditorTab)) {
       setTypeEditorTab("basic");
@@ -4606,7 +4608,7 @@ export function SessionTypesPage() {
               label: locale === "sl" ? "Pravila rezervacij" : "Booking rules",
               icon: <PanelSectionIcon name="schedule" />,
             },
-            ...(groupBookingModuleEnabled
+            ...(groupBookingModuleEnabled && typeForm.groupBookingEnabled
               ? [{
                   id: "groupBooking",
                   label: locale === "sl" ? "Skupinske rezervacije" : "Group bookings",
@@ -5716,7 +5718,8 @@ export function SessionTypesPage() {
           <div className="session-type-mobile-bottom-tabs" role="toolbar" aria-label={locale === "sl" ? "Hitre nastavitve storitve" : "Quick service settings"}>
             <button
               type="button"
-              className={`session-type-mobile-bottom-tab${mobileTypeColorPickerOpen ? " is-active" : ""}`}
+              className={`session-type-mobile-bottom-tab session-type-mobile-bottom-tab--color${mobileTypeColorPickerOpen ? " is-active" : ""}`}
+              style={{ "--session-type-mobile-color": normalizeServiceTypeColorForUi(typeForm.color) } as CSSProperties}
               onClick={() => setMobileTypeColorPickerOpen(true)}
             >
               <span className="session-type-mobile-bottom-tab__icon" aria-hidden><SessionTypeColorLabelIcon /></span>
