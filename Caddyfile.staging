@@ -8,6 +8,24 @@ staging.calendra.si {
 		Content-Security-Policy "default-src 'self'; img-src 'self' blob: data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://assets.mediadelivery.net https://challenges.cloudflare.com; connect-src 'self' https: wss:; frame-src 'self' https://challenges.cloudflare.com https://iframe.mediadelivery.net https://*.mediadelivery.net https://*.zoom.us; child-src 'self' https://challenges.cloudflare.com https://iframe.mediadelivery.net https://*.mediadelivery.net https://*.zoom.us; media-src 'self' blob: data: https:; frame-ancestors 'self' https://*.zoom.us;"
 	}
 
+
+	# Customer account staging environment. Keep /racun on the same staging
+	# origin so guest authentication and relative /api calls use staging only.
+	@customer_account_root path /racun
+	handle @customer_account_root {
+		redir https://staging.calendra.si/racun/ 308
+	}
+
+	handle /racun/* {
+		header X-Robots-Tag "noindex, nofollow"
+		uri strip_prefix /racun
+		reverse_proxy customer-web:80 {
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Host {host}
+			header_up X-Forwarded-Prefix /racun
+		}
+	}
+
 	handle /api/* {
 		reverse_proxy backend:4000 {
 			header_up X-Forwarded-Proto https

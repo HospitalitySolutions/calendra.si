@@ -11,7 +11,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5174,
-    allowedHosts: ['calendra.si', 'connect.calendra.si', 'localhost', '127.0.0.1'],
+    allowedHosts: ['calendra.si', 'connect.calendra.si', 'staging.calendra.si', 'localhost', '127.0.0.1'],
     proxy: {
       '/api': {
         target: process.env.CUSTOMER_WEB_DEV_API_TARGET || 'http://localhost:4000',
@@ -22,7 +22,7 @@ export default defineConfig({
   preview: {
     host: '0.0.0.0',
     port: 5174,
-    allowedHosts: ['calendra.si', 'connect.calendra.si', 'localhost', '127.0.0.1'],
+    allowedHosts: ['calendra.si', 'connect.calendra.si', 'staging.calendra.si', 'localhost', '127.0.0.1'],
   },
   build: {
     sourcemap: false,

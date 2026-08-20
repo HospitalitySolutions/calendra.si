@@ -15,6 +15,8 @@ services:
     depends_on:
       frontend:
         condition: service_started
+      customer-web:
+        condition: service_healthy
       backend:
         condition: service_healthy
 
@@ -57,6 +59,7 @@ services:
       AWS_REGION: ${AWS_REGION:-eu-central-1}
       AWS_DEFAULT_REGION: ${AWS_REGION:-eu-central-1}
       AWS_STAGING_SECRET_ID: ${AWS_STAGING_SECRET_ID:-calendra-staging}
+      APP_CUSTOMER_WEB_BASE_URL: ${APP_CUSTOMER_WEB_BASE_URL:-https://staging.calendra.si/racun}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=70 -XX:InitialRAMPercentage=30 -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError}
@@ -83,6 +86,26 @@ services:
     restart: unless-stopped
     mem_limit: ${FRONTEND_MEMORY_LIMIT:-512m}
     cpus: ${FRONTEND_CPU_LIMIT:-0.5}
+    depends_on:
+      backend:
+        condition: service_healthy
+
+
+  customer-web:
+    # Same immutable image used in production, served below staging.calendra.si/racun.
+    image: ${CALENDRA_IMAGE_REGISTRY:-ghcr.io/hospitalitysolutions}/calendra-customer-web:${CALENDRA_IMAGE_TAG:?CALENDRA_IMAGE_TAG must be an immutable Git SHA}
+    restart: unless-stopped
+    mem_limit: ${CUSTOMER_WEB_MEMORY_LIMIT:-256m}
+    cpus: ${CUSTOMER_WEB_CPU_LIMIT:-0.35}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          wget -qO- http://127.0.0.1/ | grep -q '/racun/assets/'
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     depends_on:
       backend:
         condition: service_healthy
