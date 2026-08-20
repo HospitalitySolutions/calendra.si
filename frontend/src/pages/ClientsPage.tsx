@@ -1915,6 +1915,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [selectedWalletPaymentMethodId, setSelectedWalletPaymentMethodId] = useState<number | null>(null)
   const [walletPurchaseError, setWalletPurchaseError] = useState('')
   const [creatingWalletOpenBill, setCreatingWalletOpenBill] = useState(false)
+  const [grantingWalletEntitlement, setGrantingWalletEntitlement] = useState(false)
   const [deletingWalletEntitlementId, setDeletingWalletEntitlementId] = useState<number | null>(null)
   const clientFilesDropDepth = useRef(0)
   const companyFilesDropDepth = useRef(0)
@@ -2690,6 +2691,26 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     }
     void createWalletPurchaseOpenBill()
   }, [selectedWalletProduct, giftCardDisplaySettings.active, giftCardDisplaySettings.showTo, giftCardDisplaySettings.showText, createWalletPurchaseOpenBill])
+
+  const grantWalletEntitlementWithoutSale = useCallback(async () => {
+    if (!detailClient || !selectedWalletProduct || isGiftCardWalletProduct(selectedWalletProduct)) return
+    setGrantingWalletEntitlement(true)
+    setWalletPurchaseError('')
+    try {
+      await api.post(`/clients/${detailClient.id}/wallet/products/${selectedWalletProduct.id}/grant`, {
+        locationId: selectedLocationId ?? undefined,
+      })
+      setWalletPurchaseDrawerOpen(false)
+      await loadDetailWallet(detailClient.id, { silent: true })
+      showToast('success', locale === 'sl' ? 'Ugodnost je bila dodana brez prodaje.' : 'Entitlement added without a sale.')
+    } catch (err: unknown) {
+      const fallback = locale === 'sl' ? 'Ugodnosti ni bilo mogoče dodati brez prodaje.' : 'Could not add the entitlement without a sale.'
+      const message = localizeWalletPurchaseError(getApiErrorMessage(err, fallback), locale)
+      setWalletPurchaseError(message)
+    } finally {
+      setGrantingWalletEntitlement(false)
+    }
+  }, [detailClient, selectedWalletProduct, selectedLocationId, locale, loadDetailWallet, showToast])
 
   const submitGiftCardPersonalization = useCallback(() => {
     void createWalletPurchaseOpenBill({
@@ -5915,10 +5936,18 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
           </div>
         </PanelBody>
         <PanelFooter>
+          {walletPurchaseTab === 'entitlements' && selectedWalletProduct && !isGiftCardWalletProduct(selectedWalletProduct) ? (
+            <PanelButton
+              onClick={() => void grantWalletEntitlementWithoutSale()}
+              disabled={walletProductsLoading || grantingWalletEntitlement || creatingWalletOpenBill}
+            >
+              {grantingWalletEntitlement ? (locale === 'sl' ? 'Dodajam…' : 'Adding…') : (locale === 'sl' ? 'Dodaj brez prodaje' : 'Add without sale')}
+            </PanelButton>
+          ) : null}
           <PanelButton
             variant="primary"
             onClick={continueWalletPurchaseOpenBill}
-            disabled={!selectedWalletProduct || !selectedWalletPaymentMethod || walletProductsLoading || walletPaymentMethodsLoading || creatingWalletOpenBill}
+            disabled={!selectedWalletProduct || !selectedWalletPaymentMethod || walletProductsLoading || walletPaymentMethodsLoading || creatingWalletOpenBill || grantingWalletEntitlement}
           >
             {creatingWalletOpenBill ? (locale === 'sl' ? 'Zaključujem…' : 'Closing…') : (locale === 'sl' ? 'Zaključi račun' : 'Close invoice')}
           </PanelButton>

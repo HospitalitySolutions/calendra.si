@@ -88,6 +88,7 @@ client/ClientController.java|@PostMapping("/{id}/anonymize")|anonymize
 client/ClientController.java|@PostMapping("/{id}/files")|uploadFile
 client/ClientController.java|@PostMapping|create
 client/ClientController.java|@PutMapping("/{id}")|update
+client/ClientWalletPurchaseController.java|@PostMapping("/products/{productId}/grant")|grantWalletProductWithoutSale
 client/ClientWalletPurchaseController.java|@PostMapping("/products/{productId}/open-bill")|createPurchaseOpenBill
 company/CompanyController.java|@DeleteMapping("/{id}")|delete
 company/CompanyController.java|@DeleteMapping("/{id}/files/{fileId}")|deleteFile

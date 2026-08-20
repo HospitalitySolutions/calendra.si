@@ -1250,14 +1250,19 @@ public class GuestEntitlementService {
             entitlement.setDisplayCode(buildDisplayCode(product, seq));
             entitlement.setEntitlementCode(generateUniqueEntitlementCode());
         }
+        Map<String, Object> orderMetadata = metadata(order.getMetadataJson());
+        boolean grantedWithoutSale = Boolean.TRUE.equals(orderMetadata.get("grantWithoutSale"));
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("autoRenews", product.isAutoRenews());
-        metadata.put("listPriceGross", order.getSubtotalGross() == null ? BigDecimal.ZERO.doubleValue() : order.getSubtotalGross().doubleValue());
+        BigDecimal listPriceGross = grantedWithoutSale
+                ? (product.getPriceGross() == null ? BigDecimal.ZERO : product.getPriceGross())
+                : (order.getSubtotalGross() == null ? BigDecimal.ZERO : order.getSubtotalGross());
+        metadata.put("listPriceGross", listPriceGross.setScale(2, RoundingMode.HALF_UP).doubleValue());
+        metadata.put("acquisitionMode", grantedWithoutSale ? "MANUAL_GRANT" : "SALE");
         metadata.put("availableAllLocations", entitlement.isAvailableAllLocations());
         metadata.put("eligibleLocationIds", commerceLocations == null ? List.of() : commerceLocations.locationIds(entitlement));
         metadata.put("eligibleLocationNames", commerceLocations == null ? List.of() : commerceLocations.locationNames(entitlement));
         if (product.getProductType() == ProductType.GIFT_CARD) {
-            Map<String, Object> orderMetadata = metadata(order.getMetadataJson());
             copyTextMetadata(orderMetadata, metadata, "giftCardRecipientName");
             copyTextMetadata(orderMetadata, metadata, "giftCardMessage");
             VoucherRedemptionMode voucherMode = VoucherRules.productMode(product);
@@ -1281,7 +1286,7 @@ public class GuestEntitlementService {
             entitlement.setCourseAccessToken(token);
             metadata.put("courseAccessToken", token);
             metadata.put("courseAccessUrl", buildCourseAccessUrl(token));
-            metadata.put("courseAccessSource", "DIRECT_PURCHASE");
+            metadata.put("courseAccessSource", grantedWithoutSale ? "MANUAL_GRANT" : "DIRECT_PURCHASE");
             metadata.put("lifetimeAccess", true);
         }
         entitlement.setMetadataJson(writeMetadata(metadata));

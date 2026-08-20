@@ -83,7 +83,7 @@ public class GuestWalletService {
                 guestUser.getId(),
                 companyId,
                 PageRequest.of(safePage(ordersPage), safeSize(ordersSize, 100, 500))
-        );
+        ).stream().filter(order -> !isManualWalletGrant(order)).toList();
         Map<Long, Bill> billById = loadBillsById(orderRows.stream()
                 .map(GuestOrder::getBillId)
                 .filter(Objects::nonNull)
@@ -187,6 +187,17 @@ public class GuestWalletService {
                 paymentCompanyAddress,
                 paymentIban
         );
+    }
+
+    private static boolean isManualWalletGrant(GuestOrder order) {
+        if (order == null || order.getMetadataJson() == null || order.getMetadataJson().isBlank()) return false;
+        try {
+            Map<?, ?> map = JSON.readValue(order.getMetadataJson(), Map.class);
+            Object source = map.get("source");
+            return source != null && "STAFF_CLIENT_WALLET_GRANT".equalsIgnoreCase(String.valueOf(source).trim());
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private static int safePage(int page) {

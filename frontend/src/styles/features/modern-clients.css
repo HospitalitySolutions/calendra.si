@@ -3186,8 +3186,8 @@
     --clients-wallet-checkout-blue: #0b6ff5;
     --clients-wallet-checkout-border: #dfe7f2;
     --clients-wallet-checkout-muted: #64748b;
-    --clients-wallet-checkout-rail: 112px;
-    --clients-wallet-checkout-header: 88px;
+    --clients-wallet-checkout-rail: 108px;
+    --clients-wallet-checkout-header: 104px;
 }
 
 .clients-wallet-purchase-panel .clients-wallet-checkout-body {
@@ -3525,65 +3525,94 @@
     .clients-wallet-purchase-panel > .cp-panel-tabs {
         position: absolute;
         inset: 0 auto 0 0;
-        z-index: 2;
-        display: flex;
+        z-index: 8;
+        display: flex !important;
+        width: var(--clients-wallet-checkout-rail);
+        min-height: 0;
+        height: 100%;
+        padding: var(--clients-wallet-checkout-header) 8px 18px;
         flex-direction: column;
         align-items: stretch;
         justify-content: flex-start;
-        width: var(--clients-wallet-checkout-rail);
-        min-height: 100%;
-        height: 100%;
-        padding: var(--clients-wallet-checkout-header) 0 0;
-        gap: 0;
+        gap: 6px;
         border: 0;
-        border-right: 1px solid #e7edf5;
-        background: #fff;
-        overflow: hidden auto;
+        border-right: 1px solid #e8edf4;
+        background: #ffffff;
+        box-shadow: -8px 0 24px rgba(15, 23, 42, 0.06);
+        overflow-x: hidden;
+        overflow-y: hidden;
+        scrollbar-width: none;
+    }
+
+    .clients-wallet-purchase-panel > .cp-panel-tabs::-webkit-scrollbar {
+        display: none;
     }
 
     .clients-wallet-purchase-panel > .cp-panel-tabs .cp-panel-tab {
         position: relative;
-        display: flex;
         flex: 0 0 auto;
+        width: 100%;
+        min-width: 0;
+        min-height: 84px;
+        height: auto;
+        padding: 12px 8px;
+        display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        width: 100%;
-        min-width: 0;
-        min-height: 106px;
-        height: 106px;
-        padding: 12px 9px;
-        gap: 9px;
+        gap: 8px;
         border: 0;
-        border-radius: 0;
-        background: #fff;
-        color: #334155;
+        border-radius: 10px;
+        background: transparent;
+        color: #475467;
         box-shadow: none;
-        font-size: 13px;
+        font-size: 0.8125rem;
         font-weight: 600;
-        line-height: 1.28;
+        line-height: 1.25;
         text-align: center;
         white-space: normal;
+        transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
     }
 
     .clients-wallet-purchase-panel > .cp-panel-tabs .cp-panel-tab::after {
-        display: none;
+        content: '';
+        position: absolute;
+        top: 12px !important;
+        bottom: 12px !important;
+        left: -8px !important;
+        right: auto !important;
+        display: block;
+        width: 3px !important;
+        height: auto !important;
+        border-radius: 0 3px 3px 0;
+        background: transparent;
     }
 
     .clients-wallet-purchase-panel > .cp-panel-tabs .cp-panel-tab svg {
-        width: 22px;
-        height: 22px;
+        width: 23px;
+        height: 23px;
+        color: currentColor;
+        stroke-width: 1.8;
     }
 
     .clients-wallet-purchase-panel > .cp-panel-tabs .cp-panel-tab:hover {
-        background: #f8fafc;
-        color: #0f172a;
+        background: #f7f9fc;
+        color: #1d2939;
     }
 
     .clients-wallet-purchase-panel > .cp-panel-tabs .cp-panel-tab.is-active {
-        color: var(--clients-wallet-checkout-blue);
+        color: #1266e3;
         background: #eef5ff;
-        box-shadow: inset 3px 0 0 var(--clients-wallet-checkout-blue);
+        box-shadow: none;
+    }
+
+    .clients-wallet-purchase-panel > .cp-panel-tabs .cp-panel-tab.is-active::after {
+        background: #1677ff;
+    }
+
+    .clients-wallet-purchase-panel > .cp-panel-tabs .cp-panel-tab:focus-visible {
+        outline: none;
+        box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.24);
     }
 }
 

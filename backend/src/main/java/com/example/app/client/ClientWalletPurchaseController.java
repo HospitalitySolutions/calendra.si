@@ -1,5 +1,9 @@
 package com.example.app.client;
 
+import com.example.app.activitylog.ActivityAction;
+import com.example.app.activitylog.ActivityDetails;
+import com.example.app.activitylog.ActivityLogService;
+import com.example.app.activitylog.ActivityModule;
 import com.example.app.billing.BillType;
 import com.example.app.billing.OpenBill;
 import com.example.app.billing.OpenBillItem;
@@ -13,6 +17,7 @@ import com.example.app.billing.TaxRate;
 import com.example.app.billing.TransactionService;
 import com.example.app.billing.TransactionServiceRepository;
 import com.example.app.commerce.CommerceLocationScopeService;
+import com.example.app.guest.model.GuestEntitlement;
 import com.example.app.guest.model.GuestJoinMethod;
 import com.example.app.guest.model.GuestOrder;
 import com.example.app.guest.model.GuestOrderRepository;
@@ -27,6 +32,8 @@ import com.example.app.guest.model.GuestUserRepository;
 import com.example.app.guest.model.OrderStatus;
 import com.example.app.guest.model.ProductType;
 import com.example.app.guest.model.VoucherRules;
+import com.example.app.guest.notifications.GuestNotificationService;
+import com.example.app.guest.order.GuestEntitlementService;
 import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
 import com.example.app.security.SecurityUtils;
@@ -71,6 +78,12 @@ public class ClientWalletPurchaseController {
             ProductType.GIFT_CARD,
             ProductType.COURSE
     );
+    private static final List<ProductType> GRANTABLE_WALLET_TYPES = List.of(
+            ProductType.CLASS_TICKET,
+            ProductType.PACK,
+            ProductType.MEMBERSHIP,
+            ProductType.COURSE
+    );
 
     private final ClientRepository clients;
     private final GuestProductRepository products;
@@ -89,6 +102,15 @@ public class ClientWalletPurchaseController {
 
     @Autowired(required = false)
     private EntitlementsModuleAccessService entitlementsModuleAccessService;
+
+    @Autowired(required = false)
+    private GuestEntitlementService guestEntitlementService;
+
+    @Autowired(required = false)
+    private GuestNotificationService guestNotifications;
+
+    @Autowired(required = false)
+    private ActivityLogService activityLogs;
 
     @Autowired
     public ClientWalletPurchaseController(
@@ -163,6 +185,8 @@ public class ClientWalletPurchaseController {
         }
     }
     public record CreateWalletPurchaseOpenBillResponse(Long openBillId, Long orderId, Long productId) {}
+    public record GrantWalletProductRequest(Long locationId) {}
+    public record GrantWalletProductResponse(Long entitlementId, Long orderId, Long productId) {}
     public record WalletPurchaseErrorResponse(String message) {}
 
     @GetMapping("/products")
@@ -259,6 +283,64 @@ public class ClientWalletPurchaseController {
         return createPurchaseOpenBill(clientId, productId, null, me);
     }
 
+    /**
+     * Grants an entitlement to the selected client without creating an open bill or invoice.
+     * The zero-value source order is retained only as an audit/provenance record; the product's
+     * nominal list price remains stored on the entitlement metadata. Gift cards deliberately
+     * stay in the normal sale/invoice workflow.
+     */
+    @PostMapping("/products/{productId}/grant")
+    @Transactional
+    public GrantWalletProductResponse grantWalletProductWithoutSale(
+            @PathVariable Long clientId,
+            @PathVariable Long productId,
+            @RequestBody(required = false) GrantWalletProductRequest request,
+            @AuthenticationPrincipal User me
+    ) {
+        Client client = loadClientForWalletWrite(clientId, me);
+        Long companyId = me.getCompany().getId();
+        assertEntitlementsEnabled(companyId);
+        GuestProduct product = products.findByIdAndCompanyId(productId, companyId)
+                .filter(GuestProduct::isActive)
+                .filter(p -> p.getCourse() == null)
+                .filter(p -> GRANTABLE_WALLET_TYPES.contains(p.getProductType()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Wallet entitlement not found."));
+        if (product.getProductType() == ProductType.COURSE && courseModuleAccessService != null) {
+            courseModuleAccessService.assertEnabled(companyId);
+        }
+        if (guestEntitlementService == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Wallet entitlement service is unavailable.");
+        }
+
+        Location location = commerceLocations == null
+                ? resolveOperationalLocation(companyId, request == null ? null : request.locationId())
+                : commerceLocations.resolveProductPurchaseLocation(companyId, product, request == null ? null : request.locationId());
+        GuestTenantLink link = resolveOrCreateGuestLink(client);
+        GuestOrder order = createGrantedWalletOrder(client, link.getGuestUser(), product, me, location);
+        GuestEntitlement entitlement = guestEntitlementService.ensureEntitlementForOrder(order, product);
+
+        if (guestNotifications != null) {
+            guestNotifications.webEntitlementAdded(entitlement);
+        }
+        if (activityLogs != null) {
+            activityLogs.recordUser(me, ActivityModule.CLIENTS, ActivityAction.ENTITLEMENT_GRANTED,
+                    "GUEST_ENTITLEMENT", entitlement.getId(), product.getName(),
+                    "CLIENT", client.getId(), clientActivityLabel(client),
+                    "Granted wallet entitlement without sale", location == null ? null : location.getId(), null,
+                    ActivityDetails.of(
+                            "productId", product.getId(),
+                            "productType", product.getProductType() == null ? null : product.getProductType().name(),
+                            "nominalPriceGross", safeGross(product.getPriceGross()),
+                            "currency", defaultCurrency(product.getCurrency()),
+                            "sourceOrderId", order.getId(),
+                            "withoutSale", true,
+                            "targetPath", "/clients?clientId=" + client.getId() + "&view=wallet"
+                    ));
+        }
+
+        return new GrantWalletProductResponse(entitlement.getId(), order.getId(), product.getId());
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<WalletPurchaseErrorResponse> handleWalletPurchaseError(ResponseStatusException ex) {
         return ResponseEntity.status(ex.getStatusCode()).body(new WalletPurchaseErrorResponse(errorMessage(ex)));
@@ -306,7 +388,7 @@ public class ClientWalletPurchaseController {
         if (email == null || email.isBlank()) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Client needs an email or an active guest-app link before a wallet entitlement can be bought."
+                    "Client needs an email or an active guest-app link before a wallet entitlement can be added."
             );
         }
 
@@ -362,6 +444,24 @@ public class ClientWalletPurchaseController {
         order.setTotalGross(total);
         order.setReferenceCode("ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT));
         order.setMetadataJson(buildMetadataJson(product, request, actor));
+        return orders.save(order);
+    }
+
+    private GuestOrder createGrantedWalletOrder(Client client, GuestUser guestUser, GuestProduct product, User actor, Location location) {
+        var order = new GuestOrder();
+        order.setCompany(client.getCompany());
+        order.setLocation(location);
+        order.setClient(client);
+        order.setGuestUser(guestUser);
+        order.setStatus(OrderStatus.PAID);
+        order.setPaymentMethodType(GuestPaymentMethodType.PAY_AT_VENUE);
+        order.setCurrency(defaultCurrency(product.getCurrency()));
+        order.setSubtotalGross(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        order.setTaxAmount(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        order.setTotalGross(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        order.setReferenceCode("GNT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT));
+        order.setMetadataJson(buildGrantMetadataJson(product, actor));
+        order.setPaidAt(Instant.now());
         return orders.save(order);
     }
 
@@ -527,6 +627,38 @@ public class ClientWalletPurchaseController {
         } catch (Exception ex) {
             return "{}";
         }
+    }
+
+    private String buildGrantMetadataJson(GuestProduct product, User actor) {
+        try {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("slotId", null);
+            map.put("productType", product.getProductType() == null ? null : product.getProductType().name());
+            map.put("productName", product.getName());
+            map.put("guestProductId", product.getId());
+            map.put("sessionTypeId", product.getSessionType() == null ? null : product.getSessionType().getId());
+            map.put("currency", defaultCurrency(product.getCurrency()));
+            map.put("priceGross", safeGross(product.getPriceGross()).doubleValue());
+            map.put("nominalPriceGross", safeGross(product.getPriceGross()).doubleValue());
+            map.put("grantWithoutSale", true);
+            map.put("source", "STAFF_CLIENT_WALLET_GRANT");
+            if (actor != null) {
+                map.put("staffUserId", actor.getId());
+                String actorName = (Objects.toString(actor.getFirstName(), "").trim() + " " + Objects.toString(actor.getLastName(), "").trim()).trim();
+                map.put("staffUserName", actorName.isBlank() ? actor.getEmail() : actorName);
+            }
+            return JSON.writeValueAsString(map);
+        } catch (Exception ex) {
+            return "{}";
+        }
+    }
+
+    private static String clientActivityLabel(Client client) {
+        if (client == null) return "Client";
+        String name = (Objects.toString(client.getFirstName(), "").trim() + " " + Objects.toString(client.getLastName(), "").trim()).trim();
+        if (!name.isBlank()) return name;
+        String email = Objects.toString(client.getEmail(), "").trim();
+        return email.isBlank() ? "Client" : email;
     }
 
     private WalletProductResponse toWalletProductResponse(GuestProduct product) {
