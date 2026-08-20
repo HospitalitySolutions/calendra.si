@@ -1534,6 +1534,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [isBillingMobileOrTablet, setIsBillingMobileOrTablet] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 1024px)').matches : false,
   )
+  const [createInvoiceMobileStep, setCreateInvoiceMobileStep] = useState<'items' | 'payment'>('items')
+  const [openBillMobileStep, setOpenBillMobileStep] = useState<'items' | 'payment'>('items')
+
+  useEffect(() => {
+    if (newBillDrawerOpen || showCreateBillModal) setCreateInvoiceMobileStep('items')
+  }, [newBillDrawerOpen, showCreateBillModal])
+
+  useEffect(() => {
+    if (detailOpenBill?.id != null) setOpenBillMobileStep('items')
+  }, [detailOpenBill?.id])
 
   async function fetchBillingQuery<T>(
     options: { queryKey: readonly unknown[]; queryFn: () => Promise<T>; staleTime?: number },
@@ -4469,6 +4479,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const closeCreateBillModal = () => {
     setShowCreateBillModal(false)
     setEditingCreateBillPayee(false)
+    setCreateInvoiceMobileStep('items')
     setBillForm({ items: [], billingTarget: 'PERSON', billType: 'INVOICE', discountType: 'PERCENT', discountValue: '0', wholeBillDiscountPercent: '0', itemDiscounts: {} })
     setRecipientCompanySearch('')
     setRecipientCompanyPickerOpen(false)
@@ -4478,6 +4489,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   }
 
   const closeDetailOpenBill = () => {
+    setOpenBillMobileStep('items')
     setOpenBillEditorRootId(null)
     setOpenBillAddMenuForId(null)
     setExternalOpenBillPickerForRootId(null)
@@ -7840,6 +7852,23 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return openBillClientLabel(ob)
   }
 
+  const posCatalogTabIcon = (tab: PosCatalogTab) => (
+    tab === 'services' ? (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path d="M4.5 8.5h15v10h-15zM8 8.5V6.8A2.3 2.3 0 0 1 10.3 4.5h3.4A2.3 2.3 0 0 1 16 6.8v1.7M4.5 12h15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ) : tab === 'benefits' ? (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path d="M4 11.2 11.2 4H19v7.8L11.8 19 4 11.2Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+        <circle cx="15.7" cy="7.4" r="1.1" fill="currentColor" />
+      </svg>
+    ) : (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path d="M5 9h14v10H5zM4 9h16V6.5H4zM12 6.5V19M7.4 6.5C6.2 6.5 5.5 5.8 5.5 4.9S6.2 3.4 7.1 3.4c1.8 0 3.2 3.1 4.9 3.1M16.6 6.5c1.2 0 1.9-.7 1.9-1.6s-.7-1.5-1.6-1.5c-1.8 0-3.2 3.1-4.9 3.1" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  )
+
   const renderPosCatalogRail = () => (
     <nav className="billing-pos-catalog-rail" aria-label={locale === 'sl' ? 'Vrsta postavke' : 'Item type'}>
       {(['services', 'benefits', 'giftCards'] as PosCatalogTab[]).map((tab) => (
@@ -7851,20 +7880,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           onClick={() => { setPosCatalogTab(tab); setPosCatalogQuery('') }}
         >
           <span className="billing-pos-catalog-rail__icon" aria-hidden>
-            {tab === 'services' ? (
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M4.5 8.5h15v10h-15zM8 8.5V6.8A2.3 2.3 0 0 1 10.3 4.5h3.4A2.3 2.3 0 0 1 16 6.8v1.7M4.5 12h15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            ) : tab === 'benefits' ? (
-              <svg viewBox="0 0 24 24" fill="none">
-                <rect x="4" y="6" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.7" />
-                <path d="M4 10h16M8 14h3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M5 9h14v10H5zM4 9h16V6.5H4zM12 6.5V19M7.4 6.5C6.2 6.5 5.5 5.8 5.5 4.9S6.2 3.4 7.1 3.4c1.8 0 3.2 3.1 4.9 3.1M16.6 6.5c1.2 0 1.9-.7 1.9-1.6s-.7-1.5-1.6-1.5c-1.8 0-3.2 3.1-4.9 3.1" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
+            {posCatalogTabIcon(tab)}
           </span>
           <span>{posCatalogTabLabel(tab)}</span>
         </button>
@@ -7898,7 +7914,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               className={posCatalogTab === tab ? 'is-active' : ''}
               onClick={() => { setPosCatalogTab(tab); setPosCatalogQuery('') }}
             >
-              {posCatalogTabLabel(tab)}
+              <span className="billing-pos-tabs-mobile__icon" aria-hidden>{posCatalogTabIcon(tab)}</span>
+              <span>{posCatalogTabLabel(tab)}</span>
             </button>
           ))}
         </div>
@@ -7909,6 +7926,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           placeholder={placeholder}
           aria-label={placeholder}
         />
+        <div className="billing-pos-catalog-heading-mobile">{posCatalogTabLabel(posCatalogTab)}</div>
         <div className="billing-pos-catalog-list">
           {posCatalogTab === 'services' ? (rows.services.length > 0 ? rows.services.map((service) => (
             <div key={service.key} className="billing-pos-catalog-row">
@@ -8482,6 +8500,52 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         }],
       }))
     }
+    if (isBillingMobileOrTablet && !isAdvance) {
+      const selectedCount = billForm.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity || 0)), 0)
+      if (createInvoiceMobileStep === 'items') {
+        return (
+          <div className="billing-pos-mobile-flow billing-pos-mobile-flow--items">
+            <section className="billing-pos-mobile-catalog-page">
+              {renderPosCatalog(invoiceCatalogServices, guestProducts, addService, addProduct, billForm.locationId, 'INVOICE')}
+            </section>
+            <div className="billing-pos-mobile-selection-summary">
+              <div className="billing-pos-mobile-selection-summary__line">
+                <span className="billing-pos-mobile-selection-summary__icon">{billingPosSectionIcon('selected')}</span>
+                <strong>{locale === 'sl' ? 'Izbrano' : 'Selected'}</strong>
+                <span>{selectedCount} {locale === 'sl' ? (selectedCount === 1 ? 'postavka' : 'postavk') : (selectedCount === 1 ? 'item' : 'items')}</span>
+              </div>
+              <div className="billing-pos-mobile-selection-summary__line billing-pos-mobile-selection-summary__line--total">
+                <span className="billing-pos-mobile-selection-summary__icon">€</span>
+                <strong>{locale === 'sl' ? 'Skupaj' : 'Total'}</strong>
+                <b>{currency(totalGross)}</b>
+              </div>
+              <button type="button" className="billing-pos-mobile-next-btn" onClick={() => setCreateInvoiceMobileStep('payment')} disabled={billForm.items.length === 0}>
+                <span>{locale === 'sl' ? 'Naprej' : 'Next'}</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m9 18 6-6-6-6" /></svg>
+              </button>
+            </div>
+          </div>
+        )
+      }
+      return (
+        <div className="billing-pos-mobile-flow billing-pos-mobile-flow--payment">
+          <section className="billing-pos-mobile-payment-page">
+            <div className="billing-pos-payee-section">
+              <label className="billing-pos-payee-label billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('payee')}</span><span>{locale === 'sl' ? 'Plačnik' : 'Payee'}</span></label>
+              <button type="button" className="billing-pos-payee-field" onClick={() => setEditingCreateBillPayee(true)}>{posCreatePayeeLabel()}</button>
+            </div>
+            <div className="billing-pos-mobile-selected-heading">
+              <h3 className="billing-pos-selected-title billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('selected')}</span><span>{locale === 'sl' ? 'Izbrano' : 'Selected'}</span></h3>
+              <button type="button" onClick={() => setCreateInvoiceMobileStep('items')}>{locale === 'sl' ? 'Uredi' : 'Edit'}</button>
+            </div>
+            {renderPosCreateSelectedItems(true)}
+            {renderPosWholeBillDiscount(createBillDiscountDraft, subtotalGross, billForm.items, (value) => { setOpenCreateItemDiscountIndex(null); setBillForm((prev) => ({ ...prev, wholeBillDiscountPercent: value, discountType: 'PERCENT', discountValue: value, discountItemIndex: undefined })) })}
+            <div className="billing-pos-grand-total"><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(totalGross)}</strong></div>
+            {renderPosCreatePaymentMethods(totalGross, billForm.items, createBillDiscountDraft, discountGross)}
+          </section>
+        </div>
+      )
+    }
     return (
       <div className="billing-pos-layout">
         {renderPosCatalogRail()}
@@ -8551,6 +8615,52 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         grossPrice: unitGrossText,
         sourceSessionBookingId: createManualOpenBillLineSourceId(),
       }])
+    }
+    if (isBillingMobileOrTablet && !isAdvanceOpenBill) {
+      const selectedCount = items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity || 0)), 0)
+      if (openBillMobileStep === 'items') {
+        return (
+          <div className="billing-pos-mobile-flow billing-pos-mobile-flow--items">
+            <section className="billing-pos-mobile-catalog-page">
+              {renderPosCatalog(catalogServices, guestProducts, addService, addProduct, ob.location?.id, ob.billType || 'INVOICE')}
+            </section>
+            <div className="billing-pos-mobile-selection-summary">
+              <div className="billing-pos-mobile-selection-summary__line">
+                <span className="billing-pos-mobile-selection-summary__icon">{billingPosSectionIcon('selected')}</span>
+                <strong>{locale === 'sl' ? 'Izbrano' : 'Selected'}</strong>
+                <span>{selectedCount} {locale === 'sl' ? (selectedCount === 1 ? 'postavka' : 'postavk') : (selectedCount === 1 ? 'item' : 'items')}</span>
+              </div>
+              <div className="billing-pos-mobile-selection-summary__line billing-pos-mobile-selection-summary__line--total">
+                <span className="billing-pos-mobile-selection-summary__icon">€</span>
+                <strong>{locale === 'sl' ? 'Skupaj' : 'Total'}</strong>
+                <b>{currency(totalGross)}</b>
+              </div>
+              <button type="button" className="billing-pos-mobile-next-btn" onClick={() => setOpenBillMobileStep('payment')} disabled={items.length === 0}>
+                <span>{locale === 'sl' ? 'Naprej' : 'Next'}</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m9 18 6-6-6-6" /></svg>
+              </button>
+            </div>
+          </div>
+        )
+      }
+      return (
+        <div className="billing-pos-mobile-flow billing-pos-mobile-flow--payment">
+          <section className="billing-pos-mobile-payment-page">
+            <div className="billing-pos-payee-section">
+              <label className="billing-pos-payee-label billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('payee')}</span><span>{locale === 'sl' ? 'Plačnik' : 'Payee'}</span></label>
+              <button type="button" className="billing-pos-payee-field" onClick={() => openOpenBillPayeeEditor(ob)}>{posOpenBillPayeeLabel(ob)}</button>
+            </div>
+            <div className="billing-pos-mobile-selected-heading">
+              <h3 className="billing-pos-selected-title billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('selected')}</span><span>{locale === 'sl' ? 'Izbrano' : 'Selected'}</span></h3>
+              <button type="button" onClick={() => setOpenBillMobileStep('items')}>{locale === 'sl' ? 'Uredi' : 'Edit'}</button>
+            </div>
+            {renderPosOpenSelectedItems(ob)}
+            {renderPosWholeBillDiscount(discountDraft, subtotalGross, items, (value) => { setOpenOpenBillItemDiscount(null); setOpenBillDiscountDraft(ob, { wholeBillPercent: value }) })}
+            <div className="billing-pos-grand-total"><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(totalGross)}</strong></div>
+            {renderPosOpenPaymentMethods(ob, totalGross, items, discountDraft, discountGross)}
+          </section>
+        </div>
+      )
     }
     return (
       <div className="billing-pos-layout">
@@ -10444,17 +10554,32 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               ariaLabel={locale === 'sl' ? 'Uredi neizdan račun' : 'Edit unissued invoice'}
               size="xl"
               closeOnScrimClick={false}
-              className="billing-pos-panel billing-pos-panel--edit"
+              className={`billing-pos-panel billing-pos-panel--edit${isBillingMobileOrTablet && resolveOpenBillEffectiveType(detailActionOpenBill) !== 'ADVANCE' ? ` billing-pos-panel--mobile-two-step billing-pos-panel--mobile-step-${openBillMobileStep}` : ''}`}
             >
               <PanelHeader
                 title={locale === 'sl' ? 'Uredi neizdan račun' : 'Edit unissued invoice'}
+                subtitle={isBillingMobileOrTablet && resolveOpenBillEffectiveType(detailActionOpenBill) !== 'ADVANCE'
+                  ? (openBillMobileStep === 'items' ? (locale === 'sl' ? 'Izbira postavk' : 'Select items') : (locale === 'sl' ? 'Plačilo' : 'Payment'))
+                  : undefined}
                 onClose={closeDetailOpenBill}
                 closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+                closeVisible={!(isBillingMobileOrTablet && resolveOpenBillEffectiveType(detailActionOpenBill) !== 'ADVANCE')}
+                leading={isBillingMobileOrTablet && resolveOpenBillEffectiveType(detailActionOpenBill) !== 'ADVANCE' ? (
+                  <button
+                    type="button"
+                    className="billing-pos-mobile-back"
+                    onClick={() => openBillMobileStep === 'payment' ? setOpenBillMobileStep('items') : closeDetailOpenBill()}
+                    aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}
+                    title={locale === 'sl' ? 'Nazaj' : 'Back'}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m15 18-6-6 6-6" /></svg>
+                  </button>
+                ) : undefined}
               />
               <PanelBody flush className="billing-pos-panel-body">
                 {renderModernOpenBillEditor(detailActionOpenBill)}
               </PanelBody>
-              <div className="billing-pos-footer">
+              <div className={`billing-pos-footer${isBillingMobileOrTablet && resolveOpenBillEffectiveType(detailActionOpenBill) !== 'ADVANCE' && openBillMobileStep === 'items' ? ' billing-pos-footer--mobile-items-hidden' : ''}`}>
                 <div className="billing-pos-footer-left billing-preview-choice-anchor">
                   <button
                     type="button"
@@ -10590,17 +10715,32 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               ariaLabel={isCreateAdvanceBill ? (locale === 'sl' ? 'Novo predplačilo' : 'New advance') : (locale === 'sl' ? 'Nov neizdan račun' : 'New unissued invoice')}
               size="xl"
               closeOnScrimClick={false}
-              className={`billing-pos-panel billing-pos-panel--create${isCreateAdvanceBill ? ' billing-pos-panel--advance' : ''}`}
+              className={`billing-pos-panel billing-pos-panel--create${isCreateAdvanceBill ? ' billing-pos-panel--advance' : ''}${isBillingMobileOrTablet && !isCreateAdvanceBill ? ` billing-pos-panel--mobile-two-step billing-pos-panel--mobile-step-${createInvoiceMobileStep}` : ''}`}
             >
               <PanelHeader
                 title={isCreateAdvanceBill ? (locale === 'sl' ? 'Novo predplačilo' : 'New advance') : (locale === 'sl' ? 'Nov neizdan račun' : 'New unissued invoice')}
+                subtitle={isBillingMobileOrTablet && !isCreateAdvanceBill
+                  ? (createInvoiceMobileStep === 'items' ? (locale === 'sl' ? 'Izbira postavk' : 'Select items') : (locale === 'sl' ? 'Plačilo' : 'Payment'))
+                  : undefined}
                 onClose={closeCreateBillModal}
                 closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+                closeVisible={!(isBillingMobileOrTablet && !isCreateAdvanceBill)}
+                leading={isBillingMobileOrTablet && !isCreateAdvanceBill ? (
+                  <button
+                    type="button"
+                    className="billing-pos-mobile-back"
+                    onClick={() => createInvoiceMobileStep === 'payment' ? setCreateInvoiceMobileStep('items') : closeCreateBillModal()}
+                    aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}
+                    title={locale === 'sl' ? 'Nazaj' : 'Back'}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m15 18-6-6 6-6" /></svg>
+                  </button>
+                ) : undefined}
               />
               <PanelBody flush className="billing-pos-panel-body">
                 {renderPosCreateEditor(isCreateAdvanceBill)}
               </PanelBody>
-              <div className={`billing-pos-footer${mobileKeyboardOpen ? ' billing-pos-footer--keyboard-hidden' : ''}`}>
+              <div className={`billing-pos-footer${mobileKeyboardOpen ? ' billing-pos-footer--keyboard-hidden' : ''}${isBillingMobileOrTablet && !isCreateAdvanceBill && createInvoiceMobileStep === 'items' ? ' billing-pos-footer--mobile-items-hidden' : ''}`}>
                 <div className="billing-pos-footer-spacer" />
                 <div className="billing-pos-footer-actions">
                   <button
