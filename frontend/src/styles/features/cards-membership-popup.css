@@ -1224,25 +1224,31 @@ button.cards-product-delete-btn {
 
     .cards-product-mobile-panel .cards-product-mobile-row--price::before {
         content: "€";
-        top: 14px;
-        width: auto;
-        height: auto;
+        top: 23px;
+        width: var(--cards-mobile-icon-size);
+        height: var(--cards-mobile-icon-size);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         color: var(--cards-mobile-blue);
         background: none;
-        font-size: 2.1rem;
-        font-weight: 400;
+        font-size: 16px;
+        font-weight: 500;
         line-height: 1;
     }
 
     .cards-product-mobile-panel .cards-product-mobile-row--tax::before {
         content: "%";
-        top: 14px;
-        width: auto;
-        height: auto;
+        top: 23px;
+        width: var(--cards-mobile-icon-size);
+        height: var(--cards-mobile-icon-size);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         color: var(--cards-mobile-blue);
         background: none;
-        font-size: 2.1rem;
-        font-weight: 400;
+        font-size: 16px;
+        font-weight: 500;
         line-height: 1;
     }
 
