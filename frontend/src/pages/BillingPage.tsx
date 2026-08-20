@@ -8699,7 +8699,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             <section className="billing-pos-mobile-catalog-page">
               {renderPosCatalog(invoiceCatalogServices, guestProducts, addService, addProduct, billForm.locationId, 'INVOICE')}
             </section>
-            {renderPosMobileSummaryPanel({
+            {!mobileKeyboardOpen ? renderPosMobileSummaryPanel({
               count: selectedCount,
               totalGross,
               expanded: createMobileSelectedExpanded,
@@ -8708,7 +8708,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               showNext: true,
               onNext: () => { setCreateMobileSelectedExpanded(false); setCreateInvoiceMobileStep('payment') },
               nextDisabled: billForm.items.length === 0,
-            })}
+            }) : null}
           </div>
         )
       }
@@ -8722,13 +8722,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             {renderPosWholeBillDiscount(createBillDiscountDraft, subtotalGross, billForm.items, (value) => { setOpenCreateItemDiscountIndex(null); setBillForm((prev) => ({ ...prev, wholeBillDiscountPercent: value, discountType: 'PERCENT', discountValue: value, discountItemIndex: undefined })) }, true)}
             {renderPosCreatePaymentMethods(totalGross, billForm.items, createBillDiscountDraft, discountGross, true)}
           </section>
-          {renderPosMobileSummaryPanel({
+          {!mobileKeyboardOpen ? renderPosMobileSummaryPanel({
             count: selectedCount,
             totalGross,
             expanded: createMobileSelectedExpanded,
             onToggle: () => setCreateMobileSelectedExpanded((prev) => !prev),
             children: billForm.items.length > 0 ? renderPosCreateMobileSelectedItems() : undefined,
-          })}
+          }) : null}
         </div>
       )
     }
@@ -8810,7 +8810,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             <section className="billing-pos-mobile-catalog-page">
               {renderPosCatalog(catalogServices, guestProducts, addService, addProduct, ob.location?.id, ob.billType || 'INVOICE')}
             </section>
-            {renderPosMobileSummaryPanel({
+            {!mobileKeyboardOpen ? renderPosMobileSummaryPanel({
               count: selectedCount,
               totalGross,
               expanded: openMobileSelectedExpanded,
@@ -8819,7 +8819,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               showNext: true,
               onNext: () => { setOpenMobileSelectedExpanded(false); setOpenBillMobileStep('payment') },
               nextDisabled: items.length === 0,
-            })}
+            }) : null}
           </div>
         )
       }
@@ -8833,13 +8833,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             {renderPosWholeBillDiscount(discountDraft, subtotalGross, items, (value) => { setOpenOpenBillItemDiscount(null); setOpenBillDiscountDraft(ob, { wholeBillPercent: value }) }, true)}
             {renderPosOpenPaymentMethods(ob, totalGross, items, discountDraft, discountGross, true)}
           </section>
-          {renderPosMobileSummaryPanel({
+          {!mobileKeyboardOpen ? renderPosMobileSummaryPanel({
             count: selectedCount,
             totalGross,
             expanded: openMobileSelectedExpanded,
             onToggle: () => setOpenMobileSelectedExpanded((prev) => !prev),
             children: items.length > 0 ? renderPosOpenMobileSelectedItems(ob) : undefined,
-          })}
+          }) : null}
         </div>
       )
     }
@@ -10735,7 +10735,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               ariaLabel={locale === 'sl' ? 'Uredi neizdan račun' : 'Edit unissued invoice'}
               size="xl"
               closeOnScrimClick={false}
-              className={`billing-pos-panel billing-pos-panel--edit${isBillingMobileOrTablet && resolveOpenBillEffectiveType(detailActionOpenBill) !== 'ADVANCE' ? ` billing-pos-panel--mobile-two-step billing-pos-panel--mobile-step-${openBillMobileStep}` : ''}`}
+              className={`billing-pos-panel billing-pos-panel--edit${isBillingMobileOrTablet && resolveOpenBillEffectiveType(detailActionOpenBill) !== 'ADVANCE' ? ` billing-pos-panel--mobile-two-step billing-pos-panel--mobile-step-${openBillMobileStep}` : ''}${mobileKeyboardOpen ? ' billing-pos-panel--keyboard-open' : ''}`}
             >
               <PanelHeader
                 title={locale === 'sl' ? 'Uredi neizdan račun' : 'Edit unissued invoice'}
@@ -10779,7 +10779,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                 {renderModernOpenBillEditor(detailActionOpenBill)}
               </PanelBody>
               {!(isBillingMobileOrTablet && resolveOpenBillEffectiveType(detailActionOpenBill) !== 'ADVANCE' && openBillMobileStep === 'items') ? (
-              <div className={`billing-pos-footer${isBillingMobileOrTablet && resolveOpenBillEffectiveType(detailActionOpenBill) !== 'ADVANCE' && openBillMobileStep === 'items' ? ' billing-pos-footer--mobile-items-hidden' : ''}`}>
+              <div className={`billing-pos-footer${mobileKeyboardOpen ? ' billing-pos-footer--keyboard-hidden' : ''}${isBillingMobileOrTablet && resolveOpenBillEffectiveType(detailActionOpenBill) !== 'ADVANCE' && openBillMobileStep === 'items' ? ' billing-pos-footer--mobile-items-hidden' : ''}`}>
                 {!(isBillingMobileOrTablet && resolveOpenBillEffectiveType(detailActionOpenBill) !== 'ADVANCE') ? (
                   <div className="billing-pos-footer-left billing-preview-choice-anchor">
                     <button
@@ -10918,7 +10918,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               ariaLabel={isCreateAdvanceBill ? (locale === 'sl' ? 'Novo predplačilo' : 'New advance') : (locale === 'sl' ? 'Nov neizdan račun' : 'New unissued invoice')}
               size="xl"
               closeOnScrimClick={false}
-              className={`billing-pos-panel billing-pos-panel--create${isCreateAdvanceBill ? ' billing-pos-panel--advance' : ''}${isBillingMobileOrTablet && !isCreateAdvanceBill ? ` billing-pos-panel--mobile-two-step billing-pos-panel--mobile-step-${createInvoiceMobileStep}` : ''}`}
+              className={`billing-pos-panel billing-pos-panel--create${isCreateAdvanceBill ? ' billing-pos-panel--advance' : ''}${isBillingMobileOrTablet && !isCreateAdvanceBill ? ` billing-pos-panel--mobile-two-step billing-pos-panel--mobile-step-${createInvoiceMobileStep}` : ''}${mobileKeyboardOpen ? ' billing-pos-panel--keyboard-open' : ''}`}
             >
               <PanelHeader
                 title={isCreateAdvanceBill ? (locale === 'sl' ? 'Novo predplačilo' : 'New advance') : (locale === 'sl' ? 'Nov neizdan račun' : 'New unissued invoice')}

@@ -2309,3 +2309,29 @@
     gap: 5px !important;
   }
 }
+
+/* Mobile POS chrome + keyboard visibility refinements (2026-08-20).
+   - Calendar's fixed mobile filter row (consultant/location) must not remain visible
+     underneath a full-screen billing POS panel.
+   - Selection/total recap must disappear while the on-screen keyboard is open so
+     inputs keep the available visual viewport on both POS steps. */
+@media (max-width: 1024px) {
+  body:has(.billing-pos-panel) .calendar-bottom-panel,
+  body:has(.billing-pos-panel) .calendar-bottom-panel-spacer,
+  body:has(.billing-pos-panel) .calendar-filters-bottom-bar {
+    display: none !important;
+  }
+
+  .billing-pos-panel--keyboard-open .billing-pos-mobile-selection-summary {
+    display: none !important;
+  }
+
+  /* Novo predplačilo currently uses the advance checkout layout. Hide its
+     Izbrano/Skupaj block too whenever a text/number field opens the keyboard. */
+  .billing-pos-panel--advance.billing-pos-panel--keyboard-open .billing-pos-selected-title,
+  .billing-pos-panel--advance.billing-pos-panel--keyboard-open .billing-pos-selected-box,
+  .billing-pos-panel--advance.billing-pos-panel--keyboard-open .billing-pos-subtotal,
+  .billing-pos-panel--advance.billing-pos-panel--keyboard-open .billing-pos-grand-total {
+    display: none !important;
+  }
+}
