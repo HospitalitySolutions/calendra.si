@@ -4678,6 +4678,30 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               subtitle={personalPanelSubtitle}
               onClose={closePersonalModal}
               closeLabel={t('mobileNavClose')}
+              leading={(
+                <button
+                  type="button"
+                  className="calendar-personal-edit-mobile-back"
+                  onClick={closePersonalModal}
+                  aria-label={locale === 'sl' ? 'Nazaj' : locale === 'sr' ? 'Nazad' : 'Back'}
+                  title={locale === 'sl' ? 'Nazaj' : locale === 'sr' ? 'Nazad' : 'Back'}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                </button>
+              )}
+              actions={(
+                <button
+                  type="button"
+                  className="calendar-personal-edit-mobile-save"
+                  onClick={updatePersonalBlock}
+                  aria-label={t('formSave')}
+                  title={t('formSave')}
+                >
+                  <CalendarBookingHeaderSaveIcon />
+                </button>
+              )}
               overflow={
                 <PanelOverflowMenu label={t('formDelete')}>
                   {(close) => (
@@ -4716,7 +4740,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 </div>
               ) : undefined}
             >
-              <div className="form-row form-row-infield calendar-personal-field-with-visibility">
+              <div className="form-row form-row-infield calendar-personal-field-with-visibility calendar-edit-personal-primary-field">
                 <div className="calendar-booking-service-infield-head calendar-personal-visibility-head">
                   <div className="calendar-booking-service-online-line calendar-personal-visibility-line" role="group" aria-label={t('formVisibleToAdmins')}>
                     <label className="repeats-toggle-switch online-live-repeats-switch calendar-booking-service-online-toggle" title={t('formVisibleToAdmins')}>
@@ -4766,7 +4790,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 </div>
               ) : undefined}
             >
-              <div className="form-row form-row-timespan">
+              <div className="form-row form-row-timespan calendar-edit-personal-date-time">
                 <CalendarLocalTimespanRow
                   startValue={selectedPersonalBlock.startTime}
                   endValue={selectedPersonalBlock.endTime}
@@ -4820,7 +4844,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
               collapsible={isCalendarCreateMobile}
               summary={joinSummary(truncateSummary(selectedPersonalBlock.notes))}
             >
-              <div className="form-row form-row-infield stretch">
+              <div className="form-row form-row-infield stretch calendar-edit-personal-notes-field">
                 <div className="form-field-inline-control">
                 <SessionNotesTextarea value={selectedPersonalBlock.notes || ''} onChange={(e) => setSelectedPersonalBlock({ ...selectedPersonalBlock, notes: e.target.value })} />
                 </div>
