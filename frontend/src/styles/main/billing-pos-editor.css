@@ -1753,6 +1753,31 @@
 
   .billing-pos-mobile-back svg { width: 27px !important; height: 27px !important; }
 
+  .billing-pos-mobile-header-action-wrap {
+    position: relative !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .billing-pos-mobile-header-action {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 44px !important;
+    height: 44px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 12px !important;
+    background: transparent !important;
+    color: #152238 !important;
+    cursor: pointer !important;
+    box-shadow: none !important;
+  }
+
+  .billing-pos-mobile-header-action svg { width: 24px !important; height: 24px !important; }
+  .billing-pos-mobile-header-action:disabled { opacity: .45 !important; cursor: not-allowed !important; }
+
   .billing-pos-panel--mobile-two-step > .billing-pos-panel-body {
     flex: 1 1 auto !important;
     min-height: 0 !important;
@@ -1789,12 +1814,15 @@
     flex-direction: column !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 8px !important;
-    min-height: 112px !important;
-    padding: 14px 6px 18px !important;
+    gap: 0 !important;
+    min-height: 74px !important;
+    padding: 10px 6px 12px !important;
     color: #1c2940 !important;
-    font-size: .96rem !important;
-    font-weight: 520 !important;
+    font-size: .88rem !important;
+    font-weight: 500 !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
   }
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-items .billing-pos-tabs--mobile button::after {
@@ -1806,33 +1834,25 @@
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-items .billing-pos-tabs--mobile button.is-active {
     color: var(--billing-mobile-blue) !important;
-    font-weight: 650 !important;
+    font-weight: 630 !important;
   }
 
-  .billing-pos-tabs-mobile__icon {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 29px !important;
-    height: 29px !important;
-  }
-
-  .billing-pos-tabs-mobile__icon svg { width: 27px !important; height: 27px !important; }
+  .billing-pos-tabs-mobile__icon { display: none !important; }
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-items .billing-pos-search {
     width: 100% !important;
-    min-height: 56px !important;
-    margin: 28px 0 0 !important;
-    padding: 0 16px 0 50px !important;
+    min-height: 46px !important;
+    margin: 18px 0 0 !important;
+    padding: 0 14px 0 42px !important;
     border: 1px solid #d5deea !important;
-    border-radius: 13px !important;
+    border-radius: 11px !important;
     background-color: #fff !important;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%237b8aa0' stroke-width='1.9' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-4.2-4.2'/%3E%3C/svg%3E") !important;
     background-repeat: no-repeat !important;
-    background-position: 16px center !important;
-    background-size: 24px 24px !important;
+    background-position: 13px center !important;
+    background-size: 20px 20px !important;
     color: var(--billing-mobile-text) !important;
-    font-size: 1rem !important;
+    font-size: .88rem !important;
     font-weight: 500 !important;
     box-shadow: none !important;
   }
@@ -1844,9 +1864,9 @@
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-items .billing-pos-catalog-heading-mobile {
     display: block !important;
-    margin: 32px 0 14px !important;
+    margin: 22px 0 10px !important;
     color: #40516b !important;
-    font-size: .8rem !important;
+    font-size: .75rem !important;
     font-weight: 760 !important;
     letter-spacing: .12em !important;
     text-transform: uppercase !important;
@@ -1862,9 +1882,9 @@
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-items .billing-pos-catalog-row {
     grid-template-columns: minmax(0, 1fr) auto 54px !important;
-    gap: 14px !important;
-    min-height: 94px !important;
-    padding: 16px 0 !important;
+    gap: 12px !important;
+    min-height: 74px !important;
+    padding: 12px 0 !important;
     border: 0 !important;
     border-bottom: 1px solid #dfe6ef !important;
     background: transparent !important;
@@ -1874,33 +1894,33 @@
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-items .billing-pos-catalog-copy strong {
     color: var(--billing-mobile-text) !important;
-    font-size: 1.05rem !important;
+    font-size: .92rem !important;
     font-weight: 620 !important;
     line-height: 1.25 !important;
   }
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-items .billing-pos-catalog-copy small {
-    margin-top: 6px !important;
+    margin-top: 4px !important;
     color: #8190a5 !important;
-    font-size: .9rem !important;
+    font-size: .77rem !important;
     font-weight: 500 !important;
   }
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-items .billing-pos-catalog-price {
     color: var(--billing-mobile-text) !important;
-    font-size: 1.05rem !important;
+    font-size: .92rem !important;
     font-weight: 650 !important;
   }
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-items .billing-pos-add-btn {
-    width: 50px !important;
-    min-width: 50px !important;
-    height: 50px !important;
+    width: 42px !important;
+    min-width: 42px !important;
+    height: 42px !important;
     border: 1px solid #cbd8e8 !important;
     border-radius: 999px !important;
     background: #fff !important;
     color: var(--billing-mobile-blue) !important;
-    font-size: 1.8rem !important;
+    font-size: 1.5rem !important;
     font-weight: 300 !important;
     box-shadow: none !important;
   }
@@ -1911,54 +1931,182 @@
     z-index: 5 !important;
     flex: 0 0 auto !important;
     margin-top: auto !important;
-    padding: 18px 24px max(18px, calc(18px + env(safe-area-inset-bottom, 0px))) !important;
+    padding: 14px 18px max(14px, calc(14px + env(safe-area-inset-bottom, 0px))) !important;
     border-top: 1px solid #dfe6ef !important;
-    border-radius: 22px 22px 0 0 !important;
-    background: rgba(255,255,255,.98) !important;
-    box-shadow: 0 -10px 28px rgba(15,23,42,.04) !important;
+    border-radius: 18px 18px 0 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  .billing-pos-mobile-selection-summary,
+  .billing-pos-mobile-selection-summary * {
+    transition: none !important;
+    animation: none !important;
   }
 
   .billing-pos-mobile-selection-summary__line {
     display: grid !important;
-    grid-template-columns: 34px minmax(0, 1fr) auto !important;
+    grid-template-columns: 28px minmax(0, 1fr) auto auto !important;
     align-items: center !important;
-    gap: 12px !important;
-    min-height: 48px !important;
+    gap: 10px !important;
+    min-height: 42px !important;
     color: var(--billing-mobile-text) !important;
   }
 
-  .billing-pos-mobile-selection-summary__line--total { border-top: 1px solid #dfe6ef !important; }
+  .billing-pos-mobile-selection-summary__toggle {
+    width: 100% !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    text-align: left !important;
+  }
+
+  .billing-pos-mobile-selection-summary__line--total {
+    grid-template-columns: 28px minmax(0, 1fr) auto !important;
+    margin-top: 2px !important;
+    padding-top: 8px !important;
+    border-top: 1px solid #dfe6ef !important;
+  }
 
   .billing-pos-mobile-selection-summary__icon {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 30px !important;
-    height: 30px !important;
+    width: 24px !important;
+    height: 24px !important;
     color: var(--billing-mobile-blue) !important;
-    font-size: 1rem !important;
+    font-size: .95rem !important;
     font-weight: 700 !important;
   }
 
-  .billing-pos-mobile-selection-summary__icon svg { width: 24px !important; height: 24px !important; }
-  .billing-pos-mobile-selection-summary__line strong { font-size: .96rem !important; font-weight: 650 !important; }
-  .billing-pos-mobile-selection-summary__line > span:last-child { color: #8190a5 !important; font-size: .92rem !important; }
-  .billing-pos-mobile-selection-summary__line b { color: var(--billing-mobile-text) !important; font-size: 1.3rem !important; font-weight: 720 !important; }
+  .billing-pos-mobile-selection-summary__icon svg { width: 20px !important; height: 20px !important; }
+  .billing-pos-mobile-selection-summary__line strong { font-size: .88rem !important; font-weight: 650 !important; }
+  .billing-pos-mobile-selection-summary__toggle > span:nth-child(3) { color: #8190a5 !important; font-size: .84rem !important; }
+  .billing-pos-mobile-selection-summary__line b { color: var(--billing-mobile-text) !important; font-size: 1.05rem !important; font-weight: 720 !important; }
+
+  .billing-pos-mobile-selection-summary__chevron {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 20px !important;
+    height: 20px !important;
+    color: var(--billing-mobile-blue) !important;
+    transition: none !important;
+  }
+
+  .billing-pos-mobile-selection-summary__chevron:not(.is-expanded) { transform: rotate(180deg) !important; }
+  .billing-pos-mobile-selection-summary__chevron svg { width: 18px !important; height: 18px !important; }
+
+  .billing-pos-mobile-selection-summary__content {
+    margin-top: 8px !important;
+    padding-bottom: 6px !important;
+  }
+
+  .billing-pos-mobile-selected-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+  }
+
+  .billing-pos-mobile-selected-row {
+    padding: 10px 0 !important;
+    border-top: 1px solid #e3e9f1 !important;
+  }
+
+  .billing-pos-mobile-selected-copy strong {
+    display: block !important;
+    color: var(--billing-mobile-text) !important;
+    font-size: .86rem !important;
+    font-weight: 620 !important;
+    line-height: 1.25 !important;
+  }
+
+  .billing-pos-mobile-selected-copy small {
+    display: block !important;
+    margin-top: 3px !important;
+    color: #8190a5 !important;
+    font-size: .72rem !important;
+    line-height: 1.25 !important;
+  }
+
+  .billing-pos-mobile-selected-actions {
+    display: grid !important;
+    grid-template-columns: 88px minmax(54px, auto) 58px 24px !important;
+    align-items: center !important;
+    gap: 6px !important;
+    margin-top: 8px !important;
+  }
+
+  .billing-pos-mobile-selected-price {
+    color: var(--billing-mobile-text) !important;
+    font-size: .84rem !important;
+    font-weight: 680 !important;
+    white-space: nowrap !important;
+  }
+
+  .billing-pos-mobile-selected-row .billing-pos-qty {
+    width: 88px !important;
+    min-width: 88px !important;
+    height: 34px !important;
+    border-radius: 8px !important;
+  }
+
+  .billing-pos-mobile-selected-row .billing-pos-qty button {
+    width: 28px !important;
+    min-width: 28px !important;
+    font-size: 1rem !important;
+  }
+
+  .billing-pos-mobile-selected-row .billing-pos-qty span {
+    width: 32px !important;
+    min-width: 32px !important;
+    font-size: .84rem !important;
+  }
+
+  .billing-pos-mobile-inline-discount-btn {
+    display: inline-grid !important;
+    grid-template-columns: 18px 1fr !important;
+    align-items: center !important;
+    gap: 2px !important;
+    width: 58px !important;
+    min-width: 58px !important;
+    height: 34px !important;
+    padding: 0 8px !important;
+    border: 1px solid #d5deea !important;
+    border-radius: 8px !important;
+    background: #fff !important;
+    color: #f28a2e !important;
+  }
+
+  .billing-pos-mobile-inline-discount-btn.is-active { border-color: #f2c38e !important; background: #fff8f1 !important; }
+  .billing-pos-mobile-inline-discount-btn__symbol { font-size: .95rem !important; font-weight: 700 !important; line-height: 1 !important; }
+  .billing-pos-mobile-inline-discount-btn__value { color: var(--billing-mobile-text) !important; font-size: .82rem !important; font-weight: 600 !important; line-height: 1 !important; }
+
+  .billing-pos-mobile-selected-row .billing-pos-row-remove {
+    width: 24px !important;
+    min-width: 24px !important;
+    height: 24px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    color: #98a2b3 !important;
+    font-size: 1.2rem !important;
+  }
 
   .billing-pos-mobile-next-btn {
     display: grid !important;
-    grid-template-columns: 1fr 28px !important;
+    grid-template-columns: 1fr 24px !important;
     align-items: center !important;
     width: 100% !important;
-    min-height: 58px !important;
-    margin-top: 14px !important;
-    padding: 0 18px 0 46px !important;
+    min-height: 50px !important;
+    margin-top: 12px !important;
+    padding: 0 16px 0 40px !important;
     border: 1px solid var(--billing-mobile-blue) !important;
     border-radius: 12px !important;
     background: var(--billing-mobile-blue) !important;
     color: #fff !important;
     font: inherit !important;
-    font-size: 1.05rem !important;
+    font-size: .92rem !important;
     font-weight: 680 !important;
     cursor: pointer !important;
   }
@@ -1970,9 +2118,12 @@
   /* Page 2 — Plačilo */
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-mobile-payment-page {
     padding: 16px 24px 32px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 100% !important;
   }
 
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payee-section { margin: 0 0 30px !important; }
+  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payee-section { margin: 0 0 24px !important; }
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payee-label,
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-selected-title,
@@ -1980,7 +2131,7 @@
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-summary-title {
     margin: 0 0 12px !important;
     color: var(--billing-mobile-text) !important;
-    font-size: 1.02rem !important;
+    font-size: .9rem !important;
     font-weight: 680 !important;
   }
 
@@ -1994,150 +2145,80 @@
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-section-icon svg { width: 24px !important; height: 24px !important; }
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payee-field {
-    min-height: 58px !important;
-    padding: 0 18px !important;
-    border: 1px solid #d5deea !important;
-    border-radius: 13px !important;
+    min-height: 40px !important;
+    padding: 0 0 8px !important;
+    border: 0 !important;
+    border-bottom: 1px solid #d5deea !important;
+    border-radius: 0 !important;
+    justify-content: flex-start !important;
+    background: transparent !important;
     color: #7d8ba0 !important;
-    font-size: .98rem !important;
+    font-size: .86rem !important;
     box-shadow: none !important;
   }
 
-  .billing-pos-mobile-selected-heading {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    gap: 16px !important;
-  }
-
-  .billing-pos-mobile-selected-heading > button {
-    margin: 0 0 12px !important;
-    padding: 0 !important;
-    border: 0 !important;
-    background: transparent !important;
-    color: var(--billing-mobile-blue) !important;
-    font: inherit !important;
-    font-size: .96rem !important;
-    font-weight: 620 !important;
-    cursor: pointer !important;
-  }
-
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-selected-box {
-    overflow: hidden !important;
-    border: 1px solid #dbe3ee !important;
-    border-radius: 13px !important;
-    background: #fff !important;
-  }
-
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-selected-row {
-    grid-template-columns: minmax(0, 1fr) 92px minmax(64px, auto) 64px !important;
-    grid-template-rows: minmax(64px, auto) !important;
-    min-height: 72px !important;
-    padding: 10px 12px !important;
-    border-bottom: 1px solid #e3e9f1 !important;
-    background: #fff !important;
-  }
-
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-selected-row:last-child { border-bottom: 0 !important; }
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-selected-copy strong { font-size: .96rem !important; font-weight: 650 !important; }
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-selected-copy small { margin-top: 4px !important; font-size: .78rem !important; }
-
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-qty {
-    width: 92px !important;
-    min-width: 92px !important;
-    height: 38px !important;
-    border-radius: 9px !important;
-  }
-
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-qty button { width: 29px !important; min-width: 29px !important; }
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-qty span { width: 34px !important; min-width: 34px !important; }
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-line-total { color: var(--billing-mobile-text) !important; font-size: .94rem !important; font-weight: 680 !important; }
-
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-line-actions,
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-line-actions--remove-only { gap: 1px !important; }
-
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-inline-discount-btn {
-    width: 34px !important;
-    min-width: 34px !important;
-    height: 36px !important;
-    min-height: 36px !important;
-    border: 0 !important;
-    background: transparent !important;
-  }
-
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-row-remove {
-    width: 28px !important;
-    min-width: 28px !important;
-    border: 0 !important;
-    background: transparent !important;
-  }
-
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-discount-row {
-    grid-template-columns: minmax(0, 1fr) 92px auto !important;
-    grid-template-areas: "label percent value" "slider slider slider" !important;
-    gap: 10px 12px !important;
-    min-height: 96px !important;
-    margin-top: 20px !important;
-    padding: 16px 0 !important;
+    grid-template-columns: minmax(0, 1fr) 112px auto !important;
+    grid-template-areas: "label percent value" !important;
+    gap: 8px 10px !important;
+    min-height: 58px !important;
+    margin-top: 16px !important;
+    padding: 12px 0 !important;
     border-top: 0 !important;
     border-bottom: 1px solid #e0e7f0 !important;
   }
 
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-discount-label { grid-area: label !important; font-size: .96rem !important; font-weight: 650 !important; }
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-discount-slider { grid-area: slider !important; width: 100% !important; }
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-percent-input { grid-area: percent !important; min-width: 92px !important; height: 42px !important; border-radius: 9px !important; }
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-discount-value { grid-area: value !important; display: inline !important; color: #18a957 !important; font-size: .9rem !important; }
-
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-grand-total {
-    min-height: 72px !important;
-    padding: 14px 0 !important;
-    border-top: 0 !important;
-    border-bottom: 1px solid #e0e7f0 !important;
-  }
-
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-grand-total span { font-size: 1.15rem !important; font-weight: 720 !important; }
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-grand-total strong { font-size: 1.55rem !important; font-weight: 740 !important; }
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payment-section { margin-top: 22px !important; }
-
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-method-chips {
-    display: flex !important;
-    gap: 8px !important;
-    overflow-x: auto !important;
-    padding-bottom: 2px !important;
-    scrollbar-width: none !important;
-  }
-
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-method-chips::-webkit-scrollbar { display: none !important; }
-
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-method-chips button {
-    flex: 0 0 auto !important;
-    min-width: 132px !important;
-    min-height: 54px !important;
-    padding: 0 14px !important;
-    border-radius: 11px !important;
+  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-discount-label {
+    grid-area: label !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 10px !important;
     font-size: .88rem !important;
+    font-weight: 700 !important;
   }
+
+  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-discount-label .billing-pos-section-icon {
+    width: 26px !important;
+    min-width: 26px !important;
+    height: 26px !important;
+    color: var(--billing-mobile-blue) !important;
+  }
+
+  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-discount-slider { display: none !important; }
+  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-percent-input { grid-area: percent !important; min-width: 112px !important; height: 38px !important; border-radius: 8px !important; }
+  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-discount-value { grid-area: value !important; display: inline !important; color: #18a957 !important; font-size: .82rem !important; }
+  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payment-section { margin-top: 18px !important; }
+
+  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-method-chips { display: none !important; }
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payment-list { gap: 8px !important; margin-top: 14px !important; }
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payment-row {
     grid-template-columns: minmax(108px, 1.1fr) minmax(100px, 1fr) 42px 28px !important;
-    min-height: 56px !important;
+    min-height: 48px !important;
     padding: 8px 0 !important;
   }
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payment-row select,
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payment-row .billing-pos-money-input { height: 42px !important; border-radius: 9px !important; }
+  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payment-row .billing-pos-money-input { height: 38px !important; border-radius: 8px !important; font-size: .82rem !important; }
+
+  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payment-row select,
+  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-entitlement-label {
+    height: 38px !important;
+    border-radius: 8px !important;
+    padding-left: 12px !important;
+    font-size: .82rem !important;
+  }
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-equalize-btn {
     width: 42px !important;
     min-width: 42px !important;
-    height: 42px !important;
-    min-height: 42px !important;
-    border-radius: 9px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    border-radius: 8px !important;
   }
 
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-remove-payment { height: 42px !important; }
+  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-remove-payment { height: 38px !important; }
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-add-payment {
     width: fit-content !important;
@@ -2147,11 +2228,11 @@
     background: transparent !important;
   }
 
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-summary-title { margin-top: 28px !important; }
+  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-summary-title { margin-top: 22px !important; }
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-meta-lines { margin-top: 0 !important; padding-top: 0 !important; border-top: 0 !important; }
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payment-totals { margin-top: 12px !important; padding-bottom: 8px !important; }
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payment-totals span { font-size: .9rem !important; }
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payment-totals strong { font-size: 1rem !important; }
+  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payment-totals { margin-top: 10px !important; padding-bottom: 8px !important; }
+  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payment-totals span { font-size: .82rem !important; }
+  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payment-totals strong { font-size: .9rem !important; }
 
   .billing-pos-panel--mobile-two-step .billing-pos-footer {
     flex: 0 0 auto !important;
@@ -2216,13 +2297,12 @@
 
   .billing-pos-mobile-selection-summary { padding-left: 18px !important; padding-right: 18px !important; }
 
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-selected-row {
-    grid-template-columns: minmax(0, 1fr) 88px minmax(58px, auto) 60px !important;
+  .billing-pos-mobile-selected-actions {
+    grid-template-columns: 84px minmax(52px, auto) 56px 22px !important;
     gap: 5px !important;
-    padding-inline: 10px !important;
   }
 
-  .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-qty { width: 88px !important; min-width: 88px !important; }
+  .billing-pos-mobile-selected-row .billing-pos-qty { width: 84px !important; min-width: 84px !important; }
 
   .billing-pos-panel--mobile-two-step.billing-pos-panel--mobile-step-payment .billing-pos-payment-row {
     grid-template-columns: minmax(98px, 1fr) minmax(88px, 1fr) 40px 26px !important;

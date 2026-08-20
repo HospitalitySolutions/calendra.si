@@ -483,7 +483,7 @@ const equalizeToZeroIcon = (): ReactNode => (
   </svg>
 )
 
-const billingPosSectionIcon = (kind: 'payee' | 'selected' | 'payment' | 'summary'): ReactNode => {
+const billingPosSectionIcon = (kind: 'payee' | 'selected' | 'payment' | 'summary' | 'discount'): ReactNode => {
   if (kind === 'payee') {
     return (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -505,6 +505,14 @@ const billingPosSectionIcon = (kind: 'payee' | 'selected' | 'payment' | 'summary
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
         <path d="M3.5 9h17M7.5 14h4" />
+      </svg>
+    )
+  }
+  if (kind === 'discount') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M8 5.5 19 11l-8 8-5.5-5.5 8-8Z" />
+        <path d="M9.5 9.5h.01M12 12h.01" strokeWidth="2.4" />
       </svg>
     )
   }
@@ -1536,6 +1544,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   )
   const [createInvoiceMobileStep, setCreateInvoiceMobileStep] = useState<'items' | 'payment'>('items')
   const [openBillMobileStep, setOpenBillMobileStep] = useState<'items' | 'payment'>('items')
+  const [createMobileSelectedExpanded, setCreateMobileSelectedExpanded] = useState(false)
+  const [openMobileSelectedExpanded, setOpenMobileSelectedExpanded] = useState(false)
 
   useEffect(() => {
     if (newBillDrawerOpen || showCreateBillModal) setCreateInvoiceMobileStep('items')
@@ -8000,22 +8010,28 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     subtotalGross: number,
     items: { quantity: number; grossPrice: string }[],
     onChange: (value: string) => void,
+    mobileSimple = false,
   ) => {
     const percentage = wholeBillPercentNumber(draft)
     const discountGross = calculateDiscountGross(subtotalGross, draft, items)
     return (
       <div className="billing-pos-discount-row">
-        <span className="billing-pos-discount-label">{locale === 'sl' ? 'Popust na račun' : 'Invoice discount'}</span>
-        <input
-          className="billing-pos-discount-slider"
-          type="range"
-          min="0"
-          max="99"
-          step="1"
-          value={percentage}
-          onChange={(event) => onChange(event.target.value)}
-          aria-label={locale === 'sl' ? 'Popust na račun v odstotkih' : 'Invoice discount percentage'}
-        />
+        <span className="billing-pos-discount-label">
+          {mobileSimple ? <span className="billing-pos-section-icon">{billingPosSectionIcon('discount')}</span> : null}
+          <span>{locale === 'sl' ? 'Popust na račun' : 'Invoice discount'}</span>
+        </span>
+        {!mobileSimple ? (
+          <input
+            className="billing-pos-discount-slider"
+            type="range"
+            min="0"
+            max="99"
+            step="1"
+            value={percentage}
+            onChange={(event) => onChange(event.target.value)}
+            aria-label={locale === 'sl' ? 'Popust na račun v odstotkih' : 'Invoice discount percentage'}
+          />
+        ) : null}
         <label className="billing-pos-percent-input">
           <input
             type="text"
@@ -8089,6 +8105,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     items: { transactionServiceId: number; quantity: number; netPrice: string; grossPrice: string }[],
     draft: DiscountDraft,
     discountGross: number,
+    mobileSimple = false,
   ) => {
     const splits = getCreateBillPaymentSplits(totalGross)
     const methods = createAvailablePaymentMethods
@@ -8126,16 +8143,18 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return (
       <section className="billing-pos-payment-section">
         <h3 className="billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('payment')}</span><span>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</span></h3>
-        <div className="billing-pos-method-chips">
-          {methods.slice(0, 5).map((method) => {
-            const selected = primarySplit?.paymentMethodId === method.id
-            return (
-              <button key={method.id} type="button" className={selected ? 'is-selected' : ''} onClick={() => setPrimaryMethod(method)}>
-                {paymentMethodChipContent(method, locale)}
-              </button>
-            )
-          })}
-        </div>
+        {!mobileSimple ? (
+          <div className="billing-pos-method-chips">
+            {methods.slice(0, 5).map((method) => {
+              const selected = primarySplit?.paymentMethodId === method.id
+              return (
+                <button key={method.id} type="button" className={selected ? 'is-selected' : ''} onClick={() => setPrimaryMethod(method)}>
+                  {paymentMethodChipContent(method, locale)}
+                </button>
+              )
+            })}
+          </div>
+        ) : null}
         <div className="billing-pos-payment-list">
           {splits.map((split) => {
             const selectedMethod = paymentMethods.find((method) => method.id === split.paymentMethodId) || null
@@ -8203,6 +8222,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     items: { transactionServiceId: number; quantity: number; netPrice: string; grossPrice: string }[],
     draft: DiscountDraft,
     discountGross: number,
+    mobileSimple = false,
   ) => {
     const splits = getOpenBillPaymentSplits(ob, totalGross)
     const effectiveType = resolveOpenBillEffectiveType(ob)
@@ -8241,12 +8261,14 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     return (
       <section className="billing-pos-payment-section">
         <h3 className="billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('payment')}</span><span>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</span></h3>
-        <div className="billing-pos-method-chips">
-          {methods.slice(0, 5).map((method) => {
-            const selected = primarySplit?.paymentMethodId === method.id
-            return <button key={method.id} type="button" className={selected ? 'is-selected' : ''} onClick={() => setPrimaryMethod(method)}>{paymentMethodChipContent(method, locale)}</button>
-          })}
-        </div>
+        {!mobileSimple ? (
+          <div className="billing-pos-method-chips">
+            {methods.slice(0, 5).map((method) => {
+              const selected = primarySplit?.paymentMethodId === method.id
+              return <button key={method.id} type="button" className={selected ? 'is-selected' : ''} onClick={() => setPrimaryMethod(method)}>{paymentMethodChipContent(method, locale)}</button>
+            })}
+          </div>
+        ) : null}
         <div className="billing-pos-payment-list">
           {splits.map((split) => {
             const selectedMethod = paymentMethods.find((method) => method.id === split.paymentMethodId) || null
@@ -8457,6 +8479,175 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     )
   }
 
+  const mobileSelectedCountLabel = (count: number) => {
+    if (locale === 'sl') return `${count} ${count === 1 ? 'postavka' : 'postavk'}`
+    return `${count} ${count === 1 ? 'item' : 'items'}`
+  }
+
+  const renderMobileLineDiscountButton = (draft: LineItemDiscountDraft | null | undefined) => {
+    const summary = formatLineDiscountSummary(draft)
+    return (
+      <>
+        <span className="billing-pos-mobile-inline-discount-btn__symbol">%</span>
+        <span className="billing-pos-mobile-inline-discount-btn__value">{summary || '0'}</span>
+      </>
+    )
+  }
+
+  const renderPosCreateMobileSelectedItems = () => {
+    const consultant = users.find((entry) => entry.id === billForm.consultantId) || me
+    const consultantLabel = consultant ? fullName(consultant) : ''
+    return (
+      <div className="billing-pos-mobile-selected-list">
+        {billForm.items.map((item, index) => {
+          const service = services.find((entry) => entry.id === item.transactionServiceId)
+          const catalogService = billForm.billType === 'INVOICE' ? invoiceCatalogServiceByTransactionId.get(item.transactionServiceId) : undefined
+          const productMeta = guestProductCatalogMetaByTransactionServiceId.get(item.transactionServiceId)
+          const lineDraft = getLineItemDiscount(createBillDiscountDraft, index)
+          const lineDiscountActive = discountValueNumber(lineDraft) > 0
+          const lineDiscountOpen = openCreateItemDiscountIndex === index
+          const patchLineDiscount = (patch: Partial<LineItemDiscountDraft>) => {
+            setBillForm((prev) => {
+              const discounts = normalizeItemDiscountMap(prev.itemDiscounts, { keepZero: true })
+              const current = discounts[index] ?? { type: 'PERCENT' as DiscountType, value: '0' }
+              discounts[index] = { type: patch.type ?? current.type, value: Object.prototype.hasOwnProperty.call(patch, 'value') ? (patch.value ?? '0') : current.value }
+              return { ...prev, itemDiscounts: discounts }
+            })
+          }
+          return (
+            <div key={`${item.transactionServiceId}-${index}`} className="billing-pos-mobile-selected-row">
+              <div className="billing-pos-mobile-selected-copy">
+                <strong>{productMeta?.displayName || catalogService?.displayName || (service ? serviceOptionLabel(service) : `#${item.transactionServiceId}`)}</strong>
+                {(productMeta?.secondaryText || catalogService?.secondaryText || posServiceSecondaryText(service) || consultantLabel) && <small>{[productMeta?.secondaryText || catalogService?.secondaryText || posServiceSecondaryText(service), consultantLabel].filter(Boolean).join(' · ')}</small>}
+              </div>
+              <div className="billing-pos-mobile-selected-actions">
+                <div className="billing-pos-qty">
+                  <button type="button" onClick={() => setBillForm((prev) => ({ ...prev, items: prev.items.map((row, rowIndex) => rowIndex === index ? { ...row, quantity: Math.max(1, Number(row.quantity || 1) - 1) } : row) }))}>−</button>
+                  <span className="billing-pos-qty-value">{item.quantity}</span>
+                  <button type="button" onClick={() => setBillForm((prev) => ({ ...prev, items: prev.items.map((row, rowIndex) => rowIndex === index ? { ...row, quantity: Number(row.quantity || 0) + 1 } : row) }))}>+</button>
+                </div>
+                <strong className="billing-pos-mobile-selected-price">{currency(Number(item.grossPrice || 0))}</strong>
+                <div className="billing-pos-line-discount">
+                  <button
+                    type="button"
+                    className={`billing-pos-mobile-inline-discount-btn${lineDiscountActive ? ' is-active' : ''}`}
+                    aria-label={locale === 'sl' ? 'Popust postavke' : 'Line-item discount'}
+                    title={locale === 'sl' ? 'Popust postavke' : 'Line-item discount'}
+                    onClick={(event) => { event.stopPropagation(); setOpenCreateItemDiscountIndex(lineDiscountOpen ? null : index) }}
+                  >
+                    {renderMobileLineDiscountButton(lineDraft)}
+                  </button>
+                  {lineDiscountOpen && renderItemDiscountPopover(lineDraft, patchLineDiscount, () => setOpenCreateItemDiscountIndex(null))}
+                </div>
+                <button type="button" className="billing-pos-row-remove" aria-label={locale === 'sl' ? 'Odstrani postavko' : 'Remove item'} onClick={() => {
+                  const nextItems = billForm.items.filter((_, rowIndex) => rowIndex !== index)
+                  setBillForm((prev) => ({ ...prev, items: nextItems, itemDiscounts: shiftedItemDiscountsAfterRemoval(normalizeItemDiscountMap(prev.itemDiscounts, { keepZero: true }), index, nextItems.length), discountItemIndex: clampDiscountIndexAfterRemoval(prev.discountItemIndex, index, nextItems.length) }))
+                  if (openCreateItemDiscountIndex === index) setOpenCreateItemDiscountIndex(null)
+                }}>×</button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  const renderPosOpenMobileSelectedItems = (ob: OpenBill) => {
+    const items = getOpenBillItems(ob)
+    const draft = getOpenBillDiscountDraft(ob)
+    const consultantLabel = ob.consultant ? fullName(ob.consultant) : ''
+    return (
+      <div className="billing-pos-mobile-selected-list">
+        {items.map((item, index) => {
+          const persistedService = ob.items.find((serverItem) => Number(serverItem.id) === Number(item.openBillItemId))?.transactionService
+          const service = services.find((entry) => entry.id === item.transactionServiceId) || persistedService
+          const catalogService = resolveOpenBillEffectiveType(ob) === 'INVOICE' ? invoiceCatalogServiceByTransactionId.get(item.transactionServiceId) : undefined
+          const productMeta = guestProductCatalogMetaByTransactionServiceId.get(item.transactionServiceId)
+          const lineDraft = getLineItemDiscount(draft, index)
+          const lineDiscountActive = discountValueNumber(lineDraft) > 0
+          const lineDiscountOpen = openOpenBillItemDiscount?.openBillId === ob.id && openOpenBillItemDiscount.index === index
+          return (
+            <div key={item.openBillItemId || item.clientRowKey || index} className="billing-pos-mobile-selected-row">
+              <div className="billing-pos-mobile-selected-copy">
+                <strong>{productMeta?.displayName || catalogService?.displayName || (service ? serviceOptionLabel(service) : `#${item.transactionServiceId}`)}</strong>
+                {(productMeta?.secondaryText || catalogService?.secondaryText || posServiceSecondaryText(service) || consultantLabel) && <small>{[productMeta?.secondaryText || catalogService?.secondaryText || posServiceSecondaryText(service), consultantLabel].filter(Boolean).join(' · ')}</small>}
+              </div>
+              <div className="billing-pos-mobile-selected-actions">
+                <div className="billing-pos-qty">
+                  <button type="button" onClick={() => { const next = [...items]; next[index] = { ...next[index], quantity: Math.max(1, Number(next[index].quantity || 1) - 1) }; setOpenBillItems(ob, next) }}>−</button>
+                  <span className="billing-pos-qty-value">{item.quantity}</span>
+                  <button type="button" onClick={() => { const next = [...items]; next[index] = { ...next[index], quantity: Number(next[index].quantity || 0) + 1 }; setOpenBillItems(ob, next) }}>+</button>
+                </div>
+                <strong className="billing-pos-mobile-selected-price">{currency(Number(item.grossPrice || 0))}</strong>
+                <div className="billing-pos-line-discount">
+                  <button
+                    type="button"
+                    className={`billing-pos-mobile-inline-discount-btn${lineDiscountActive ? ' is-active' : ''}`}
+                    aria-label={locale === 'sl' ? 'Popust postavke' : 'Line-item discount'}
+                    title={locale === 'sl' ? 'Popust postavke' : 'Line-item discount'}
+                    onClick={(event) => { event.stopPropagation(); setOpenOpenBillItemDiscount(lineDiscountOpen ? null : { openBillId: ob.id, index }) }}
+                  >
+                    {renderMobileLineDiscountButton(lineDraft)}
+                  </button>
+                  {lineDiscountOpen && renderItemDiscountPopover(lineDraft, (patch) => setOpenBillItemDiscountDraft(ob, index, patch), () => setOpenOpenBillItemDiscount(null))}
+                </div>
+                <button type="button" className="billing-pos-row-remove" aria-label={locale === 'sl' ? 'Odstrani postavko' : 'Remove item'} onClick={() => {
+                  const nextItems = items.filter((_, rowIndex) => rowIndex !== index)
+                  setOpenBillItems(ob, nextItems)
+                  setOpenBillDiscountDraft(ob, { itemDiscounts: shiftedItemDiscountsAfterRemoval(draft.itemDiscounts, index, nextItems.length) })
+                  if (openOpenBillItemDiscount?.openBillId === ob.id) setOpenOpenBillItemDiscount(null)
+                }}>×</button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  const renderPosMobileSummaryPanel = ({
+    count,
+    totalGross,
+    expanded,
+    onToggle,
+    children,
+    showNext,
+    onNext,
+    nextDisabled,
+  }: {
+    count: number
+    totalGross: number
+    expanded: boolean
+    onToggle: () => void
+    children?: ReactNode
+    showNext?: boolean
+    onNext?: () => void
+    nextDisabled?: boolean
+  }) => (
+    <div className={`billing-pos-mobile-selection-summary${expanded ? ' is-expanded' : ''}${showNext ? '' : ' billing-pos-mobile-selection-summary--compact'}`}>
+      <button type="button" className="billing-pos-mobile-selection-summary__line billing-pos-mobile-selection-summary__toggle" onClick={onToggle} aria-expanded={expanded}>
+        <span className="billing-pos-mobile-selection-summary__icon">{billingPosSectionIcon('selected')}</span>
+        <strong>{locale === 'sl' ? 'Izbrano' : 'Selected'}</strong>
+        <span>{mobileSelectedCountLabel(count)}</span>
+        <span className={`billing-pos-mobile-selection-summary__chevron${expanded ? ' is-expanded' : ''}`} aria-hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 15 6-6 6 6" /></svg>
+        </span>
+      </button>
+      {expanded && children ? <div className="billing-pos-mobile-selection-summary__content">{children}</div> : null}
+      <div className="billing-pos-mobile-selection-summary__line billing-pos-mobile-selection-summary__line--total">
+        <span className="billing-pos-mobile-selection-summary__icon">€</span>
+        <strong>{locale === 'sl' ? 'Skupaj' : 'Total'}</strong>
+        <b>{currency(totalGross)}</b>
+      </div>
+      {showNext ? (
+        <button type="button" className="billing-pos-mobile-next-btn" onClick={onNext} disabled={nextDisabled}>
+          <span>{locale === 'sl' ? 'Naprej' : 'Next'}</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m9 18 6-6-6-6" /></svg>
+        </button>
+      ) : null}
+    </div>
+  )
+
   const renderPosCreateEditor = (isAdvance: boolean) => {
     const subtotalGross = estimateGross(billForm.items)
     const totalGross = payableGrossAfterDiscount(subtotalGross, createBillDiscountDraft, billForm.items)
@@ -8508,22 +8699,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             <section className="billing-pos-mobile-catalog-page">
               {renderPosCatalog(invoiceCatalogServices, guestProducts, addService, addProduct, billForm.locationId, 'INVOICE')}
             </section>
-            <div className="billing-pos-mobile-selection-summary">
-              <div className="billing-pos-mobile-selection-summary__line">
-                <span className="billing-pos-mobile-selection-summary__icon">{billingPosSectionIcon('selected')}</span>
-                <strong>{locale === 'sl' ? 'Izbrano' : 'Selected'}</strong>
-                <span>{selectedCount} {locale === 'sl' ? (selectedCount === 1 ? 'postavka' : 'postavk') : (selectedCount === 1 ? 'item' : 'items')}</span>
-              </div>
-              <div className="billing-pos-mobile-selection-summary__line billing-pos-mobile-selection-summary__line--total">
-                <span className="billing-pos-mobile-selection-summary__icon">€</span>
-                <strong>{locale === 'sl' ? 'Skupaj' : 'Total'}</strong>
-                <b>{currency(totalGross)}</b>
-              </div>
-              <button type="button" className="billing-pos-mobile-next-btn" onClick={() => setCreateInvoiceMobileStep('payment')} disabled={billForm.items.length === 0}>
-                <span>{locale === 'sl' ? 'Naprej' : 'Next'}</span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m9 18 6-6-6-6" /></svg>
-              </button>
-            </div>
+            {renderPosMobileSummaryPanel({
+              count: selectedCount,
+              totalGross,
+              expanded: createMobileSelectedExpanded,
+              onToggle: () => setCreateMobileSelectedExpanded((prev) => !prev),
+              children: billForm.items.length > 0 ? renderPosCreateMobileSelectedItems() : undefined,
+              showNext: true,
+              onNext: () => { setCreateMobileSelectedExpanded(false); setCreateInvoiceMobileStep('payment') },
+              nextDisabled: billForm.items.length === 0,
+            })}
           </div>
         )
       }
@@ -8534,14 +8719,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               <label className="billing-pos-payee-label billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('payee')}</span><span>{locale === 'sl' ? 'Plačnik' : 'Payee'}</span></label>
               <button type="button" className="billing-pos-payee-field" onClick={() => setEditingCreateBillPayee(true)}>{posCreatePayeeLabel()}</button>
             </div>
-            <div className="billing-pos-mobile-selected-heading">
-              <h3 className="billing-pos-selected-title billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('selected')}</span><span>{locale === 'sl' ? 'Izbrano' : 'Selected'}</span></h3>
-              <button type="button" onClick={() => setCreateInvoiceMobileStep('items')}>{locale === 'sl' ? 'Uredi' : 'Edit'}</button>
-            </div>
-            {renderPosCreateSelectedItems(true)}
-            {renderPosWholeBillDiscount(createBillDiscountDraft, subtotalGross, billForm.items, (value) => { setOpenCreateItemDiscountIndex(null); setBillForm((prev) => ({ ...prev, wholeBillDiscountPercent: value, discountType: 'PERCENT', discountValue: value, discountItemIndex: undefined })) })}
-            <div className="billing-pos-grand-total"><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(totalGross)}</strong></div>
-            {renderPosCreatePaymentMethods(totalGross, billForm.items, createBillDiscountDraft, discountGross)}
+            {renderPosWholeBillDiscount(createBillDiscountDraft, subtotalGross, billForm.items, (value) => { setOpenCreateItemDiscountIndex(null); setBillForm((prev) => ({ ...prev, wholeBillDiscountPercent: value, discountType: 'PERCENT', discountValue: value, discountItemIndex: undefined })) }, true)}
+            {renderPosCreatePaymentMethods(totalGross, billForm.items, createBillDiscountDraft, discountGross, true)}
+            {renderPosMobileSummaryPanel({
+              count: selectedCount,
+              totalGross,
+              expanded: createMobileSelectedExpanded,
+              onToggle: () => setCreateMobileSelectedExpanded((prev) => !prev),
+              children: billForm.items.length > 0 ? renderPosCreateMobileSelectedItems() : undefined,
+            })}
           </section>
         </div>
       )
@@ -8624,22 +8810,16 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             <section className="billing-pos-mobile-catalog-page">
               {renderPosCatalog(catalogServices, guestProducts, addService, addProduct, ob.location?.id, ob.billType || 'INVOICE')}
             </section>
-            <div className="billing-pos-mobile-selection-summary">
-              <div className="billing-pos-mobile-selection-summary__line">
-                <span className="billing-pos-mobile-selection-summary__icon">{billingPosSectionIcon('selected')}</span>
-                <strong>{locale === 'sl' ? 'Izbrano' : 'Selected'}</strong>
-                <span>{selectedCount} {locale === 'sl' ? (selectedCount === 1 ? 'postavka' : 'postavk') : (selectedCount === 1 ? 'item' : 'items')}</span>
-              </div>
-              <div className="billing-pos-mobile-selection-summary__line billing-pos-mobile-selection-summary__line--total">
-                <span className="billing-pos-mobile-selection-summary__icon">€</span>
-                <strong>{locale === 'sl' ? 'Skupaj' : 'Total'}</strong>
-                <b>{currency(totalGross)}</b>
-              </div>
-              <button type="button" className="billing-pos-mobile-next-btn" onClick={() => setOpenBillMobileStep('payment')} disabled={items.length === 0}>
-                <span>{locale === 'sl' ? 'Naprej' : 'Next'}</span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m9 18 6-6-6-6" /></svg>
-              </button>
-            </div>
+            {renderPosMobileSummaryPanel({
+              count: selectedCount,
+              totalGross,
+              expanded: openMobileSelectedExpanded,
+              onToggle: () => setOpenMobileSelectedExpanded((prev) => !prev),
+              children: items.length > 0 ? renderPosOpenMobileSelectedItems(ob) : undefined,
+              showNext: true,
+              onNext: () => { setOpenMobileSelectedExpanded(false); setOpenBillMobileStep('payment') },
+              nextDisabled: items.length === 0,
+            })}
           </div>
         )
       }
@@ -8650,14 +8830,15 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               <label className="billing-pos-payee-label billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('payee')}</span><span>{locale === 'sl' ? 'Plačnik' : 'Payee'}</span></label>
               <button type="button" className="billing-pos-payee-field" onClick={() => openOpenBillPayeeEditor(ob)}>{posOpenBillPayeeLabel(ob)}</button>
             </div>
-            <div className="billing-pos-mobile-selected-heading">
-              <h3 className="billing-pos-selected-title billing-pos-section-heading"><span className="billing-pos-section-icon">{billingPosSectionIcon('selected')}</span><span>{locale === 'sl' ? 'Izbrano' : 'Selected'}</span></h3>
-              <button type="button" onClick={() => setOpenBillMobileStep('items')}>{locale === 'sl' ? 'Uredi' : 'Edit'}</button>
-            </div>
-            {renderPosOpenSelectedItems(ob)}
-            {renderPosWholeBillDiscount(discountDraft, subtotalGross, items, (value) => { setOpenOpenBillItemDiscount(null); setOpenBillDiscountDraft(ob, { wholeBillPercent: value }) })}
-            <div className="billing-pos-grand-total"><span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span><strong>{currency(totalGross)}</strong></div>
-            {renderPosOpenPaymentMethods(ob, totalGross, items, discountDraft, discountGross)}
+            {renderPosWholeBillDiscount(discountDraft, subtotalGross, items, (value) => { setOpenOpenBillItemDiscount(null); setOpenBillDiscountDraft(ob, { wholeBillPercent: value }) }, true)}
+            {renderPosOpenPaymentMethods(ob, totalGross, items, discountDraft, discountGross, true)}
+            {renderPosMobileSummaryPanel({
+              count: selectedCount,
+              totalGross,
+              expanded: openMobileSelectedExpanded,
+              onToggle: () => setOpenMobileSelectedExpanded((prev) => !prev),
+              children: items.length > 0 ? renderPosOpenMobileSelectedItems(ob) : undefined,
+            })}
           </section>
         </div>
       )
@@ -10575,24 +10756,44 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m15 18-6-6 6-6" /></svg>
                   </button>
                 ) : undefined}
+                actions={isBillingMobileOrTablet && resolveOpenBillEffectiveType(detailActionOpenBill) !== 'ADVANCE' ? (
+                  <div className="billing-preview-choice-anchor billing-pos-mobile-header-action-wrap">
+                    <button
+                      type="button"
+                      className="billing-pos-mobile-header-action"
+                      onClick={() => openOpenBillPreviewChoice(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
+                      disabled={Boolean(detailEntitlementSettlement) || previewingOpenBillId === detailActionOpenBill.id || emailingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
+                      aria-label={locale === 'sl' ? 'Predogled računa' : 'Invoice preview'}
+                      title={locale === 'sl' ? 'Predogled računa' : 'Invoice preview'}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
+                    {renderOpenBillPreviewChoicePopover(detailActionOpenBill)}
+                  </div>
+                ) : undefined}
               />
               <PanelBody flush className="billing-pos-panel-body">
                 {renderModernOpenBillEditor(detailActionOpenBill)}
               </PanelBody>
               <div className={`billing-pos-footer${isBillingMobileOrTablet && resolveOpenBillEffectiveType(detailActionOpenBill) !== 'ADVANCE' && openBillMobileStep === 'items' ? ' billing-pos-footer--mobile-items-hidden' : ''}`}>
-                <div className="billing-pos-footer-left billing-preview-choice-anchor">
-                  <button
-                    type="button"
-                    className="billing-pos-footer-btn billing-pos-footer-btn--preview"
-                    onClick={() => openOpenBillPreviewChoice(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
-                    disabled={Boolean(detailEntitlementSettlement) || previewingOpenBillId === detailActionOpenBill.id || emailingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
-                  >
-                    {previewingOpenBillId === detailActionOpenBill.id
-                      ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…')
-                      : (locale === 'sl' ? 'Predogled računa' : 'Invoice preview')}
-                  </button>
-                  {renderOpenBillPreviewChoicePopover(detailActionOpenBill)}
-                </div>
+                {!(isBillingMobileOrTablet && resolveOpenBillEffectiveType(detailActionOpenBill) !== 'ADVANCE') ? (
+                  <div className="billing-pos-footer-left billing-preview-choice-anchor">
+                    <button
+                      type="button"
+                      className="billing-pos-footer-btn billing-pos-footer-btn--preview"
+                      onClick={() => openOpenBillPreviewChoice(detailActionOpenBill, detailOnePayeeForAll ? detailBaseRelatedOpenBills : undefined)}
+                      disabled={Boolean(detailEntitlementSettlement) || previewingOpenBillId === detailActionOpenBill.id || emailingOpenBillPreviewId === detailActionOpenBill.id || detailActionItems.length === 0}
+                    >
+                      {previewingOpenBillId === detailActionOpenBill.id
+                        ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…')
+                        : (locale === 'sl' ? 'Predogled računa' : 'Invoice preview')}
+                    </button>
+                    {renderOpenBillPreviewChoicePopover(detailActionOpenBill)}
+                  </div>
+                ) : null}
                 <div className="billing-pos-footer-actions">
                   <button
                     type="button"
