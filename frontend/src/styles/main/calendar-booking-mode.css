@@ -15232,3 +15232,28 @@
         stroke: currentColor;
     }
 }
+
+/* ========================================================================== */
+/* Uredi opravilo / Uredi osebno — mobile/tablet first-field vertical parity  */
+/* Align the first editable row with the Nova stranka "Ime" row while         */
+/* preserving the already-approved header geometry and all inner field gaps.   */
+/* ========================================================================== */
+@media (max-width: 640px) {
+    .cp-panel--calendar-edit-todo .calendar-standardized-body {
+        margin-top: -40px !important;
+    }
+
+    .cp-panel--calendar-edit-personal .calendar-standardized-body {
+        margin-top: -58px !important;
+    }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+    .cp-panel--calendar-edit-todo .calendar-standardized-body {
+        margin-top: -32px !important;
+    }
+
+    .cp-panel--calendar-edit-personal .calendar-standardized-body {
+        margin-top: -50px !important;
+    }
+}
