@@ -807,3 +807,529 @@
         font-family: inherit;
     }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Nova/Uredi storitev — mobile/tablet secondary tabs match Osnovni podatki   */
+/* Approved designs: Storitvene skupine, Porabni material, Pravila rezervacij */
+/* and Skupinske rezervacije.                                                  */
+/* -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+    /* Secondary-tab content uses the same open white surface as Osnovni podatki. */
+    .session-type-standard-panel .session-type-standard-panel-body > .cp-section.session-type-section--service-groups,
+    .session-type-standard-panel .session-type-standard-panel-body > .cp-section.session-type-section--consumables,
+    .session-type-standard-panel .session-type-standard-panel-body > .cp-section.session-type-section--booking-rules,
+    .session-type-standard-panel .session-type-standard-panel-body > .cp-section.session-type-section--group-booking {
+        margin: 0 !important;
+        padding: 24px 20px 116px !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        box-shadow: none !important;
+    }
+
+    /* Storitvene skupine + Porabni material share one identical header treatment. */
+    .session-type-section--service-groups > .cp-section__head,
+    .session-type-section--consumables > .cp-section__head {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        gap: 12px !important;
+        min-height: 44px !important;
+        margin: 0 0 22px !important;
+    }
+
+    .session-type-section--service-groups > .cp-section__head .cp-section__toggle,
+    .session-type-section--consumables > .cp-section__head .cp-section__toggle {
+        min-width: 0 !important;
+        gap: 0 !important;
+    }
+
+    .session-type-section--service-groups > .cp-section__head .cp-section__icon,
+    .session-type-section--consumables > .cp-section__head .cp-section__icon {
+        display: none !important;
+    }
+
+    .session-type-section--service-groups > .cp-section__head .cp-section__title,
+    .session-type-section--consumables > .cp-section__head .cp-section__title {
+        color: #475467 !important;
+        font-size: 0.82rem !important;
+        font-weight: 800 !important;
+        line-height: 1.2 !important;
+        letter-spacing: 0.045em !important;
+        text-transform: uppercase !important;
+    }
+
+    .session-type-section--service-groups > .cp-section__head .cp-section__summary,
+    .session-type-section--consumables > .cp-section__head .cp-section__summary {
+        display: none !important;
+    }
+
+    .session-type-section--service-groups > .cp-section__head .session-type-config-unified-actions,
+    .session-type-section--consumables > .cp-section__head .session-type-config-unified-actions {
+        display: flex !important;
+        width: auto !important;
+        justify-content: flex-end !important;
+        gap: 8px !important;
+    }
+
+    .session-type-section--service-groups > .cp-section__head .session-type-config-unified-actions .cp-btn,
+    .session-type-section--consumables > .cp-section__head .session-type-config-unified-actions .cp-btn {
+        min-height: 40px !important;
+        height: 40px !important;
+        padding: 0 12px !important;
+        border: 1px solid #d6dfeb !important;
+        border-radius: 10px !important;
+        background: #fff !important;
+        color: #1769ff !important;
+        box-shadow: none !important;
+        font-size: 0.78rem !important;
+        font-weight: 650 !important;
+        white-space: nowrap !important;
+    }
+
+    .session-type-section--service-groups > .cp-section__body,
+    .session-type-section--consumables > .cp-section__body,
+    .session-type-section--booking-rules > .cp-section__body,
+    .session-type-section--group-booking > .cp-section__body {
+        padding: 0 !important;
+        gap: 0 !important;
+    }
+
+    /* Storitvene skupine: plain row, no leading group icon, no separator between actions. */
+    .session-type-section--service-groups .session-type-linked-card {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        gap: 16px !important;
+        min-height: 88px !important;
+        padding: 14px 0 18px !important;
+        border: 0 !important;
+        border-bottom: 1px solid #d7e0eb !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+    }
+
+    .session-type-section--service-groups .session-type-linked-card-icon {
+        display: none !important;
+    }
+
+    .session-type-section--service-groups .session-type-linked-card-copy {
+        display: grid !important;
+        gap: 4px !important;
+        min-width: 0 !important;
+    }
+
+    .session-type-section--service-groups .session-type-linked-card-copy strong {
+        color: #111827 !important;
+        font-size: 1rem !important;
+        font-weight: 750 !important;
+        line-height: 1.25 !important;
+    }
+
+    .session-type-section--service-groups .session-type-linked-card-copy span {
+        color: #64748b !important;
+        font-size: 0.85rem !important;
+        line-height: 1.25 !important;
+    }
+
+    .session-type-section--service-groups .session-type-linked-card-actions {
+        display: flex !important;
+        align-items: center !important;
+        gap: 22px !important;
+    }
+
+    .session-type-section--service-groups .session-type-linked-card-actions .slim-btn,
+    .session-type-section--service-groups .session-type-linked-card-actions .slim-btn + .slim-btn {
+        min-height: 36px !important;
+        height: 36px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-left: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: #0877f9 !important;
+        box-shadow: none !important;
+        font-size: 0.9rem !important;
+        font-weight: 650 !important;
+    }
+
+    .session-type-section--service-groups .session-type-linked-empty {
+        min-height: 72px !important;
+        padding: 18px 0 !important;
+        border: 0 !important;
+        border-bottom: 1px solid #d7e0eb !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: #7b8799 !important;
+        text-align: left !important;
+    }
+
+    /* Porabni material: same title hierarchy as Storitvene skupine; no title icon. */
+    .session-type-section--consumables .session-type-consumables-head {
+        display: none !important;
+    }
+
+    .session-type-section--consumables .session-type-consumables-list {
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        overflow: visible !important;
+    }
+
+    .session-type-section--consumables .session-type-consumable-row {
+        display: grid !important;
+        grid-template-columns: minmax(90px, 1fr) 112px minmax(120px, 1fr) 32px !important;
+        align-items: center !important;
+        gap: 12px !important;
+        min-height: 84px !important;
+        padding: 14px 0 18px !important;
+        border: 0 !important;
+        border-bottom: 1px solid #d7e0eb !important;
+        background: transparent !important;
+    }
+
+    .session-type-section--consumables .session-type-consumable-row > .session-type-linked-card-copy {
+        grid-column: 1 !important;
+        display: grid !important;
+        gap: 4px !important;
+        min-width: 0 !important;
+    }
+
+    .session-type-section--consumables .session-type-linked-card-copy strong {
+        color: #111827 !important;
+        font-size: 0.96rem !important;
+        font-weight: 750 !important;
+    }
+
+    .session-type-section--consumables .session-type-linked-card-copy span {
+        color: #64748b !important;
+        font-size: 0.84rem !important;
+    }
+
+    .session-type-section--consumables .session-type-consumable-quantity {
+        grid-column: 2 !important;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        min-height: 44px !important;
+        border: 1px solid #d7e0eb !important;
+        border-radius: 10px !important;
+        overflow: hidden !important;
+        background: #fff !important;
+    }
+
+    .session-type-section--consumables .session-type-consumable-quantity input {
+        min-width: 0 !important;
+        min-height: 42px !important;
+        padding: 0 12px !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .session-type-section--consumables .session-type-consumable-quantity span {
+        display: inline-flex !important;
+        align-items: center !important;
+        padding: 0 10px !important;
+        border-left: 1px solid #e3e8ef !important;
+        color: #667085 !important;
+        background: #f8fafc !important;
+    }
+
+    .session-type-section--consumables .session-type-consumable-row > select.app-desktop-select:not([multiple]) {
+        grid-column: 3 !important;
+        min-height: 44px !important;
+        height: 44px !important;
+        padding: 0 34px 0 12px !important;
+        border: 1px solid #d7e0eb !important;
+        border-radius: 10px !important;
+        background-color: #fff !important;
+        box-shadow: none !important;
+    }
+
+    .session-type-section--consumables .session-type-consumable-switch {
+        grid-column: 4 !important;
+        justify-self: center !important;
+    }
+
+    .session-type-section--consumables .session-type-linked-card-actions {
+        display: none !important;
+    }
+
+    .session-type-section--consumables .session-type-consumable-add-panel {
+        margin-bottom: 18px !important;
+        padding: 14px !important;
+        border: 1px solid #dbe4ef !important;
+        border-radius: 12px !important;
+        background: #f8fbff !important;
+    }
+
+    /* Booking rules and group booking do not repeat the section title under the top tab. */
+    .session-type-section--booking-rules > .cp-section__head,
+    .session-type-section--group-booking > .cp-section__head {
+        display: none !important;
+    }
+
+    .session-type-mobile-option-row {
+        display: grid !important;
+        grid-template-columns: 28px minmax(0, 1fr) !important;
+        align-items: start !important;
+        gap: 16px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .session-type-mobile-option-row + .session-type-mobile-option-row {
+        margin-top: 18px !important;
+    }
+
+    .session-type-mobile-option-row__icon {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 28px !important;
+        height: 28px !important;
+        margin-top: 23px !important;
+        color: #0877f9 !important;
+    }
+
+    .session-type-mobile-option-row__icon svg {
+        width: 24px !important;
+        height: 24px !important;
+        stroke-width: 1.8 !important;
+    }
+
+    .session-type-mobile-option-row > .field,
+    .session-type-mobile-option-row > label.field {
+        display: block !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        gap: 0 !important;
+    }
+
+    .session-type-mobile-option-row .field-label {
+        display: block !important;
+        margin: 0 0 2px !important;
+        color: #334155 !important;
+        font-size: 0.82rem !important;
+        font-weight: 500 !important;
+        line-height: 1.3 !important;
+    }
+
+    /* Pravila rezervacij: line-only dropdowns with a persistent Dodaj termin-style arrow. */
+    .session-type-section--booking-rules .guest-booking-select,
+    .session-type-section--booking-rules .session-price-mode-select {
+        position: relative !important;
+        width: 100% !important;
+    }
+
+    .session-type-section--booking-rules .guest-booking-select-trigger {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        width: 100% !important;
+        min-height: 62px !important;
+        padding: 3px 34px 10px 0 !important;
+        border: 0 !important;
+        border-bottom: 1px solid #cfd8e3 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        text-align: left !important;
+    }
+
+    .session-type-section--booking-rules .guest-booking-select-trigger-main {
+        display: grid !important;
+        gap: 3px !important;
+        min-width: 0 !important;
+    }
+
+    .session-type-section--booking-rules .guest-booking-select-value {
+        color: #111827 !important;
+        font-size: 1rem !important;
+        font-weight: 500 !important;
+        line-height: 1.3 !important;
+    }
+
+    .session-type-section--booking-rules .guest-booking-select-line {
+        color: #64748b !important;
+        font-size: 0.82rem !important;
+        line-height: 1.35 !important;
+    }
+
+    .session-type-section--booking-rules .guest-booking-select-chevron {
+        position: absolute !important;
+        top: 50% !important;
+        right: 2px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 24px !important;
+        height: 24px !important;
+        margin: 0 !important;
+        color: #344054 !important;
+        transform: translateY(-50%) !important;
+    }
+
+    .session-type-section--booking-rules .guest-booking-select-chevron svg {
+        display: block !important;
+        width: 20px !important;
+        height: 20px !important;
+    }
+
+    .session-type-section--booking-rules .guest-booking-select.is-open .guest-booking-select-chevron {
+        transform: translateY(-50%) rotate(180deg) !important;
+    }
+
+    /* Skupinske rezervacije: same icon/value/underline rhythm as Osnovni podatki. */
+    .session-type-section--group-booking .session-type-config-conditional-grid {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 18px !important;
+        width: 100% !important;
+    }
+
+    .session-type-section--group-booking .session-type-config-conditional-single,
+    .session-type-section--group-booking .session-type-config-conditional-full {
+        grid-column: 1 !important;
+        width: 100% !important;
+    }
+
+    .session-type-section--group-booking .field > input:not([type='checkbox']):not([type='radio']) {
+        width: 100% !important;
+        min-height: 48px !important;
+        padding: 3px 0 10px !important;
+        border: 0 !important;
+        border-bottom: 1px solid #cfd8e3 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: #111827 !important;
+        box-shadow: none !important;
+        font-size: 1rem !important;
+        font-weight: 500 !important;
+    }
+
+    .session-type-section--group-booking .field > input::placeholder,
+    .session-type-section--group-booking .guest-limit-client-search-wrap input::placeholder {
+        color: #8b99ad !important;
+        opacity: 1 !important;
+    }
+
+    .session-type-section--group-booking .guest-limit-client-picker {
+        width: 100% !important;
+    }
+
+    .session-type-section--group-booking .guest-limit-client-trigger {
+        display: flex !important;
+        align-items: center !important;
+        width: 100% !important;
+        min-height: 52px !important;
+        padding: 0 32px 8px 0 !important;
+        border: 0 !important;
+        border-bottom: 1px solid #cfd8e3 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .session-type-section--group-booking .guest-limit-client-chip-list {
+        width: 100% !important;
+        min-width: 0 !important;
+        padding: 0 !important;
+        gap: 6px !important;
+    }
+
+    .session-type-section--group-booking .guest-limit-client-search-wrap {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        display: block !important;
+    }
+
+    .session-type-section--group-booking .guest-limit-client-search-wrap > svg {
+        display: none !important;
+    }
+
+    .session-type-section--group-booking .guest-limit-client-search-wrap input {
+        width: 100% !important;
+        min-height: 42px !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: #111827 !important;
+        font-size: 1rem !important;
+        font-weight: 500 !important;
+        outline: none !important;
+    }
+
+    .session-type-section--group-booking .guest-limit-client-chevron {
+        position: absolute !important;
+        right: 2px !important;
+        top: 50% !important;
+        color: #344054 !important;
+        transform: translateY(-50%) !important;
+    }
+
+    .session-type-section--group-booking .guest-limit-client-picker.is-open .guest-limit-client-chevron {
+        transform: translateY(-50%) rotate(180deg) !important;
+    }
+
+    .session-type-section--group-booking .guest-limit-client-trigger {
+        position: relative !important;
+    }
+}
+
+@media (max-width: 620px) {
+    .session-type-standard-panel .session-type-standard-panel-body > .cp-section.session-type-section--service-groups,
+    .session-type-standard-panel .session-type-standard-panel-body > .cp-section.session-type-section--consumables,
+    .session-type-standard-panel .session-type-standard-panel-body > .cp-section.session-type-section--booking-rules,
+    .session-type-standard-panel .session-type-standard-panel-body > .cp-section.session-type-section--group-booking {
+        padding-left: 16px !important;
+        padding-right: 16px !important;
+    }
+
+    .session-type-section--service-groups > .cp-section__head,
+    .session-type-section--consumables > .cp-section__head {
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        gap: 8px !important;
+    }
+
+    .session-type-section--service-groups > .cp-section__head .session-type-config-unified-actions,
+    .session-type-section--consumables > .cp-section__head .session-type-config-unified-actions {
+        gap: 6px !important;
+    }
+
+    .session-type-section--service-groups > .cp-section__head .session-type-config-unified-actions .cp-btn,
+    .session-type-section--consumables > .cp-section__head .session-type-config-unified-actions .cp-btn {
+        padding-inline: 9px !important;
+        font-size: 0.72rem !important;
+    }
+
+    .session-type-section--service-groups .session-type-linked-card-actions {
+        gap: 16px !important;
+    }
+
+    .session-type-section--consumables .session-type-consumable-row {
+        grid-template-columns: minmax(72px, 1fr) 84px minmax(104px, 1fr) 28px !important;
+        gap: 8px !important;
+    }
+
+    .session-type-section--consumables .session-type-consumable-quantity input {
+        padding-inline: 8px !important;
+    }
+
+    .session-type-section--consumables .session-type-consumable-quantity span {
+        padding-inline: 7px !important;
+    }
+}
+
+/* Desktop-safe default for mobile-only row decoration. */
+.session-type-mobile-option-row__icon {
+    display: none;
+}
+
+@media (max-width: 1024px) {
+    .session-type-mobile-option-row__icon {
+        display: inline-flex !important;
+    }
+}

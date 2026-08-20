@@ -5066,6 +5066,7 @@ export function SessionTypesPage() {
 
                 {typeEditorTab === "serviceGroups" && serviceGroupsModuleEnabled ? (
           <PanelSection
+            className="session-type-section--service-groups"
             title={locale === "sl" ? "Storitvene skupine" : "Service groups"}
             icon={<PanelSectionIcon name="group" />}
             collapsible={false}
@@ -5122,6 +5123,7 @@ export function SessionTypesPage() {
 
                 {typeEditorTab === "consumables" && consumablesCapabilityEnabled ? (
           <PanelSection
+            className="session-type-section--consumables"
             title={locale === "sl" ? "Porabni material" : "Consumables"}
             icon={<PanelSectionIcon name="consumables" />}
             collapsible={false}
@@ -5276,6 +5278,7 @@ export function SessionTypesPage() {
 
           {typeEditorTab === "bookingRules" ? (
           <PanelSection
+            className="session-type-section--booking-rules"
             title={locale === "sl" ? "Pravila rezervacij" : "Booking rules"}
             icon={<PanelSectionIcon name="schedule" />}
             collapsible={false}
@@ -5286,6 +5289,8 @@ export function SessionTypesPage() {
             }
           >
                 {multipleClientsPerSessionEnabled ? (
+                  <div className="session-type-mobile-option-row session-type-mobile-option-row--price">
+                    <span className="session-type-mobile-option-row__icon" aria-hidden><SessionTypeEditorMobileFieldIcon name="duration" /></span>
                   <Field label={locale === "sl" ? "Cena na terminu" : "Session price"}>
                     <div
                       className={`guest-booking-select session-price-mode-select${priceCalculationPickerOpen ? " is-open" : ""}`}
@@ -5373,8 +5378,11 @@ export function SessionTypesPage() {
                       ) : null}
                     </div>
                   </Field>
+                  </div>
                 ) : null}
                 {!guestBookingDisabledByModules ? (
+                  <div className="session-type-mobile-option-row session-type-mobile-option-row--guests">
+                    <span className="session-type-mobile-option-row__icon" aria-hidden><ServiceConfigTabIcon name="group" /></span>
                   <Field label={locale === "sl" ? "Rezervacija gostov" : "Guest booking"}>
                     <div
                       className={`guest-booking-select${guestBookingPickerOpen ? " is-open" : ""}`}
@@ -5461,6 +5469,7 @@ export function SessionTypesPage() {
                       ) : null}
                     </div>
                   </Field>
+                  </div>
                 ) : null}
           </PanelSection>
 
@@ -5468,6 +5477,7 @@ export function SessionTypesPage() {
 
                 {typeEditorTab === "groupBooking" && groupBookingModuleEnabled ? (
           <PanelSection
+            className="session-type-section--group-booking"
             title={locale === "sl" ? "Skupinske rezervacije" : locale === "sr" ? "Grupne rezervacije" : "Group bookings"}
             icon={<PanelSectionIcon name="group" />}
             collapsible={false}
@@ -5475,7 +5485,8 @@ export function SessionTypesPage() {
           >
                   {typeForm.groupBookingEnabled ? (
                     <div className="session-type-config-conditional-grid">
-                      <div className="session-type-config-conditional-single">
+                      <div className="session-type-config-conditional-single session-type-mobile-option-row session-type-mobile-option-row--group-limit">
+                        <span className="session-type-mobile-option-row__icon" aria-hidden><ServiceConfigTabIcon name="group" /></span>
                         <Field
                           label={
                             locale === "sl"
@@ -5503,7 +5514,8 @@ export function SessionTypesPage() {
                           />
                         </Field>
                       </div>
-                      <div className="session-type-config-conditional-full">
+                      <div className="session-type-config-conditional-full session-type-mobile-option-row session-type-mobile-option-row--group-users">
+                        <span className="session-type-mobile-option-row__icon" aria-hidden><ServiceConfigTabIcon name="group" /></span>
                         <Field
                           label={locale === "sl" ? "Omeji na uporabnike" : "Limit to users"}
                         >
@@ -5714,7 +5726,7 @@ export function SessionTypesPage() {
           </PanelSection>
                 ) : null}
         </PanelBody>
-        {isTypeEditorMobileTablet && typeEditorTab === "basic" && !typeEditorKeyboardOpen ? (
+        {isTypeEditorMobileTablet && !typeEditorKeyboardOpen ? (
           <div className="session-type-mobile-bottom-tabs" role="toolbar" aria-label={locale === "sl" ? "Hitre nastavitve storitve" : "Quick service settings"}>
             <button
               type="button"
