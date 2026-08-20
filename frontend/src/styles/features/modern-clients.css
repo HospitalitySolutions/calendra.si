@@ -13996,3 +13996,35 @@
         box-shadow: none !important;
     }
 }
+
+/* ========================================================================== */
+/* Mobile/tablet create forms — underline starts at the input, not the icon.  */
+/* Applies to Nova stranka (calendar + Pregled strank), Novo podjetje and      */
+/* Nova skupina only; edit forms keep their existing geometry.                 */
+/* ========================================================================== */
+@media (max-width: 1024px) {
+    .clients-standard-customer-panel--create .clients-mobile-create-field,
+    .clients-standard-entity-panel--create .clients-mobile-create-field {
+        position: relative;
+        border-bottom: 0 !important;
+    }
+
+    .clients-standard-customer-panel--create .clients-mobile-create-field::after,
+    .clients-standard-entity-panel--create .clients-mobile-create-field::after {
+        content: '';
+        position: absolute;
+        left: 52px;
+        right: 0;
+        bottom: 0;
+        height: 1px;
+        background: #cfd8e4;
+        pointer-events: none;
+    }
+}
+
+@media (max-width: 640px) {
+    .clients-standard-customer-panel--create .clients-mobile-create-field::after,
+    .clients-standard-entity-panel--create .clients-mobile-create-field::after {
+        left: 50px;
+    }
+}

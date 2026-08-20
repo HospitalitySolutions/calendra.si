@@ -17082,3 +17082,19 @@
         margin-top: -8px !important;
     }
 }
+
+/* ========================================================================== */
+/* Dodaj termin — keep the Opombe underline directly below "Vnesi opombo".    */
+/* ========================================================================== */
+@media (max-width: 1024px) {
+    .cp-panel--calendar-new-booking .calendar-approved-booking__notes.is-mobile-open {
+        min-height: 92px !important;
+    }
+
+    .cp-panel--calendar-new-booking .calendar-approved-booking__notes textarea {
+        min-height: 56px !important;
+        height: 56px !important;
+        padding: 10px 0 8px !important;
+        resize: none !important;
+    }
+}

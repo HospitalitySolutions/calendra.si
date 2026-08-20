@@ -1538,6 +1538,24 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     </button>
   )
 
+  const renderCalendarMobileGroupHeaderConfirmAction = () => (
+    <button
+      type="button"
+      className="cp-icon-btn clients-mobile-header-confirm"
+      onClick={() => {
+        const formElement = document.getElementById('calendar-new-group-form') as HTMLFormElement | null
+        formElement?.requestSubmit()
+      }}
+      disabled={calendarCreateGroupDisabled}
+      aria-label={calendarCreateGroupLabel}
+      title={calendarCreateGroupLabel}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M20 6 9 17l-5-5" />
+      </svg>
+    </button>
+  )
+
   const renderCalendarMobileClientField = (
     key: 'firstName' | 'lastName' | 'email' | 'phone',
     label: string,
@@ -1567,6 +1585,39 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
           value={String(newClientForm[key] ?? '')}
           placeholder={`${label}${required ? ' *' : ''}`}
           onChange={(e) => setNewClientForm({ ...newClientForm, [key]: e.target.value })}
+        />
+      </label>
+    )
+  }
+
+  const renderCalendarMobileGroupField = (
+    key: 'name' | 'email',
+    label: string,
+    inputType: 'text' | 'email' = 'text',
+  ) => {
+    const required = key === 'name'
+    return (
+      <label className="clients-mobile-create-field">
+        <span className="clients-mobile-create-field__icon" aria-hidden>
+          {key === 'name' ? <CalendarGroupFormIcon /> : <CalendarClientProfileSectionIcon name="email" />}
+        </span>
+        <input
+          autoFocus={key === 'name'}
+          required={required}
+          type={inputType}
+          name={`calendra-calendar-new-group-${key}-mobile`}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize={key === 'name' ? 'words' : 'none'}
+          spellCheck={false}
+          inputMode={inputType === 'email' ? 'email' : 'text'}
+          enterKeyHint={key === 'email' ? 'done' : 'next'}
+          data-lpignore="true"
+          data-1p-ignore="true"
+          data-bwignore="true"
+          value={String(newGroupForm[key] ?? '')}
+          placeholder={`${label}${required ? ' *' : ''}`}
+          onChange={(e) => setNewGroupForm((current: any) => ({ ...current, [key]: e.target.value }))}
         />
       </label>
     )
@@ -6486,7 +6537,46 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
         size="lg"
         className="clients-standard-entity-panel clients-standard-group-panel clients-standard-entity-panel--create"
       >
-        {!useResponsiveDesktopCreatePanels ? (
+        {isCalendarClientCreateMobile ? (
+          <>
+            <PanelHeader
+              title={locale === 'sl' ? 'Nova skupina' : 'New group'}
+              onClose={closeCalendarAddGroupModal}
+              closeLabel={t('mobileNavClose')}
+              closeVisible={false}
+              leading={(
+                <button
+                  type="button"
+                  className="clients-customer-mobile-back"
+                  onClick={closeCalendarAddGroupModal}
+                  aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}
+                  title={locale === 'sl' ? 'Nazaj' : 'Back'}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                </button>
+              )}
+              actions={renderCalendarMobileGroupHeaderConfirmAction()}
+            />
+            <PanelBody
+              as="form"
+              id="calendar-new-group-form"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (!calendarCreateGroupDisabled) void createGroupFromBooking()
+              }}
+            >
+              <div className="clients-mobile-create-form">
+                <div className="clients-mobile-create-fields">
+                  {renderCalendarMobileGroupField('name', locale === 'sl' ? 'Ime skupine' : 'Group name')}
+                  {renderCalendarMobileGroupField('email', locale === 'sl' ? 'E-pošta skupine' : 'Group email', 'email')}
+                </div>
+                {groupModalError && <div className="error">{groupModalError}</div>}
+              </div>
+            </PanelBody>
+          </>
+        ) : !useResponsiveDesktopCreatePanels ? (
           <form
             className="clients-create-modal-form clients-simple-create-form"
             autoComplete="off"
