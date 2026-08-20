@@ -5938,10 +5938,13 @@ export function PlatformAdminPage() {
       setDeleteTenantReason("");
     } catch (e) {
       if (axios.isAxiosError(e) && e.response) {
+        const responseData = e.response.data as
+          | string
+          | { message?: string; detail?: string; error?: string };
         const msg =
-          typeof e.response.data === "string"
-            ? e.response.data
-            : (e.response.data as { message?: string })?.message;
+          typeof responseData === "string"
+            ? responseData
+            : responseData?.detail || responseData?.message || responseData?.error;
         window.alert(msg || "Could not delete this tenant. Please try again.");
       } else {
         window.alert("Could not delete this tenant. Please try again.");

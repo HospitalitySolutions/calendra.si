@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -29,6 +30,7 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @Service
 public class TenantFileS3Service {
@@ -169,7 +171,14 @@ public class TenantFileS3Service {
                     .prefix(keyOrPrefix)
                     .continuationToken(continuationToken)
                     .build();
-            ListObjectsV2Response response = client.listObjectsV2(request);
+            ListObjectsV2Response response;
+            try {
+                response = client.listObjectsV2(request);
+            } catch (S3Exception ex) {
+                throw s3DeletionFailure("listing tenant objects", "s3:ListBucket", ex);
+            } catch (SdkClientException ex) {
+                throw s3ClientDeletionFailure("listing tenant objects", ex);
+            }
             response.contents().stream()
                     .map(object -> object.key())
                     .filter(key -> !exactKey || keyOrPrefix.equals(key))
@@ -178,7 +187,13 @@ public class TenantFileS3Service {
         } while (continuationToken != null && !continuationToken.isBlank());
 
         for (String key : objectKeys) {
-            client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key).build());
+            try {
+                client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key).build());
+            } catch (S3Exception ex) {
+                throw s3DeletionFailure("deleting tenant objects", "s3:DeleteObject", ex);
+            } catch (SdkClientException ex) {
+                throw s3ClientDeletionFailure("deleting tenant objects", ex);
+            }
         }
     }
 
@@ -193,7 +208,14 @@ public class TenantFileS3Service {
                     .keyMarker(keyMarker)
                     .versionIdMarker(versionIdMarker)
                     .build();
-            ListObjectVersionsResponse response = client.listObjectVersions(request);
+            ListObjectVersionsResponse response;
+            try {
+                response = client.listObjectVersions(request);
+            } catch (S3Exception ex) {
+                throw s3DeletionFailure("listing tenant object versions", "s3:ListBucketVersions", ex);
+            } catch (SdkClientException ex) {
+                throw s3ClientDeletionFailure("listing tenant object versions", ex);
+            }
             response.versions().stream()
                     .filter(version -> !exactKey || keyOrPrefix.equals(version.key()))
                     .map(version -> new VersionedObject(version.key(), version.versionId()))
@@ -212,12 +234,40 @@ public class TenantFileS3Service {
         } while (keyMarker != null || versionIdMarker != null);
 
         for (VersionedObject version : versions) {
-            client.deleteObject(DeleteObjectRequest.builder()
-                    .bucket(bucket)
-                    .key(version.key())
-                    .versionId(version.versionId())
-                    .build());
+            try {
+                client.deleteObject(DeleteObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(version.key())
+                        .versionId(version.versionId())
+                        .build());
+            } catch (S3Exception ex) {
+                throw s3DeletionFailure("deleting tenant object versions", "s3:DeleteObjectVersion", ex);
+            } catch (SdkClientException ex) {
+                throw s3ClientDeletionFailure("deleting tenant object versions", ex);
+            }
         }
+    }
+
+    private ResponseStatusException s3DeletionFailure(String operation, String requiredPermission, S3Exception ex) {
+        String errorCode = ex.awsErrorDetails() == null ? null : ex.awsErrorDetails().errorCode();
+        boolean accessDenied = ex.statusCode() == 403 || "AccessDenied".equalsIgnoreCase(errorCode);
+        String codeSuffix = errorCode == null || errorCode.isBlank() ? "" : " (" + errorCode + ")";
+        String message;
+        if (accessDenied) {
+            message = "S3 access was denied while " + operation + codeSuffix
+                    + ". Required IAM permission: " + requiredPermission + ".";
+        } else {
+            message = "S3 failed while " + operation + codeSuffix
+                    + " (HTTP " + ex.statusCode() + "). Required IAM permission: " + requiredPermission + ".";
+        }
+        return new ResponseStatusException(HttpStatus.BAD_GATEWAY, message, ex);
+    }
+
+    private ResponseStatusException s3ClientDeletionFailure(String operation, SdkClientException ex) {
+        return new ResponseStatusException(
+                HttpStatus.BAD_GATEWAY,
+                "S3 could not be reached while " + operation + ". Check AWS credentials, region/network access and retry.",
+                ex);
     }
 
     private record VersionedObject(String key, String versionId) {}

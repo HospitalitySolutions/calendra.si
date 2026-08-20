@@ -1,17 +1,21 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { customerApi } from '../api/customerApi'
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
-import { ArrowRightIcon, GlobeIcon, LockIcon, MailIcon } from '../components/Icons'
+import { ArrowRightIcon, EyeIcon, EyeOffIcon, GlobeIcon, LockIcon, MailIcon } from '../components/Icons'
 import { Spinner } from '../components/Loading'
 import { returnToCustomerPage } from '../auth/returnTo'
+import { AUTH_LOCALE_OPTIONS, authCopy, getLocaleOption, type AuthLocale, useAuthLocale } from '../auth/authLocale'
 
 export function LoginPage() {
   const { isAuthenticated, setSession } = useAuth()
+  const { locale, setLocale } = useAuthLocale()
+  const t = authCopy[locale]
   const [searchParams] = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [passwordVisible, setPasswordVisible] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const next = searchParams.get('next')
@@ -32,37 +36,73 @@ export function LoginPage() {
       setSession(session)
       returnToCustomerPage(next)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Prijava ni uspela. Preverite podatke in poskusite znova.')
+      setError(err instanceof ApiError ? err.message : t.loginError)
     } finally {
       setLoading(false)
     }
   }
 
-  return <AuthLayout title="Dobrodošli nazaj" subtitle="Prijavite se in imejte vse svoje termine, pakete in sporočila na enem mestu." headingIcon={<LockIcon size={25}/>}> 
+  return <AuthLayout locale={locale} onLocaleChange={setLocale} title={t.loginTitle} subtitle={t.loginSubtitle}>
     <form className="auth-form" onSubmit={submit}>
       {error && <div className="form-alert form-alert--error">{error}</div>}
-      <label>E-pošta
-        <span className="auth-input-wrap"><MailIcon size={19}/><input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus placeholder="vnesite@primer.com"/></span>
+      <label>{t.emailLabel}
+        <span className="auth-input-wrap"><MailIcon size={18}/><input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus placeholder={t.emailPlaceholder}/></span>
       </label>
-      <label>Geslo
-        <span className="auth-input-wrap"><LockIcon size={19}/><input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Vaše geslo"/></span>
+      <label>{t.passwordLabel}
+        <span className="auth-input-wrap"><LockIcon size={18}/><input type={passwordVisible ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required placeholder={t.passwordPlaceholder}/><button type="button" className="auth-input-wrap__action" aria-label={passwordVisible ? 'Hide password' : 'Show password'} onClick={() => setPasswordVisible(value => !value)}>{passwordVisible ? <EyeOffIcon size={18}/> : <EyeIcon size={18}/>}</button></span>
       </label>
-      <div className="auth-form__between auth-form__between--right"><Link to={`/pozabljeno-geslo${nextSuffix}`}>Pozabljeno geslo?</Link></div>
-      <button className="button button--primary button--full auth-submit" disabled={loading}>{loading ? <><Spinner small/> Prijavljam …</> : <>Prijava <ArrowRightIcon size={18}/></>}</button>
-      <p className="auth-switch">Še nimate računa? <Link to={`/registracija${nextSuffix}`}>Ustvarite brezplačen račun</Link></p>
+      <div className="auth-form__between auth-form__between--right"><Link to={`/pozabljeno-geslo${nextSuffix}`}>{t.forgotPassword}</Link></div>
+      <button className="button button--primary button--full auth-submit" disabled={loading}>{loading ? <><Spinner small/> {t.loggingIn}</> : <>{t.loginButton} <ArrowRightIcon size={18}/></>}</button>
+      <p className="auth-switch">{t.noAccount} <Link to={`/registracija${nextSuffix}`}>{t.createFreeAccount}</Link></p>
     </form>
   </AuthLayout>
 }
 
-export function AuthLayout({ title, subtitle, children, headingIcon }: { title: string; subtitle: string; children: React.ReactNode; headingIcon?: React.ReactNode }) {
+export function AuthLayout({ title, subtitle, children, locale, onLocaleChange }: { title: string; subtitle: string; children: React.ReactNode; locale: AuthLocale; onLocaleChange: (locale: AuthLocale) => void }) {
+  const t = authCopy[locale]
   return <div className="auth-page">
     <div className="auth-page__visual">
-      <a href="/za-stranke" className="auth-brand"><img src="/racun/calendra-wordmark.webp" alt="Calendra"/></a>
-      <div className="auth-visual-copy"><span>Vaš čas. Vaši ponudniki.</span><h2>Vse rezervacije na enem mestu.</h2><p>Rezervirajte, spremljajte termine in upravljajte svoje pakete, članstva ter bone.</p></div>
+      <a href="/za-stranke" className="auth-brand auth-brand--visual"><img src="/racun/calendra-wordmark.webp" alt="Calendra"/></a>
+      <div className="auth-visual-copy"><span>{t.authVisualEyebrow}</span><h2>{t.authVisualTitleBefore} <strong>{t.authVisualTitleAccent}</strong></h2><p>{t.authVisualBody}</p></div>
     </div>
     <div className="auth-page__form">
-      <div className="auth-language"><GlobeIcon size={18}/><span>Slovenščina</span><span aria-hidden="true">⌄</span></div>
-      <div className="auth-panel"><a className="auth-brand auth-brand--mobile" href="/za-stranke"><img src="/racun/calendra-wordmark.webp" alt="Calendra"/></a><div className="auth-heading">{headingIcon && <div className="auth-heading__icon">{headingIcon}</div>}<h1>{title}</h1><p>{subtitle}</p></div>{children}<div className="auth-footer"><a href="/za-stranke">Nazaj na Calendro</a><span>·</span><a href="https://calendra.si/zasebnost">Zasebnost</a></div></div>
+      <LanguageSelector locale={locale} onChange={onLocaleChange}/>
+      <div className="auth-panel">
+        <a className="auth-brand auth-brand--mobile" href="/za-stranke"><img src="/racun/calendra-wordmark.webp" alt="Calendra"/></a>
+        <div className="auth-heading"><h1>{title}</h1><p>{subtitle}</p></div>
+        {children}
+        <div className="auth-footer"><a href="/za-stranke">{t.footerBack}</a><span>•</span><a href="https://calendra.si/zasebnost">{t.footerPrivacy}</a></div>
+      </div>
     </div>
+  </div>
+}
+
+function LanguageSelector({ locale, onChange }: { locale: AuthLocale; onChange: (locale: AuthLocale) => void }) {
+  const [open, setOpen] = useState(false)
+  const selectorRef = useRef<HTMLDivElement | null>(null)
+  const current = getLocaleOption(locale)
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!selectorRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [])
+
+  return <div ref={selectorRef} className={`auth-language-picker${open ? ' is-open' : ''}`}>
+    <button type="button" className="auth-language" onClick={() => setOpen(value => !value)} aria-haspopup="listbox" aria-expanded={open}>
+      <GlobeIcon size={17}/><span>{current.nativeLabel}</span><span className="auth-language__chevron" aria-hidden="true">⌄</span>
+    </button>
+    {open && <div className="auth-language-menu" role="listbox" aria-label="Select language">
+      {AUTH_LOCALE_OPTIONS.map(option => <button key={option.code} type="button" role="option" aria-selected={option.code === locale} className={`auth-language-option${option.code === locale ? ' is-active' : ''}`} onClick={() => { onChange(option.code); setOpen(false) }}><span className="auth-language-option__flag" aria-hidden="true">{option.flag}</span><span>{option.nativeLabel}</span><span className="auth-language-option__check" aria-hidden="true">{option.code === locale ? '✓' : ''}</span></button>)}
+    </div>}
   </div>
 }

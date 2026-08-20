@@ -12,6 +12,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -27,6 +29,8 @@ public class PlatformTenancyDeletionService {
     static final String PLATFORM_ADMIN_COMPANY_NAME = "Platform Admin";
     private static final String PLATFORM_SUBSCRIPTION_REFERENCE_PREFIX = "CALENDRA-SUBSCRIPTION:";
     private static final Logger log = LoggerFactory.getLogger(PlatformTenancyDeletionService.class);
+    private static final Pattern POSTGRES_FOREIGN_KEY_VIOLATION = Pattern.compile(
+            "violates foreign key constraint \"([^\"]+)\" on table \"([^\"]+)\"");
 
     private static final Set<String> COMPANY_REFERENCE_COLUMNS = Set.of(
             "company_id",
@@ -121,9 +125,12 @@ public class PlatformTenancyDeletionService {
             throw ex;
         } catch (DataIntegrityViolationException ex) {
             log.warn("Permanent tenant deletion hit a database integrity constraint companyId={}", companyId, ex);
+            String databaseDetail = databaseIntegrityFailureDetail(ex);
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "This tenant cannot be deleted because tenant data is still referenced by another record. No database deletion was committed.",
+                    "This tenant cannot be deleted because tenant data is still referenced by another record"
+                            + (databaseDetail == null ? "." : " (" + databaseDetail + ").")
+                            + " No database deletion was committed.",
                     ex);
         } catch (RuntimeException ex) {
             log.warn("Permanent tenant deletion failed companyId={}", companyId, ex);
@@ -1084,11 +1091,53 @@ public class PlatformTenancyDeletionService {
             fileStorage.deleteTenantDataPermanently(company);
         } catch (RuntimeException ex) {
             log.warn("Permanent external asset deletion failed for tenant {}", company.getId(), ex);
+            String storageDetail = externalStorageFailureDetail(ex);
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "Tenant files or course media could not be deleted completely. No database deletion was committed; fix external storage access and retry.",
+                    "Tenant files or course media could not be deleted completely"
+                            + (storageDetail == null ? "." : ": " + storageDetail + ".")
+                            + " No database deletion was committed; fix external storage access and retry.",
                     ex);
         }
+    }
+
+    private String databaseIntegrityFailureDetail(DataIntegrityViolationException ex) {
+        Throwable cause = ex.getMostSpecificCause();
+        String message = cause == null ? null : cause.getMessage();
+        if (message == null || message.isBlank()) {
+            return null;
+        }
+        Matcher matcher = POSTGRES_FOREIGN_KEY_VIOLATION.matcher(message);
+        if (!matcher.find()) {
+            return null;
+        }
+        return "constraint " + matcher.group(1) + " on table " + matcher.group(2);
+    }
+
+    private String externalStorageFailureDetail(RuntimeException ex) {
+        if (ex instanceof ResponseStatusException responseStatusException) {
+            String reason = responseStatusException.getReason();
+            if (reason != null && !reason.isBlank()) {
+                return trimTrailingPeriod(reason.trim());
+            }
+        }
+        Throwable current = ex;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && !message.isBlank()) {
+                return trimTrailingPeriod(message.trim());
+            }
+            current = current.getCause();
+        }
+        return null;
+    }
+
+    private String trimTrailingPeriod(String value) {
+        String result = value;
+        while (result.endsWith(".")) {
+            result = result.substring(0, result.length() - 1).trim();
+        }
+        return result.isBlank() ? null : result;
     }
 
     private List<Long> queryLongs(String sql, Object... args) {

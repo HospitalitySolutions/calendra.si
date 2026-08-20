@@ -50,10 +50,10 @@ export const customerApi = {
     }, { auth: false })
   },
 
-  forgotPassword(email: string) {
+  forgotPassword(email: string, language: string = 'sl') {
     return apiFetch<{ message: string }>('/api/guest/auth/forgot-password', {
       method: 'POST',
-      body: JSON.stringify({ email, locale: 'sl', language: 'sl' }),
+      body: JSON.stringify({ email, locale: language, language }),
     }, { auth: false })
   },
 

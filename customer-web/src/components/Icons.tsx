@@ -11,6 +11,8 @@ export const SearchIcon = (p: IconProps) => <IconBase {...p}><circle cx="11" cy=
 export const GlobeIcon = (p: IconProps) => <IconBase {...p}><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></IconBase>
 export const MailIcon = (p: IconProps) => <IconBase {...p}><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></IconBase>
 export const LockIcon = (p: IconProps) => <IconBase {...p}><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></IconBase>
+export const EyeIcon = (p: IconProps) => <IconBase {...p}><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.7"/></IconBase>
+export const EyeOffIcon = (p: IconProps) => <IconBase {...p}><path d="m3 3 18 18"/><path d="M10.6 5.2A10.9 10.9 0 0 1 12 5c6 0 9.5 7 9.5 7a17.7 17.7 0 0 1-3.1 3.9"/><path d="M6.7 6.7A17.5 17.5 0 0 0 2.5 12s3.5 7 9.5 7c1.6 0 3-.3 4.3-.9"/><path d="M9.9 9.9A3 3 0 1 0 14.1 14.1"/></IconBase>
 export const ArrowRightIcon = (p: IconProps) => <IconBase {...p}><path d="M5 12h14M13 6l6 6-6 6"/></IconBase>
 export const CalendarIcon = (p: IconProps) => <IconBase {...p}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></IconBase>
 export const WalletIcon = (p: IconProps) => <IconBase {...p}><path d="M4 6.5h14a2 2 0 0 1 2 2V19H5a2 2 0 0 1-2-2V6.5Z"/><path d="M4 6.5V5a2 2 0 0 1 2-2h11v3.5"/><path d="M15 12h5v4h-5a2 2 0 1 1 0-4Z"/></IconBase>

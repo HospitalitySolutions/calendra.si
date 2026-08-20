@@ -175,6 +175,29 @@ class PlatformTenancyDeletionServiceTest {
     }
 
     @Test
+    void deleteTenancy_preservesExternalStorageDiagnosticForPlatformAdmin() {
+        Company tenant = new Company();
+        tenant.setId(7L);
+        tenant.setName("Storage permission tenant");
+        when(companies.findById(7L)).thenReturn(Optional.of(tenant));
+        when(users.getReferenceById(1L)).thenReturn(actor);
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+        doThrow(new ResponseStatusException(
+                        HttpStatus.BAD_GATEWAY,
+                        "S3 access was denied while listing tenant object versions. Required IAM permission: s3:ListBucketVersions."))
+                .when(fileStorage)
+                .deleteTenantDataPermanently(tenant);
+
+        ResponseStatusException ex =
+                assertThrows(ResponseStatusException.class, () -> service.deleteTenancy(7L, actor, "cleanup"));
+
+        assertEquals(HttpStatus.BAD_GATEWAY, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("s3:ListBucketVersions"));
+        assertTrue(ex.getReason().contains("No database deletion was committed"));
+        verify(companies, never()).delete(any());
+    }
+
+    @Test
     void deleteTenancy_returnsConflictWhenActorIsMissing() {
         Company tenant = new Company();
         tenant.setId(7L);

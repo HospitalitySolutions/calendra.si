@@ -4,10 +4,13 @@ import { customerApi } from '../api/customerApi'
 import { ApiError } from '../api/client'
 import { Spinner } from '../components/Loading'
 import { AuthLayout } from './LoginPage'
+import { authCopy, useAuthLocale } from '../auth/authLocale'
 
 type Step = 'email' | 'code' | 'password' | 'done'
 
 export function ForgotPasswordPage() {
+  const { locale, setLocale } = useAuthLocale()
+  const t = authCopy[locale]
   const [searchParams] = useSearchParams()
   const next = searchParams.get('next')
   const nextSuffix = next ? `?next=${encodeURIComponent(next)}` : ''
@@ -21,25 +24,25 @@ export function ForgotPasswordPage() {
 
   async function submitEmail(event: FormEvent) {
     event.preventDefault(); setError(''); setLoading(true)
-    try { await customerApi.forgotPassword(email.trim()); setStep('code') }
-    catch (err) { setError(err instanceof ApiError ? err.message : 'Zahteve ni bilo mogoče poslati.') }
+    try { await customerApi.forgotPassword(email.trim(), locale); setStep('code') }
+    catch (err) { setError(err instanceof ApiError ? err.message : t.requestFailed) }
     finally { setLoading(false) }
   }
   async function submitCode(event: FormEvent) {
     event.preventDefault(); setError(''); setLoading(true)
     try { const response = await customerApi.verifyResetCode(email.trim(), code.trim()); setResetToken(response.resetToken); setStep('password') }
-    catch (err) { setError(err instanceof ApiError ? err.message : 'Koda ni veljavna ali je potekla.') }
+    catch (err) { setError(err instanceof ApiError ? err.message : t.verifyCodeError) }
     finally { setLoading(false) }
   }
   async function submitPassword(event: FormEvent) {
     event.preventDefault(); setError(''); setLoading(true)
     try { await customerApi.resetPassword(resetToken, password); setStep('done') }
-    catch (err) { setError(err instanceof ApiError ? err.message : 'Gesla ni bilo mogoče spremeniti.') }
+    catch (err) { setError(err instanceof ApiError ? err.message : t.resetPasswordError) }
     finally { setLoading(false) }
   }
 
-  if (step === 'done') return <AuthLayout title="Geslo je spremenjeno" subtitle="Sedaj se lahko prijavite z novim geslom."><div className="auth-form"><div className="success-mark">✓</div><Link className="button button--primary button--full" to={`/prijava${nextSuffix}`}>Nazaj na prijavo</Link></div></AuthLayout>
-  if (step === 'code') return <AuthLayout title="Vnesite potrditveno kodo" subtitle={`Kodo smo poslali na ${email}.`}><form className="auth-form" onSubmit={submitCode}>{error && <div className="form-alert form-alert--error">{error}</div>}<label>Potrditvena koda<input className="code-input" inputMode="numeric" autoFocus value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))} required/></label><button className="button button--primary button--full" disabled={loading}>{loading ? <Spinner small/> : 'Nadaljuj'}</button></form></AuthLayout>
-  if (step === 'password') return <AuthLayout title="Nastavite novo geslo" subtitle="Izberite varno geslo za svoj Calendra račun."><form className="auth-form" onSubmit={submitPassword}>{error && <div className="form-alert form-alert--error">{error}</div>}<label>Novo geslo<input type="password" autoFocus value={password} onChange={e => setPassword(e.target.value)} minLength={8} required/><small>Naj vsebuje veliko in malo črko ter številko.</small></label><button className="button button--primary button--full" disabled={loading}>{loading ? <Spinner small/> : 'Shrani novo geslo'}</button></form></AuthLayout>
-  return <AuthLayout title="Pozabljeno geslo" subtitle="Vnesite e-pošto računa in poslali vam bomo potrditveno kodo."><form className="auth-form" onSubmit={submitEmail}>{error && <div className="form-alert form-alert--error">{error}</div>}<label>E-pošta<input type="email" autoFocus value={email} onChange={e => setEmail(e.target.value)} required/></label><button className="button button--primary button--full" disabled={loading}>{loading ? <Spinner small/> : 'Pošlji kodo'}</button><p className="auth-switch"><Link to={`/prijava${nextSuffix}`}>Nazaj na prijavo</Link></p></form></AuthLayout>
+  if (step === 'done') return <AuthLayout locale={locale} onLocaleChange={setLocale} title={t.passwordChangedTitle} subtitle={t.passwordChangedSubtitle}><div className="auth-form"><div className="success-mark">✓</div><Link className="button button--primary button--full" to={`/prijava${nextSuffix}`}>{t.backToLogin}</Link></div></AuthLayout>
+  if (step === 'code') return <AuthLayout locale={locale} onLocaleChange={setLocale} title={t.enterCodeTitle} subtitle={t.enterCodeSubtitle(email)}><form className="auth-form" onSubmit={submitCode}>{error && <div className="form-alert form-alert--error">{error}</div>}<label>{t.confirmationCode}<input className="code-input" inputMode="numeric" autoFocus value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))} required/></label><button className="button button--primary button--full" disabled={loading}>{loading ? <Spinner small/> : t.continueButton}</button></form></AuthLayout>
+  if (step === 'password') return <AuthLayout locale={locale} onLocaleChange={setLocale} title={t.setNewPasswordTitle} subtitle={t.setNewPasswordSubtitle}><form className="auth-form" onSubmit={submitPassword}>{error && <div className="form-alert form-alert--error">{error}</div>}<label>{t.newPassword}<input type="password" autoFocus value={password} onChange={e => setPassword(e.target.value)} minLength={8} required/><small>{t.passwordHelp}</small></label><button className="button button--primary button--full" disabled={loading}>{loading ? <Spinner small/> : t.saveNewPassword}</button></form></AuthLayout>
+  return <AuthLayout locale={locale} onLocaleChange={setLocale} title={t.forgotTitle} subtitle={t.forgotSubtitle}><form className="auth-form" onSubmit={submitEmail}>{error && <div className="form-alert form-alert--error">{error}</div>}<label>{t.emailLabel}<input type="email" autoFocus value={email} onChange={e => setEmail(e.target.value)} required placeholder={t.emailPlaceholder}/></label><button className="button button--primary button--full" disabled={loading}>{loading ? <Spinner small/> : t.sendCode}</button><p className="auth-switch"><Link to={`/prijava${nextSuffix}`}>{t.backToLogin}</Link></p></form></AuthLayout>
 }
