@@ -13868,3 +13868,102 @@
         color: #0b6ff5;
     }
 }
+
+/* ========================================================================== */
+/* Desktop cleanup — client/company/group panels (approved 2026-08-20)       */
+/* ========================================================================== */
+@media (min-width: 1025px) {
+    /* Uredi stranko -> Nastavitve: flatten linked company / assigned employee. */
+    .clients-standard-customer-panel--edit .clients-standard-settings-list > .clients-settings-linked-card {
+        margin: 0;
+        padding: 14px 0 16px;
+        border: 0;
+        border-bottom: 1px solid #e4eaf2;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        gap: 10px;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-list > .clients-settings-linked-card .clients-settings-linked-head {
+        min-height: 52px;
+        gap: 0;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-list > .clients-settings-linked-card .clients-settings-card-icon {
+        display: none !important;
+    }
+
+    .clients-standard-customer-panel--edit .clients-standard-settings-list > .clients-settings-linked-card .clients-settings-linked-editor {
+        padding-left: 0;
+    }
+
+    /* Uredi skupino -> Termini: remove the outer card and outer tab capsule. */
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .clients-standard-group-sessions,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .clients-detail-sessions-card.clients-standard-group-sessions {
+        margin: 0;
+        padding: 0;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        overflow: visible;
+    }
+
+    .clients-standard-group-panel.clients-standard-entity-panel--edit
+        .clients-standard-group-sessions
+        .clients-modern-session-subtabs.clients-session-tabs {
+        padding: 0;
+        gap: 8px;
+        border: 0 !important;
+        border-radius: 0;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .clients-standard-group-panel.clients-standard-entity-panel--edit
+        .clients-standard-group-sessions
+        .clients-modern-session-subtabs .clients-session-tab {
+        min-height: 36px;
+        padding: 0 16px;
+        border: 0 !important;
+        border-radius: 999px;
+        background: #f2f5f9;
+        box-shadow: none !important;
+    }
+
+    .clients-standard-group-panel.clients-standard-entity-panel--edit
+        .clients-standard-group-sessions
+        .clients-modern-session-subtabs .clients-session-tab.active {
+        background: #0b6ff5;
+        color: #ffffff;
+        box-shadow: none !important;
+    }
+
+    /* Uredi skupino -> Člani: remove the section card and member-row card line. */
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .clients-standard-group-members,
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .group-members-tab-panel {
+        margin: 0;
+        padding: 0;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .group-members-modern-list {
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .clients-standard-group-panel.clients-standard-entity-panel--edit .group-members-modern-row {
+        padding-left: 10px;
+        padding-right: 10px;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+}

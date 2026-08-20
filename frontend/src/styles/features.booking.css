@@ -5115,6 +5115,7 @@ button.session-type-color-swatch span {
 /* ========================================================================== */
 .session-type-standard-panel {
     --session-type-standard-orange: #ff5a00;
+    --session-type-standard-blue: #1769ff;
     --session-type-standard-border: #d8dee8;
     --session-type-standard-muted: #667085;
     --session-type-standard-text: #111827;
@@ -5192,7 +5193,7 @@ button.session-type-color-swatch span {
 .session-type-standard-panel .session-type-standard-panel-body > .cp-section .cp-section__icon {
     width: 24px;
     height: 24px;
-    color: var(--session-type-standard-orange);
+    color: var(--session-type-standard-blue);
 }
 
 .session-type-standard-panel .session-type-standard-panel-body > .cp-section .cp-section__icon svg {
@@ -5330,7 +5331,7 @@ button.session-type-color-swatch span {
 
 .session-type-standard-panel .session-type-color-picker__label-icon,
 .session-type-standard-panel .session-type-panel-section-icon--orange {
-    color: var(--session-type-standard-orange);
+    color: var(--session-type-standard-blue);
 }
 
 .session-type-standard-panel .session-type-color-picker__label-icon svg {

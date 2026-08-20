@@ -9906,7 +9906,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Vračila' : 'Refunds'}</span><strong>{folioStats.refundsCount}</strong><small>{locale === 'sl' ? 'Skupaj vrnjenih računov' : 'Total refunded folios'}</small></div>
                     </div>
                     <div className="billing-modern-stat-card">
-                      <span className="billing-modern-stat-icon billing-modern-stat-icon--orange" aria-hidden>▣</span>
+                      <span className="billing-modern-stat-icon billing-modern-stat-icon--blue" aria-hidden>▣</span>
                       <div><span className="billing-modern-stat-label">{locale === 'sl' ? 'Predplačila' : 'Advances'}</span><strong>{folioStats.advancesCount}</strong><small>{locale === 'sl' ? 'Skupaj uporabljenih predplačil' : 'Total advances applied'}</small></div>
                     </div>
                     <div className="billing-modern-stat-card">

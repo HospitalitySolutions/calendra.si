@@ -66,7 +66,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Creates and keeps the Platform Admin open bill for self-serve register subscriptions.
@@ -105,6 +107,7 @@ public class PlatformSubscriptionBillingService {
     private final ScheduledJobTrackerService jobTracker;
     private final ObjectMapper objectMapper;
     private final LocationRepository locations;
+    private final TransactionTemplate transactionTemplate;
 
     private InvoiceIssuanceService invoiceIssuanceService;
     private WorkspaceSubscriptionService workspaceSubscriptions;
@@ -131,7 +134,8 @@ public class PlatformSubscriptionBillingService {
             TimeService timeService,
             ScheduledJobTrackerService jobTracker,
             ObjectMapper objectMapper,
-            LocationRepository locations
+            LocationRepository locations,
+            PlatformTransactionManager transactionManager
     ) {
         this.companies = companies;
         this.users = users;
@@ -154,6 +158,7 @@ public class PlatformSubscriptionBillingService {
         this.jobTracker = jobTracker;
         this.objectMapper = objectMapper;
         this.locations = locations;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     private Location resolvePlatformBillingLocation(Company platformCompany) {
@@ -312,7 +317,8 @@ public class PlatformSubscriptionBillingService {
         LocalDate today = timeService.localDate(ZoneId.systemDefault(), tenantId);
         if (billingStart != null && billingStart.isAfter(today)) {
             // Basic monthly registrations keep an open bill during the free trial. The invoice is
-            // issued when the paid billing period starts or when the tenant activates a package early.
+            // issued on billingStart itself (for example 14/08 for a 14/08-13/09 period), or when
+            // the tenant explicitly activates a paid package early.
             return SignupBillingInvoiceResult.empty();
         }
         Company platformCompany = resolvePlatformCompany().orElse(null);
@@ -597,47 +603,122 @@ public class PlatformSubscriptionBillingService {
         return workspaceSubscriptions == null || workspaceSubscriptions.isBillingOwnerCompany(companyId);
     }
 
+    private boolean isSubscriptionRenewalActive(Long tenantId) {
+        if (tenantId == null) {
+            return false;
+        }
+        String accessStatus = settingValueOrDefault(tenantId, SettingKey.TENANCY_ACCESS_STATUS, "ACTIVE")
+                .trim().toUpperCase(Locale.ROOT);
+        if ("CANCELLED".equals(accessStatus) || "SUSPENDED".equals(accessStatus)) {
+            return false;
+        }
+        String billingStatus = settingValueOrDefault(tenantId, SettingKey.BILLING_SUBSCRIPTION_STATUS, "")
+                .trim().toUpperCase(Locale.ROOT);
+        return !"CANCELLED".equals(billingStatus) && !"SUSPENDED".equals(billingStatus);
+    }
+
     /**
-     * Daily renewal: for every tenant whose current billing period has ended, promote any deferred
-     * downgrade/interval change, advance the period, and issue the renewal invoice including the
-     * one-off upgrade difference accumulated during the previous cycle.
+     * Daily renewal: issue the next invoice at the START of the next billing period.
+     * BILLING_SUBSCRIPTION_END is stored as an exclusive boundary, so a displayed period
+     * 14/08/2026 - 13/09/2026 has BILLING_SUBSCRIPTION_END=2026-09-14 and renews on 14/09/2026.
+     * At that boundary, promote any deferred downgrade/interval change, advance the period, and
+     * issue the renewal invoice including the one-off upgrade difference from the previous cycle.
      */
     @Scheduled(cron = "${app.platform-subscription-billing.renewal-cron:0 20 0 * * *}")
     @SchedulerLock(name = "platformSubscriptionBillingService_renewSubscriptionsDue", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
-    @Transactional
     public void renewSubscriptionsDue() {
         jobTracker.run("platform-subscription-renewals", () -> {
             Company platformCompany = resolvePlatformCompany().orElse(null);
             if (platformCompany == null || platformCompany.getId() == null) {
                 return 0;
             }
+            Long platformCompanyId = platformCompany.getId();
             int renewed = 0;
-            RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
-            PlatformBillingCatalog billingCatalog = ensurePlatformBillingCatalog(platformCompany, catalog);
-            for (AppSetting endSetting : settings.findAllByKey(SettingKey.BILLING_SUBSCRIPTION_END)) {
-                Company tenant = endSetting == null ? null : endSetting.getCompany();
-                if (tenant == null || tenant.getId() == null || Objects.equals(tenant.getId(), platformCompany.getId())
+            for (AppSetting periodEndSetting : settings.findAllByKey(SettingKey.BILLING_SUBSCRIPTION_END)) {
+                Company tenant = periodEndSetting == null ? null : periodEndSetting.getCompany();
+                if (tenant == null || tenant.getId() == null || Objects.equals(tenant.getId(), platformCompanyId)
                         || !isWorkspaceBillingOwner(tenant.getId())) {
                     continue;
                 }
-                // Evaluate each tenant against its own (possibly simulated) clock.
-                LocalDate today = timeService.localDate(ZoneId.systemDefault(), tenant.getId());
-                LocalDate end = parseDateOrNull(endSetting.getValue());
-                if (end == null || end.isAfter(today)) {
+                Long tenantId = tenant.getId();
+                // Evaluate each tenant against its own (possibly simulated) clock. The due check is
+                // repeated under a row lock inside the per-tenant transaction before any invoice is created.
+                LocalDate today = timeService.localDate(ZoneId.systemDefault(), tenantId);
+                LocalDate nextPeriodStart = parseDateOrNull(periodEndSetting.getValue());
+                // The current period ends the day BEFORE this exclusive boundary. The invoice for
+                // the next period is therefore due exactly on nextPeriodStart, never on the displayed
+                // last day of the previous period.
+                if (nextPeriodStart == null || nextPeriodStart.isAfter(today)) {
                     continue;
                 }
                 try {
-                    SimulatedTimeContext.runAs(tenant.getId(), () -> renewTenantSubscription(platformCompany, tenant, billingCatalog, end));
+                    final RenewalPreparation[] prepared = new RenewalPreparation[1];
+                    SimulatedTimeContext.runAs(tenantId, () -> prepared[0] = transactionTemplate.execute(status ->
+                            prepareTenantRenewal(platformCompanyId, tenantId)));
+                    RenewalPreparation renewal = prepared[0];
+                    if (renewal == null || !renewal.renewed()) {
+                        continue;
+                    }
+
+                    // Email/Stripe are external side effects. Run them only after the period advance and
+                    // renewal invoice have committed successfully. Previously they ran inside the same
+                    // transaction, so a later rollback could send the email but restore the old period,
+                    // causing the scheduler to send another invoice email every following day.
+                    if (renewal.billId() != null) {
+                        SimulatedTimeContext.runAs(tenantId, () -> transactionTemplate.executeWithoutResult(status ->
+                                startCommittedSubscriptionPayment(renewal.tenantId(), renewal.platformCompanyId(), renewal.billId())));
+                    }
                     renewed++;
                 } catch (Exception e) {
-                    log.warn("Failed to renew platform subscription for tenant {}", tenant.getId(), e);
+                    log.warn("Failed to renew platform subscription for tenant {}", tenantId, e);
                 }
             }
             return renewed;
         });
     }
 
-    private void renewTenantSubscription(Company platformCompany, Company tenant, PlatformBillingCatalog billingCatalog, LocalDate previousEnd) {
+    private RenewalPreparation prepareTenantRenewal(Long platformCompanyId, Long tenantId) {
+        if (platformCompanyId == null || tenantId == null) {
+            return RenewalPreparation.skipped();
+        }
+        Company platformCompany = companies.findById(platformCompanyId).orElse(null);
+        Company tenant = companies.findByIdForUpdate(tenantId).orElse(null);
+        if (platformCompany == null || tenant == null || !isWorkspaceBillingOwner(tenantId)) {
+            return RenewalPreparation.skipped();
+        }
+
+        AppSetting endSetting = settings.findForUpdateByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_END)
+                .orElse(null);
+        LocalDate nextPeriodStart = endSetting == null ? null : parseDateOrNull(endSetting.getValue());
+        LocalDate today = timeService.localDate(ZoneId.systemDefault(), tenantId);
+        if (nextPeriodStart == null || nextPeriodStart.isAfter(today) || !isSubscriptionRenewalActive(tenantId)) {
+            return RenewalPreparation.skipped();
+        }
+
+        RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
+        PlatformBillingCatalog billingCatalog = ensurePlatformBillingCatalog(platformCompany, catalog);
+        RenewTenantResult result = renewTenantSubscription(platformCompany, tenant, billingCatalog, nextPeriodStart);
+        if (result == null || !result.renewed()) {
+            return RenewalPreparation.skipped();
+        }
+        return new RenewalPreparation(true, tenantId, platformCompanyId, result.billId());
+    }
+
+    private void startCommittedSubscriptionPayment(Long tenantId, Long platformCompanyId, Long billId) {
+        if (billId == null || platformCompanyId == null) {
+            return;
+        }
+        Bill bill = bills.findById(billId).orElse(null);
+        Company platformCompany = companies.findById(platformCompanyId).orElse(null);
+        if (bill == null || platformCompany == null) {
+            log.warn("Could not start committed subscription payment for tenant {} bill {}: persisted invoice was not found.",
+                    tenantId, billId);
+            return;
+        }
+        startSubscriptionBillPayment(bill, platformCompany);
+    }
+
+    private RenewTenantResult renewTenantSubscription(Company platformCompany, Company tenant, PlatformBillingCatalog billingCatalog, LocalDate nextPeriodStart) {
         Long tenantId = tenant.getId();
 
         // Promote deferred downgrade / interval change so it applies for the new cycle.
@@ -659,19 +740,19 @@ public class PlatformSubscriptionBillingService {
             plan = customPlan(platformCompany, tenant, interval);
         }
         if (plan == null) {
-            return;
+            return RenewTenantResult.skipped();
         }
 
         ClientCompany payee = clientCompanies.findFirstLinkedPlatformPayee(platformCompany.getId(), tenantId).orElse(null);
         if (payee == null) {
             log.warn("Skipping renewal for tenant {}: no platform payee company found.", tenantId);
-            return;
+            return RenewTenantResult.skipped();
         }
         Client client = clients.findFirstByCompanyIdAndBillingCompanyIdOrderByIdAsc(platformCompany.getId(), payee.getId()).orElse(null);
         User consultant = resolvePlatformConsultant(platformCompany).orElse(null);
         if (client == null || consultant == null) {
             log.warn("Skipping renewal for tenant {}: missing client/consultant.", tenantId);
-            return;
+            return RenewTenantResult.skipped();
         }
 
         Integer baseUserCount = parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_USER_COUNT, 1);
@@ -713,7 +794,9 @@ public class PlatformSubscriptionBillingService {
         }
         openBills.save(open);
 
-        LocalDate newStart = previousEnd;
+        // BILLING_SUBSCRIPTION_END is exclusive and is also the first day of the next period.
+        // Example: 14/08-13/09 stores 14/09 as the boundary, so the next invoice/period starts 14/09.
+        LocalDate newStart = nextPeriodStart;
         LocalDate newEnd = periodEnd(newStart, plan.interval());
         upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_START, newStart.toString());
         upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_END, newEnd.toString());
@@ -725,13 +808,15 @@ public class PlatformSubscriptionBillingService {
         upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_UPGRADE_DIFF_AMOUNT, "0");
         upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, totalGross.toPlainString());
 
+        Long renewalBillId = null;
         if (totalGross.compareTo(BigDecimal.ZERO) > 0) {
             Bill saved = createBillFromSignupOpenBill(open, platformCompany);
-            startSubscriptionBillPayment(saved, platformCompany);
+            renewalBillId = saved.getId();
         }
         if (workspaceSubscriptions != null) {
             workspaceSubscriptions.syncFromLegacyCompany(tenantId);
         }
+        return RenewTenantResult.completed(renewalBillId);
     }
 
     private static int packageRank(String normalizedPackage) {
@@ -794,71 +879,127 @@ public class PlatformSubscriptionBillingService {
                 .orElse(BigDecimal.ZERO);
     }
 
-    /** Refresh open subscription bills from the tenant settings until they are converted into invoices. */
+    /**
+     * Refreshes signup/trial subscription open bills. If the paid period starts today, the invoice is
+     * persisted in a per-tenant transaction and the email/payment side effect is started only after
+     * that transaction commits. This makes the first invoice idempotent in the same way as renewals.
+     */
     @Scheduled(cron = "${app.platform-subscription-billing.daily-cron:0 10 0 * * *}")
     @SchedulerLock(name = "platformSubscriptionBillingService_refreshOpenSubscriptionBills", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
-    @Transactional
     public void refreshOpenSubscriptionBills() {
         jobTracker.run("platform-subscription-open-bill-refresh", () -> {
             Company platformCompany = resolvePlatformCompany().orElse(null);
             if (platformCompany == null || platformCompany.getId() == null) {
                 return 0;
             }
+            Long platformCompanyId = platformCompany.getId();
+            List<Long> tenantIds = openBills.findAllByCompanyIdAndReferenceStartingWith(platformCompanyId, OPEN_BILL_REFERENCE_PREFIX)
+                    .stream()
+                    .map(OpenBill::getReference)
+                    .map(this::parseTenantId)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .toList();
+
             int refreshed = 0;
-            RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
-            PlatformBillingCatalog billingCatalog = ensurePlatformBillingCatalog(platformCompany, catalog);
-            try {
-            for (OpenBill open : openBills.findAllByCompanyIdAndReferenceStartingWith(platformCompany.getId(), OPEN_BILL_REFERENCE_PREFIX)) {
-            Long tenantId = parseTenantId(open.getReference());
-            if (tenantId == null) {
-                continue;
+            for (Long tenantId : tenantIds) {
+                try {
+                    final OpenBillRefreshResult[] prepared = new OpenBillRefreshResult[1];
+                    SimulatedTimeContext.runAs(tenantId, () -> prepared[0] = transactionTemplate.execute(status ->
+                            refreshOpenBillAndPrepareInitialInvoice(platformCompanyId, tenantId)));
+                    OpenBillRefreshResult result = prepared[0];
+                    if (result == null || !result.refreshed()) {
+                        continue;
+                    }
+
+                    if (result.billId() != null) {
+                        SimulatedTimeContext.runAs(tenantId, () -> transactionTemplate.executeWithoutResult(status ->
+                                startCommittedSubscriptionPayment(tenantId, platformCompanyId, result.billId())));
+                    }
+                    refreshed++;
+                } catch (Exception e) {
+                    log.warn("Failed to refresh platform subscription open bill for tenant {}", tenantId, e);
+                }
             }
-            Company tenant = companies.findById(tenantId).orElse(null);
-            if (tenant == null || !isWorkspaceBillingOwner(tenantId)) {
-                continue;
-            }
-            SimulatedTimeContext.set(tenantId);
-            LocalDate today = timeService.localDate(ZoneId.systemDefault(), tenantId);
-            String packageName = settings.findByCompanyIdAndKey(tenantId, SettingKey.SIGNUP_PACKAGE_NAME).map(AppSetting::getValue).orElse("PROFESSIONAL");
-            String interval = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_INTERVAL).map(AppSetting::getValue).orElse("MONTHLY");
-            PlatformPlan plan = billingCatalog.resolvePlan(packageName, interval);
-            if (plan == null && "CUSTOM".equals(normalizePackageType(packageName))) {
-                plan = customPlan(platformCompany, tenant, interval);
-            }
-            if (plan == null) {
-                continue;
-            }
-            Integer baseUserCount = parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_USER_COUNT, 1);
-            Integer baseSmsCount = parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_SMS_COUNT, 0);
-            Integer userCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_USER_COUNT, baseUserCount);
-            Integer smsCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT, baseSmsCount);
-            Integer currentUserAddCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, 0);
-            Integer currentSmsAddCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT, 0);
-            List<String> signupAddonKeys = parseAddonKeyCsv(settings.findByCompanyIdAndKey(tenantId, SettingKey.SIGNUP_ADDON_KEYS).map(AppSetting::getValue).orElse(""));
-            List<String> addonKeys = parseAddonKeyCsv(settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS).map(AppSetting::getValue).orElse(joinAddonKeys(signupAddonKeys)));
-            List<String> currentAddonKeys = parseAddonKeyCsv(settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS).map(AppSetting::getValue).orElse(""));
-            AppSetting billingStartSetting = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_START)
-                    .orElse(null);
-            LocalDate billingStart = billingStartSetting == null ? null : parseDateOrNull(billingStartSetting.getValue());
-            if (billingStart == null) {
-                billingStart = resolveInitialBillingStart(plan, tenantId, today);
-            }
-            LocalDate billingEnd = periodEnd(billingStart, plan.interval());
-            BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, tenantId, userCount, smsCount, addonKeys, currentUserAddCount, currentSmsAddCount, currentAddonKeys);
-            upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_START, billingStart.toString());
-            upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_END, billingEnd.toString());
-            upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, totalGross.toPlainString());
-            openBills.saveAndFlush(open);
-            if (!billingStart.isAfter(today)) {
-                createInvoiceForSignupTenantIfDue(tenant);
-            }
-            refreshed++;
-        }
             return refreshed;
-        } finally {
-            SimulatedTimeContext.clear();
-        }
         });
+    }
+
+    private OpenBillRefreshResult refreshOpenBillAndPrepareInitialInvoice(Long platformCompanyId, Long tenantId) {
+        if (platformCompanyId == null || tenantId == null) {
+            return OpenBillRefreshResult.skipped();
+        }
+        Company platformCompany = companies.findById(platformCompanyId).orElse(null);
+        Company tenant = companies.findByIdForUpdate(tenantId).orElse(null);
+        if (platformCompany == null || tenant == null || !isWorkspaceBillingOwner(tenantId)
+                || !isSubscriptionRenewalActive(tenantId)) {
+            return OpenBillRefreshResult.skipped();
+        }
+
+        String reference = referenceForTenant(tenantId);
+        OpenBill open = openBills.findFirstByCompanyIdAndReferenceOrderByIdAsc(platformCompanyId, reference).orElse(null);
+        if (open == null) {
+            return OpenBillRefreshResult.skipped();
+        }
+
+        LocalDate today = timeService.localDate(ZoneId.systemDefault(), tenantId);
+        RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
+        PlatformBillingCatalog billingCatalog = ensurePlatformBillingCatalog(platformCompany, catalog);
+        String packageName = settings.findByCompanyIdAndKey(tenantId, SettingKey.SIGNUP_PACKAGE_NAME)
+                .map(AppSetting::getValue).orElse("PROFESSIONAL");
+        String interval = settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_INTERVAL)
+                .map(AppSetting::getValue).orElse("MONTHLY");
+        PlatformPlan plan = billingCatalog.resolvePlan(packageName, interval);
+        if (plan == null && "CUSTOM".equals(normalizePackageType(packageName))) {
+            plan = customPlan(platformCompany, tenant, interval);
+        }
+        if (plan == null) {
+            return OpenBillRefreshResult.skipped();
+        }
+
+        Integer baseUserCount = parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_USER_COUNT, 1);
+        Integer baseSmsCount = parsePositiveIntSetting(tenantId, SettingKey.SIGNUP_SMS_COUNT, 0);
+        Integer userCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_USER_COUNT, baseUserCount);
+        Integer smsCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_SMS_COUNT, baseSmsCount);
+        Integer currentUserAddCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_USER_ADD_COUNT, 0);
+        Integer currentSmsAddCount = parsePositiveIntSetting(tenantId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT, 0);
+        List<String> signupAddonKeys = parseAddonKeyCsv(settings.findByCompanyIdAndKey(tenantId, SettingKey.SIGNUP_ADDON_KEYS)
+                .map(AppSetting::getValue).orElse(""));
+        List<String> addonKeys = parseAddonKeyCsv(settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_NEXT_ADDON_KEYS)
+                .map(AppSetting::getValue).orElse(joinAddonKeys(signupAddonKeys)));
+        List<String> currentAddonKeys = parseAddonKeyCsv(settings.findByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS)
+                .map(AppSetting::getValue).orElse(""));
+        AppSetting billingStartSetting = settings.findForUpdateByCompanyIdAndKey(tenantId, SettingKey.BILLING_SUBSCRIPTION_START)
+                .orElse(null);
+        LocalDate billingStart = billingStartSetting == null ? null : parseDateOrNull(billingStartSetting.getValue());
+        if (billingStart == null) {
+            billingStart = resolveInitialBillingStart(plan, tenantId, today);
+        }
+        LocalDate billingEnd = periodEnd(billingStart, plan.interval());
+        BigDecimal totalGross = applySubscriptionLines(open, billingCatalog, plan, tenantId, userCount, smsCount, addonKeys,
+                currentUserAddCount, currentSmsAddCount, currentAddonKeys);
+        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_START, billingStart.toString());
+        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_END, billingEnd.toString());
+        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, totalGross.toPlainString());
+        openBills.saveAndFlush(open);
+
+        // First paid invoice is due ON the period start, not at its end.
+        // Example: 14/08/2026-13/09/2026 is issued on 14/08/2026.
+        if (billingStart.isAfter(today) || totalGross.compareTo(BigDecimal.ZERO) <= 0) {
+            return OpenBillRefreshResult.refreshed(null);
+        }
+
+        Optional<Bill> existing = findExistingSignupBill(platformCompanyId, reference);
+        if (existing.isPresent()) {
+            return OpenBillRefreshResult.refreshed(null);
+        }
+
+        Bill saved = createBillFromSignupOpenBill(open, platformCompany);
+        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_STATUS, "PENDING_PAYMENT");
+        if (workspaceSubscriptions != null) {
+            workspaceSubscriptions.syncFromLegacyCompany(tenantId);
+        }
+        return OpenBillRefreshResult.refreshed(saved.getId());
     }
 
     /** Marks unpaid manually-created/self-serve subscription accounts as past due after the configured grace period. */
@@ -1860,6 +2001,32 @@ public class PlatformSubscriptionBillingService {
 
     private static String stringOrEmpty(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private record OpenBillRefreshResult(boolean refreshed, Long billId) {
+        private static OpenBillRefreshResult skipped() {
+            return new OpenBillRefreshResult(false, null);
+        }
+
+        private static OpenBillRefreshResult refreshed(Long billId) {
+            return new OpenBillRefreshResult(true, billId);
+        }
+    }
+
+    private record RenewTenantResult(boolean renewed, Long billId) {
+        private static RenewTenantResult skipped() {
+            return new RenewTenantResult(false, null);
+        }
+
+        private static RenewTenantResult completed(Long billId) {
+            return new RenewTenantResult(true, billId);
+        }
+    }
+
+    private record RenewalPreparation(boolean renewed, Long tenantId, Long platformCompanyId, Long billId) {
+        private static RenewalPreparation skipped() {
+            return new RenewalPreparation(false, null, null, null);
+        }
     }
 
     public record SignupBillingInvoiceResult(Long billId, String billNumber, String checkoutUrl, String paymentStatus) {

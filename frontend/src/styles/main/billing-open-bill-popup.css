@@ -12459,8 +12459,8 @@
     justify-content: center;
     flex: 0 0 auto;
     border-radius: 11px;
-    background: #fff2eb;
-    color: #ff5a00;
+    background: #eef4ff;
+    color: #1769ff;
   }
 
   .cp-panel.billing-create-panel--open .billing-create-panel-title__icon svg,
@@ -12680,8 +12680,8 @@
     height: 36px !important;
     min-height: 36px !important;
     border-radius: 12px !important;
-    background: #fff3ea !important;
-    color: #ff5a00 !important;
+    background: #eef4ff !important;
+    color: #1769ff !important;
     font-size: 12px !important;
     font-weight: 800 !important;
   }

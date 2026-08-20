@@ -915,6 +915,7 @@
 
 /* ===== Employee create/edit — standardized customer-style side panel ===== */
 .employee-standard-panel {
+    --employee-standard-blue: #1769ff;
     width: min(1040px, 96vw) !important;
     max-width: min(1040px, 96vw) !important;
     background: #ffffff;
@@ -993,7 +994,7 @@
     width: 19px;
     height: 19px;
     flex: 0 0 19px;
-    color: #ff6200;
+    color: var(--employee-standard-blue);
     stroke-width: 1.9;
 }
 
@@ -1386,7 +1387,7 @@
     width: 19px;
     height: 19px;
     flex: 0 0 19px;
-    color: #ff6200;
+    color: var(--employee-standard-blue);
 }
 
 .employee-standard-reset-password-button:hover:not(:disabled) {
@@ -1432,7 +1433,7 @@
     width: 19px;
     height: 19px;
     flex: 0 0 19px;
-    color: #ff6200;
+    color: var(--employee-standard-blue);
     stroke-width: 1.9;
 }
 

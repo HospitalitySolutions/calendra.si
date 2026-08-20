@@ -5997,7 +5997,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         className="clients-standard-entity-panel clients-standard-company-panel clients-standard-entity-panel--edit"
       >
         <PanelHeader
-          title={isClientsMobile ? clientsCopy.editCompanyTitle : <span className="clients-standard-entity-header-title"><ClientSettingsCardIcon name="company" /><span>{clientsCopy.editCompanyTitle}</span></span>}
+          title={clientsCopy.editCompanyTitle}
           subtitle={detailCompany ? `${detailCompany.name} · ID #${detailCompany.id}` : undefined}
           onClose={closeCompanyDetailModal}
           closeLabel={t('mobileNavClose')}
@@ -6675,7 +6675,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
             ) : (
               <>
                 <PanelHeader
-                  title={<span className="clients-standard-entity-header-title"><ClientSettingsCardIcon name="company" /><span>{clientsCopy.newCompanyTitle}</span></span>}
+                  title={clientsCopy.newCompanyTitle}
                   onClose={closeCompanyModal}
                   closeLabel={t('mobileNavClose')}
                 />
@@ -6728,7 +6728,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         className="clients-standard-entity-panel clients-standard-group-panel clients-standard-entity-panel--edit"
       >
         <PanelHeader
-          title={isClientsMobile ? clientsCopy.editGroupTitle : <span className="clients-standard-entity-header-title"><ClientWorkspaceIcon name="members" /><span>{clientsCopy.editGroupTitle}</span></span>}
+          title={clientsCopy.editGroupTitle}
           subtitle={detailGroup ? `${detailGroup.name} · ID #${detailGroup.id}` : undefined}
           onClose={closeGroupDetailModal}
           closeLabel={t('mobileNavClose')}

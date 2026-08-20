@@ -14393,3 +14393,16 @@
         color: #fff !important;
     }
 }
+
+/* ========================================================================== */
+/* Desktop Uredi storitev — section icons use Calendra blue (2026-08-20)     */
+/* ========================================================================== */
+@media (min-width: 1025px) {
+    .calendar-service-edit-panel .calendar-service-edit-panel__field-icon,
+    .calendar-service-edit-panel .calendar-service-edit-panel__field-icon svg,
+    .calendar-service-edit-panel .calendar-service-edit-consumables__title .calendar-service-edit-panel__field-icon,
+    .calendar-service-edit-panel .calendar-service-edit-consumables__title .calendar-service-edit-panel__field-icon svg {
+        color: #0b6ff5 !important;
+        stroke: currentColor;
+    }
+}
