@@ -42,6 +42,12 @@ export type GuestSession = {
   linkedTenants: unknown[]
 }
 
+export type SocialAuthConfig = {
+  googleClientId?: string | null
+  appleClientId?: string | null
+  appleRedirectUri?: string | null
+}
+
 export type SignupChallenge = {
   challengeId: string
   email: string

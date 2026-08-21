@@ -18,6 +18,7 @@ import type {
   PublicLocation,
   PublicStorefront,
   SignupChallenge,
+  SocialAuthConfig,
   WalletOrder,
 } from './types'
 
@@ -26,6 +27,28 @@ export const customerApi = {
     return apiFetch<GuestSession>('/api/guest/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
+    }, { auth: false })
+  },
+
+  socialAuthConfig() {
+    return apiFetch<SocialAuthConfig>('/api/guest/auth/social/config', {}, { auth: false })
+  },
+
+  loginWithGoogle(idToken: string) {
+    return apiFetch<GuestSession>('/api/guest/auth/google/token', {
+      method: 'POST',
+      body: JSON.stringify({ idToken }),
+    }, { auth: false })
+  },
+
+  loginWithApple(idToken: string, profile?: { firstName?: string | null; lastName?: string | null }) {
+    return apiFetch<GuestSession>('/api/guest/auth/apple/token', {
+      method: 'POST',
+      body: JSON.stringify({
+        idToken,
+        firstName: profile?.firstName || null,
+        lastName: profile?.lastName || null,
+      }),
     }, { auth: false })
   },
 

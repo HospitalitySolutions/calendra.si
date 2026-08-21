@@ -122,7 +122,12 @@ public final class GuestDtos {
 
     public record LoginRequest(String email, String password) {}
     public record SignupRequest(String email, String password, String firstName, String lastName, String phone, String language) {}
-    public record SocialTokenRequest(String idToken) {}
+    public record SocialTokenRequest(String idToken, String firstName, String lastName) {
+        public SocialTokenRequest(String idToken) {
+            this(idToken, null, null);
+        }
+    }
+    public record SocialAuthConfigResponse(String googleClientId, String appleClientId, String appleRedirectUri) {}
     public record SignupStartRequest(String email, String password, String firstName, String lastName, String phone, String language) {}
     public record SignupChallengeResponse(String challengeId, String email, String expiresAt) {}
     public record VerifySignupCodeRequest(String challengeId, String code) {}

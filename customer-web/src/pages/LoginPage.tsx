@@ -6,6 +6,9 @@ import { useAuth } from '../auth/AuthContext'
 import { ArrowRightIcon, CheckIcon, EyeIcon, EyeOffIcon, GlobeIcon, LockIcon, MailIcon } from '../components/Icons'
 import { Spinner } from '../components/Loading'
 import { returnToCustomerPage } from '../auth/returnTo'
+import { renderGoogleIdentityButton, signInWithApple } from '../auth/socialAuth'
+import { CUSTOMER_ACCOUNT_BASE_PATH } from '../config'
+import type { GuestSession, SocialAuthConfig } from '../api/types'
 import { AUTH_LOCALE_OPTIONS, authCopy, getLocaleOption, type AuthLocale, useAuthLocale } from '../auth/authLocale'
 
 export function LoginPage() {
@@ -18,12 +21,62 @@ export function LoginPage() {
   const [passwordVisible, setPasswordVisible] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [socialConfig, setSocialConfig] = useState<SocialAuthConfig | null>(null)
+  const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | null>(null)
+  const googleButtonRef = useRef<HTMLDivElement | null>(null)
   const next = searchParams.get('next')
   const nextSuffix = next ? `?next=${encodeURIComponent(next)}` : ''
 
   useEffect(() => {
     if (isAuthenticated) returnToCustomerPage(next)
   }, [isAuthenticated, next])
+
+  useEffect(() => {
+    let active = true
+    void customerApi.socialAuthConfig()
+      .then(config => { if (active) setSocialConfig(config) })
+      .catch(() => { if (active) setSocialConfig({}) })
+    return () => { active = false }
+  }, [])
+
+  async function completeSocialLogin(provider: 'google' | 'apple', sessionPromise: Promise<GuestSession>) {
+    setError('')
+    setSocialLoading(provider)
+    try {
+      const session = await sessionPromise
+      setSession(session)
+      returnToCustomerPage(next)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t.socialLoginError)
+    } finally {
+      setSocialLoading(null)
+    }
+  }
+
+  useEffect(() => {
+    const clientId = socialConfig?.googleClientId?.trim()
+    const host = googleButtonRef.current
+    if (!clientId || !host) return
+
+    let active = true
+    const render = () => {
+      if (!active || !googleButtonRef.current) return
+      void renderGoogleIdentityButton(googleButtonRef.current, clientId, idToken => {
+        if (!active) return
+        void completeSocialLogin('google', customerApi.loginWithGoogle(idToken))
+      }).catch(() => {
+        if (active && googleButtonRef.current) googleButtonRef.current.innerHTML = ''
+      })
+    }
+
+    render()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(render)
+    observer?.observe(host)
+    return () => {
+      active = false
+      observer?.disconnect()
+    }
+  }, [socialConfig?.googleClientId])
 
   if (isAuthenticated) return null
 
@@ -42,8 +95,45 @@ export function LoginPage() {
     }
   }
 
-  return <AuthLayout locale={locale} onLocaleChange={setLocale} title={t.loginTitle} subtitle={t.loginSubtitle}>
-    <form className="auth-form" onSubmit={submit}>
+  async function handleAppleLogin() {
+    const clientId = socialConfig?.appleClientId?.trim()
+    if (!clientId) {
+      setError(t.socialLoginUnavailable)
+      return
+    }
+
+    setError('')
+    setSocialLoading('apple')
+    try {
+      const redirectUri = socialConfig?.appleRedirectUri?.trim()
+        || `${window.location.origin}${CUSTOMER_ACCOUNT_BASE_PATH}/prijava`
+      const identity = await signInWithApple({ clientId, redirectUri })
+      const session = await customerApi.loginWithApple(identity.idToken, identity)
+      setSession(session)
+      returnToCustomerPage(next)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t.socialLoginError)
+    } finally {
+      setSocialLoading(null)
+    }
+  }
+
+  function handleUnavailableGoogle() {
+    if (!socialConfig?.googleClientId?.trim()) setError(t.socialLoginUnavailable)
+  }
+
+  const socialBusy = socialLoading !== null
+
+  return <AuthLayout
+    locale={locale}
+    onLocaleChange={setLocale}
+    title={t.loginTitle}
+    subtitle={t.loginSubtitle}
+    panelClassName="auth-panel--login"
+    footerPrimaryLabel={t.footerTerms}
+    footerPrimaryHref="https://calendra.si/pogoji-uporabe"
+  >
+    <form className="auth-form auth-form--login" onSubmit={submit}>
       {error && <div className="form-alert form-alert--error">{error}</div>}
       <label>{t.emailLabel}
         <span className="auth-input-wrap"><MailIcon size={18}/><input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus placeholder={t.emailPlaceholder}/></span>
@@ -52,13 +142,53 @@ export function LoginPage() {
         <span className="auth-input-wrap"><LockIcon size={18}/><input type={passwordVisible ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required placeholder={t.passwordPlaceholder}/><button type="button" className="auth-input-wrap__action" aria-label={passwordVisible ? 'Hide password' : 'Show password'} onClick={() => setPasswordVisible(value => !value)}>{passwordVisible ? <EyeOffIcon size={18}/> : <EyeIcon size={18}/>}</button></span>
       </label>
       <div className="auth-form__between auth-form__between--right"><Link to={`/pozabljeno-geslo${nextSuffix}`}>{t.forgotPassword}</Link></div>
-      <button className="button button--primary button--full auth-submit" disabled={loading}>{loading ? <><Spinner small/> {t.loggingIn}</> : <>{t.loginButton} <ArrowRightIcon size={18}/></>}</button>
+      <button className="button button--primary button--full auth-submit" disabled={loading || socialBusy}>{loading ? <><Spinner small/> {t.loggingIn}</> : <>{t.loginButton} <ArrowRightIcon size={18}/></>}</button>
+
+      <div className="auth-social-separator" aria-hidden="true"><span>{t.orSeparator}</span></div>
+
+      <div className={`auth-social-button-shell${socialLoading === 'google' ? ' is-loading' : ''}`}>
+        <button
+          type="button"
+          className="auth-social-button"
+          onClick={handleUnavailableGoogle}
+          tabIndex={socialConfig?.googleClientId?.trim() ? -1 : 0}
+          disabled={socialBusy && socialLoading !== 'google'}
+        >
+          {socialLoading === 'google' ? <Spinner small/> : <GoogleLogo/>}
+          <span>{socialLoading === 'google' ? t.googleSigningIn : t.continueWithGoogle}</span>
+        </button>
+        <div
+          ref={googleButtonRef}
+          className={`auth-google-provider-hitarea${socialConfig?.googleClientId?.trim() && !socialBusy ? ' is-active' : ''}`}
+        />
+      </div>
+
+      <button type="button" className="auth-social-button" onClick={() => void handleAppleLogin()} disabled={socialBusy}>
+        {socialLoading === 'apple' ? <Spinner small/> : <AppleLogo/>}
+        <span>{socialLoading === 'apple' ? t.appleSigningIn : t.continueWithApple}</span>
+      </button>
+
       <p className="auth-switch">{t.noAccount} <Link to={`/registracija${nextSuffix}`}>{t.createFreeAccount}</Link></p>
     </form>
   </AuthLayout>
 }
 
-export function AuthLayout({ title, subtitle, children, locale, onLocaleChange, footerPrimaryLabel, footerPrimaryHref }: { title: string; subtitle: string; children: React.ReactNode; locale: AuthLocale; onLocaleChange: (locale: AuthLocale) => void; footerPrimaryLabel?: string; footerPrimaryHref?: string }) {
+function GoogleLogo() {
+  return <svg className="auth-social-logo auth-social-logo--google" viewBox="0 0 24 24" aria-hidden="true">
+    <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.23-.2-1.78H12v3.4h5.52a4.7 4.7 0 0 1-2.05 3.08l-.02.11 2.97 2.3.2.02c1.84-1.7 2.98-4.2 2.98-7.13Z"/>
+    <path fill="#34A853" d="M12 22c2.7 0 4.96-.89 6.62-2.43l-3.15-2.44c-.84.57-1.96.97-3.47.97-2.6 0-4.8-1.76-5.6-4.19l-.1.01-3.09 2.39-.04.1A10 10 0 0 0 12 22Z"/>
+    <path fill="#FBBC05" d="M6.4 13.91A6.02 6.02 0 0 1 6.07 12c0-.67.12-1.3.32-1.91v-.12L3.27 7.54l-.1.05A10 10 0 0 0 2 12c0 1.6.38 3.12 1.17 4.41l3.23-2.5Z"/>
+    <path fill="#EA4335" d="M12 5.9c1.88 0 3.15.81 3.87 1.48l2.82-2.75C16.96 3.03 14.7 2 12 2a10 10 0 0 0-8.83 5.59l3.22 2.5C7.2 7.66 9.4 5.9 12 5.9Z"/>
+  </svg>
+}
+
+function AppleLogo() {
+  return <svg className="auth-social-logo auth-social-logo--apple" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+    <path d="M16.73 12.36c-.02-2.23 1.82-3.3 1.9-3.35a4.07 4.07 0 0 0-3.2-1.73c-1.35-.14-2.67.8-3.35.8-.69 0-1.73-.78-2.86-.76a4.22 4.22 0 0 0-3.55 2.17c-1.56 2.7-.4 6.67 1.1 8.86.75 1.08 1.63 2.28 2.75 2.24 1.1-.04 1.5-.72 2.82-.72 1.31 0 1.69.72 2.84.69 1.17-.02 1.91-1.08 2.64-2.17a8.8 8.8 0 0 0 1.2-2.44 3.85 3.85 0 0 1-2.3-3.59ZM14.55 5.85a3.92 3.92 0 0 0 .9-2.82 4 4 0 0 0-2.6 1.34 3.74 3.74 0 0 0-.92 2.71 3.3 3.3 0 0 0 2.62-1.23Z"/>
+  </svg>
+}
+
+export function AuthLayout({ title, subtitle, children, locale, onLocaleChange, footerPrimaryLabel, footerPrimaryHref, panelClassName }: { title: string; subtitle: string; children: React.ReactNode; locale: AuthLocale; onLocaleChange: (locale: AuthLocale) => void; footerPrimaryLabel?: string; footerPrimaryHref?: string; panelClassName?: string }) {
   const t = authCopy[locale]
   return <div className="auth-page">
     <div className="auth-page__visual">
@@ -67,7 +197,7 @@ export function AuthLayout({ title, subtitle, children, locale, onLocaleChange, 
     </div>
     <div className="auth-page__form">
       <LanguageSelector locale={locale} onChange={onLocaleChange}/>
-      <div className="auth-panel">
+      <div className={`auth-panel${panelClassName ? ` ${panelClassName}` : ''}`}>
         <a className="auth-brand auth-brand--mobile" href="/za-stranke"><img src="/racun/calendra-wordmark.webp" alt="Calendra"/></a>
         <div className="auth-heading"><h1>{title}</h1><p>{subtitle}</p></div>
         {children}

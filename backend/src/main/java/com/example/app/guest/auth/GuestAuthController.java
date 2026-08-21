@@ -4,6 +4,7 @@ import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.security.ratelimit.AuthRateLimiter;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -14,19 +15,25 @@ public class GuestAuthController {
     private final AuthRateLimiter authRateLimiter;
     private final GuestPasswordResetService passwordResetService;
     private final GuestAccountDeletionService accountDeletionService;
+    private final GuestSocialTokenVerifier socialTokenVerifier;
+    private final String appleWebRedirectUri;
 
     public GuestAuthController(
             GuestAuthService authService,
             GuestAuthContextService authContextService,
             AuthRateLimiter authRateLimiter,
             GuestPasswordResetService passwordResetService,
-            GuestAccountDeletionService accountDeletionService
+            GuestAccountDeletionService accountDeletionService,
+            GuestSocialTokenVerifier socialTokenVerifier,
+            @Value("${app.guest.auth.apple-web-redirect-uri:}") String appleWebRedirectUri
     ) {
         this.authService = authService;
         this.authContextService = authContextService;
         this.authRateLimiter = authRateLimiter;
         this.passwordResetService = passwordResetService;
         this.accountDeletionService = accountDeletionService;
+        this.socialTokenVerifier = socialTokenVerifier;
+        this.appleWebRedirectUri = appleWebRedirectUri == null ? "" : appleWebRedirectUri.trim();
     }
 
     @PostMapping("/auth/signup")
@@ -102,6 +109,15 @@ public class GuestAuthController {
         return authService.login(request);
     }
 
+    @GetMapping("/auth/social/config")
+    public GuestDtos.SocialAuthConfigResponse socialAuthConfig() {
+        return new GuestDtos.SocialAuthConfigResponse(
+                blankToNull(socialTokenVerifier.googleWebClientId()),
+                blankToNull(socialTokenVerifier.appleWebClientId()),
+                blankToNull(appleWebRedirectUri)
+        );
+    }
+
     @PostMapping("/auth/google/token")
     public GuestDtos.GuestSessionResponse google(@RequestBody GuestDtos.SocialTokenRequest request, HttpServletRequest httpRequest) {
         authRateLimiter.checkGuestSocialLogin(httpRequest);
@@ -111,7 +127,7 @@ public class GuestAuthController {
     @PostMapping("/auth/apple/token")
     public GuestDtos.GuestSessionResponse apple(@RequestBody GuestDtos.SocialTokenRequest request, HttpServletRequest httpRequest) {
         authRateLimiter.checkGuestSocialLogin(httpRequest);
-        return authService.loginWithApple(request.idToken());
+        return authService.loginWithApple(request.idToken(), request.firstName(), request.lastName());
     }
 
     @GetMapping("/me")
@@ -129,6 +145,10 @@ public class GuestAuthController {
         boolean confirmed = request != null && Boolean.TRUE.equals(request.confirm());
         accountDeletionService.deleteGuestAccount(guestUser, confirmed);
         return new GuestDtos.DeleteGuestAccountResponse(true);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private static String validatePasswordStrength(String password) {

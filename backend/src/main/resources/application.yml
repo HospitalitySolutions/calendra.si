@@ -269,6 +269,11 @@ app:
       google-android-client-id: ${APP_GUEST_AUTH_GOOGLE_ANDROID_CLIENT_ID:${GOOGLE_ANDROID_CLIENT_ID:773864552259-amsepvt8fs6tso2uado0ck4pj08179gp.apps.googleusercontent.com}}
       google-ios-client-id: ${APP_GUEST_AUTH_GOOGLE_IOS_CLIENT_ID:${GOOGLE_IOS_CLIENT_ID:773864552259-lp4leak39rq78nrnshr616a7nftdkhkc.apps.googleusercontent.com}}
       apple-client-id: ${APP_GUEST_AUTH_APPLE_CLIENT_ID:}
+      apple-client-ids: ${APP_GUEST_AUTH_APPLE_CLIENT_IDS:${APP_GUEST_AUTH_APPLE_CLIENT_ID:}}
+      # Web Sign in with Apple uses a Service ID, while native iOS normally uses the app bundle ID.
+      apple-web-client-id: ${APP_GUEST_AUTH_APPLE_WEB_CLIENT_ID:}
+      # Sign in with Apple web return URL (must be registered for the Apple Service ID).
+      apple-web-redirect-uri: ${APP_GUEST_AUTH_APPLE_WEB_REDIRECT_URI:}
 
     push:
       enabled: ${APP_GUEST_PUSH_ENABLED:false}

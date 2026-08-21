@@ -226,11 +226,13 @@ public class GuestAuthService {
     }
 
     @Transactional
-    public GuestDtos.GuestSessionResponse loginWithApple(String idToken) {
+    public GuestDtos.GuestSessionResponse loginWithApple(String idToken, String firstName, String lastName) {
         GuestSocialTokenVerifier.SocialClaims claims = socialTokenVerifier.verifyAppleIdToken(idToken);
         GuestUser guestUser = guestUsers.findByAppleSubject(claims.subject())
                 .orElseGet(() -> claims.email() == null ? new GuestUser() : guestUsers.findByEmailIgnoreCase(normalizeEmail(claims.email())).orElseGet(GuestUser::new));
-        hydrateFromSocial(guestUser, claims.email(), claims.givenName(), claims.familyName(), "sl");
+        String resolvedFirstName = firstName == null || firstName.isBlank() ? claims.givenName() : firstName;
+        String resolvedLastName = lastName == null || lastName.isBlank() ? claims.familyName() : lastName;
+        hydrateFromSocial(guestUser, claims.email(), resolvedFirstName, resolvedLastName, "sl");
         guestUser.setAppleSubject(claims.subject());
         guestUser.setLastLoginAt(Instant.now());
         guestUser = guestUsers.save(guestUser);

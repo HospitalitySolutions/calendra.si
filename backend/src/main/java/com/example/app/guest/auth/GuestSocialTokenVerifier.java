@@ -22,20 +22,37 @@ public class GuestSocialTokenVerifier {
     private static final Logger log = LoggerFactory.getLogger(GuestSocialTokenVerifier.class);
 
     private final List<String> googleClientIds;
-    private final String appleClientId;
+    private final String googleWebClientId;
+    private final List<String> appleClientIds;
+    private final String appleWebClientId;
 
     public GuestSocialTokenVerifier(
-            @Value("${app.guest.auth.google-client-ids:${app.guest.auth.google-client-id:}}") String googleClientIds,
+            @Value("${app.guest.auth.google-client-id:}") String googleClientId,
+            @Value("${app.guest.auth.google-client-ids:}") String googleClientIds,
             @Value("${app.guest.auth.google-android-client-id:}") String googleAndroidClientId,
             @Value("${app.guest.auth.google-ios-client-id:}") String googleIosClientId,
-            @Value("${app.guest.auth.apple-client-id:}") String appleClientId
+            @Value("${app.guest.auth.apple-client-id:}") String appleClientId,
+            @Value("${app.guest.auth.apple-client-ids:}") String appleClientIds,
+            @Value("${app.guest.auth.apple-web-client-id:}") String appleWebClientId
     ) {
+        List<String> configuredGoogleWebClientIds = parseClientIds(String.join(",", nullToBlank(googleClientId), nullToBlank(googleClientIds)));
+        this.googleWebClientId = configuredGoogleWebClientIds.isEmpty() ? "" : configuredGoogleWebClientIds.get(0);
         this.googleClientIds = parseClientIds(String.join(",",
+                nullToBlank(googleClientId),
                 nullToBlank(googleClientIds),
                 nullToBlank(googleAndroidClientId),
                 nullToBlank(googleIosClientId)
         ));
-        this.appleClientId = appleClientId == null ? "" : appleClientId.trim();
+        this.appleWebClientId = appleWebClientId == null ? "" : appleWebClientId.trim();
+        this.appleClientIds = parseClientIds(String.join(",", nullToBlank(appleClientId), nullToBlank(appleClientIds), this.appleWebClientId));
+    }
+
+    public String googleWebClientId() {
+        return googleWebClientId;
+    }
+
+    public String appleWebClientId() {
+        return appleWebClientId;
     }
 
     public SocialClaims verifyGoogleIdToken(String idToken) {
@@ -52,10 +69,10 @@ public class GuestSocialTokenVerifier {
     }
 
     public SocialClaims verifyAppleIdToken(String idToken) {
-        if (appleClientId.isBlank()) {
+        if (appleClientIds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Apple guest sign-in is not configured.");
         }
-        Jwt jwt = decode(idToken, "https://appleid.apple.com", List.of(appleClientId));
+        Jwt jwt = decode(idToken, "https://appleid.apple.com", appleClientIds);
         String email = jwt.getClaimAsString("email");
         return new SocialClaims(
                 jwt.getSubject(),
