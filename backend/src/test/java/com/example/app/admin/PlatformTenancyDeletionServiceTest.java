@@ -131,6 +131,32 @@ class PlatformTenancyDeletionServiceTest {
 
 
     @Test
+    void deleteTenancy_clearsLocationIssuerBeforeDeletingLegalEntityAssignments() {
+        Company tenant = new Company();
+        tenant.setId(7L);
+        tenant.setName("Issuer tenant");
+        when(companies.findById(7L)).thenReturn(Optional.of(tenant));
+        when(users.getReferenceById(1L)).thenReturn(actor);
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+
+        service.deleteTenancy(7L, actor, "cleanup");
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbc, atLeastOnce()).update(sqlCaptor.capture(), any(Object[].class));
+        List<String> sql = sqlCaptor.getAllValues();
+
+        int clearLocationIssuer = indexOfSql(sql, "UPDATE locations SET default_legal_entity_id = NULL");
+        int legalAssignments = indexOfSql(sql, "DELETE FROM company_legal_entities");
+        int invoiceSeries = indexOfSql(sql, "DELETE FROM invoice_series WHERE company_id = ?");
+        int locations = indexOfSql(sql, "DELETE FROM locations WHERE company_id = ?");
+
+        assertTrue(clearLocationIssuer >= 0, "Location issuer references must be cleared before deleting assignments.");
+        assertTrue(legalAssignments > clearLocationIssuer, "Legal-entity assignments must be deleted after location issuer references are cleared.");
+        assertTrue(invoiceSeries > legalAssignments, "Invoice series must be deleted after legal-entity assignments.");
+        assertTrue(locations > invoiceSeries, "Locations must only be deleted after their invoice series are gone.");
+    }
+
+    @Test
     void deleteTenancy_purgesPlatformDemoHostReferencesBeforeDeletingUsers() {
         Company tenant = new Company();
         tenant.setId(7L);
@@ -209,6 +235,24 @@ class PlatformTenancyDeletionServiceTest {
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
         verify(tenancyAdminAuditLogs, never()).saveAndFlush(any());
         verify(companies, never()).delete(any());
+    }
+
+    @Test
+    void deleteTenancy_preservesUnexpectedRootCauseForPlatformAdmin() {
+        Company tenant = new Company();
+        tenant.setId(7L);
+        tenant.setName("Broken schema tenant");
+        when(companies.findById(7L)).thenReturn(Optional.of(tenant));
+        when(users.getReferenceById(1L)).thenReturn(actor);
+        when(jdbc.update(anyString(), any(Object[].class)))
+                .thenThrow(new IllegalStateException("ERROR: relation tenant_dependency does not exist"));
+
+        ResponseStatusException ex =
+                assertThrows(ResponseStatusException.class, () -> service.deleteTenancy(7L, actor, "cleanup"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("relation tenant_dependency does not exist"));
+        assertTrue(ex.getReason().contains("No database deletion was committed"));
     }
 
     @Test

@@ -142,9 +142,12 @@ public class PlatformTenancyDeletionService {
                         detail + ". No database deletion was committed.",
                         ex);
             }
+            String unexpectedDetail = unexpectedFailureDetail(ex);
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "This tenant could not be deleted completely. No database deletion was committed; fix the reported dependency or external-storage problem and retry.",
+                    "This tenant could not be deleted completely"
+                            + (unexpectedDetail == null ? "." : ": " + unexpectedDetail + ".")
+                            + " No database deletion was committed; fix the reported dependency or external-storage problem and retry.",
                     ex);
         }
     }
@@ -754,8 +757,13 @@ public class PlatformTenancyDeletionService {
         exec("DELETE FROM clients WHERE company_id = ?", companyId);
         exec("DELETE FROM client_companies WHERE owner_company_id = ?", companyId);
 
-        // Fiscal/legal/configuration. Company-specific invoice series must go before locations.
+        // Fiscal/legal/configuration. Locations point at the company's legal-entity assignment and V28 installs a
+        // BEFORE DELETE trigger that deliberately blocks removal of company_legal_entities while that reference is
+        // still present. Clear the per-location issuer first, then remove the assignment and its invoice series.
+        // Invoice series must still be deleted before the locations themselves because invoice_series.location_id is
+        // restrictive.
         exec("DELETE FROM fiscal_certificates WHERE company_id = ?", companyId);
+        exec("UPDATE locations SET default_legal_entity_id = NULL WHERE company_id = ?", companyId);
         exec("DELETE FROM company_legal_entities WHERE company_id = ?", companyId);
         exec("DELETE FROM invoice_series WHERE company_id = ?", companyId);
 
@@ -1227,10 +1235,42 @@ public class PlatformTenancyDeletionService {
             return null;
         }
         Matcher matcher = POSTGRES_FOREIGN_KEY_VIOLATION.matcher(message);
-        if (!matcher.find()) {
+        if (matcher.find()) {
+            return "constraint " + matcher.group(1) + " on table " + matcher.group(2);
+        }
+        String firstLine = message.lines()
+                .map(String::trim)
+                .filter(line -> !line.isBlank())
+                .findFirst()
+                .orElse("");
+        if (firstLine.startsWith("ERROR:")) {
+            String postgresDetail = firstLine.substring("ERROR:".length()).trim();
+            if (postgresDetail.length() > 300) {
+                postgresDetail = postgresDetail.substring(0, 297).trim() + "...";
+            }
+            return trimTrailingPeriod(postgresDetail);
+        }
+        return null;
+    }
+
+    private String unexpectedFailureDetail(RuntimeException ex) {
+        Throwable current = ex;
+        String detail = null;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && !message.isBlank()) {
+                detail = message.trim();
+            }
+            current = current.getCause();
+        }
+        if (detail == null || detail.isBlank()) {
             return null;
         }
-        return "constraint " + matcher.group(1) + " on table " + matcher.group(2);
+        detail = detail.replaceAll("\\s+", " ").trim();
+        if (detail.length() > 500) {
+            detail = detail.substring(0, 497).trim() + "...";
+        }
+        return trimTrailingPeriod(detail);
     }
 
     private String externalStorageFailureDetail(RuntimeException ex) {
