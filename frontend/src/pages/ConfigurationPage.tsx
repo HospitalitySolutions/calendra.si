@@ -3245,8 +3245,34 @@ export function ConfigurationPage() {
       .catch(() => ({} as Record<string, string>));
     const settingsRes = { data: settingsRaw };
     const rawSettings = settingsRaw;
+    const billingEnabledForLoad = rawSettings.BILLING_ENABLED !== "false";
+    const canReadInvoiceIssuers =
+      billingEnabledForLoad &&
+      hasEmployeePermission(me, "BILLING_INVOICES_VIEW");
+    const canReadPaymentMethods =
+      billingEnabledForLoad &&
+      hasEmployeePermission(me, "PAYMENTS_VIEW");
+    const canReadBillingConfiguration =
+      canReadInvoiceIssuers || canReadPaymentMethods;
+    const canReadAdminProviderConfiguration =
+      hasEmployeePermission(me, "INTEGRATIONS_VIEW") &&
+      (me.role === "ADMIN" ||
+        me.role === "SUPER_ADMIN" ||
+        (me.role === "CONSULTANT" && me.accessRoleId != null));
+    const paymentCapabilitiesForLoad = await queryClient
+      .fetchQuery(paymentCapabilitiesQueryOptions<PaymentGlobalCapabilities>())
+      .catch(() => null);
+    const canReadStripeConnectConfig =
+      canReadBillingConfiguration &&
+      canReadAdminProviderConfiguration &&
+      rawSettings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== "false" &&
+      paymentCapabilitiesForLoad?.stripeEnabled !== false;
+    const canReadPaypalConfig =
+      canReadBillingConfiguration &&
+      canReadAdminProviderConfiguration &&
+      paymentCapabilitiesForLoad?.paypalEnabled === true;
     const canReadFiscalCertificate =
-      rawSettings.BILLING_ENABLED !== "false" &&
+      canReadBillingConfiguration &&
       rawSettings.BILLING_FISCAL_CASH_REGISTER_ENABLED === "true" &&
       hasEmployeePermission(me, "BILLING_INVOICES_VIEW");
     const [
@@ -3262,14 +3288,22 @@ export function ConfigurationPage() {
       tenantUsersData,
     ] = await Promise.all([
       queryClient.fetchQuery(locationsQueryOptions(activeUnitId)).catch(() => []),
-      queryClient.fetchQuery(invoiceIssuersQueryOptions<InvoiceIssuerOption>(activeUnitId)).catch(() => [] as InvoiceIssuerOption[]),
+      canReadInvoiceIssuers
+        ? queryClient.fetchQuery(invoiceIssuersQueryOptions<InvoiceIssuerOption>(activeUnitId)).catch(() => [] as InvoiceIssuerOption[])
+        : Promise.resolve([] as InvoiceIssuerOption[]),
       queryClient.fetchQuery(calendarSpacesQueryOptions<any>(activeUnitId)).catch(() => []),
-      queryClient.fetchQuery(paymentMethodsQueryOptions<PaymentMethod>(activeUnitId)).catch(() => [] as PaymentMethod[]),
+      canReadPaymentMethods
+        ? queryClient.fetchQuery(paymentMethodsQueryOptions<PaymentMethod>(activeUnitId)).catch(() => [] as PaymentMethod[])
+        : Promise.resolve([] as PaymentMethod[]),
       canReadFiscalCertificate
         ? queryClient.fetchQuery(fiscalCertificateMetaQueryOptions<any>(activeUnitId)).catch(() => ({ uploaded: false }))
         : Promise.resolve({ uploaded: false }),
-      queryClient.fetchQuery(paypalConfigQueryOptions<any>(activeUnitId)).catch(() => null),
-      queryClient.fetchQuery(stripeConnectConfigQueryOptions<StripeConnectTenantStatus>(activeUnitId)).catch(() => null),
+      canReadPaypalConfig
+        ? queryClient.fetchQuery(paypalConfigQueryOptions<any>(activeUnitId)).catch(() => null)
+        : Promise.resolve(null),
+      canReadStripeConnectConfig
+        ? queryClient.fetchQuery(stripeConnectConfigQueryOptions<StripeConnectTenantStatus>(activeUnitId)).catch(() => null)
+        : Promise.resolve(null),
       queryClient.fetchQuery(receivedInvoicesQueryOptions<AccountReceivedInvoice>(activeUnitId)).catch(() => [] as AccountReceivedInvoice[]),
       queryClient.fetchQuery(registerCatalogQueryOptions<AccountRegisterCatalog>()).catch(() => DEFAULT_ACCOUNT_REGISTER_CATALOG),
       queryClient.fetchQuery(usersQueryOptions<AccountUserResponse>(activeUnitId)).catch(() => [] as AccountUserResponse[]),
