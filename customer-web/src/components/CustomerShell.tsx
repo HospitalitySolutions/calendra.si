@@ -57,7 +57,7 @@ export function CustomerShell() {
 
   function performLogout() {
     logout()
-    window.location.replace('/za-stranke')
+    window.location.replace('/racun')
   }
 
   return <div className="app-shell">
@@ -96,8 +96,6 @@ export function CustomerShell() {
               {accountMenuItems.map(({ to, label, icon: Icon }) => <a key={to} href={`/racun${to}`} className="account-menu__item" role="menuitem"><Icon size={18}/><span>{label}</span></a>)}
               <div className="account-menu__divider"/>
               <button className="account-menu__item" type="button" onClick={performLogout} role="menuitem"><LogOutIcon size={18}/><span>Odjava</span></button>
-              <div className="account-menu__divider"/>
-              <a className="account-menu__item account-menu__item--business" href="https://app.calendra.si"><span>Za podjetje</span><span>→</span></a>
             </div>}
           </div>
         </div>

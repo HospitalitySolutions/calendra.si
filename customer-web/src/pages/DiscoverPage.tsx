@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { customerApi } from '../api/customerApi'
 import { ApiError } from '../api/client'
 import type { PublicLocation } from '../api/types'
@@ -16,7 +16,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 type DisplayProvider = PublicLocation & { distanceKm?: number }
 
 export function DiscoverPage() {
-  const [search, setSearch] = useState('')
+  const [searchParams] = useSearchParams()
+  const [search, setSearch] = useState(() => searchParams.get('q')?.trim() || '')
   const [locationInput, setLocationInput] = useState('')
   const [activeLocation, setActiveLocation] = useState('')
   const [category, setCategory] = useState('')
@@ -50,7 +51,9 @@ export function DiscoverPage() {
   const providers = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('sl')
     return sourceProviders.filter(provider => {
-      const matchesSearch = !needle || [provider.publicName, provider.publicDescription, provider.publicAddress, provider.physicalAddress?.city, provider.category]
+      const categoryKey = (provider.category || '').toUpperCase()
+      const categoryLabel = CATEGORY_LABELS[categoryKey]
+      const matchesSearch = !needle || [provider.publicName, categoryKey, categoryLabel, provider.publicDescription, provider.publicAddress, provider.physicalAddress?.city]
         .filter(Boolean)
         .some(value => String(value).toLocaleLowerCase('sl').includes(needle))
       const matchesCategory = !category || (provider.category || '').toUpperCase() === category

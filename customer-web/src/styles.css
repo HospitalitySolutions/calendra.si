@@ -1736,3 +1736,20 @@ body { color: var(--ink); }
     grid-template-columns: 1fr;
   }
 }
+
+/* Compact customer-portal provider search: service/provider/type only. */
+.marketplace-search--compact {
+  flex: 0 1 560px;
+  width: min(560px, 100%);
+  max-width: 560px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+@media (max-width: 900px) {
+  .marketplace-search--compact {
+    width: auto;
+    max-width: none;
+    flex: 1 1 auto;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}

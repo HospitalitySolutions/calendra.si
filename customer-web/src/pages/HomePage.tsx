@@ -4,7 +4,7 @@ import { customerApi } from '../api/customerApi'
 import { useAuth } from '../auth/AuthContext'
 import { BookingCard } from '../components/BookingCard'
 import { EntitlementCard } from '../components/EntitlementCard'
-import { ArrowUpRightIcon, CalendarIcon, ClockIcon, SearchIcon } from '../components/Icons'
+import { ArrowUpRightIcon, CalendarIcon, ClockIcon } from '../components/Icons'
 import { EmptyState, ErrorState, PageLoader } from '../components/Loading'
 import { ProviderAvatar } from '../components/ProviderAvatar'
 
@@ -19,7 +19,6 @@ export function HomePage() {
   return <div className="page-stack home-page">
     <section className="welcome-row">
       <div><span className="overline">Moj Calendra račun</span><h2>Pozdravljeni, <span className="welcome-name">{user?.firstName || 'dobrodošli'}.</span></h2><p>Vaši termini, ponudniki in ugodnosti na enem mestu.</p></div>
-      <Link to="/isci" className="button button--primary"><SearchIcon size={18}/> Poišči termin</Link>
     </section>
 
     {data.nextBooking ? <section className="section-block"><div className="section-heading"><div><span className="overline">Naslednji termin</span><h2>Prihaja kmalu</h2></div><Link to="/termini">Vsi termini <ArrowUpRightIcon size={17}/></Link></div><BookingCard booking={data.nextBooking}/></section>

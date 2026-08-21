@@ -41,7 +41,7 @@ export function ProfilePage() {
   const upload = useMutation({ mutationFn: customerApi.uploadProfilePicture, onSuccess: async () => { await refreshUser(); await client.invalidateQueries({ queryKey: ['customer-profile-settings'] }) } })
 
   function submit(event: FormEvent) { event.preventDefault(); setNotice(''); update.mutate() }
-  function performLogout() { logout(); window.location.replace('/za-stranke') }
+  function performLogout() { logout(); window.location.replace('/racun') }
 
   if (query.isLoading) return <PageLoader/>
   if (query.isError) return <ErrorState onRetry={() => void query.refetch()}/>

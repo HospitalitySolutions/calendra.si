@@ -58,7 +58,7 @@ export function LoginPage() {
   </AuthLayout>
 }
 
-export function AuthLayout({ title, subtitle, children, locale, onLocaleChange }: { title: string; subtitle: string; children: React.ReactNode; locale: AuthLocale; onLocaleChange: (locale: AuthLocale) => void }) {
+export function AuthLayout({ title, subtitle, children, locale, onLocaleChange, footerPrimaryLabel, footerPrimaryHref }: { title: string; subtitle: string; children: React.ReactNode; locale: AuthLocale; onLocaleChange: (locale: AuthLocale) => void; footerPrimaryLabel?: string; footerPrimaryHref?: string }) {
   const t = authCopy[locale]
   return <div className="auth-page">
     <div className="auth-page__visual">
@@ -71,7 +71,7 @@ export function AuthLayout({ title, subtitle, children, locale, onLocaleChange }
         <a className="auth-brand auth-brand--mobile" href="/za-stranke"><img src="/racun/calendra-wordmark.webp" alt="Calendra"/></a>
         <div className="auth-heading"><h1>{title}</h1><p>{subtitle}</p></div>
         {children}
-        <div className="auth-footer"><a href="/za-stranke">{t.footerBack}</a><span>•</span><a href="https://calendra.si/zasebnost">{t.footerPrivacy}</a></div>
+        <div className="auth-footer"><a href={footerPrimaryHref || "/za-stranke"}>{footerPrimaryLabel || t.footerBack}</a><span>•</span><a href="https://calendra.si/zasebnost">{t.footerPrivacy}</a></div>
       </div>
     </div>
   </div>

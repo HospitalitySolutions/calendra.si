@@ -4,7 +4,7 @@ import { customerApi } from '../api/customerApi'
 import { BookingCard } from '../components/BookingCard'
 import { CalendarIcon, SearchIcon } from '../components/Icons'
 import { EmptyState, ErrorState, PageLoader } from '../components/Loading'
-import { MARKETING_BASE_URL } from '../config'
+import { CUSTOMER_ACCOUNT_BASE_PATH } from '../config'
 
 type Tab = 'upcoming' | 'past' | 'cancelled'
 const tabs: { key: Tab; label: string }[] = [{ key: 'upcoming', label: 'Prihajajoči' }, { key: 'past', label: 'Pretekli' }, { key: 'cancelled', label: 'Odpovedani' }]
@@ -12,7 +12,7 @@ const tabs: { key: Tab; label: string }[] = [{ key: 'upcoming', label: 'Prihajaj
 export function BookingsPage() {
   const [tab, setTab] = useState<Tab>('upcoming')
   const query = useQuery({ queryKey: ['customer-bookings', tab], queryFn: () => customerApi.bookings(tab) })
-  const marketplaceUrl = `${MARKETING_BASE_URL}/za-stranke`
+  const marketplaceUrl = `${CUSTOMER_ACCOUNT_BASE_PATH}/isci`
 
   return <div className="page-stack bookings-page">
     <div className="page-intro"><div><span className="overline">Vsi ponudniki</span><h2>Termini</h2><p>Preglejte svoje prihajajoče, pretekle in odpovedane termine.</p></div></div>
