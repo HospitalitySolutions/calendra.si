@@ -2707,20 +2707,8 @@ export function ConfigurationPage() {
     entitlementsEnabledCommitted &&
     billingEnabledCommitted &&
     settings.BILLING_GIFT_CARDS_ENABLED === "true";
-  const fiscalCashRegisterAllowedCommitted =
-    isPlatformAdminTenant ||
-    ((activeSubscriptionPackage !== "CUSTOM" ||
-      selectedCustomFeatureKeys.has("BILLING_FISCAL_CASH_REGISTER_ENABLED")) &&
-      moduleVisibilityAllowed(
-        moduleVisibilityRules,
-        "BILLING_FISCAL_CASH_REGISTER_ENABLED",
-        activeSubscriptionPackage,
-        companyTenantType,
-      ));
   const fiscalCashRegisterEnabledCommitted =
-    billingEnabledCommitted &&
-    fiscalCashRegisterAllowedCommitted &&
-    settings.BILLING_FISCAL_CASH_REGISTER_ENABLED === "true";
+    billingEnabledCommitted && settings.BILLING_FISCAL_CASH_REGISTER_ENABLED === "true";
   const stripeModuleEnabledCommitted =
     billingEnabledCommitted &&
     settings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== "false";
@@ -8121,13 +8109,7 @@ export function ConfigurationPage() {
                                     className="company-profile-menu-popover company-profile-visibility-menu"
                                     onClick={(e) => e.stopPropagation()}
                                   >
-                                    {companySectionMenuItems
-                                      .filter(
-                                        (item) =>
-                                          item.key !== "fiscal" ||
-                                          fiscalCashRegisterEnabledCommitted,
-                                      )
-                                      .map((item) => (
+                                    {companySectionMenuItems.map((item) => (
                                       <label
                                         key={item.key}
                                         className="company-profile-visibility-option"
@@ -8475,8 +8457,7 @@ export function ConfigurationPage() {
                           </section>
                         ) : null}
 
-                        {companySectionVisibility.fiscal &&
-                        fiscalCashRegisterEnabledCommitted ? (
+                        {companySectionVisibility.fiscal ? (
                           <section className="account-card account-form-card">
                             <div className="account-form-card-header">
                               <div>
@@ -8484,6 +8465,16 @@ export function ConfigurationPage() {
                               </div>
                             </div>
 
+                            {!fiscalCashRegisterEnabledCommitted ? (
+                              <div className="account-fiscal-note">
+                                <BillingInfoIcon />
+                                <span>
+                                  {locale === "sl"
+                                    ? "Davčno potrjevanje bo uporabljeno, ko v App nastavitve omogočite možnost Davčna blagajna."
+                                    : "Tax confirmation will be used once the Fiscal cash register option is enabled in App settings."}
+                                </span>
+                              </div>
+                            ) : null}
 
                             <div className="account-form-grid">
                               <label className="account-field">
@@ -13633,6 +13624,17 @@ export function ConfigurationPage() {
                   onSave={saveSettings}
                   t={t}
                   globallyEnabled={inboxGlobalCapabilities.viberEnabled}
+                />
+              ) : tab === "notifications" ? (
+                <ConfigurationNotificationsSection
+                  settings={settings}
+                  setSettings={setSettings}
+                  savingSettings={savingSettings}
+                  onSave={saveSettings}
+                  t={t}
+                  locale={locale}
+                  waitlistEnabled={waitlistEnabledCommitted}
+                  settingsLoaded={settingsLoaded}
                 />
               ) : tab === "reservationRules" ? (
                 <ReservationRulesTabbedSettings
