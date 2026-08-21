@@ -185,6 +185,8 @@ function joinSummary(...parts: Array<string | null | undefined | false>): string
   return kept.length > 0 ? kept.join(' · ') : '—'
 }
 
+const DEFAULT_REPEAT_END_COUNT = 5
+
 function truncateSummary(value: string | null | undefined, max = 60): string {
   const text = String(value ?? '').replace(/\s+/g, ' ').trim()
   if (!text) return ''
@@ -219,7 +221,7 @@ function bookingFormSignature(session: any, clientIds: any[], services: any[]) {
     repeatUnit: String(session?.repeatUnit ?? ''),
     repeatDay: String(session?.repeatDay ?? ''),
     repeatEndType: String(session?.repeatEndType ?? ''),
-    repeatEndCount: Number(session?.repeatEndCount ?? 0),
+    repeatEndCount: Number(session?.repeatEndCount) >= 2 ? Number(session.repeatEndCount) : DEFAULT_REPEAT_END_COUNT,
     repeatEndDate: String(session?.repeatEndDate ?? ''),
     sessionConsumables: Array.isArray(session?.sessionConsumables) ? session.sessionConsumables : null,
     resetSessionConsumablesToDefaults: Boolean(session?.resetSessionConsumablesToDefaults),
@@ -557,7 +559,14 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     const on = typeof next === 'boolean' ? next : !form.repeats
     const startDate = form.startTime ? new Date(form.startTime) : null
     const sessionDay = startDate ? REPEAT_WEEKDAY_EN[startDate.getDay()] : 'Monday'
-    setForm((prev: any) => ({ ...prev, repeats: on, repeatDay: sessionDay }))
+    setForm((prev: any) => ({
+      ...prev,
+      repeats: on,
+      repeatDay: sessionDay,
+      ...(on && Number(prev.repeatEndCount) < 2
+        ? { repeatEndCount: DEFAULT_REPEAT_END_COUNT }
+        : {}),
+    }))
   }
 
   const renderNewBookingRepeats = (includeToggleRow: boolean) => {
@@ -570,7 +579,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     const repeatInterval = form.repeatInterval ?? 1
     const repeatUnit = form.repeatUnit ?? 'weeks'
     const repeatEndType = form.repeatEndType ?? 'after'
-    const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(form.repeatEndCount) || 2)))
+    const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(form.repeatEndCount) || DEFAULT_REPEAT_END_COUNT)))
     const repeatEndDate = form.repeatEndDate ?? ''
     const summaryTail = repeatEndType === 'after'
       ? t('formRepeatEndsAfter').replace('{count}', String(repeatEndCount))
@@ -592,7 +601,14 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <input
                   type="checkbox"
                   checked={!!form.repeats}
-                  onChange={(e) => setForm({ ...form, repeats: e.target.checked, repeatDay: sessionDay })}
+                  onChange={(e) => setForm({
+                    ...form,
+                    repeats: e.target.checked,
+                    repeatDay: sessionDay,
+                    ...(e.target.checked && Number(form.repeatEndCount) < 2
+                      ? { repeatEndCount: DEFAULT_REPEAT_END_COUNT }
+                      : {}),
+                  })}
                 />
                 <span className="repeats-toggle-slider" />
               </label>
@@ -665,7 +681,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   onBlur={(e) =>
                     setForm({
                       ...form,
-                      repeatEndCount: Math.max(2, Math.min(100, Math.floor(Number(e.target.value) || 2))),
+                      repeatEndCount: Math.max(2, Math.min(100, Math.floor(Number(e.target.value) || DEFAULT_REPEAT_END_COUNT))),
                     })
                   }
                 />
@@ -777,7 +793,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     const repeatInterval = selectedBookedSession.repeatInterval ?? 1
     const repeatUnit = selectedBookedSession.repeatUnit ?? 'weeks'
     const repeatEndType = selectedBookedSession.repeatEndType ?? 'after'
-    const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(selectedBookedSession.repeatEndCount) || 2)))
+    const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(selectedBookedSession.repeatEndCount) || DEFAULT_REPEAT_END_COUNT)))
     const repeatEndDate = selectedBookedSession.repeatEndDate ?? ''
     const summaryTail = repeatEndType === 'after'
       ? t('formRepeatEndsAfter').replace('{count}', String(repeatEndCount))
@@ -799,7 +815,14 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                 <input
                   type="checkbox"
                   checked={!!selectedBookedSession.repeats}
-                  onChange={(e) => setSelectedBookedSession({ ...selectedBookedSession, repeats: e.target.checked, repeatDay: sessionDay })}
+                  onChange={(e) => setSelectedBookedSession({
+                    ...selectedBookedSession,
+                    repeats: e.target.checked,
+                    repeatDay: sessionDay,
+                    ...(e.target.checked && Number(selectedBookedSession.repeatEndCount) < 2
+                      ? { repeatEndCount: DEFAULT_REPEAT_END_COUNT }
+                      : {}),
+                  })}
                 />
                 <span className="repeats-toggle-slider" />
               </label>
@@ -872,7 +895,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
                   onBlur={(e) =>
                     setSelectedBookedSession({
                       ...selectedBookedSession,
-                      repeatEndCount: Math.max(2, Math.min(100, Math.floor(Number(e.target.value) || 2))),
+                      repeatEndCount: Math.max(2, Math.min(100, Math.floor(Number(e.target.value) || DEFAULT_REPEAT_END_COUNT))),
                     })
                   }
                 />

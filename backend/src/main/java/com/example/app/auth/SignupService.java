@@ -983,7 +983,7 @@ public class SignupService {
 
     private String localeFromReturnSearch(String returnSearch) {
         if (returnSearch == null || returnSearch.isBlank()) {
-            return null;
+            return "sl";
         }
 
         String normalizedSearch = returnSearch.startsWith("?")
@@ -1003,7 +1003,7 @@ public class SignupService {
                 fallbackLocale = locale;
             }
         }
-        return fallbackLocale;
+        return fallbackLocale == null ? "sl" : fallbackLocale;
     }
 
     private List<String> selectedRegistrationAddonKeys(AuthController.SignupRequest request) {
@@ -1494,7 +1494,8 @@ public class SignupService {
             return;
         }
 
-        String locale = "sl".equals(supportedSignupLocale(localeCode)) ? "sl" : "en";
+        String locale = supportedSignupLocale(localeCode);
+        if (locale == null) locale = "sl";
         VerificationEmailCopy copy = verificationEmailCopy(locale);
         String displayName = firstName == null || firstName.isBlank()
                 ? copy.greetingFallback()
@@ -1505,7 +1506,7 @@ public class SignupService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
-            helper.setFrom(mailFrom, "sl".equals(locale) ? "Calendra ekipa" : "Calendra team");
+            helper.setFrom(mailFrom, "en".equals(locale) ? "Calendra team" : "Calendra ekipa");
             helper.setTo(email);
             helper.setSubject(copy.subject());
             helper.setText(plainText, html);
@@ -1562,6 +1563,27 @@ public class SignupService {
                     "3. Začnite uporabljati Calendro",
                     "Upravljajte termine, stranke in poslovne nastavitve na enem mestu.",
                     "To je informativno sporočilo platforme Calendra."
+            );
+        }
+        if ("sr".equals(locale)) {
+            return new VerificationEmailCopy(
+                    "Vaš Calendra verifikacioni kod",
+                    "Upotrebite verifikacioni kod da nastavite kreiranje Calendra naloga.",
+                    "Verifikacija e-pošte",
+                    "Potvrdite svoju e-poštu",
+                    "Zdravo",
+                    "korisniče",
+                    "Započeli ste kreiranje Calendra naloga. Unesite kod ispod da potvrdite e-poštu i nastavite.",
+                    "Ovaj kod ističe za 1 sat.",
+                    "Ako ovo niste zatražili, možete ignorisati ovu poruku.",
+                    "Šta sledi?",
+                    "1. Potvrdite e-poštu",
+                    "Unesite gornji kod i potvrdite svoju e-poštu.",
+                    "2. Dovršite nalog",
+                    "Postavite lozinku i dovršite podatke svog naloga.",
+                    "3. Počnite da koristite Calendru",
+                    "Upravljajte terminima, klijentima i poslovnim podešavanjima na jednom mestu.",
+                    "Ovo je informativna poruka platforme Calendra."
             );
         }
         return new VerificationEmailCopy(

@@ -108,10 +108,15 @@ export function RegisterAccountPage() {
 
   const packageName = registerPlanToPackage[selection.plan]
   const tenantType = tenantTypeForBusinessType(selection.businessType)
-  const returnSearch = `?${selectionToSearch(selection)}`
+  const returnSearch = useMemo(() => {
+    const params = new URLSearchParams(selectionToSearch(selection))
+    params.set('locale', locale)
+    return `?${params.toString()}`
+  }, [locale, selection])
 
   const updateViewQuery = (nextView: RegisterView, addr: string, nextChallenge?: string) => {
     const q = new URLSearchParams(selectionToSearch(selection))
+    q.set('locale', locale)
     q.set('email', addr)
     if (nextChallenge) q.set('challengeId', nextChallenge)
     if (nextView === 'verify') q.set('verifyEmail', '1')
@@ -322,7 +327,9 @@ export function RegisterAccountPage() {
     setPassword('')
     setPasswordRepeat('')
     setError('')
-    navigate(`/register/account?${selectionToSearch(selection)}`, { replace: true })
+    const q = new URLSearchParams(selectionToSearch(selection))
+    q.set('locale', locale)
+    navigate(`/register/account?${q.toString()}`, { replace: true })
   }
 
   const headerContinue = () => {

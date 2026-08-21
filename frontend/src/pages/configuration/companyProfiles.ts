@@ -90,6 +90,20 @@ export const companyProfileToSettings = (
   };
 };
 
+const mergeLegacyCompanyName = (
+  settings: SettingsMap,
+  profile: CompanyProfileForm,
+): CompanyProfileForm => {
+  if (!Object.prototype.hasOwnProperty.call(settings, "COMPANY_NAME")) return profile;
+  return sanitizeCompanyProfile(
+    {
+      ...profile,
+      name: settings.COMPANY_NAME || "",
+    },
+    profile.id,
+  );
+};
+
 export const loadCompanyProfilesFromSettings = (
   settings: SettingsMap,
 ): CompanyProfileForm[] => {
@@ -103,12 +117,15 @@ export const loadCompanyProfilesFromSettings = (
             index === 0 ? "default-company-profile" : undefined,
           ),
         );
-        return profiles.some((profile) => profile.isDefault)
+        const normalizedProfiles = profiles.some((profile) => profile.isDefault)
           ? profiles
           : profiles.map((profile, index) => ({
               ...profile,
               isDefault: index === 0,
             }));
+        return normalizedProfiles.map((profile) =>
+          profile.isDefault ? mergeLegacyCompanyName(settings, profile) : profile,
+        );
       }
     } catch {
       // Fall back to legacy single-profile settings below.

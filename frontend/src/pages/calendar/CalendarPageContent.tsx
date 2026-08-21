@@ -175,6 +175,7 @@ const EmbeddedClientsPage = lazy(() =>
 )
 
 const CALENDAR_DEFAULT_BOOKED_COLOR = '#16A34A'
+const DEFAULT_REPEAT_END_COUNT = 5
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/
 
 type CalendarRecurrenceInput = {
@@ -205,7 +206,7 @@ const buildRecurringBookingIntervals = (
   const repeatInterval = Math.max(1, Math.floor(Number(recurrence.repeatInterval) || 1))
   const repeatUnit = recurrence.repeatUnit || 'weeks'
   const repeatEndType = recurrence.repeatEndType || 'after'
-  const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(recurrence.repeatEndCount) || 2)))
+  const repeatEndCount = Math.max(2, Math.min(100, Math.floor(Number(recurrence.repeatEndCount) || DEFAULT_REPEAT_END_COUNT)))
   const repeatEndDate = recurrence.repeatEndDate || ''
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const targetDayIndex = repeatUnit === 'weeks'
@@ -9228,7 +9229,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
         }
       }
       if (resolvedClientIds.length === 0) {
-        setSaveBookingError(t('calendarErrorSelectClient'))
+        showToast('error', t('calendarErrorSelectClient'))
         setEditingClientSearch(true)
         setClientDropdownOpen(true)
         return
@@ -9309,7 +9310,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           repeatInterval: form.repeatInterval ?? 1,
           repeatUnit: form.repeatUnit ?? 'weeks',
           repeatEndType: form.repeatEndType ?? 'after',
-          repeatEndCount: form.repeatEndCount ?? 2,
+          repeatEndCount: Math.max(2, Math.min(100, Math.floor(Number(form.repeatEndCount) || DEFAULT_REPEAT_END_COUNT))),
           repeatEndDate: form.repeatEndDate ?? '',
           repeatDay: form.repeatDay ?? null,
           recurrenceSeriesKey: form.repeats ? createRecurrenceSeriesKey() : null,
@@ -10825,7 +10826,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
           repeatInterval: selectedBookedSession.repeatInterval ?? 1,
           repeatUnit: selectedBookedSession.repeatUnit ?? 'weeks',
           repeatEndType: selectedBookedSession.repeatEndType ?? 'after',
-          repeatEndCount: selectedBookedSession.repeatEndCount ?? 2,
+          repeatEndCount: Math.max(2, Math.min(100, Math.floor(Number(selectedBookedSession.repeatEndCount) || DEFAULT_REPEAT_END_COUNT))),
           repeatEndDate: selectedBookedSession.repeatEndDate ?? '',
           repeatDay: selectedBookedSession.repeatDay ?? null,
           allowPersonalBlockOverlap: false,
