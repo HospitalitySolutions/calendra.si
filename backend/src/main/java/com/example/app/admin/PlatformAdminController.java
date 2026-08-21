@@ -858,8 +858,6 @@ public class PlatformAdminController {
                         get(companyId, SettingKey.GLOBAL_MESSAGING_VIBER_ENABLED, "false")),
                 Map.entry(SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED.name(),
                         get(companyId, SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED, "true")),
-                Map.entry(SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED.name(),
-                        get(companyId, SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED, "false")),
                 Map.entry(SettingKey.GLOBAL_AJPES_PRS_ENABLED.name(),
                         get(companyId, SettingKey.GLOBAL_AJPES_PRS_ENABLED, "false"))
         );
@@ -875,7 +873,6 @@ public class PlatformAdminController {
         save(companyId, me, SettingKey.GLOBAL_MESSAGING_WHATSAPP_ENABLED, payload.get(SettingKey.GLOBAL_MESSAGING_WHATSAPP_ENABLED.name()));
         save(companyId, me, SettingKey.GLOBAL_MESSAGING_VIBER_ENABLED, payload.get(SettingKey.GLOBAL_MESSAGING_VIBER_ENABLED.name()));
         save(companyId, me, SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED, payload.get(SettingKey.GLOBAL_PAYMENTS_STRIPE_ENABLED.name()));
-        save(companyId, me, SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED, payload.get(SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED.name()));
         save(companyId, me, SettingKey.GLOBAL_AJPES_PRS_ENABLED, payload.get(SettingKey.GLOBAL_AJPES_PRS_ENABLED.name()));
         return settings(me);
     }

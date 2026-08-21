@@ -192,18 +192,9 @@ export const customerApi = {
     return apiFetch<WalletOrder>(`/api/customer/v1/commerce/orders/${encodeURIComponent(orderId)}`)
   },
 
-  completeCommercePayPal(orderId: string, token?: string | null) {
-    const params = new URLSearchParams()
-    if (token) params.set('token', token)
-    const query = params.toString()
-    const suffix = query ? `?${query}` : ''
-    return apiFetch<WalletOrder>(`/api/customer/v1/commerce/orders/${encodeURIComponent(orderId)}/paypal/complete${suffix}`, { method: 'POST' })
-  },
-
-  cancelCommerceCheckout(orderId: string, options: { sessionId?: string | null; token?: string | null } = {}) {
+  cancelCommerceCheckout(orderId: string, options: { sessionId?: string | null } = {}) {
     const params = new URLSearchParams()
     if (options.sessionId) params.set('session_id', options.sessionId)
-    if (options.token) params.set('token', options.token)
     const query = params.toString()
     const suffix = query ? `?${query}` : ''
     return apiFetch<WalletOrder>(`/api/customer/v1/commerce/orders/${encodeURIComponent(orderId)}/cancel${suffix}`, { method: 'POST' })

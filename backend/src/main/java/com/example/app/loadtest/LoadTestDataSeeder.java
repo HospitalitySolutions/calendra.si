@@ -501,7 +501,6 @@ public class LoadTestDataSeeder implements CommandLineRunner {
         upsertSetting(companyId, "BILLING_INVOICES_ENABLED", "true");
         upsertSetting(companyId, "BILLING_BANK_TRANSFER_ENABLED", "true");
         upsertSetting(companyId, "BILLING_ONLINE_CARD_PAYMENTS_ENABLED", "false");
-        upsertSetting(companyId, "BILLING_PAYPAL_ENABLED", "false");
         upsertSetting(companyId, "BILLING_ADVANCE_ENABLED", "true");
         upsertSetting(companyId, "COMMUNICATION_ENABLED", "true");
         upsertSetting(companyId, "INBOX_ENABLED", "true");

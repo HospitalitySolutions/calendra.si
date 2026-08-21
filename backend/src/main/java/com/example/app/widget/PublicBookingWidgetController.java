@@ -65,7 +65,6 @@ public class PublicBookingWidgetController {
     public record AllowedPaymentMethodsResponse(
             boolean card,
             boolean bankTransfer,
-            boolean paypal,
             boolean giftCard
     ) {}
 

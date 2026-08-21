@@ -312,19 +312,12 @@ public class PublicBookingWidgetService {
                 isExternallyEnabled(pm) && pm.getPaymentType() == PaymentType.CARD && pm.isStripeEnabled()).findFirst().orElse(null);
         PaymentMethod bankMethod = methods.stream().filter(pm ->
                 isExternallyEnabled(pm) && pm.getPaymentType() == PaymentType.BANK_TRANSFER).findFirst().orElse(null);
-        PaymentMethod paypalMethod = methods.stream().filter(pm ->
-                isExternallyEnabled(pm) && pm.getPaymentType() == PaymentType.OTHER).findFirst().orElse(null);
         String productType = "SESSION_SINGLE";
         boolean stripeReady = stripeConnectService != null && stripeConnectService.isReadyForCompany(company);
         boolean card = stripeReady && accepted.contains("CARD") && cardMethod != null && allowedGuestProductTypes(cardMethod).contains(productType);
         boolean bankTransfer = accepted.contains("BANK_TRANSFER") && bankMethod != null && allowedGuestProductTypes(bankMethod).contains(productType);
-        boolean paypal = accepted.contains("PAYPAL")
-                && company.getPaypalMerchantId() != null
-                && !company.getPaypalMerchantId().isBlank()
-                && paypalMethod != null
-                && allowedGuestProductTypes(paypalMethod).contains(productType);
         boolean giftCard = accepted.contains("GIFT_CARD");
-        return new PublicBookingWidgetController.AllowedPaymentMethodsResponse(card, bankTransfer, paypal, giftCard);
+        return new PublicBookingWidgetController.AllowedPaymentMethodsResponse(card, bankTransfer, giftCard);
     }
 
     private boolean isExternallyEnabled(PaymentMethod method) {

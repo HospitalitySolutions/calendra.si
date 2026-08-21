@@ -26,7 +26,7 @@ data class TenantSummary(
     val paymentRequirement: String? = null,
     /** Deposit percentage used when paymentRequirement is deposit. */
     val depositPercent: Int? = null,
-    /** Runtime payment ids enabled for this tenant: CARD, BANK_TRANSFER, PAYPAL, GIFT_CARD. */
+    /** Runtime payment ids enabled for this tenant: CARD, BANK_TRANSFER, GIFT_CARD. */
     val acceptedPaymentMethods: List<String> = emptyList(),
     /** Enables ordered multi-service selection for this tenant. */
     val multipleServicesEnabled: Boolean = false,

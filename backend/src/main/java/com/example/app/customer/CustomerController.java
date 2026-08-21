@@ -99,23 +99,13 @@ public class CustomerController {
         return commerce.order(requireGuest(request), orderId);
     }
 
-    @PostMapping("/commerce/orders/{orderId}/paypal/complete")
-    public CustomerDtos.WalletOrderResponse completeCommercePayPal(
-            @PathVariable Long orderId,
-            @RequestParam(required = false) String token,
-            HttpServletRequest request
-    ) {
-        return commerce.completePayPal(requireGuest(request), orderId, token);
-    }
-
     @PostMapping("/commerce/orders/{orderId}/cancel")
     public CustomerDtos.WalletOrderResponse cancelCommerceCheckout(
             @PathVariable Long orderId,
             @RequestParam(name = "session_id", required = false) String checkoutSessionId,
-            @RequestParam(name = "token", required = false) String paypalToken,
             HttpServletRequest request
     ) {
-        return commerce.cancelExternalCheckout(requireGuest(request), orderId, checkoutSessionId, paypalToken);
+        return commerce.cancelExternalCheckout(requireGuest(request), orderId, checkoutSessionId);
     }
 
     @GetMapping("/wallet")

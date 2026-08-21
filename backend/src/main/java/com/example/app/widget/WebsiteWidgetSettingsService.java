@@ -27,7 +27,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class WebsiteWidgetSettingsService {
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final List<String> DEFAULT_ACCEPTED_CONFIG_IDS = List.of("online_card", "bank_transfer", "paypal", "gift_card");
+    private static final List<String> DEFAULT_ACCEPTED_CONFIG_IDS = List.of("online_card", "bank_transfer", "gift_card");
 
     private final AppSettingRepository settings;
     private final GlobalPaymentProviderService globalPaymentProviders;
@@ -138,7 +138,7 @@ public class WebsiteWidgetSettingsService {
                 root.path("bankTransferReservesSlot").asBoolean(false),
                 filterGiftCardProductTypes(readTextArray(root.path("allowBankTransferFor"), List.of("SESSION_SINGLE", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")), giftCardsEnabled),
                 filterGiftCardProductTypes(readTextArray(root.path("allowCardFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")), giftCardsEnabled),
-                filterGiftCardProductTypes(readTextArray(root.path("allowPaypalFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")), giftCardsEnabled),
+                List.of(),
                 requireOnlinePayment,
                 paymentRequirement,
                 depositPercent,
@@ -181,7 +181,7 @@ public class WebsiteWidgetSettingsService {
         boolean tenantStripeEnabled = settingEnabled(values, SettingKey.BILLING_ONLINE_CARD_PAYMENTS_ENABLED, true);
         return (accepted == null ? List.<String>of() : accepted).stream()
                 .filter(method -> !"CARD".equals(method) || (global.stripeEnabled() && tenantStripeEnabled))
-                .filter(method -> !"PAYPAL".equals(method) || global.paypalEnabled())
+                .filter(method -> !"PAYPAL".equals(method))
                 .filter(method -> giftCardsEnabled || !"GIFT_CARD".equals(method))
                 .toList();
     }
@@ -280,7 +280,7 @@ public class WebsiteWidgetSettingsService {
     }
 
     private static List<String> parseAcceptedRuntimeTypes(JsonNode node) {
-        if (node == null || !node.isArray()) return List.of("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD");
+        if (node == null || !node.isArray()) return List.of("CARD", "BANK_TRANSFER", "GIFT_CARD");
         Set<String> out = new LinkedHashSet<>();
         for (JsonNode entry : node) {
             String runtime = mapConfigIdToRuntimeType(entry.asText());
@@ -294,7 +294,6 @@ public class WebsiteWidgetSettingsService {
         return switch (value) {
             case "online_card", "card" -> "online_card";
             case "bank_transfer" -> "bank_transfer";
-            case "paypal" -> "paypal";
             case "gift_card" -> "gift_card";
             default -> null;
         };
@@ -306,7 +305,6 @@ public class WebsiteWidgetSettingsService {
         return switch (value) {
             case "online_card" -> "CARD";
             case "bank_transfer" -> "BANK_TRANSFER";
-            case "paypal" -> "PAYPAL";
             case "gift_card" -> "GIFT_CARD";
             default -> null;
         };

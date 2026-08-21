@@ -25,7 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class CustomerCommerceService {
     private static final List<String> BUYABLE_TYPES = List.of("PACK", "MEMBERSHIP", "GIFT_CARD");
-    private static final List<String> BUY_PAYMENT_METHODS = List.of("CARD", "BANK_TRANSFER", "PAYPAL");
+    private static final List<String> BUY_PAYMENT_METHODS = List.of("CARD", "BANK_TRANSFER");
 
     private final LocationRepository locations;
     private final GuestCatalogService catalog;
@@ -67,8 +67,6 @@ public class CustomerCommerceService {
         List<String> paymentMethods = settings.acceptedPaymentMethods(company.getId()).stream()
                 .map(value -> value == null ? "" : value.trim().toUpperCase(Locale.ROOT))
                 .filter(BUY_PAYMENT_METHODS::contains)
-                .filter(value -> !"PAYPAL".equals(value)
-                        || (company.getPaypalMerchantId() != null && !company.getPaypalMerchantId().isBlank()))
                 .distinct()
                 .toList();
         return new CustomerDtos.CommerceCatalogResponse(
@@ -161,23 +159,12 @@ public class CustomerCommerceService {
     }
 
     @Transactional
-    public CustomerDtos.WalletOrderResponse completePayPal(GuestUser guestUser, Long orderId, String token) {
-        requireOwnedCommerceOrder(guestUser, orderId);
-        orderService.handlePayPalReturn(orderId, token);
-        return orderView(requireOwnedCommerceOrder(guestUser, orderId));
-    }
-
-    @Transactional
     public CustomerDtos.WalletOrderResponse cancelExternalCheckout(
             GuestUser guestUser,
             Long orderId,
-            String checkoutSessionId,
-            String paypalToken
+            String checkoutSessionId
     ) {
         GuestOrder order = requireOwnedCommerceOrder(guestUser, orderId);
-        if (order.getPaypalOrderId() != null && !order.getPaypalOrderId().isBlank()) {
-            orderService.handlePayPalCancel(orderId, paypalToken);
-        }
         orderService.cancelPendingExternalCheckout(guestUser, orderId, checkoutSessionId);
         return orderView(requireOwnedCommerceOrder(guestUser, orderId));
     }

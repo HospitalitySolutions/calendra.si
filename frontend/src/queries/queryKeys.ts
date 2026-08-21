@@ -109,7 +109,6 @@ export const queryKeys = {
     inboxCapabilities: ['configuration', 'inbox-capabilities'] as const,
     paymentCapabilities: ['configuration', 'payment-capabilities'] as const,
     fiscalCertificate: (unitId: ScopeId) => ['configuration', 'fiscal-certificate', scopeId(unitId)] as const,
-    paypalConfig: (unitId: ScopeId) => ['configuration', 'paypal-config', scopeId(unitId)] as const,
     stripeConnectConfig: (unitId: ScopeId) => ['configuration', 'stripe-connect-config', scopeId(unitId)] as const,
     receivedInvoices: (unitId: ScopeId) => ['configuration', 'received-invoices', scopeId(unitId)] as const,
     registerCatalog: ['configuration', 'register-catalog'] as const,

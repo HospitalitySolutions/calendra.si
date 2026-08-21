@@ -39,10 +39,9 @@ const REGISTER_BILLING_DETAILS_REQUIRED_KEY =
   "calendra.register.requiresBillingDetails";
 const REGISTER_BILLING_DETAILS_SEARCH_KEY =
   "calendra.register.billingDetailsSearch";
-type RegisterPaymentMethod = "BANK_TRANSFER" | "CARD" | "PAYPAL";
+type RegisterPaymentMethod = "BANK_TRANSFER" | "CARD";
 type RegisterPaymentCapabilities = {
   stripeEnabled: boolean;
-  paypalEnabled: boolean;
 };
 
 function clearPendingBillingDetailsRedirect() {
@@ -889,8 +888,6 @@ const copyByLocale = {
     bankTransferDescription: "Pay via bank transfer",
     card: "Card payment",
     cardDescription: "Pay securely by card",
-    paypal: "PayPal",
-    paypalDescription: "Pay securely with PayPal",
     paymentHelp: "Your payment information is secure and encrypted.",
     summaryTitle: "Selected package",
     summaryLabel: "Package",
@@ -923,8 +920,6 @@ const copyByLocale = {
     bankTransferDescription: "Plačilo z bančnim nakazilom",
     card: "Plačilna kartica",
     cardDescription: "Varno plačilo s kartico",
-    paypal: "PayPal",
-    paypalDescription: "Varno plačilo s PayPalom",
     paymentHelp: "Vaši plačilni podatki so varni in šifrirani.",
     summaryTitle: "Izbrani paket",
     summaryLabel: "Paket",
@@ -1018,7 +1013,6 @@ export function RegisterBillingDetailsPage() {
   const [paymentCapabilities, setPaymentCapabilities] =
     useState<RegisterPaymentCapabilities>({
       stripeEnabled: false,
-      paypalEnabled: false,
     });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -1048,14 +1042,13 @@ export function RegisterBillingDetailsPage() {
         if (cancelled || !data) return;
         setPaymentCapabilities({
           stripeEnabled: data.stripeEnabled === true,
-          paypalEnabled: data.paypalEnabled === true,
         });
       })
       .catch(() => {
         if (!cancelled) {
           // Fail closed: a temporary capability lookup failure must not offer a
           // card checkout that may not be configured on the Platform Admin account.
-          setPaymentCapabilities({ stripeEnabled: false, paypalEnabled: false });
+          setPaymentCapabilities({ stripeEnabled: false });
         }
       });
     return () => {
@@ -1066,9 +1059,8 @@ export function RegisterBillingDetailsPage() {
   const availablePaymentMethods = useMemo<RegisterPaymentMethod[]>(() => {
     const methods: RegisterPaymentMethod[] = ["BANK_TRANSFER"];
     if (paymentCapabilities.stripeEnabled) methods.push("CARD");
-    if (paymentCapabilities.paypalEnabled) methods.push("PAYPAL");
     return methods;
-  }, [paymentCapabilities.paypalEnabled, paymentCapabilities.stripeEnabled]);
+  }, [paymentCapabilities.stripeEnabled]);
 
   useEffect(() => {
     if (availablePaymentMethods.includes(paymentMethod)) return;
@@ -1443,15 +1435,11 @@ export function RegisterBillingDetailsPage() {
                         const title =
                           method === "BANK_TRANSFER"
                             ? copy.bankTransfer
-                            : method === "CARD"
-                              ? copy.card
-                              : copy.paypal;
+                            : copy.card;
                         const description =
                           method === "BANK_TRANSFER"
                             ? copy.bankTransferDescription
-                            : method === "CARD"
-                              ? copy.cardDescription
-                              : copy.paypalDescription;
+                            : copy.cardDescription;
                         return (
                           <label
                             className={

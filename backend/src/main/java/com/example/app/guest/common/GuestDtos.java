@@ -38,7 +38,7 @@ public final class GuestDtos {
             String paymentRequirement,
             /** Deposit percentage used when paymentRequirement=deposit. */
             Integer depositPercent,
-            /** Runtime payment ids enabled in this tenant's guest app: CARD, BANK_TRANSFER, PAYPAL, GIFT_CARD. */
+            /** Runtime payment ids enabled in this tenant's guest app: CARD, BANK_TRANSFER, GIFT_CARD. */
             List<String> acceptedPaymentMethods,
             /** When false, guests cannot cancel upcoming bookings. */
             boolean cancellationAllowed,

@@ -172,31 +172,6 @@ public class GuestHomeController {
     private record GuestCheckoutIdempotencyRequest(Long orderId, GuestDtos.CheckoutRequest request) {}
 
 
-    @GetMapping(value = "/paypal/return", produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> paypalReturn(@RequestParam Long orderId, @RequestParam(required = false) String token) {
-        try {
-            GuestOrderService.PayPalCompletionResult result = orderService.handlePayPalReturn(orderId, token);
-            String target = "calendra-guest://paypal/return?status=success&orderId=" + result.order().getId();
-            return ResponseEntity.ok(renderPaymentRedirectPage("PayPal payment confirmed", "Returning to the guest app…", target));
-        } catch (Exception ex) {
-            String target = "calendra-guest://paypal/return?status=error&orderId=" + orderId + "&message="
-                    + URLEncoder.encode(ex.getMessage() == null ? "Unable to complete PayPal payment." : ex.getMessage(), StandardCharsets.UTF_8);
-            return ResponseEntity.ok(renderPaymentRedirectPage("PayPal payment failed", "We could not complete the payment. Return to the app to continue.", target));
-        }
-    }
-
-    @GetMapping(value = "/paypal/cancel", produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> paypalCancel(@RequestParam Long orderId, @RequestParam(required = false) String token) {
-        try {
-            orderService.handlePayPalCancel(orderId, token);
-        } catch (Exception ignore) {
-        }
-        String target = "calendra-guest://paypal/return?status=cancelled&orderId=" + orderId;
-        return ResponseEntity.ok(renderPaymentRedirectPage("PayPal checkout canceled", "Return to the guest app to pick another payment method.", target));
-    }
-
-
-
     @PostMapping("/orders/{orderId}/checkout/cancel")
     public GuestDtos.CheckoutResponse cancelExternalCheckout(
             @PathVariable Long orderId,

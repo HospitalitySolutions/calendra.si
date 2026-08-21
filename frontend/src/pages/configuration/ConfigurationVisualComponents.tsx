@@ -671,25 +671,6 @@ export function BillingTrashIcon() {
   );
 }
 
-export function BillingPaypalIcon() {
-  return (
-    <svg
-      width="19"
-      height="19"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M7 21l1.5-9h4a4 4 0 0 0 0-8H8L5 21" />
-      <path d="M9.5 17h3.2a4 4 0 0 0 4-3.4l.1-.6a3 3 0 0 0-3-3.5H10" />
-    </svg>
-  );
-}
-
 export function BillingUploadIcon() {
   return (
     <svg

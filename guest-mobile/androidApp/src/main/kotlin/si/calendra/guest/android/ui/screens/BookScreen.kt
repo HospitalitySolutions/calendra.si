@@ -152,12 +152,10 @@ private fun PaymentMethodUi.localizedTitle(languageCode: String): String = when 
     PaymentMethodUi.BANK_TRANSFER -> bookTr(languageCode, "Bank Transfer", "Bančno nakazilo")
     PaymentMethodUi.ENTITLEMENT -> bookTr(languageCode, "Use pass or visit", "Uporabi karto ali obisk")
     PaymentMethodUi.GIFT_CARD -> bookTr(languageCode, "Value voucher", "Vrednostni bon")
-    PaymentMethodUi.PAYPAL -> "PayPal"
 }
 
 private fun PaymentMethodUi.localizedHelper(languageCode: String): String? = when (this) {
     PaymentMethodUi.GIFT_CARD -> bookTr(languageCode, "Use your voucher balance", "Uporabite dobroimetje vrednostnega bona")
-    PaymentMethodUi.PAYPAL -> bookTr(languageCode, "Pay securely with PayPal", "Plačajte varno s PayPalom")
     else -> null
 }
 
@@ -172,7 +170,7 @@ data class ProviderOption(
     val requireOnlinePayment: Boolean = true,
     val paymentRequirement: String? = null,
     val depositPercent: Int? = null,
-    /** Runtime payment ids enabled for this tenant: CARD, BANK_TRANSFER, PAYPAL, GIFT_CARD. Empty means no online methods are selectable. */
+    /** Runtime payment ids enabled for this tenant: CARD, BANK_TRANSFER, GIFT_CARD. Empty means no online methods are selectable. */
     val acceptedPaymentMethods: List<String> = emptyList(),
     /** Tenant config type (salon, gym, spa, therapy, personal_training) driving the card icon. */
     val tenantType: String? = null,
@@ -291,8 +289,7 @@ private enum class PaymentMethodUi(
     CARD("Credit card", "CARD", true),
     BANK_TRANSFER("Bank Transfer", "BANK_TRANSFER", true),
     ENTITLEMENT("Use pass or visit", "ENTITLEMENT", true),
-    GIFT_CARD("Value voucher", "GIFT_CARD", true, "Use your voucher balance"),
-    PAYPAL("PayPal", "PAYPAL", true, "Pay securely with PayPal")
+    GIFT_CARD("Value voucher", "GIFT_CARD", true, "Use your voucher balance")
 }
 
 @Composable
@@ -606,14 +603,12 @@ fun BookScreen(
         if (hasGiftCardCoverage && isMethodAllowed(PaymentMethodUi.GIFT_CARD)) add(PaymentMethodUi.GIFT_CARD)
         if (isMethodAllowed(PaymentMethodUi.CARD)) add(PaymentMethodUi.CARD)
         if (isMethodAllowed(PaymentMethodUi.BANK_TRANSFER)) add(PaymentMethodUi.BANK_TRANSFER)
-        if (isMethodAllowed(PaymentMethodUi.PAYPAL)) add(PaymentMethodUi.PAYPAL)
     }
     fun paymentSubtitle(method: PaymentMethodUi): String? = when (method) {
         PaymentMethodUi.CARD -> cardSubtitle
         PaymentMethodUi.BANK_TRANSFER -> null
         PaymentMethodUi.ENTITLEMENT -> entitlementSubtitle
         PaymentMethodUi.GIFT_CARD -> giftCardSubtitle
-        PaymentMethodUi.PAYPAL -> PaymentMethodUi.PAYPAL.localizedHelper(languageCode)
     }
 
     fun moveBackStep(): Boolean {
@@ -1759,7 +1754,6 @@ private fun paymentMethodIcon(method: PaymentMethodUi): ImageVector = when (meth
     PaymentMethodUi.BANK_TRANSFER -> Icons.Rounded.AccountBalance
     PaymentMethodUi.ENTITLEMENT -> Icons.Rounded.EventAvailable
     PaymentMethodUi.GIFT_CARD -> Icons.Rounded.ReceiptLong
-    PaymentMethodUi.PAYPAL -> Icons.Rounded.CreditCard
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

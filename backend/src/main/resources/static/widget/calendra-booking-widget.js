@@ -84,8 +84,6 @@
       paymentMethodCardSubtitle: 'Pay securely with a credit or debit card.',
       paymentMethodBank: 'Bank transfer',
       paymentMethodBankSubtitle: 'Reserve now, pay via bank transfer with QR code.',
-      paymentMethodPaypal: 'PayPal',
-      paymentMethodPaypalSubtitle: 'Redirect to PayPal to approve the payment.',
       paymentMethodGiftCard: 'Voucher',
       paymentMethodGiftCardSubtitle: 'Pay the full remaining amount with vouchers only.',
       giftCardCodeLabel: 'Voucher codes',
@@ -98,7 +96,6 @@
       voucherFullCoverageRequired: 'The selected vouchers do not cover the full remaining amount. Choose another payment method for the remainder.',
       summaryGiftCard: 'Voucher',
       summaryBankTransfer: 'Bank transfer',
-      summaryPaypal: 'PayPal',
       summaryCard: 'Card payment',
       paymentMethodVenue: 'Pay at venue',
       paymentMethodVenueSubtitle: 'Book now without online payment and settle at the venue.',
@@ -113,7 +110,6 @@
       bankTransferTitle: 'Bank transfer instructions',
       bankTransferAmount: 'Amount',
       bankTransferReference: 'Reference',
-      paypalRedirecting: 'Redirecting to PayPal…',
       payment: 'payment method',
       summaryTitle: 'Booking summary',
       summaryEmpty: 'Choose a service to begin.',
@@ -282,8 +278,6 @@
       paymentMethodCardSubtitle: 'Plačajte varno s kreditno ali debetno kartico.',
       paymentMethodBank: 'Bančno nakazilo',
       paymentMethodBankSubtitle: 'Rezervirajte zdaj, plačajte prek bančnega nakazila s QR kodo.',
-      paymentMethodPaypal: 'PayPal',
-      paymentMethodPaypalSubtitle: 'Preusmeritev na PayPal za potrditev plačila.',
       paymentMethodGiftCard: 'Bon',
       paymentMethodGiftCardSubtitle: 'Plačajte celoten preostanek samo z boni.',
       giftCardCodeLabel: 'Kode bonov',
@@ -296,7 +290,6 @@
       voucherFullCoverageRequired: 'Izbrani boni ne pokrijejo celotnega preostalega zneska. Za preostanek izberite drug način plačila.',
       summaryGiftCard: 'Bon',
       summaryBankTransfer: 'Bančno nakazilo',
-      summaryPaypal: 'PayPal',
       summaryCard: 'Plačilo s kartico',
       paymentMethodVenue: 'Plačilo na lokaciji',
       paymentMethodVenueSubtitle: 'Rezervirajte brez spletnega plačila in poravnajte na lokaciji.',
@@ -311,7 +304,6 @@
       bankTransferTitle: 'Navodila za bančno nakazilo',
       bankTransferAmount: 'Znesek',
       bankTransferReference: 'Sklic',
-      paypalRedirecting: 'Preusmerjanje na PayPal…',
       payment: 'način plačila',
       summaryTitle: 'Povzetek rezervacije',
       summaryEmpty: 'Za začetek izberite storitev.',
@@ -919,7 +911,6 @@
       const allowed = config?.allowedPaymentMethods || this.allowedPaymentMethods();
       if (allowed?.card) return 'CARD';
       if (allowed?.bankTransfer) return 'BANK_TRANSFER';
-      if (allowed?.paypal) return 'PAYPAL';
       if (allowed?.giftCard) return 'GIFT_CARD';
       return null;
     }
@@ -1703,7 +1694,7 @@
     }
 
     allowedPaymentMethods() {
-      return this.state.config?.allowedPaymentMethods || { card: false, bankTransfer: false, paypal: false, giftCard: false };
+      return this.state.config?.allowedPaymentMethods || { card: false, bankTransfer: false, giftCard: false };
     }
 
     paymentOnLocationAllowed(config = this.state.config) {
@@ -1713,7 +1704,7 @@
     paymentPickerAllowedMethods() {
       const allowed = this.allowedPaymentMethods();
       if (this.paymentOnLocationAllowed()) {
-        return { card: false, bankTransfer: false, paypal: false, giftCard: Boolean(allowed.giftCard) };
+        return { card: false, bankTransfer: false, giftCard: Boolean(allowed.giftCard) };
       }
       return allowed;
     }
@@ -1721,7 +1712,7 @@
     hasPaymentChoices() {
       if (this.paymentOnLocationAllowed()) return true;
       const allowed = this.allowedPaymentMethods();
-      return Boolean(allowed.card || allowed.bankTransfer || allowed.paypal || allowed.giftCard);
+      return Boolean(allowed.card || allowed.bankTransfer || allowed.giftCard);
     }
 
     /** True when the final step needs the guest to choose one of the configured payment options. */
@@ -1776,7 +1767,6 @@
       const t = this.text();
       if (method === 'GIFT_CARD') return t.summaryGiftCard || t.paymentMethodGiftCard;
       if (method === 'BANK_TRANSFER') return t.summaryBankTransfer || t.paymentMethodBank;
-      if (method === 'PAYPAL') return t.summaryPaypal || t.paymentMethodPaypal;
       if (method === 'CARD') return t.summaryCard || t.paymentMethodCard;
       if (method === 'PAY_AT_VENUE') return t.summaryPayAtVenue || t.paymentMethodVenue;
       return t.summaryFullPayment;
@@ -1871,7 +1861,6 @@
       if (this.paymentOnLocationAllowed()) return false;
       if (method === 'CARD') return Boolean(allowed.card);
       if (method === 'BANK_TRANSFER') return Boolean(allowed.bankTransfer);
-      if (method === 'PAYPAL') return Boolean(allowed.paypal);
       return false;
     }
 
@@ -1903,18 +1892,7 @@
       if (type === 'GIFT_CARD') {
         return '<span class="pm-logo pm-logo-gift" aria-label="Voucher">🎁</span>';
       }
-      if (type === 'PAYPAL') {
-        return `
-          <svg class="pm-logo pm-logo-paypal" viewBox="0 0 60 18" xmlns="http://www.w3.org/2000/svg" aria-label="PayPal">
-            <path fill="#003087" d="M7.5 1.8H3.1c-.3 0-.6.2-.6.5L.7 13.9c0 .2.1.4.3.4h2.1c.3 0 .6-.2.6-.5l.5-3.1c0-.3.3-.5.6-.5h1.4c2.9 0 4.6-1.4 5-4.2.2-1.2 0-2.2-.6-2.9-.7-.8-1.9-1.3-3.1-1.3zm.5 4.2c-.2 1.5-1.4 1.5-2.5 1.5h-.6L5.4 4h.7c.8 0 1.5 0 1.9.5.2.2.3.6.2 1.5z"/>
-            <path fill="#003087" d="M22.5 5.9h-2.1c-.2 0-.3.1-.3.3l-.1.6-.1-.2c-.4-.6-1.4-.8-2.4-.8-2.3 0-4.3 1.7-4.7 4.2-.2 1.2.1 2.4.8 3.2.6.8 1.6 1.1 2.7 1.1 1.9 0 2.9-1.2 2.9-1.2l-.1.6c0 .2.1.4.3.4h1.9c.3 0 .6-.2.6-.5l1.1-7.3c.1-.2-.1-.4-.5-.4zm-2.9 4.1c-.2 1.2-1.1 2-2.3 2-.6 0-1.1-.2-1.4-.5-.3-.4-.4-.9-.3-1.5.2-1.2 1.1-2 2.3-2 .6 0 1.1.2 1.4.5.3.4.4.9.3 1.5z"/>
-            <path fill="#003087" d="M33.5 5.9h-2.1c-.2 0-.4.1-.5.3L28 10.4 26.8 6.3c-.1-.3-.3-.4-.6-.4h-2.1c-.2 0-.4.2-.3.5l2.3 6.8-2.2 3.1c-.2.2 0 .6.3.6h2.1c.2 0 .4-.1.5-.3l7.1-10.1c.2-.3 0-.6-.4-.6z"/>
-            <path fill="#009CDE" d="M40.5 1.8h-4.4c-.3 0-.6.2-.6.5l-1.8 11.6c0 .2.1.4.3.4H36c.2 0 .4-.2.4-.4l.5-3.3c0-.3.3-.5.6-.5h1.4c2.9 0 4.6-1.4 5-4.2.2-1.2 0-2.2-.6-2.9-.6-.7-1.9-1.2-3.1-1.2zm.5 4.2c-.2 1.5-1.4 1.5-2.5 1.5h-.6L38.4 4h.7c.8 0 1.5 0 1.9.5.2.2.2.6.1 1.5z"/>
-            <path fill="#009CDE" d="M55.5 5.9h-2.1c-.2 0-.3.1-.3.3l-.1.6-.1-.2c-.4-.6-1.4-.8-2.4-.8-2.3 0-4.3 1.7-4.7 4.2-.2 1.2.1 2.4.8 3.2.6.8 1.6 1.1 2.7 1.1 1.9 0 2.9-1.2 2.9-1.2l-.1.6c0 .2.1.4.3.4h1.9c.3 0 .6-.2.6-.5l1.1-7.3c.1-.2-.1-.4-.5-.4zm-2.9 4.1c-.2 1.2-1.1 2-2.3 2-.6 0-1.1-.2-1.4-.5-.3-.4-.4-.9-.3-1.5.2-1.2 1.1-2 2.3-2 .6 0 1.1.2 1.4.5.3.4.4.9.3 1.5z"/>
-            <path fill="#009CDE" d="M58 2.1l-1.8 11.8c0 .2.1.4.3.4h1.8c.3 0 .6-.2.6-.5l1.8-11.6c0-.2-.1-.4-.3-.4h-2c-.2 0-.4.2-.4.3z"/>
-          </svg>
-        `;
-      }
+
       return '';
     }
 
@@ -2284,7 +2262,7 @@
         this.clearSlotHoldLocally();
 
         // External payment methods redirect the guest to the provider approval/checkout URL.
-        if ((effectivePaymentMethod === 'PAYPAL' || effectivePaymentMethod === 'CARD') && checkout?.checkoutUrl) {
+        if (effectivePaymentMethod === 'CARD' && checkout?.checkoutUrl) {
           this.setState({ saving: false, paymentResult: { type: effectivePaymentMethod, checkoutUrl: checkout.checkoutUrl } });
           window.location.href = checkout.checkoutUrl;
           return;
@@ -3313,7 +3291,7 @@
 
       const payAtVenueOnly = this.paymentOnLocationAllowed();
       const allowed = this.paymentPickerAllowedMethods();
-      const hasAnyPaymentMethod = Boolean(payAtVenueOnly || allowed.giftCard || allowed.card || allowed.bankTransfer || allowed.paypal);
+      const hasAnyPaymentMethod = Boolean(payAtVenueOnly || allowed.giftCard || allowed.card || allowed.bankTransfer);
       const cardVariant = (variant, title, subtitle, iconMarkup) => `
         <button
           class="payment-tile ${this.state.paymentMethod === 'CARD' && this.state.paymentMethodVariant === variant ? 'is-active' : ''}"
@@ -3425,7 +3403,6 @@
                     ${payAtVenueOnly ? methodTile('PAY_AT_VENUE', t.paymentMethodVenue, t.paymentMethodVenueSubtitle || t.payAtVenueNote, this.uiIcon('card')) : ''}
                     ${!payAtVenueOnly && allowed.card ? methodTile('CARD', t.paymentMethodCard, t.paymentMethodCardSubtitle, this.uiIcon('card')) : ''}
                     ${!payAtVenueOnly && allowed.bankTransfer ? methodTile('BANK_TRANSFER', t.paymentMethodBank, t.paymentMethodBankSubtitle, this.paymentMethodLogos('BANK_TRANSFER')) : ''}
-                    ${!payAtVenueOnly && allowed.paypal ? methodTile('PAYPAL', t.paymentMethodPaypal, t.paymentMethodPaypalSubtitle, this.paymentMethodLogos('PAYPAL')) : ''}
                     ${allowed.giftCard ? methodTile('GIFT_CARD', t.paymentMethodGiftCard, t.paymentMethodGiftCardSubtitle, this.paymentMethodLogos('GIFT_CARD')) : ''}
                   </div>
                 ` : `<div class="empty">${escapeHtml(t.paymentMethodsNone)}</div>`}

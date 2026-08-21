@@ -1,1 +1,10 @@
-backend/src/main/java/com/example/app/billing/BillingPricePrecisionSchemaFix.java
+These files were removed by the cleanup and should be deleted from the target repository:
+
+PAYPAL_PATCH_FILE_LIST.txt
+backend/src/main/java/com/example/app/paypal/PayPalClient.java
+backend/src/main/java/com/example/app/paypal/PayPalConfig.java
+backend/src/main/java/com/example/app/paypal/PayPalOnboardingController.java
+backend/src/main/java/com/example/app/paypal/PayPalOnboardingService.java
+frontend/src/pages/configuration/BillingIssuersSection.tsx
+frontend/src/pages/configuration/CompanyBillingEntitiesSection.tsx
+frontend/src/pages/configuration/WorkspacePublicBookingSettingsSection.tsx

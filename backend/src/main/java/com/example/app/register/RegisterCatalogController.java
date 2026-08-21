@@ -22,7 +22,7 @@ public class RegisterCatalogController {
         this.globalPaymentProviders = globalPaymentProviders;
     }
 
-    public record RegisterPaymentCapabilitiesResponse(boolean stripeEnabled, boolean paypalEnabled) {}
+    public record RegisterPaymentCapabilitiesResponse(boolean stripeEnabled) {}
 
     @GetMapping("/catalog")
     public RegisterPriceCatalog catalog() {
@@ -38,10 +38,6 @@ public class RegisterCatalogController {
 
     @GetMapping("/payment-capabilities")
     public RegisterPaymentCapabilitiesResponse paymentCapabilities() {
-        var caps = globalPaymentProviders.capabilities();
-        return new RegisterPaymentCapabilitiesResponse(
-                globalPaymentProviders.isPlatformAdminStripeReady(),
-                caps.paypalEnabled()
-        );
+        return new RegisterPaymentCapabilitiesResponse(globalPaymentProviders.isPlatformAdminStripeReady());
     }
 }

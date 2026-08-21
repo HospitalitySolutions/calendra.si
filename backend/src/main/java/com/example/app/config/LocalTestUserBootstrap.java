@@ -71,7 +71,6 @@ public class LocalTestUserBootstrap implements CommandLineRunner {
             SettingKey.BILLING_INVOICES_ENABLED,
             SettingKey.BILLING_ONLINE_CARD_PAYMENTS_ENABLED,
             SettingKey.BILLING_BANK_TRANSFER_ENABLED,
-            SettingKey.BILLING_PAYPAL_ENABLED,
             SettingKey.BILLING_GIFT_CARDS_ENABLED,
             SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED,
             SettingKey.BILLING_ADVANCE_ENABLED,

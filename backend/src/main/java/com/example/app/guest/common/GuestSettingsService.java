@@ -125,7 +125,7 @@ public class GuestSettingsService {
 
     /**
      * Runtime payment methods enabled for the tenant in the guest app.
-     * Returned values are runtime ids: {@code CARD}, {@code BANK_TRANSFER}, {@code PAYPAL}, {@code GIFT_CARD}.
+     * Returned values are runtime ids: {@code CARD}, {@code BANK_TRANSFER}, {@code GIFT_CARD}.
      * Legacy config ids (cash, card_on_location) are filtered out. Missing or legacy-only config
      * keeps the full default set, while an explicitly saved empty array means “none”.
      */
@@ -145,7 +145,7 @@ public class GuestSettingsService {
 
     static List<String> parseAcceptedPaymentMethods(JsonNode node) {
         if (node == null || !node.isArray()) {
-            return List.of("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD");
+            return List.of("CARD", "BANK_TRANSFER", "GIFT_CARD");
         }
         if (node.size() == 0) {
             // An explicitly saved empty array means that no payment method is
@@ -161,7 +161,7 @@ public class GuestSettingsService {
         }
         // Invalid legacy-only values should retain the previous safe defaults.
         return out.isEmpty()
-                ? List.of("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD")
+                ? List.of("CARD", "BANK_TRANSFER", "GIFT_CARD")
                 : new ArrayList<>(out);
     }
 
@@ -169,8 +169,7 @@ public class GuestSettingsService {
         var global = globalPaymentProviders.capabilities();
         boolean tenantStripeEnabled = settingEnabled(values, SettingKey.BILLING_ONLINE_CARD_PAYMENTS_ENABLED, true);
         return new GlobalPaymentProviderService.ProviderCapabilities(
-                global.stripeEnabled() && tenantStripeEnabled,
-                global.paypalEnabled()
+                global.stripeEnabled() && tenantStripeEnabled
         );
     }
 
@@ -191,14 +190,13 @@ public class GuestSettingsService {
         }
         List<String> filtered = (accepted == null ? List.<String>of() : accepted).stream()
                 .filter(method -> !"CARD".equals(method) || capabilities.stripeEnabled())
-                .filter(method -> !"PAYPAL".equals(method) || capabilities.paypalEnabled())
+                .filter(method -> !"PAYPAL".equals(method))
                 .filter(method -> giftCardsEnabled || !"GIFT_CARD".equals(method))
                 .toList();
         if (!filtered.isEmpty()) return filtered;
         List<String> fallback = new ArrayList<>();
         if (capabilities.stripeEnabled()) fallback.add("CARD");
         fallback.add("BANK_TRANSFER");
-        if (capabilities.paypalEnabled()) fallback.add("PAYPAL");
         if (giftCardsEnabled) fallback.add("GIFT_CARD");
         return fallback;
     }
@@ -209,7 +207,6 @@ public class GuestSettingsService {
         return switch (value) {
             case "online_card", "card" -> "CARD";
             case "bank_transfer" -> "BANK_TRANSFER";
-            case "paypal" -> "PAYPAL";
             case "gift_card" -> "GIFT_CARD";
             default -> null;
         };
@@ -273,7 +270,7 @@ public class GuestSettingsService {
                 root.path("bankTransferReservesSlot").asBoolean(false),
                 filterGiftCardProductTypes(readTextArray(root.path("allowBankTransferFor"), List.of("PACK", "MEMBERSHIP", "GIFT_CARD")), giftCardsEnabled),
                 filterGiftCardProductTypes(readTextArray(root.path("allowCardFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")), giftCardsEnabled),
-                filterGiftCardProductTypes(readTextArray(root.path("allowPaypalFor"), List.of("SESSION_SINGLE", "CLASS_TICKET", "PACK", "MEMBERSHIP", "GIFT_CARD", "COURSE")), giftCardsEnabled),
+                List.of(),
                 requireOnlinePayment,
                 paymentRequirement,
                 depositPercent,

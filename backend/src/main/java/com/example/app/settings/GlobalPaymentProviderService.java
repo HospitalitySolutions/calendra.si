@@ -12,7 +12,7 @@ public class GlobalPaymentProviderService {
     private final UserRepository users;
     private final StripeConnectService stripeConnectService;
 
-    public record ProviderCapabilities(boolean stripeEnabled, boolean paypalEnabled) {}
+    public record ProviderCapabilities(boolean stripeEnabled) {}
 
     public GlobalPaymentProviderService(AppSettingRepository settings, UserRepository users) {
         this(settings, users, null);
@@ -50,12 +50,8 @@ public class GlobalPaymentProviderService {
                 .orElse(false);
     }
 
-    public boolean isPaypalEnabled() {
-        return readGlobalBoolean(SettingKey.GLOBAL_PAYMENTS_PAYPAL_ENABLED, false);
-    }
-
     public ProviderCapabilities capabilities() {
-        return new ProviderCapabilities(isStripeEnabled(), isPaypalEnabled());
+        return new ProviderCapabilities(isStripeEnabled());
     }
 
     private boolean readGlobalBoolean(SettingKey key, boolean fallback) {

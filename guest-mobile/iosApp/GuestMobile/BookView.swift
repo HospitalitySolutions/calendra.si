@@ -1138,7 +1138,6 @@ struct BookView: View {
         if isPaymentMethodAllowed(.giftCard), hasGiftCardCoverage { choices.append(.giftCard) }
         if isPaymentMethodAllowed(.card) { choices.append(.card) }
         if isPaymentMethodAllowed(.bankTransfer) { choices.append(.bankTransfer) }
-        if isPaymentMethodAllowed(.payPal) { choices.append(.payPal) }
         return choices
     }
 
@@ -1183,7 +1182,6 @@ struct BookView: View {
         case .card: return tr("Credit card", "Kreditna kartica")
         case .bankTransfer: return tr("Bank Transfer", "Bančno nakazilo")
         case .entitlement: return tr("Use pass or visit", "Uporabi karto ali obisk")
-        case .payPal: return "PayPal"
         case .giftCard: return tr("Value voucher", "Vrednostni bon")
         }
     }
@@ -1193,7 +1191,6 @@ struct BookView: View {
         case .card: return "creditcard.fill"
         case .bankTransfer: return "building.columns.fill"
         case .entitlement: return "ticket"
-        case .payPal: return "p.square.fill"
         case .giftCard: return "giftcard"
         }
     }
@@ -1209,8 +1206,6 @@ struct BookView: View {
                 let remaining = entitlement.remainingUses.map(String.init) ?? tr("Unlimited", "Neomejeno")
                 return tr("\(entitlement.name) • \(remaining) left", "\(entitlement.name) • \(remaining) preostalo")
             } ?? tr("No valid pass or pack available", "Ni veljavne karte ali paketa")
-        case .payPal:
-            return tr("Approve securely in PayPal", "Varno potrdite v PayPalu")
         case .giftCard:
             if let giftCard = matchingGiftCards.first {
                 let balanceText = giftCard.remainingValueGross.map { priceString($0) } ?? tr("available", "na voljo")
@@ -1650,7 +1645,7 @@ struct BookView: View {
 
             if let checkoutUrl = checkout.checkoutUrl, let url = URL(string: checkoutUrl) {
                 openURL(url)
-                notice = selectedPaymentMethod == .payPal ? tr("PayPal opened.", "PayPal se je odprl.") : tr("Payment page opened.", "Stran za plačilo se je odprla.")
+                notice = tr("Payment page opened.", "Stran za plačilo se je odprla.")
             } else if let bankTransfer = checkout.bankTransfer {
                 notice = bankTransfer.instructions
             } else {
@@ -1878,7 +1873,6 @@ enum GuestBookingPaymentChoice: String {
     case card
     case bankTransfer
     case entitlement
-    case payPal
     case giftCard
 
     var apiValue: String {
@@ -1886,7 +1880,6 @@ enum GuestBookingPaymentChoice: String {
         case .card: return "CARD"
         case .bankTransfer: return "BANK_TRANSFER"
         case .entitlement: return "ENTITLEMENT"
-        case .payPal: return "PAYPAL"
         case .giftCard: return "GIFT_CARD"
         }
     }

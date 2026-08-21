@@ -868,7 +868,7 @@ struct WalletView: View {
                 } else {
                     statusMessage = walletTr(appUiLocaleStorage, "Bank transfer instructions issued", "Navodila za bančno nakazilo so izdana")
                 }
-            case "CARD", "PAYPAL":
+            case "CARD":
                 if let urlString = checkout.checkoutUrl, let url = URL(string: urlString) {
                     setPendingExternalCheckout(PendingWalletExternalCheckout(
                         orderId: checkout.orderId,
@@ -898,7 +898,7 @@ struct WalletView: View {
     @MainActor
     private func cancelPendingExternalCheckoutIfNeeded() async {
         guard let pending = pendingExternalCheckout, pending.wasBackgrounded else { return }
-        // Give the Stripe/PayPal success or cancel deep link a short moment to arrive first.
+        // Give the Stripe success or cancel deep link a short moment to arrive first.
         try? await Task.sleep(nanoseconds: 1_200_000_000)
         guard let current = pendingExternalCheckout, current.orderId == pending.orderId else { return }
         if store.lastPaymentReturnOrderId == current.orderId {
@@ -1746,14 +1746,14 @@ extension AppStore {
 }
 
 private func normalizeWalletBuyMethods(_ methods: [String]) -> [String] {
-    let allowed = Set(["CARD", "BANK_TRANSFER", "PAYPAL"])
+    let allowed = Set(["CARD", "BANK_TRANSFER"])
     let accepted = Set(
         methods
             .map { $0.uppercased() }
             // Wallet Buy intentionally excludes gift-card checkout.
             .filter { allowed.contains($0) }
     )
-    let ordered = ["CARD", "BANK_TRANSFER", "PAYPAL"].filter { accepted.contains($0) }
+    let ordered = ["CARD", "BANK_TRANSFER"].filter { accepted.contains($0) }
     // If tenant config exposes no wallet-compatible methods, default to bank transfer only.
     return ordered.isEmpty ? ["BANK_TRANSFER"] : ordered
 }

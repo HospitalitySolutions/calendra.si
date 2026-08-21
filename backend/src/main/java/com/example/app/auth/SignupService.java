@@ -1944,7 +1944,6 @@ public class SignupService {
         seedSetting(company, SettingKey.BILLING_INVOICES_ENABLED, Boolean.toString(proAllowed));
         seedSetting(company, SettingKey.BILLING_BANK_TRANSFER_ENABLED, Boolean.toString(proAllowed));
         seedSetting(company, SettingKey.BILLING_ONLINE_CARD_PAYMENTS_ENABLED, "false");
-        seedSetting(company, SettingKey.BILLING_PAYPAL_ENABLED, "false");
         seedSetting(company, SettingKey.BILLING_GIFT_CARDS_ENABLED, Boolean.toString(proAllowed));
         seedSetting(company, SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED, Boolean.toString(proAllowed));
         seedSetting(company, SettingKey.BILLING_ADVANCE_ENABLED,

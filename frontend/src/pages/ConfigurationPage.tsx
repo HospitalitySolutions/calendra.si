@@ -17,12 +17,10 @@ import {
   settingsQueryOptions,
   usersQueryOptions,
 } from "../queries/sharedQueryOptions";
-import { calendarSpacesQueryOptions } from "../queries/calendarQueryOptions";
 import {
   fiscalCertificateMetaQueryOptions,
   inboxCapabilitiesQueryOptions,
   paymentCapabilitiesQueryOptions,
-  paypalConfigQueryOptions,
   receivedInvoicesQueryOptions,
   registerCatalogQueryOptions,
   stripeConnectConfigQueryOptions,
@@ -63,7 +61,6 @@ import {
   buildNotificationSettingsJson,
   mergeNotificationSettingsJsonIntoFlat,
 } from "./configuration/ConfigurationNotificationsSection";
-import { BillingIssuersSection } from "./configuration/BillingIssuersSection";
 import { OperatingUnitsPanel } from "./configuration/OperatingUnitsPanel";
 import { WorkspaceSubscriptionPanel } from "./configuration/WorkspaceSubscriptionPanel";
 import {
@@ -72,7 +69,6 @@ import {
   BillingInfoIcon,
   BillingLinkIcon,
   BillingLockIcon,
-  BillingPaypalIcon,
   BillingPaymentTypeIcon,
   BillingPlusIcon,
   BillingReceiptIcon,
@@ -112,7 +108,6 @@ import {
 import { hasAnyEmployeePermission, hasEmployeePermission } from "../lib/employeePermissions";
 import { isWorkspaceRolloutEnabled } from "../lib/workspaceRollout";
 import {
-  companyProfileFromSettings,
   companyProfileToSettings,
   loadCompanyProfilesFromSettings,
   sanitizeCompanyProfile,
@@ -172,7 +167,6 @@ import {
   serializeWebsiteBookingRules,
   serializeWebsiteWidgetSettings
 } from "./configuration/guestWebsiteSettings";
-import { WorkspacePublicBookingSettingsSection } from "./configuration/WorkspacePublicBookingSettingsSection";
 import type {
   GuestAppAssetField,
   GuestAppSettingsForm,
@@ -217,10 +211,8 @@ const reservationRulesSnapshot = (raw: string | undefined) =>
 
 type Tab =
   | "company"
-  | "booking"
   | "billing"
   | "guestApp"
-  | "website"
   | "notifications"
   | "reservationRules"
   | "customFields"
@@ -229,14 +221,9 @@ type Tab =
   | "viber"
   | "modules"
   | "activityLog";
-type BookingSubtab = "spaces" | "waitlist";
 type BillingSubtab =
-  | "issuers"
-  | "settings"
   | "paymentMethods"
   | "stripe"
-  | "paypal"
-  | "fiscal"
   | "giftCard"
   | "folioLayout";
 type IntegrationSubtab = "status" | "googleCalendar";
@@ -278,7 +265,6 @@ function guestConfigIdForPaymentMethod(
     if (normalizedName.includes("daril") || normalizedName.includes("gift")) {
       return "gift_card";
     }
-    return "paypal";
   }
   return null;
 }
@@ -390,18 +376,6 @@ function normalizePosTemplate(value: string | undefined) {
 }
 
 function BillingTopTabIcon({ subtab }: { subtab: BillingSubtab }) {
-  if (subtab === "issuers") {
-    return <BillingReceiptIcon />;
-  }
-  if (subtab === "settings") {
-    return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        <circle cx="12" cy="12" r="3.2" />
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
-      </svg>
-    );
-  }
-
   if (subtab === "paymentMethods") {
     return (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -414,22 +388,6 @@ function BillingTopTabIcon({ subtab }: { subtab: BillingSubtab }) {
 
   if (subtab === "stripe") {
     return <span className="billing-top-tab-stripe-badge" aria-hidden>S</span>;
-  }
-
-  if (subtab === "paypal") {
-    return <BillingPaypalIcon />;
-  }
-
-  if (subtab === "fiscal") {
-    return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        <path d="M9 3h6" />
-        <path d="M10 8h4" />
-        <rect x="5" y="3" width="14" height="18" rx="2.5" />
-        <path d="M9 13h6" />
-        <path d="M9 17h6" />
-      </svg>
-    );
   }
 
   if (subtab === "giftCard") {
@@ -480,7 +438,6 @@ type InboxGlobalCapabilities = {
 };
 type PaymentGlobalCapabilities = {
   stripeEnabled: boolean;
-  paypalEnabled: boolean;
 };
 type AccountReceivedInvoice = {
   id: number;
@@ -513,10 +470,8 @@ type IntegrationGoogleCalendarConnection = {
 
 const CONFIG_TAB_IDS: readonly Tab[] = [
   "company",
-  "booking",
   "billing",
   "guestApp",
-  "website",
   "notifications",
   "reservationRules",
   "customFields",
@@ -529,10 +484,8 @@ const CONFIG_TAB_IDS: readonly Tab[] = [
 
 const CONFIG_TAB_LABEL_KEY: Record<Tab, string> = {
   company: "tabCompany",
-  booking: "configBookingSpacesTab",
   billing: "tabBilling",
   guestApp: "tabGuestApp",
-  website: "tabWebsite",
   notifications: "tabNotifications",
   reservationRules: "tabReservationRules",
   customFields: "tabCustomFields",
@@ -1314,7 +1267,6 @@ export function ConfigurationPage() {
     useState<AccountPlanPackageKey | null>(null);
   const [savingPackageChange, setSavingPackageChange] = useState(false);
   const [accountPlanDetailsOpen, setAccountPlanDetailsOpen] = useState(false);
-  const [bookingSubtab, setBookingSubtab] = useState<BookingSubtab>("spaces");
   const [billingSubtab, setBillingSubtab] =
     useState<BillingSubtab>("paymentMethods");
   const [invoiceLayoutFormat, setInvoiceLayoutFormat] =
@@ -1326,8 +1278,6 @@ export function ConfigurationPage() {
   >(null);
   const [guestAppSubtab, setGuestAppSubtab] =
     useState<GuestAppSubtab>("general");
-  const [startingPaypalOnboarding, setStartingPaypalOnboarding] =
-    useState(false);
   const [startingStripeOnboarding, setStartingStripeOnboarding] =
     useState(false);
   const [refreshingStripeStatus, setRefreshingStripeStatus] = useState(false);
@@ -1405,35 +1355,9 @@ export function ConfigurationPage() {
     useState<WebsiteBookingRulesForm>(defaultWebsiteBookingRules);
   const [locations, setLocations] = useState<OperatingLocation[]>([]);
   const [locationIssuerOptions, setLocationIssuerOptions] = useState<InvoiceIssuerOption[]>([]);
-  const [locationDraft, setLocationDraft] = useState({ name: "", address: "", postalCode: "", city: "", timezone: "Europe/Ljubljana", phone: "", email: "", publicBookingEnabled: true, active: true, fiscalBusinessPremiseCode: "", defaultLegalEntityId: null as number | null });
-  const [editingLocationId, setEditingLocationId] = useState<number | null>(null);
-  const [showNewLocation, setShowNewLocation] = useState(false);
-  const [spaces, setSpaces] = useState<Space[]>([]);
-  const [editingSpaceId, setEditingSpaceId] = useState<number | null>(null);
-  const [spaceEditDraft, setSpaceEditDraft] = useState({
-    name: "",
-    description: "",
-    locationId: "",
-  });
-  const [newSpaceDrafts, setNewSpaceDrafts] = useState<
-    Array<{ tempId: string; name: string; description: string; locationId: string }>
-  >([]);
-  const [openSpaceMenuId, setOpenSpaceMenuId] = useState<number | null>(null);
-  const [spaceSearch, setSpaceSearch] = useState("");
-  const [spaceSort, setSpaceSort] = useState<"default" | "az" | "za">("default");
-  const [spaceFilterOpen, setSpaceFilterOpen] = useState(false);
   const [personalTaskPresets, setPersonalTaskPresets] = useState<
     PersonalTaskPreset[]
   >([]);
-  const [] = useState(false);
-  const [] = useState<string | null>(
-    null,
-  );
-  const [] = useState(false);
-  const [] = useState<{
-    name: string;
-    color: string;
-  }>({ name: "", color: DEFAULT_PERSONAL_TASK_COLOR });
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [savingPaymentMethodAvailabilityId, setSavingPaymentMethodAvailabilityId] =
     useState<number | null>(null);
@@ -1477,7 +1401,6 @@ export function ConfigurationPage() {
   const [registeringPremiseId, setRegisteringPremiseId] = useState<
     string | null
   >(null);
-  const [] = useState(false);
   const [inboxGlobalCapabilities, setInboxGlobalCapabilities] =
     useState<InboxGlobalCapabilities>({
       whatsappEnabled: false,
@@ -1486,7 +1409,6 @@ export function ConfigurationPage() {
   const [paymentGlobalCapabilities, setPaymentGlobalCapabilities] =
     useState<PaymentGlobalCapabilities>({
       stripeEnabled: false,
-      paypalEnabled: false,
     });
   const [inboxCapabilitiesLoaded, setInboxCapabilitiesLoaded] = useState(false);
   const [paymentCapabilitiesLoaded, setPaymentCapabilitiesLoaded] =
@@ -2815,10 +2737,8 @@ export function ConfigurationPage() {
 
   const hasConfigTabViewPermission = (tabId: Tab) => {
     if (tabId === "company") return hasEmployeePermission(me, 'SETTINGS_VIEW');
-    if (tabId === "booking") return hasEmployeePermission(me, 'SETTINGS_VIEW');
     if (tabId === "billing") return hasAnyEmployeePermission(me, ['BILLING_INVOICES_VIEW', 'PAYMENTS_VIEW']);
     if (tabId === "guestApp") return hasEmployeePermission(me, 'GUEST_MOBILE_APP_VIEW');
-    if (tabId === "website") return hasEmployeePermission(me, 'WEBSITE_WIDGET_VIEW');
     if (tabId === "notifications") return hasEmployeePermission(me, 'NOTIFICATIONS_VIEW');
     if (tabId === "reservationRules") return hasEmployeePermission(me, 'SETTINGS_VIEW');
     if (tabId === "customFields") return hasEmployeePermission(me, 'SETTINGS_VIEW');
@@ -2831,7 +2751,6 @@ export function ConfigurationPage() {
 
   const isConfigTabAvailable = (tabId: Tab) => {
     if (!hasConfigTabViewPermission(tabId)) return false;
-    if (tabId === "website") return false;
     if (tabId === "company" || tabId === "modules" || tabId === "reservationRules" || tabId === "activityLog")
       return true;
     if (tabId === "customFields") return customFieldsEnabledCommitted;
@@ -2843,7 +2762,6 @@ export function ConfigurationPage() {
           stripePaymentsAvailableCommitted)
       );
     if (!settingsLoaded) return false;
-    if (tabId === "booking") return settingsLoaded;
     if (tabId === "billing") return billingEnabledCommitted;
     if (tabId === "notifications") return notificationsEnabledCommitted;
     if (tabId === "whatsapp")
@@ -2855,11 +2773,7 @@ export function ConfigurationPage() {
   };
 
   const getUnavailableConfigTabFallback = (tabId: Tab): Tab => {
-    if (tabId === "website") {
-      if (isConfigTabAvailable("billing")) return "billing";
-      if (isConfigTabAvailable("modules")) return "modules";
-    }
-    if ((tabId === "billing" || tabId === "booking") && isConfigTabAvailable("modules")) return "modules";
+    if (tabId === "billing" && isConfigTabAvailable("modules")) return "modules";
     return firstAvailableConfigTab();
   };
 
@@ -2918,6 +2832,10 @@ export function ConfigurationPage() {
         setAccountSubtab("company");
         navigate("/configuration?tab=company", { replace: true });
       }
+    } else if (q === "website") {
+      setTab("billing");
+      setBillingSubtab("paymentMethods");
+      navigate("/configuration?tab=billing&subtab=paymentMethods", { replace: true });
     } else if (q === "googleCalendar") {
       setTab("integrations");
       if (googleCalendarModuleEnabledCommitted) {
@@ -2982,7 +2900,6 @@ export function ConfigurationPage() {
       subtabQuery === "settings" ||
       subtabQuery === "paymentMethods" ||
       subtabQuery === "stripe" ||
-      subtabQuery === "paypal" ||
       subtabQuery === "fiscal" ||
       subtabQuery === "giftCard" ||
       subtabQuery === "folioLayout" ||
@@ -3007,11 +2924,6 @@ export function ConfigurationPage() {
           navigate("/configuration?tab=billing&subtab=paymentMethods", {
             replace: true,
           });
-      } else if (
-        subtabQuery === "paypal" &&
-        !paymentGlobalCapabilities.paypalEnabled
-      ) {
-        setBillingSubtab("paymentMethods");
       } else if (subtabQuery === "giftCard" && !giftCardsEnabledCommitted) {
         setBillingSubtab("paymentMethods");
         if (q === "billing")
@@ -3059,7 +2971,6 @@ export function ConfigurationPage() {
     inboxCapabilitiesLoaded,
     paymentCapabilitiesLoaded,
     isMobileBillingViewport,
-    paymentGlobalCapabilities.paypalEnabled,
     stripePaymentsAvailableCommitted,
     billingEnabledCommitted,
     giftCardsEnabledCommitted,
@@ -3067,7 +2978,6 @@ export function ConfigurationPage() {
     notificationsEnabledCommitted,
     guestAppEnabledCommitted,
     websiteWidgetEnabledCommitted,
-    spacesEnabledCommitted,
     googleCalendarModuleEnabledCommitted,
     inboxGlobalCapabilities.whatsappEnabled,
     inboxGlobalCapabilities.viberEnabled,
@@ -3109,14 +3019,12 @@ export function ConfigurationPage() {
         if (cancelled || !data) return;
         setPaymentGlobalCapabilities({
           stripeEnabled: data.stripeEnabled !== false,
-          paypalEnabled: data.paypalEnabled === true,
         });
       })
       .catch(() => {
         if (!cancelled) {
           setPaymentGlobalCapabilities({
             stripeEnabled: true,
-            paypalEnabled: false,
           });
         }
       })
@@ -3145,7 +3053,6 @@ export function ConfigurationPage() {
     websiteWidgetEnabledCommitted,
     billingEnabledCommitted,
     notificationsEnabledCommitted,
-    spacesEnabledCommitted,
     navigate,
   ]);
 
@@ -3231,11 +3138,9 @@ export function ConfigurationPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.settings.all, refetchType: "none" }),
         queryClient.invalidateQueries({ queryKey: queryKeys.locations.all, refetchType: "none" }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.spacesAll, refetchType: "none" }),
         queryClient.invalidateQueries({ queryKey: queryKeys.billing.all, refetchType: "none" }),
         queryClient.invalidateQueries({ queryKey: queryKeys.users.all, refetchType: "none" }),
         queryClient.invalidateQueries({ queryKey: queryKeys.configuration.fiscalCertificate(activeUnitId), refetchType: "none" }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.configuration.paypalConfig(activeUnitId), refetchType: "none" }),
         queryClient.invalidateQueries({ queryKey: queryKeys.configuration.stripeConnectConfig(activeUnitId), refetchType: "none" }),
         queryClient.invalidateQueries({ queryKey: queryKeys.configuration.receivedInvoices(activeUnitId), refetchType: "none" }),
       ]);
@@ -3245,96 +3150,43 @@ export function ConfigurationPage() {
       .catch(() => ({} as Record<string, string>));
     const settingsRes = { data: settingsRaw };
     const rawSettings = settingsRaw;
-    const billingEnabledForLoad = rawSettings.BILLING_ENABLED !== "false";
-    const canReadInvoiceIssuers =
-      billingEnabledForLoad &&
-      hasEmployeePermission(me, "BILLING_INVOICES_VIEW");
-    const canReadPaymentMethods =
-      billingEnabledForLoad &&
-      hasEmployeePermission(me, "PAYMENTS_VIEW");
-    const canReadBillingConfiguration =
-      canReadInvoiceIssuers || canReadPaymentMethods;
-    const canReadAdminProviderConfiguration =
-      hasEmployeePermission(me, "INTEGRATIONS_VIEW") &&
-      (me.role === "ADMIN" ||
-        me.role === "SUPER_ADMIN" ||
-        (me.role === "CONSULTANT" && me.accessRoleId != null));
-    const paymentCapabilitiesForLoad = await queryClient
-      .fetchQuery(paymentCapabilitiesQueryOptions<PaymentGlobalCapabilities>())
-      .catch(() => null);
-    const canReadStripeConnectConfig =
-      canReadBillingConfiguration &&
-      canReadAdminProviderConfiguration &&
-      rawSettings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== "false" &&
-      paymentCapabilitiesForLoad?.stripeEnabled !== false;
-    const canReadPaypalConfig =
-      canReadBillingConfiguration &&
-      canReadAdminProviderConfiguration &&
-      paymentCapabilitiesForLoad?.paypalEnabled === true;
     const canReadFiscalCertificate =
-      canReadBillingConfiguration &&
+      rawSettings.BILLING_ENABLED !== "false" &&
       rawSettings.BILLING_FISCAL_CASH_REGISTER_ENABLED === "true" &&
       hasEmployeePermission(me, "BILLING_INVOICES_VIEW");
     const [
       locationsData,
       locationIssuersData,
-      spacesData,
       paymentMethodsData,
       certificateMetaData,
-      paypalConfigData,
       stripeConnectData,
       receivedInvoicesData,
       catalogData,
       tenantUsersData,
     ] = await Promise.all([
       queryClient.fetchQuery(locationsQueryOptions(activeUnitId)).catch(() => []),
-      canReadInvoiceIssuers
-        ? queryClient.fetchQuery(invoiceIssuersQueryOptions<InvoiceIssuerOption>(activeUnitId)).catch(() => [] as InvoiceIssuerOption[])
-        : Promise.resolve([] as InvoiceIssuerOption[]),
-      queryClient.fetchQuery(calendarSpacesQueryOptions<any>(activeUnitId)).catch(() => []),
-      canReadPaymentMethods
-        ? queryClient.fetchQuery(paymentMethodsQueryOptions<PaymentMethod>(activeUnitId)).catch(() => [] as PaymentMethod[])
-        : Promise.resolve([] as PaymentMethod[]),
+      queryClient.fetchQuery(invoiceIssuersQueryOptions<InvoiceIssuerOption>(activeUnitId)).catch(() => [] as InvoiceIssuerOption[]),
+      queryClient.fetchQuery(paymentMethodsQueryOptions<PaymentMethod>(activeUnitId)).catch(() => [] as PaymentMethod[]),
       canReadFiscalCertificate
         ? queryClient.fetchQuery(fiscalCertificateMetaQueryOptions<any>(activeUnitId)).catch(() => ({ uploaded: false }))
         : Promise.resolve({ uploaded: false }),
-      canReadPaypalConfig
-        ? queryClient.fetchQuery(paypalConfigQueryOptions<any>(activeUnitId)).catch(() => null)
-        : Promise.resolve(null),
-      canReadStripeConnectConfig
-        ? queryClient.fetchQuery(stripeConnectConfigQueryOptions<StripeConnectTenantStatus>(activeUnitId)).catch(() => null)
-        : Promise.resolve(null),
+      queryClient.fetchQuery(stripeConnectConfigQueryOptions<StripeConnectTenantStatus>(activeUnitId)).catch(() => null),
       queryClient.fetchQuery(receivedInvoicesQueryOptions<AccountReceivedInvoice>(activeUnitId)).catch(() => [] as AccountReceivedInvoice[]),
       queryClient.fetchQuery(registerCatalogQueryOptions<AccountRegisterCatalog>()).catch(() => DEFAULT_ACCOUNT_REGISTER_CATALOG),
       queryClient.fetchQuery(usersQueryOptions<AccountUserResponse>(activeUnitId)).catch(() => [] as AccountUserResponse[]),
     ]);
     const locationsRes = { data: locationsData };
     const locationIssuersRes = { data: locationIssuersData };
-    const spacesRes = { data: spacesData };
     const paymentMethodsRes = { data: paymentMethodsData };
     const certificateMetaRes = { data: certificateMetaData };
-    const paypalConfigRes = { data: paypalConfigData };
     const stripeConnectRes = { data: stripeConnectData };
     const receivedInvoicesRes = { data: receivedInvoicesData };
     const catalogRes = { data: catalogData };
     const tenantUsersRes = { data: tenantUsersData };
-    const paypalData = paypalConfigRes.data || {};
     const settingsData: Record<string, string> = applyNotificationModuleAvailability(
       mergeNotificationSettingsJsonIntoFlat({
-      ...(settingsRes.data || {}),
-      ...(paypalData.merchantId
-        ? { PAYPAL_MERCHANT_ID: paypalData.merchantId }
-        : {}),
-      ...(paypalData.trackingId
-        ? { PAYPAL_TRACKING_ID: paypalData.trackingId }
-        : {}),
-      ...(paypalData.status
-        ? { PAYPAL_ONBOARDING_STATUS: paypalData.status }
-        : {}),
-      PAYPAL_CREDENTIALS_CONFIGURED: paypalData.credentialsConfigured
-        ? "true"
-        : "false",
-    } as Record<string, string>),
+        ...(settingsRes.data || {}),
+      } as Record<string, string>),
     );
     const fallback = getWorkingHoursFallback();
     const parsedGuestApp = parseGuestAppSettings(
@@ -3484,7 +3336,6 @@ export function ConfigurationPage() {
     setPersonalTaskPresets(nextPersonalTaskPresets);
     setLocations(locationsRes.data || []);
     setLocationIssuerOptions((locationIssuersRes.data || []).filter((issuer: InvoiceIssuerOption) => issuer.assignedToCurrentUnit && issuer.active));
-    setSpaces(spacesRes.data || []);
     setPaymentMethods(
       (paymentMethodsRes.data || [])
         .map((p: PaymentMethod) => normalizePaymentMethod(p)!)
@@ -3504,69 +3355,10 @@ export function ConfigurationPage() {
     setSettingsLoaded(false);
     setLocations([]);
     setLocationIssuerOptions([]);
-    setSpaces([]);
     setPaymentMethods([]);
     setAccountReceivedInvoices([]);
     void load(false);
   }, [activeUnitId, canViewConfiguration]);
-
-  useEffect(() => {
-    if (!canViewConfiguration || !billingEnabledCommitted) return;
-    const merchantId =
-      query.get("merchantIdInPayPal") ||
-      query.get("merchantId") ||
-      query.get("merchant_id");
-    const trackingId = query.get("tracking_id") || query.get("trackingId");
-    if (!merchantId && !trackingId) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        await api.post("/paypal/onboarding/complete", {
-          merchantId,
-          trackingId,
-        });
-        if (!cancelled) {
-          await load();
-          setTab("billing");
-          setBillingSubtab(
-            paymentGlobalCapabilities.paypalEnabled
-              ? "paypal"
-              : "paymentMethods",
-          );
-          showToast(
-            "success",
-            merchantId
-              ? "PayPal seller connected."
-              : "PayPal onboarding returned. Please review the merchant ID below and save if needed.",
-          );
-          navigate(
-            `/configuration?tab=billing&subtab=${paymentGlobalCapabilities.paypalEnabled ? "paypal" : "paymentMethods"}`,
-            { replace: true },
-          );
-        }
-      } catch (err: any) {
-        if (!cancelled) {
-          showToast(
-            "error",
-            err?.response?.data?.message ||
-              "Failed to save PayPal onboarding result.",
-          );
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    canViewConfiguration,
-    query,
-    navigate,
-    showToast,
-    paymentGlobalCapabilities.paypalEnabled,
-    billingEnabledCommitted,
-  ]);
 
   useEffect(() => {
     if (!canViewConfiguration || !billingEnabledCommitted) return;
@@ -3670,32 +3462,11 @@ export function ConfigurationPage() {
     websiteWidgetEnabledCommitted,
     billingEnabledCommitted,
     notificationsEnabledCommitted,
-    spacesEnabledCommitted,
     paymentCapabilitiesLoaded,
     googleCalendarModuleEnabledCommitted,
     stripePaymentsAvailableCommitted,
     customFieldsEnabledCommitted,
   ]);
-
-  useEffect(() => {
-    setOpenSpaceMenuId(null);
-  }, [bookingSubtab]);
-
-  useEffect(() => {
-    if (!settingsLoaded || bookingSubtab === "spaces") return;
-    setBookingSubtab("spaces");
-  }, [bookingSubtab, settingsLoaded]);
-
-  useEffect(() => {
-    if (openSpaceMenuId == null) return;
-    const onDoc = (e: MouseEvent) => {
-      const el = e.target as HTMLElement;
-      if (el.closest(".config-entity-menu-wrap")) return;
-      setOpenSpaceMenuId(null);
-    };
-    document.addEventListener("click", onDoc);
-    return () => document.removeEventListener("click", onDoc);
-  }, [openSpaceMenuId]);
 
   const saveSettings = async (opts?: { applyModulesDraft?: boolean }) => {
     if (!canViewConfiguration) return;
@@ -3750,7 +3521,6 @@ export function ConfigurationPage() {
           modulesDraftForSave.BILLING_INVOICES_ENABLED = "false";
           modulesDraftForSave.BILLING_ONLINE_CARD_PAYMENTS_ENABLED = "false";
           modulesDraftForSave.BILLING_BANK_TRANSFER_ENABLED = "false";
-          modulesDraftForSave.BILLING_PAYPAL_ENABLED = "false";
           modulesDraftForSave.BILLING_GIFT_CARDS_ENABLED = "false";
           modulesDraftForSave.BILLING_FISCAL_CASH_REGISTER_ENABLED = "false";
           modulesDraftForSave.BILLING_ADVANCE_ENABLED = "false";
@@ -3798,7 +3568,6 @@ export function ConfigurationPage() {
             modulesDraftForSave.BILLING_ONLINE_CARD_PAYMENTS_ENABLED,
           BILLING_BANK_TRANSFER_ENABLED:
             modulesDraftForSave.BILLING_BANK_TRANSFER_ENABLED,
-          BILLING_PAYPAL_ENABLED: modulesDraftForSave.BILLING_PAYPAL_ENABLED,
           BILLING_GIFT_CARDS_ENABLED:
             modulesDraftForSave.BILLING_GIFT_CARDS_ENABLED,
           BILLING_FISCAL_CASH_REGISTER_ENABLED:
@@ -3856,9 +3625,7 @@ export function ConfigurationPage() {
             paymentDefaultMethodId,
             paymentProvider:
               effectiveGuestApp.paymentProvider === "stripe"
-                ? paymentGlobalCapabilities.paypalEnabled
-                  ? "paypal"
-                  : "bankart"
+                ? "bankart"
                 : effectiveGuestApp.paymentProvider,
           };
           const websiteAccepted = removeStripePaymentMethod(
@@ -3907,7 +3674,6 @@ export function ConfigurationPage() {
             ...effectiveGuestBookingRules,
             allowBankTransferFor: removeGiftCardProductType(effectiveGuestBookingRules.allowBankTransferFor),
             allowCardFor: removeGiftCardProductType(effectiveGuestBookingRules.allowCardFor),
-            allowPaypalFor: removeGiftCardProductType(effectiveGuestBookingRules.allowPaypalFor),
           };
         }
       }
@@ -3994,66 +3760,6 @@ export function ConfigurationPage() {
     } catch (e: any) {
       window.alert(
         e?.response?.data?.message || "Failed to save configuration.",
-      );
-    } finally {
-      setSavingSettings(false);
-    }
-  };
-
-  const paypalStatusLabel = useMemo(() => {
-    const status = (settings.PAYPAL_ONBOARDING_STATUS || "").trim();
-    if (!status || status === "NOT_CONNECTED") return "Not connected";
-    if (status === "ONBOARDING_LINK_CREATED") return "Onboarding link created";
-    if (status === "ONBOARDING_RETURNED") return "Connected";
-    return status.replace(/_/g, " ");
-  }, [settings.PAYPAL_ONBOARDING_STATUS]);
-
-  const startPaypalOnboarding = async () => {
-    setStartingPaypalOnboarding(true);
-    try {
-      const returnUrl = `${window.location.origin}/configuration?tab=billing&subtab=paypal`;
-      const { data } = await api.post("/paypal/onboarding/start", {
-        returnUrl,
-      });
-      if (!data?.actionUrl)
-        throw new Error("PayPal did not return an onboarding URL.");
-      setSettings((prev) => ({
-        ...prev,
-        PAYPAL_TRACKING_ID: data.trackingId || prev.PAYPAL_TRACKING_ID || "",
-        PAYPAL_ONBOARDING_STATUS: "ONBOARDING_LINK_CREATED",
-      }));
-      window.open(data.actionUrl, "_blank", "noopener,noreferrer");
-    } catch (err: any) {
-      showToast(
-        "error",
-        err?.response?.data?.message ||
-          err?.message ||
-          "Failed to start PayPal onboarding.",
-      );
-    } finally {
-      setStartingPaypalOnboarding(false);
-    }
-  };
-
-  const savePaypalConfiguration = async () => {
-    setSavingSettings(true);
-    try {
-      const { data } = await api.put("/paypal/onboarding/config", {
-        merchantId: settings.PAYPAL_MERCHANT_ID || "",
-        trackingId: settings.PAYPAL_TRACKING_ID || "",
-      });
-      setSettings((prev) => ({
-        ...prev,
-        PAYPAL_MERCHANT_ID: data?.merchantId || "",
-        PAYPAL_TRACKING_ID: data?.trackingId || "",
-        PAYPAL_ONBOARDING_STATUS:
-          data?.status || prev.PAYPAL_ONBOARDING_STATUS || "NOT_CONNECTED",
-      }));
-      showToast("success", "PayPal configuration saved.");
-    } catch (err: any) {
-      showToast(
-        "error",
-        err?.response?.data?.message || "Failed to save PayPal configuration.",
       );
     } finally {
       setSavingSettings(false);
@@ -4708,7 +4414,6 @@ export function ConfigurationPage() {
                 ...guestBookingRules,
                 allowBankTransferFor: removeGiftCardProductType(guestBookingRules.allowBankTransferFor),
                 allowCardFor: removeGiftCardProductType(guestBookingRules.allowCardFor),
-                allowPaypalFor: removeGiftCardProductType(guestBookingRules.allowPaypalFor),
               },
           effectiveGuestAppSettings.paymentOnLocation,
         );
@@ -4801,81 +4506,6 @@ export function ConfigurationPage() {
 
 
 
-
-  const resetLocationDraft = () => setLocationDraft({
-    name: "", address: "", postalCode: "", city: "", timezone: "Europe/Ljubljana", phone: "", email: "",
-    publicBookingEnabled: true, active: true, fiscalBusinessPremiseCode: "",
-    defaultLegalEntityId: defaultLocationIssuer?.id ?? null,
-  });
-
-  const startEditLocation = (location: OperatingLocation) => {
-    setEditingLocationId(location.id);
-    setShowNewLocation(false);
-    setLocationDraft({
-      name: location.name || "", address: location.address || "", postalCode: location.postalCode || "",
-      city: location.city || "", timezone: location.timezone || "Europe/Ljubljana", phone: location.phone || "",
-      email: location.email || "", publicBookingEnabled: location.publicBookingEnabled !== false,
-      active: location.active !== false, fiscalBusinessPremiseCode: location.fiscalBusinessPremiseCode || "",
-      defaultLegalEntityId: location.defaultLegalEntityId ?? defaultLocationIssuer?.id ?? null,
-    });
-  };
-
-  const saveLocation = async (id?: number) => {
-    if (!locationDraft.name.trim()) return;
-    const payload = { ...locationDraft, name: locationDraft.name.trim(), defaultLocation: id ? locations.find(item => item.id === id)?.defaultLocation === true : false };
-    if (id) await api.put(`/locations/${id}`, payload);
-    else await api.post("/locations", payload);
-    setEditingLocationId(null);
-    setShowNewLocation(false);
-    resetLocationDraft();
-    await load();
-    window.dispatchEvent(new Event('locations-updated'));
-  };
-
-  const makeDefaultLocation = async (location: OperatingLocation) => {
-    await api.put(`/locations/${location.id}`, { ...location, defaultLocation: true });
-    await load();
-    window.dispatchEvent(new Event('locations-updated'));
-  };
-
-  const removeLocation = async (location: OperatingLocation) => {
-    if (!(await confirm({ title: t("confirmDeleteLocation").replace("{name}", location.name), tone: "danger" }))) return;
-    await api.delete(`/locations/${location.id}`);
-    await load();
-    window.dispatchEvent(new Event('locations-updated'));
-  };
-
-  const saveEditedSpace = async (spaceId: number) => {
-    if (!canViewConfiguration) return;
-    const name = spaceEditDraft.name.trim();
-    if (!name) return;
-    await api.put(`/spaces/${spaceId}`, {
-      name,
-      description: spaceEditDraft.description.trim(),
-      locationId: spaceEditDraft.locationId ? Number(spaceEditDraft.locationId) : null,
-    });
-    setEditingSpaceId(null);
-    setSpaceEditDraft({ name: "", description: "", locationId: "" });
-    load();
-  };
-
-  const createSpaceFromDraft = async (tempId: string) => {
-    if (!canViewConfiguration) return;
-    const draft = newSpaceDrafts.find((item) => item.tempId === tempId);
-    if (!draft) return;
-    const name = draft.name.trim();
-    if (!name) return;
-    await api.post("/spaces", { name, description: draft.description.trim(), locationId: draft.locationId ? Number(draft.locationId) : null });
-    setNewSpaceDrafts((prev) => prev.filter((item) => item.tempId !== tempId));
-    load();
-  };
-
-  const removeSpace = async (id: number) => {
-    if (!canViewConfiguration) return;
-    if (!(await confirm({ title: t("confirmDeleteSpace"), tone: "danger" }))) return;
-    await api.delete(`/spaces/${id}`);
-    load();
-  };
 
   const startInlinePaymentMethodEdit = (method: PaymentMethod) => {
     setInlineEditingPaymentMethodId(method.id);
@@ -5462,14 +5092,6 @@ export function ConfigurationPage() {
           },
         ]
       : []),
-    ...(paymentGlobalCapabilities.paypalEnabled
-      ? [
-          { id: "paypal", label: "PayPal" } satisfies {
-            id: BillingSubtab;
-            label: string;
-          },
-        ]
-      : []),
     ...(giftCardsEnabledCommitted
       ? [
           { id: "giftCard", label: locale === "sl" ? "Boni" : "Vouchers" } satisfies {
@@ -5488,33 +5110,13 @@ export function ConfigurationPage() {
     : billingSubtabs;
 
   useEffect(() => {
-    if (
-      billingSubtab === "issuers" ||
-      billingSubtab === "settings" ||
-      billingSubtab === "fiscal"
-    ) {
-      setBillingSubtab("paymentMethods");
-      return;
-    }
     if (!stripePaymentsAvailableCommitted && billingSubtab === "stripe") {
-      setBillingSubtab("paymentMethods");
-    }
-    if (
-      !paymentGlobalCapabilities.paypalEnabled &&
-      billingSubtab === "paypal"
-    ) {
       setBillingSubtab("paymentMethods");
     }
     if (!giftCardsEnabledCommitted && billingSubtab === "giftCard") {
       setBillingSubtab("paymentMethods");
     }
-  }, [
-    billingSubtab,
-    giftCardsEnabledCommitted,
-    fiscalCashRegisterEnabledCommitted,
-    paymentGlobalCapabilities.paypalEnabled,
-    stripePaymentsAvailableCommitted,
-  ]);
+  }, [billingSubtab, giftCardsEnabledCommitted, stripePaymentsAvailableCommitted]);
 
   const resetAndOpenPaymentMethodModal = () => {
     setInlineEditingPaymentMethodId(-1);
@@ -5643,7 +5245,6 @@ export function ConfigurationPage() {
           BILLING_INVOICES_ENABLED: checked ? "true" : "false",
           BILLING_ONLINE_CARD_PAYMENTS_ENABLED: checked ? "true" : "false",
           BILLING_BANK_TRANSFER_ENABLED: checked ? "true" : "false",
-          BILLING_PAYPAL_ENABLED: checked ? "true" : "false",
           BILLING_GIFT_CARDS_ENABLED: checked
             ? d.BILLING_GIFT_CARDS_ENABLED
             : "false",
@@ -5698,7 +5299,6 @@ export function ConfigurationPage() {
         next.BILLING_INVOICES_ENABLED = "false";
         next.BILLING_ONLINE_CARD_PAYMENTS_ENABLED = "false";
         next.BILLING_BANK_TRANSFER_ENABLED = "false";
-        next.BILLING_PAYPAL_ENABLED = "false";
         next.BILLING_GIFT_CARDS_ENABLED = "false";
         next.BILLING_FISCAL_CASH_REGISTER_ENABLED = "false";
       }
@@ -5783,7 +5383,6 @@ export function ConfigurationPage() {
     "BILLING_INVOICES_ENABLED",
     "BILLING_ONLINE_CARD_PAYMENTS_ENABLED",
     "BILLING_BANK_TRANSFER_ENABLED",
-    "BILLING_PAYPAL_ENABLED",
     "BILLING_GIFT_CARDS_ENABLED",
     "BILLING_FISCAL_CASH_REGISTER_ENABLED",
     "BILLING_ADVANCE_ENABLED",
@@ -6730,7 +6329,7 @@ export function ConfigurationPage() {
   const usesMobileTabletDetailLayout =
     isCompactConfigViewport ||
     (isTabletConfigViewport &&
-      ["booking", "billing", "website", "notifications", "reservationRules", "customFields", "modules", "activityLog"].includes(
+      ["billing", "notifications", "reservationRules", "customFields", "modules", "activityLog"].includes(
         tab,
       ));
   const showCompactConfigOverview =
@@ -6751,7 +6350,7 @@ export function ConfigurationPage() {
   const configShellClassName = showCompactConfigOverview
     ? "config-shell config-shell--overview"
     : usesMobileTabletDetailLayout
-      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}${tab === "reservationRules" ? " config-shell--reservation-rules-mobile" : ""}${tab === "billing" ? " config-shell--billing-mobile" : ""}${tab === "booking" ? " config-shell--booking-mobile" : ""}${tab === "website" ? " config-shell--website-mobile" : ""}${tab === "customFields" ? " config-shell--custom-fields-mobile" : ""}${tab === "modules" ? " config-shell--modules-mobile" : ""}${tab === "activityLog" ? " config-shell--activity-log-mobile" : ""}`
+      ? `config-shell config-shell--detail${tab === "company" ? " config-shell--account-mobile" : ""}${isCompactNotificationsDetail ? " config-shell--notifications-mobile" : ""}${tab === "reservationRules" ? " config-shell--reservation-rules-mobile" : ""}${tab === "billing" ? " config-shell--billing-mobile" : ""}${tab === "customFields" ? " config-shell--custom-fields-mobile" : ""}${tab === "modules" ? " config-shell--modules-mobile" : ""}${tab === "activityLog" ? " config-shell--activity-log-mobile" : ""}`
       : "config-shell";
   const integrationSubtabs: { id: IntegrationSubtab; label: string }[] = [
     { id: "status", label: locale === "sl" ? "Status" : "Status" },
@@ -6764,20 +6363,6 @@ export function ConfigurationPage() {
         ]
       : []),
   ];
-
-  const queryValue = spaceSearch.trim().toLocaleLowerCase(locale);
-  const filteredSpaces = spaces.filter((space) => {
-    if (!queryValue) return true;
-    return `${space.name} ${space.description || ""}`
-      .toLocaleLowerCase(locale)
-      .includes(queryValue);
-  });
-  const visibleSpaces =
-    spaceSort === "az"
-      ? [...filteredSpaces].sort((a, b) => a.name.localeCompare(b.name, locale))
-      : spaceSort === "za"
-        ? [...filteredSpaces].sort((a, b) => b.name.localeCompare(a.name, locale))
-        : filteredSpaces;
 
   return (
     <div className={`stack gap-lg${tab === "activityLog" ? " config-page--activity-log" : ""}`}>
@@ -6813,9 +6398,7 @@ export function ConfigurationPage() {
             {usesMobileTabletDetailLayout ? (
               tab === "integrations" ||
               tab === "company" ||
-              tab === "booking" ||
               tab === "billing" ||
-              tab === "website" ||
               tab === "notifications" ||
               tab === "reservationRules" ||
               tab === "customFields" ||
@@ -6854,8 +6437,7 @@ export function ConfigurationPage() {
                     key={entry.id}
                     type="button"
                     className={
-                      tab === entry.id ||
-                      (entry.id === "company" && tab === "booking")
+                      tab === entry.id
                         ? "config-nav-item active"
                         : "config-nav-item"
                     }
@@ -10536,26 +10118,6 @@ export function ConfigurationPage() {
                     </section>
                   ) : null}
                 </div>
-              ) : tab === "booking" ? (
-                <div className="account-management-shell account-management-shell--operating-units">
-                  <AccountManagementSubtabs
-                    active="operatingUnits"
-                    onSelect={setAccountSubtabAndUrl}
-                    showOperatingUnits={hasEmployeePermission(me, "SETTINGS_VIEW")}
-                    referralLabel={t("referMenuItem")}
-                    legalLabel={legalTexts.subtab}
-                    locale={locale}
-                  />
-                  <OperatingUnitsPanel
-                    locale={locale}
-                    locationsEnabled={locationsEnabledCommitted}
-                    spacesEnabled={spacesEnabledCommitted}
-                    issuerOptions={locationIssuerOptions}
-                    companyLogoUrl={settings.COMPANY_LOGO_URL}
-                    tenantType={companyTenantType}
-                    onChanged={load}
-                  />
-                </div>
               ) : tab === "billing" ? (
                 <div className="billing-modern-shell">
                   <style>{`
@@ -11760,104 +11322,7 @@ export function ConfigurationPage() {
                       </div>
                     </div>
 
-                    {billingSubtab === "issuers" ? (
-                      <BillingIssuersSection
-                        locale={locale}
-                        allowMultipleCompanies={multipleCompaniesEnabledCommitted}
-                      />
-                    ) : billingSubtab === "settings" ? (
-                      <div className="billing-card billing-settings-card">
-                        <div className="billing-section-heading-row">
-                          <span className="billing-section-icon">
-                            <BillingReceiptIcon />
-                          </span>
-                          <span>
-                            <h3 className="billing-section-title">
-                              {locale === "sl"
-                                ? "Osnovne nastavitve računov"
-                                : "Basic invoice settings"}
-                            </h3>
-                            <span className="billing-section-kicker">
-                              {locale === "sl"
-                                ? "Določite številčenje računov in plačilne roke."
-                                : "Set invoice numbering and payment deadlines."}
-                            </span>
-                          </span>
-                        </div>
-                        <div className="billing-settings-grid">
-                          <label className="billing-settings-field">
-                            <span className="billing-label">
-                              {locale === "sl"
-                                ? "Števec računov"
-                                : "Invoice counter"}
-                            </span>
-                            <input
-                              className="billing-input"
-                              value={settings.INVOICE_COUNTER ?? ""}
-                              onChange={(e) =>
-                                setSettings({
-                                  ...settings,
-                                  INVOICE_COUNTER: e.target.value,
-                                })
-                              }
-                            />
-                            <span className="billing-hint">
-                              {locale === "sl"
-                                ? "Naslednja številka računa. Predpona računa je lahko npr. I, II ali NV-0001."
-                                : "The next invoice number to use. Supports alphanumeric prefixes such as I, II or INV-0001."}
-                            </span>
-                          </label>
-                          <label className="billing-settings-field">
-                            <span className="billing-label">
-                              {locale === "sl"
-                                ? "Rok plačila (dni)"
-                                : "Payment deadline (days)"}
-                            </span>
-                            <input
-                              className="billing-input"
-                              type="number"
-                              min="0"
-                              step="1"
-                              value={settings.PAYMENT_DEADLINE_DAYS ?? ""}
-                              onChange={(e) =>
-                                setSettings({
-                                  ...settings,
-                                  PAYMENT_DEADLINE_DAYS: e.target.value,
-                                })
-                              }
-                            />
-                            <span className="billing-hint">
-                              {locale === "sl"
-                                ? "Rok zapadlosti je datum računa + to število dni."
-                                : "Due date is invoice date + this number of days."}
-                            </span>
-                          </label>
-                        </div>
-                        <div className="billing-bottom-bar">
-                          <span className="billing-bottom-left">
-                            <span className="billing-info-dot">
-                              <BillingInfoIcon />
-                            </span>
-                            <span>
-                              {locale === "sl"
-                                ? "Spremembe se uporabijo za nove račune in ne vplivajo na že izdane račune."
-                                : "Changes apply to new invoices and do not affect already issued invoices."}
-                            </span>
-                          </span>
-                          <button
-                            type="button"
-                            className="billing-primary-button"
-                            onClick={() => void saveSettings()}
-                            disabled={savingSettings}
-                          >
-                            <BillingSaveIcon />
-                            {savingSettings
-                              ? t("formSaving")
-                              : t("configSaveConfiguration")}
-                          </button>
-                        </div>
-                      </div>
-                    ) : billingSubtab === "paymentMethods" ? (
+                    {billingSubtab === "paymentMethods" ? (
                       <>
                         <div className="billing-card billing-table-card">
                           <div className="billing-card-header">
@@ -12572,7 +12037,6 @@ export function ConfigurationPage() {
                                 }
                               >
                                 <option value="stripe">Stripe Connect</option>
-                                <option value="paypal">PayPal</option>
                                 <option value="bankart">Bankart</option>
                               </DesktopSelect>
                             </label>
@@ -12720,944 +12184,6 @@ export function ConfigurationPage() {
                                 ? t("formSaving")
                                 : t("configSaveConfiguration")}
                             </button>
-                          </div>
-                        </div>
-                      </>
-                    ) : billingSubtab === "paypal" ? (
-                      <>
-                        <div className="billing-overview-grid">
-                          <div className="billing-card billing-overview-card">
-                            <span className="billing-overview-icon">
-                              <BillingLinkIcon />
-                            </span>
-                            <span>
-                              <span className="billing-overview-label">
-                                {locale === "sl"
-                                  ? "Stanje povezave"
-                                  : "Connection status"}
-                              </span>
-                              <span
-                                className={
-                                  paypalStatusLabel
-                                    .toLowerCase()
-                                    .includes("connected") ||
-                                  paypalStatusLabel
-                                    .toLowerCase()
-                                    .includes("povezan")
-                                    ? "billing-pill billing-pill--success"
-                                    : "billing-pill billing-pill--neutral"
-                                }
-                              >
-                                <span className="billing-status-dot" />{" "}
-                                {paypalStatusLabel}
-                              </span>
-                            </span>
-                          </div>
-                          <div className="billing-card billing-overview-card">
-                            <span className="billing-overview-icon">
-                              <BillingUserBadgeIcon />
-                            </span>
-                            <span>
-                              <span className="billing-overview-label">
-                                Merchant ID
-                              </span>
-                              <span className="billing-overview-value">
-                                {settings.PAYPAL_MERCHANT_ID || "—"}
-                              </span>
-                            </span>
-                          </div>
-                          <div className="billing-card billing-overview-card">
-                            <span className="billing-overview-icon">
-                              <BillingTagIcon />
-                            </span>
-                            <span>
-                              <span className="billing-overview-label">
-                                Tracking ID
-                              </span>
-                              <span className="billing-overview-value">
-                                {settings.PAYPAL_TRACKING_ID || "—"}
-                              </span>
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="billing-card billing-form-card">
-                          <div className="billing-form-grid">
-                            <label className="billing-field">
-                              <span className="billing-label">
-                                {locale === "sl"
-                                  ? "Status povezave"
-                                  : "Connection status"}
-                              </span>
-                              <input
-                                className="billing-input"
-                                value={paypalStatusLabel}
-                                readOnly
-                              />
-                            </label>
-                            <label className="billing-field">
-                              <span className="billing-label">
-                                {locale === "sl"
-                                  ? "Poverilnice (sandbox / live)"
-                                  : "Sandbox / live credentials"}
-                              </span>
-                              <span className="billing-input-with-icon">
-                                <input
-                                  className="billing-input"
-                                  value={
-                                    settings.PAYPAL_CREDENTIALS_CONFIGURED ===
-                                    "true"
-                                      ? locale === "sl"
-                                        ? "Konfigurirano v zaledju"
-                                        : "Configured on backend"
-                                      : locale === "sl"
-                                        ? "Potrebne poverilnice v zaledju"
-                                        : "Backend credentials required"
-                                  }
-                                  readOnly
-                                />
-                                <span className="billing-input-icon">
-                                  <BillingLockIcon />
-                                </span>
-                              </span>
-                            </label>
-                            <label className="billing-field">
-                              <span className="billing-label">
-                                PayPal merchant ID
-                              </span>
-                              <input
-                                className="billing-input"
-                                value={settings.PAYPAL_MERCHANT_ID || ""}
-                                onChange={(e) =>
-                                  setSettings({
-                                    ...settings,
-                                    PAYPAL_MERCHANT_ID: e.target.value,
-                                  })
-                                }
-                                placeholder="Example: 9ABCD12345EFG"
-                              />
-                            </label>
-                            <label className="billing-field">
-                              <span className="billing-label">Tracking ID</span>
-                              <input
-                                className="billing-input"
-                                value={settings.PAYPAL_TRACKING_ID || ""}
-                                onChange={(e) =>
-                                  setSettings({
-                                    ...settings,
-                                    PAYPAL_TRACKING_ID: e.target.value,
-                                  })
-                                }
-                                placeholder="Auto-generated by PayPal onboarding"
-                              />
-                            </label>
-                          </div>
-                          <div className="billing-actions-row">
-                            <button
-                              type="button"
-                              className="billing-primary-button"
-                              onClick={startPaypalOnboarding}
-                              disabled={startingPaypalOnboarding}
-                            >
-                              <BillingPaypalIcon />
-                              {startingPaypalOnboarding
-                                ? locale === "sl"
-                                  ? "Odpiranje PayPal…"
-                                  : "Opening PayPal…"
-                                : locale === "sl"
-                                  ? "Poveži PayPal"
-                                  : "Connect PayPal"}
-                            </button>
-                            <button
-                              type="button"
-                              className="billing-secondary-button"
-                              onClick={savePaypalConfiguration}
-                              disabled={savingSettings}
-                            >
-                              <BillingSaveIcon />
-                              {savingSettings
-                                ? t("formSaving")
-                                : locale === "sl"
-                                  ? "Shrani konfiguracijo"
-                                  : "Save configuration"}
-                            </button>
-                          </div>
-                        </div>
-                        <div className="billing-info-note">
-                          <span className="billing-info-dot">
-                            <BillingInfoIcon />
-                          </span>
-                          <span>
-                            {locale === "sl"
-                              ? "Onboarding PayPal računa se odpre v novem oknu. Po zaključku boste samodejno preusmerjeni nazaj na to stran."
-                              : "PayPal onboarding opens in a new window. After completion you will be returned to this page automatically."}
-                          </span>
-                        </div>
-                      </>
-                    ) : billingSubtab === "fiscal" ? (
-                      <div className="billing-fiscal-grid">
-                        <div className="billing-card billing-fiscal-card">
-                          <div className="billing-fiscal-fields">
-                            <div className="billing-field">
-                              <span className="billing-label">
-                                {t("configFiscalEnvironment")}
-                              </span>
-                              <div
-                                className="billing-env-toggle"
-                                role="group"
-                                aria-label={t("configFiscalEnvironment")}
-                              >
-                                {(["TEST", "PROD"] as const).map((env) => (
-                                  <button
-                                    key={env}
-                                    type="button"
-                                    className={
-                                      (settings.FISCAL_ENVIRONMENT ||
-                                        "TEST") === env
-                                        ? "billing-env-option active"
-                                        : "billing-env-option"
-                                    }
-                                    onClick={() =>
-                                      setSettings({
-                                        ...settings,
-                                        FISCAL_ENVIRONMENT: env,
-                                      })
-                                    }
-                                  >
-                                    {env}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                            <label className="billing-field">
-                              <span className="billing-label">
-                                {t("configFiscalTaxNumberFromVat")}
-                              </span>
-                              <input
-                                className="billing-input"
-                                value={settings.FISCAL_TAX_NUMBER || ""}
-                                onChange={(e) =>
-                                  setSettings({
-                                    ...settings,
-                                    FISCAL_TAX_NUMBER: e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <div className="billing-field full-span">
-                              <span className="billing-label">
-                                {t("configFiscalBusinessPremiseId")}
-                              </span>
-                              <div className="billing-input-row">
-                                <input
-                                  className="billing-input"
-                                  placeholder={t(
-                                    "configFiscalBusinessPremiseId",
-                                  )}
-                                  value={
-                                    settings.FISCAL_BUSINESS_PREMISE_ID || ""
-                                  }
-                                  onChange={(e) =>
-                                    setSettings({
-                                      ...settings,
-                                      FISCAL_BUSINESS_PREMISE_ID:
-                                        e.target.value,
-                                    })
-                                  }
-                                />
-                                <button
-                                  type="button"
-                                  className="billing-secondary-button"
-                                  onClick={registerBusinessPremise}
-                                  disabled={registeringPremise}
-                                >
-                                  {registeringPremise &&
-                                  registeringPremiseId === selectedPremiseId
-                                    ? t("configFiscalRegistering")
-                                    : t("configFiscalRegister")}
-                                </button>
-                              </div>
-                              {selectedPremiseConfirmed ? (
-                                <span className="billing-hint">
-                                  ✓ {t("configFiscalConfirmedPremise")}
-                                </span>
-                              ) : null}
-                            </div>
-                            <label className="billing-field full-span">
-                              <span className="billing-label">
-                                {t("configFiscalElectronicDeviceId")}
-                              </span>
-                              <input
-                                className="billing-input"
-                                value={settings.FISCAL_DEVICE_ID || ""}
-                                onChange={(e) =>
-                                  setSettings({
-                                    ...settings,
-                                    FISCAL_DEVICE_ID: e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="billing-field">
-                              <span className="billing-label">
-                                {t("configFiscalCadastralNumber")}
-                              </span>
-                              <input
-                                className="billing-input"
-                                value={settings.FISCAL_CADASTRAL_NUMBER || ""}
-                                onChange={(e) =>
-                                  setSettings({
-                                    ...settings,
-                                    FISCAL_CADASTRAL_NUMBER: e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="billing-field">
-                              <span className="billing-label">
-                                {t("configFiscalBuildingNumber")}
-                              </span>
-                              <input
-                                className="billing-input"
-                                value={settings.FISCAL_BUILDING_NUMBER || ""}
-                                onChange={(e) =>
-                                  setSettings({
-                                    ...settings,
-                                    FISCAL_BUILDING_NUMBER: e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="billing-field">
-                              <span className="billing-label">
-                                {t("configFiscalBuildingSectionNumber")}
-                              </span>
-                              <input
-                                className="billing-input"
-                                value={
-                                  settings.FISCAL_BUILDING_SECTION_NUMBER || ""
-                                }
-                                onChange={(e) =>
-                                  setSettings({
-                                    ...settings,
-                                    FISCAL_BUILDING_SECTION_NUMBER:
-                                      e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="billing-field">
-                              <span className="billing-label">
-                                {t("configFiscalHouseNumber")}
-                              </span>
-                              <input
-                                className="billing-input"
-                                value={settings.FISCAL_HOUSE_NUMBER || ""}
-                                onChange={(e) =>
-                                  setSettings({
-                                    ...settings,
-                                    FISCAL_HOUSE_NUMBER: e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="billing-field span-2">
-                              <span className="billing-label">
-                                {t("configFiscalHouseNumberAdditional")}
-                              </span>
-                              <input
-                                className="billing-input"
-                                value={
-                                  settings.FISCAL_HOUSE_NUMBER_ADDITIONAL || ""
-                                }
-                                onChange={(e) =>
-                                  setSettings({
-                                    ...settings,
-                                    FISCAL_HOUSE_NUMBER_ADDITIONAL:
-                                      e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <p className="billing-fiscal-note full-span">
-                              Fiscal URLs are managed globally in the Platform
-                              Admin Console.
-                            </p>
-                            {premiseRegisterResult ? (
-                              <p className="billing-fiscal-note full-span">
-                                {premiseRegisterResult}
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        <div className="billing-card billing-fiscal-card">
-                          <div className="billing-fiscal-fields">
-                            <label className="billing-field full-span">
-                              <span className="billing-label">
-                                {t("configFiscalSoftwareSupplierTaxOptional")}
-                              </span>
-                              <input
-                                className="billing-input"
-                                value={
-                                  settings.FISCAL_SOFTWARE_SUPPLIER_TAX_NUMBER ||
-                                  ""
-                                }
-                                onChange={(e) =>
-                                  setSettings({
-                                    ...settings,
-                                    FISCAL_SOFTWARE_SUPPLIER_TAX_NUMBER:
-                                      e.target.value,
-                                  })
-                                }
-                              />
-                            </label>
-                            <label className="billing-field full-span">
-                              <span className="billing-label">
-                                {t("configFiscalCertificatePassword")}
-                              </span>
-                              <span className="billing-input-with-icon">
-                                <input
-                                  className="billing-input"
-                                  type="password"
-                                  value={
-                                    settings.FISCAL_CERTIFICATE_PASSWORD || ""
-                                  }
-                                  onChange={(e) =>
-                                    setSettings({
-                                      ...settings,
-                                      FISCAL_CERTIFICATE_PASSWORD:
-                                        e.target.value,
-                                    })
-                                  }
-                                />
-                                <span className="billing-input-icon">
-                                  <GuestEyeIcon />
-                                </span>
-                              </span>
-                            </label>
-                            <div className="billing-field full-span">
-                              <span className="billing-label">
-                                {t("configFiscalCertificateFile")}
-                              </span>
-                              <label className="billing-upload-zone">
-                                <input
-                                  type="file"
-                                  accept=".p12,.pfx,application/x-pkcs12"
-                                  onChange={(e) =>
-                                    setCertificateFile(
-                                      e.target.files?.[0] || null,
-                                    )
-                                  }
-                                />
-                                <BillingUploadIcon />
-                                <span>
-                                  {certificateFile
-                                    ? certificateFile.name
-                                    : locale === "sl"
-                                      ? "Povlecite datoteko sem ali kliknite za izbiro"
-                                      : "Drop a file here or click to choose"}
-                                  <small>
-                                    {locale === "sl"
-                                      ? "Dovoljene vrste: .p12, .pfx"
-                                      : "Allowed types: .p12, .pfx"}
-                                  </small>
-                                </span>
-                              </label>
-                            </div>
-                            <div className="full-span">
-                              <div className="billing-certificate-row">
-                                <div className="billing-certificate-main">
-                                  <span className="billing-certificate-icon">
-                                    <BillingCertificateIcon />
-                                  </span>
-                                  <span>
-                                    <span className="billing-certificate-name">
-                                      {certificateMeta?.uploaded
-                                        ? certificateMeta.fileName ||
-                                          "certificate"
-                                        : locale === "sl"
-                                          ? "Digitalno potrdilo ni naloženo"
-                                          : "No digital certificate uploaded"}
-                                    </span>
-                                    <span className="billing-certificate-meta">
-                                      {certificateMeta?.uploaded
-                                        ? `${certificateMeta.expiresAt ? `${t("configFiscalExpiresAt")}: ${certificateMeta.expiresAt}` : locale === "sl" ? "Potrdilo je naloženo." : "Certificate uploaded."}`
-                                        : locale === "sl"
-                                          ? "Naložite .p12 ali .pfx potrdilo za fiskalizacijo."
-                                          : "Upload a .p12 or .pfx certificate for fiscalization."}
-                                    </span>
-                                  </span>
-                                </div>
-                                {certificateMeta?.uploaded ? (
-                                  <span className="billing-pill billing-pill--success">
-                                    <span className="billing-status-dot" />{" "}
-                                    {locale === "sl" ? "Naloženo" : "Uploaded"}
-                                  </span>
-                                ) : (
-                                  <span className="billing-pill billing-pill--neutral">
-                                    {locale === "sl"
-                                      ? "Ni naloženo"
-                                      : "Not uploaded"}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="billing-fiscal-actions">
-                            <button
-                              type="button"
-                              className="billing-primary-button"
-                              onClick={() => void saveSettings()}
-                              disabled={savingSettings}
-                            >
-                              <BillingSaveIcon />
-                              {savingSettings
-                                ? t("formSaving")
-                                : t("configFiscalSaveSettings")}
-                            </button>
-                            <button
-                              type="button"
-                              className="billing-secondary-button"
-                              onClick={uploadCertificate}
-                              disabled={uploadingCertificate}
-                            >
-                              <BillingUploadIcon />
-                              {uploadingCertificate
-                                ? t("configFiscalUploadingCertificate")
-                                : t("configFiscalUploadCertificate")}
-                            </button>
-                            {certificateMeta?.uploaded ? (
-                              <button
-                                type="button"
-                                className="billing-danger-button"
-                                onClick={removeCertificate}
-                              >
-                                <BillingTrashIcon />
-                                {t("configFiscalRemoveCertificate")}
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                className="billing-danger-button"
-                                disabled
-                              >
-                                <BillingTrashIcon />
-                                {t("configFiscalRemoveCertificate")}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ) : billingSubtab === "folioLayout" && invoiceLayoutFormat === "POS_58" ? (
-                      <>
-                        <style>{`
-                          .pos-printing-shell { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(300px,.7fr); gap:24px; align-items:start; }
-                          .pos-printing-column { display:flex; flex-direction:column; gap:18px; }
-                          .pos-printing-card { background:#fff; border:1px solid #dbe7fb; border-radius:24px; box-shadow:0 18px 45px rgba(15,23,42,.06); padding:24px; }
-                          .pos-printing-hero h3, .pos-printing-section-title { margin:0; font-size:16px; font-weight:800; color:#142655; }
-                          .pos-printing-hero p { margin:6px 0 0; font-size:14px; line-height:1.55; color:#6b7a90; }
-                          .pos-mode-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px; }
-                          .pos-mode-card { appearance:none; border:1px solid #dbe7fb; border-radius:18px; background:#fff; padding:16px 18px; text-align:left; display:flex; gap:14px; align-items:flex-start; cursor:pointer; transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
-                          .pos-mode-card:hover { border-color:#b9d0ff; box-shadow:0 12px 24px rgba(33,103,255,.12); }
-                          .pos-mode-card.active { border-color:#2167ff; box-shadow:0 0 0 3px rgba(33,103,255,.12), 0 18px 34px rgba(33,103,255,.12); }
-                          .pos-mode-icon { width:42px; height:42px; border-radius:14px; background:#eef4ff; color:#2167ff; display:grid; place-items:center; flex:0 0 42px; }
-                          .pos-mode-icon svg { width:22px; height:22px; }
-                          .pos-mode-copy { display:flex; flex-direction:column; gap:4px; min-width:0; }
-                          .pos-mode-title-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-                          .pos-mode-title { font-size:15px; font-weight:800; color:#142655; }
-                          .pos-mode-subtitle { font-size:13px; color:#6b7a90; line-height:1.45; }
-                          .pos-radio-indicator { width:20px; height:20px; border-radius:999px; border:2px solid #c8d6ea; display:grid; place-items:center; flex:0 0 20px; }
-                          .pos-mode-card.active .pos-radio-indicator { border-color:#2167ff; }
-                          .pos-radio-indicator::after { content:""; width:8px; height:8px; border-radius:999px; background:transparent; }
-                          .pos-mode-card.active .pos-radio-indicator::after { background:#2167ff; }
-                          .pos-connection-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-                          .pos-status-pill { display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:999px; font-size:13px; font-weight:700; }
-                          .pos-status-pill--ok { background:#ecfdf3; color:#15803d; }
-                          .pos-status-pill--warn { background:#fff1f2; color:#be123c; }
-                          .pos-status-pill--neutral { background:#eff6ff; color:#1d4ed8; }
-                          .pos-status-dot { width:8px; height:8px; border-radius:999px; background:currentColor; opacity:.78; }
-                          .pos-action-row { display:flex; gap:12px; flex-wrap:wrap; }
-                          .pos-primary-btn, .pos-secondary-btn { appearance:none; border-radius:14px; min-height:48px; padding:0 18px; font-size:14px; font-weight:800; display:inline-flex; align-items:center; justify-content:center; gap:10px; cursor:pointer; transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease; }
-                          .pos-primary-btn { border:0; background:#2167ff; color:#fff; box-shadow:0 18px 30px rgba(33,103,255,.22); }
-                          .pos-primary-btn:hover { transform:translateY(-1px); }
-                          .pos-primary-btn:disabled { cursor:not-allowed; opacity:.7; transform:none; }
-                          .pos-secondary-btn { border:1px solid #dbe7fb; background:#fff; color:#183b79; }
-                          .pos-secondary-btn:disabled { opacity:.62; cursor:not-allowed; }
-                          .pos-inline-note { margin-top:14px; display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:16px; background:#eff6ff; color:#37517f; font-size:13px; line-height:1.55; }
-                          .pos-inline-note svg { width:18px; height:18px; color:#2167ff; flex:0 0 18px; margin-top:1px; }
-                          .pos-settings-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(260px,.95fr); gap:18px; }
-                          .pos-settings-controls { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px 18px; align-items:start; }
-                          .pos-field { display:flex; flex-direction:column; gap:8px; }
-                          .pos-field > span { font-size:13px; font-weight:700; color:#395071; }
-                          .pos-select { width:100%; min-height:46px; border-radius:14px; border:1px solid #dbe7fb; background:#fff; padding:0 14px; font-size:14px; color:#142655; outline:none; }
-                          .pos-toggle-list { grid-column:1 / -1; display:grid; gap:12px; }
-                          .pos-toggle-row { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:12px 14px; border:1px solid #edf2fb; border-radius:16px; background:#fbfdff; }
-                          .pos-toggle-copy { display:flex; flex-direction:column; gap:4px; }
-                          .pos-toggle-copy strong { font-size:14px; color:#142655; }
-                          .pos-toggle-copy span { font-size:12.5px; color:#6b7a90; line-height:1.45; }
-                          .pos-settings-info { min-height:100%; border:1px solid #dbe7fb; background:#f7faff; border-radius:18px; padding:18px; color:#50627f; display:flex; gap:10px; }
-                          .pos-settings-info svg { width:18px; height:18px; color:#2167ff; flex:0 0 18px; margin-top:2px; }
-                          .pos-sync-panel { grid-column:1 / -1; border:1px solid #cfe0ff; background:#f6f9ff; border-radius:18px; padding:16px; display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
-                          .pos-sync-copy { display:flex; gap:10px; color:#50627f; font-size:13px; line-height:1.55; }
-                          .pos-sync-copy svg { width:18px; height:18px; color:#16a34a; flex:0 0 18px; margin-top:2px; }
-                          .pos-sync-copy strong { display:block; color:#173f8f; font-size:13.5px; margin-bottom:3px; }
-                          .pos-sync-link { appearance:none; border:1px solid #bdd3ff; background:#fff; color:#1d5fe8; border-radius:12px; padding:10px 13px; font-size:12.5px; font-weight:800; cursor:pointer; white-space:nowrap; }
-                          .pos-first-use { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; }
-                          .pos-step { display:flex; gap:12px; padding:14px 16px; border-radius:18px; border:1px solid #edf2fb; background:#fff; }
-                          .pos-step-badge { width:34px; height:34px; border-radius:999px; background:#2167ff; color:#fff; display:grid; place-items:center; font-weight:800; flex:0 0 34px; }
-                          .pos-step-copy { display:flex; flex-direction:column; gap:3px; }
-                          .pos-step-copy span { font-size:12.5px; color:#6b7a90; }
-                          .pos-step-copy strong { font-size:14px; color:#142655; }
-                          .pos-preview-card { position:sticky; top:24px; }
-                          .pos-preview-header { display:flex; flex-direction:column; gap:5px; margin-bottom:18px; }
-                          .pos-preview-header h3 { margin:0; font-size:16px; font-weight:800; color:#142655; }
-                          .pos-preview-header span { color:#6b7a90; font-size:13px; }
-                          .pos-preview-title-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-                          .pos-sync-badge { display:inline-flex; align-items:center; gap:6px; color:#15803d; background:#ecfdf3; border:1px solid #bbf7d0; border-radius:999px; padding:5px 9px; font-size:11px; font-weight:800; white-space:nowrap; }
-                          .pos-receipt-stage { display:flex; justify-content:center; padding:10px 0 2px; }
-                          .pos-raster-stage { display:flex; justify-content:center; align-items:flex-start; min-height:460px; padding:12px; border-radius:18px; background:#172033; overflow:auto; }
-                          .pos-raster-paper { width:min(100%, 300px); background:#fff; box-shadow:0 18px 44px rgba(0,0,0,.22); }
-                          .pos-raster-paper img { display:block; width:100%; height:auto; }
-                          .pos-raster-placeholder { min-height:420px; width:min(100%, 300px); background:#fff; display:grid; place-items:center; text-align:center; padding:24px; box-sizing:border-box; color:#6b7a90; font-size:13px; }
-                          .pos-receipt-paper { position:relative; width:100%; max-width:252px; background:#fff; color:#111827; padding:24px 22px 26px; box-shadow:0 18px 44px rgba(15,23,42,.14); font-family:Inter, Arial, sans-serif; }
-                          .pos-receipt-paper.is-wide { max-width:310px; }
-                          .pos-receipt-paper::before, .pos-receipt-paper::after { content:""; position:absolute; left:0; right:0; height:12px; background:linear-gradient(-45deg, transparent 9px, #fff 0) bottom left/12px 12px repeat-x; }
-                          .pos-receipt-paper::before { top:-12px; transform:rotate(180deg); }
-                          .pos-receipt-paper::after { bottom:-12px; }
-                          .pos-receipt-center { text-align:center; }
-                          .pos-receipt-logo { display:inline-flex; align-items:center; justify-content:center; min-width:72px; min-height:28px; padding:0 10px; border-radius:999px; background:#eff6ff; color:#2167ff; font-size:12px; font-weight:800; margin-bottom:10px; }
-                          .pos-receipt-company { font-size:13px; font-weight:800; color:#111827; }
-                          .pos-receipt-muted { color:#4b5563; font-size:12px; line-height:1.45; }
-                          .pos-receipt-divider { margin:12px 0; border-top:2px dashed #111827; opacity:.45; }
-                          .pos-receipt-meta { display:grid; gap:5px; font-size:12px; color:#111827; }
-                          .pos-receipt-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; font-size:12px; color:#111827; }
-                          .pos-receipt-row strong { font-size:13px; }
-                          .pos-receipt-items { display:grid; gap:7px; margin:10px 0; }
-                          .pos-receipt-summary { display:grid; gap:6px; }
-                          .pos-receipt-summary .total { font-size:14px; font-weight:800; }
-                          .pos-receipt-qr { margin:14px auto 8px; width:86px; height:86px; border:5px solid #111827; background:linear-gradient(90deg, #111827 12%, transparent 12% 24%, #111827 24% 36%, transparent 36% 48%, #111827 48% 60%, transparent 60% 72%, #111827 72% 84%, transparent 84%), linear-gradient(#111827 12%, transparent 12% 24%, #111827 24% 36%, transparent 36% 48%, #111827 48% 60%, transparent 60% 72%, #111827 72% 84%, transparent 84%); background-size:18px 18px; background-position:0 0, 0 0; }
-                          .pos-footer-actions { display:flex; align-items:center; justify-content:space-between; gap:18px; margin-top:18px; padding-top:16px; border-top:1px solid #e6edf8; color:#6b7a90; font-size:13px; }
-                          @media (max-width: 1180px) {
-                            .pos-printing-shell { grid-template-columns:1fr; }
-                            .pos-preview-card { position:relative; top:auto; }
-                          }
-                          @media (max-width: 1024px) {
-                            .pos-mode-grid, .pos-settings-grid, .pos-settings-controls, .pos-first-use { grid-template-columns:1fr; }
-                            .pos-sync-panel { flex-direction:column; }
-                            .pos-footer-actions { flex-direction:column; align-items:stretch; }
-                            .pos-footer-actions .billing-primary-button { width:100%; }
-                          }
-                        `}</style>
-                        <div className="invoice-printing-merged">
-                          <div className="invoice-printing-header">
-                            <div className="invoice-printing-header-copy">
-                              <h2>{locale === "sl" ? "Postavitev računa in tiskanje" : "Invoice layout & printing"}</h2>
-                              <p>{locale === "sl" ? "Uredite vsebino računa, postavitev in način tiskanja za A4 ali POS." : "Configure invoice content, layout and printing for A4 or POS."}</p>
-                            </div>
-                            <div className="invoice-format-switch" role="tablist" aria-label={locale === "sl" ? "Format računa" : "Invoice format"}>
-                              <button type="button" role="tab" aria-selected={false} onClick={() => setInvoiceLayoutFormat("A4")}>
-                                <BillingReceiptIcon />
-                                <span>A4</span>
-                              </button>
-                              <button type="button" role="tab" aria-selected className="active" onClick={() => setInvoiceLayoutFormat("POS_58")}>
-                                <BillingPrinterIcon />
-                                <span>{locale === "sl" ? "POS / 58 mm" : "POS / 58 mm"}</span>
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="invoice-default-mode-card">
-                            <div className="invoice-default-mode-copy">
-                              <span className="invoice-default-mode-icon"><BillingPrinterIcon /></span>
-                              <span className="invoice-default-mode-text">
-                                <strong>{locale === "sl" ? "Privzeti način tiskanja za POS" : "Default POS printing mode"}</strong>
-                                <span>{locale === "sl" ? "Ko je POS privzet, dejanja Natisni in Zaključi in natisni uporabijo neposredni POS tiskalnik." : "When POS is the default, Print and Close & print use the direct POS printer."}</span>
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              className={posPrintingIsDefault ? "invoice-default-button is-default" : "invoice-default-button"}
-                              onClick={() => void setDefaultPrintMode(POS_PRINTING_MODE_DIRECT)}
-                              disabled={savingDefaultPrintMode || posPrintingIsDefault}
-                            >
-                              {savingDefaultPrintMode
-                                ? locale === "sl" ? "Shranjujem …" : "Saving…"
-                                : posPrintingIsDefault
-                                  ? locale === "sl" ? "✓ Privzeto" : "✓ Default"
-                                  : locale === "sl" ? "Nastavi kot privzeto" : "Set as default"}
-                            </button>
-                          </div>
-
-                          <div className="pos-printing-shell">
-                            <div className="pos-printing-column">
-                              <div className="pos-printing-card invoice-layout-editor-card">
-                                <FolioLayoutEditor format="POS_58" hideFormatHeader hidePosPreview onPosLayoutSaved={() => setPos58PreviewRevision((value) => value + 1)} />
-                              </div>
-
-                            <div className="pos-printing-card">
-                              <h3 className="pos-printing-section-title">{locale === "sl" ? "Povezava tiskalnika" : "Printer connection"}</h3>
-                              <div className="pos-connection-row" style={{ marginTop: 16 }}>
-                                <span
-                                  className={
-                                    posPrinterConnectionState === "connected"
-                                      ? "pos-status-pill pos-status-pill--ok"
-                                      : posPrinterConnectionState === "unsupported"
-                                        ? "pos-status-pill pos-status-pill--neutral"
-                                        : "pos-status-pill pos-status-pill--warn"
-                                  }
-                                >
-                                  <span className="pos-status-dot" />
-                                  {posPrinterConnectionState === "connected"
-                                    ? locale === "sl"
-                                      ? "Povezano"
-                                      : "Connected"
-                                    : posPrinterConnectionState === "unsupported"
-                                      ? locale === "sl"
-                                        ? "Ni podprto"
-                                        : "Unsupported"
-                                      : posPrinterConnectionState === "connecting"
-                                        ? locale === "sl"
-                                          ? "Povezujem …"
-                                          : "Connecting…"
-                                        : locale === "sl"
-                                          ? "Ni povezano"
-                                          : "Not connected"}
-                                </span>
-                                {posPrinterBrowserLabel ? <span style={{ color: "#4b5b75", fontSize: 13.5 }}>{posPrinterBrowserLabel}</span> : null}
-                              </div>
-                              <div className="pos-action-row" style={{ marginTop: 16 }}>
-                                <button
-                                  type="button"
-                                  className="pos-primary-btn"
-                                  onClick={() => void connectPosPrinter()}
-                                  disabled={posPrinterConnectionState === "connecting" || posPrintingMode !== POS_PRINTING_MODE_DIRECT}
-                                >
-                                  <BillingPrinterIcon />
-                                  {locale === "sl" ? "Poveži tiskalnik" : "Connect printer"}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="pos-secondary-btn"
-                                  onClick={() => void printPosTestReceipt()}
-                                  disabled={printingPosTestReceipt || posPrintingMode !== POS_PRINTING_MODE_DIRECT || posPrinterConnectionState === "unsupported"}
-                                >
-                                  <BillingReceiptIcon />
-                                  {printingPosTestReceipt
-                                    ? locale === "sl"
-                                      ? "Pošiljam …"
-                                      : "Sending…"
-                                    : locale === "sl"
-                                      ? "Natisni testni račun"
-                                      : "Print test receipt"}
-                                </button>
-                              </div>
-                              <div className="pos-inline-note">
-                                <BillingInfoIcon />
-                                <span>
-                                  {posPrinterConnectionState === "unsupported"
-                                    ? locale === "sl"
-                                      ? "Neposredno POS tiskanje trenutno podpirata predvsem Chrome in Microsoft Edge na namizju."
-                                      : "Direct POS printing is currently supported mainly in Chrome and Microsoft Edge on desktop."
-                                    : locale === "sl"
-                                      ? "Povezava je potrebna samo ob prvi uporabi v tem brskalniku. Če tiskalnika ne povežete tukaj, bo Calendra izbiro naprave samodejno odprla ob prvem pritisku na Natisni oziroma Zaključi in natisni."
-                                      : "Connection is required only the first time in this browser. If you do not connect here, Calendra will automatically open the device picker on the first Print or Close and print action."}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="pos-printing-card">
-                              <h3 className="pos-printing-section-title">{locale === "sl" ? "Nastavitve tiska" : "Print settings"}</h3>
-                              <div className="pos-settings-grid" style={{ marginTop: 16 }}>
-                                <div className="pos-settings-controls">
-                                  <label className="pos-field">
-                                    <span>{locale === "sl" ? "Širina papirja" : "Paper width"}</span>
-                                    <DesktopSelect className="pos-select" value={posPaperWidth} onChange={(e) => updatePosPrintingSetting("POS_PRINTER_PAPER_WIDTH_MM", e.target.value)}>
-                                      <option value="58">58 mm</option>
-                                      <option value="80">80 mm</option>
-                                    </DesktopSelect>
-                                  </label>
-                                  {posPaperWidth === "80" ? (
-                                    <label className="pos-field">
-                                      <span>{locale === "sl" ? "Predloga" : "Template"}</span>
-                                      <DesktopSelect className="pos-select" value={posTemplate} onChange={(e) => updatePosPrintingSetting("POS_PRINTER_TEMPLATE", e.target.value)}>
-                                        <option value="COMPACT">{locale === "sl" ? "Kompaktna POS" : "Compact POS"}</option>
-                                        <option value="DETAILED">{locale === "sl" ? "Razširjena POS" : "Detailed POS"}</option>
-                                      </DesktopSelect>
-                                    </label>
-                                  ) : null}
-                                  <div className="pos-toggle-list">
-                                    {posPaperWidth === "80" ? (
-                                      <>
-                                        <div className="pos-toggle-row">
-                                          <div className="pos-toggle-copy">
-                                            <strong>{locale === "sl" ? "Natisni logotip" : "Print logo"}</strong>
-                                            <span>{locale === "sl" ? "Prikaži logotip podjetja na vrhu POS računa." : "Show the company logo at the top of the POS receipt."}</span>
-                                          </div>
-                                          <GuestSwitch checked={posPrintLogo} onChange={(checked) => updatePosPrintingSetting("POS_PRINTER_PRINT_LOGO", checked ? "true" : "false")} />
-                                        </div>
-                                        <div className="pos-toggle-row">
-                                          <div className="pos-toggle-copy">
-                                            <strong>{locale === "sl" ? "Natisni QR kodo" : "Print QR code"}</strong>
-                                            <span>{locale === "sl" ? "Prikaži QR kodo na dnu računa, kadar je na voljo." : "Show the QR code at the bottom of the receipt when available."}</span>
-                                          </div>
-                                          <GuestSwitch checked={posPrintQr} onChange={(checked) => updatePosPrintingSetting("POS_PRINTER_PRINT_QR", checked ? "true" : "false")} />
-                                        </div>
-                                      </>
-                                    ) : null}
-                                    <div className="pos-toggle-row">
-                                      <div className="pos-toggle-copy">
-                                        <strong>{locale === "sl" ? "Samodejni rez (če tiskalnik podpira)" : "Auto-cut (if supported)"}</strong>
-                                        <span>{locale === "sl" ? "Po tiskanju pošlji ukaz za rez papirja." : "Send a paper cut command after printing."}</span>
-                                      </div>
-                                      <GuestSwitch checked={posAutoCut} onChange={(checked) => updatePosPrintingSetting("POS_PRINTER_AUTO_CUT", checked ? "true" : "false")} />
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="pos-settings-info">
-                                  <BillingInfoIcon />
-                                  <div>
-                                    {posPaperWidth === "58"
-                                      ? locale === "sl"
-                                        ? "58 mm se zdaj izriše neposredno z nativnimi ESC/POS ukazi: besedilo in stolpci se prilagodijo 32-znakovni širini, UPN in fiskalni QR pa se pošljeta kot pravi ESC/POS QR ukaz. Celoten račun se ne pretvarja več v veliko bitno sliko, zato se QR podatki ne morejo izpisati kot čudni znaki."
-                                        : "58 mm is now rendered directly with native ESC/POS commands: text and columns are fitted to the 32-character width, while payment and fiscal QR codes are sent as native ESC/POS QR commands. The full receipt is no longer converted into one large bitmap, preventing QR data from printing as garbage characters."
-                                      : locale === "sl"
-                                        ? "80 mm uporablja isti novi nativni ESC/POS izris, prilagojen širšemu papirju. Kompaktna predloga uporabi gostejšo pisavo."
-                                        : "80 mm uses the same new native ESC/POS renderer adapted to the wider paper. The Compact template uses the denser printer font."}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="pos-printing-card">
-                              <h3 className="pos-printing-section-title">{locale === "sl" ? "Obnašanje pri prvi uporabi" : "First-use behavior"}</h3>
-                              <div className="pos-first-use" style={{ marginTop: 16 }}>
-                                <div className="pos-step">
-                                  <span className="pos-step-badge">1</span>
-                                  <div className="pos-step-copy">
-                                    <span>{locale === "sl" ? "Uporabnik klikne" : "The user clicks"}</span>
-                                    <strong>{locale === "sl" ? "Poveži tiskalnik" : "Connect printer"}</strong>
-                                  </div>
-                                </div>
-                                <div className="pos-step">
-                                  <span className="pos-step-badge">2</span>
-                                  <div className="pos-step-copy">
-                                    <span>{locale === "sl" ? "Brskalnik prikaže" : "The browser shows"}</span>
-                                    <strong>{locale === "sl" ? "izbiro naprave" : "a device picker"}</strong>
-                                  </div>
-                                </div>
-                                <div className="pos-step">
-                                  <span className="pos-step-badge">3</span>
-                                  <div className="pos-step-copy">
-                                    <span>{locale === "sl" ? "Calendra si zapomni" : "Calendra remembers"}</span>
-                                    <strong>{locale === "sl" ? "povezavo za ta brskalnik" : "the connection for this browser"}</strong>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="pos-footer-actions">
-                                <span>
-                                  {locale === "sl"
-                                    ? "Nastavitve shranite na nivoju najemnika, dovoljenje za dostop do naprave pa ostane lokalno v brskalniku uporabnika."
-                                    : "Settings are saved tenant-wide, while device access permission stays local to the user’s browser."}
-                                </span>
-                                <button
-                                  type="button"
-                                  className="billing-primary-button"
-                                  onClick={() => void saveSettings()}
-                                  disabled={savingSettings}
-                                >
-                                  <BillingSaveIcon />
-                                  {savingSettings ? t("formSaving") : t("configSaveConfiguration")}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="pos-printing-card pos-preview-card">
-                            <div className="pos-preview-header">
-                              <div className="pos-preview-title-row">
-                                <h3>{locale === "sl" ? `Predogled POS računa (${posPaperWidth} mm)` : `POS receipt preview (${posPaperWidth} mm)`}</h3>
-                                {posPaperWidth === "58" ? (
-                                  <span className="pos-sync-badge">✓ {locale === "sl" ? "Ista postavitev" : "Same layout"}</span>
-                                ) : null}
-                              </div>
-                              <span>
-                                {posPaperWidth === "58"
-                                  ? locale === "sl"
-                                    ? "Predogled prikazuje isto shranjeno vsebino, vrstni red in nastavitve 58 mm postavitve; dejanski POS izpis jih prilagodi nativni širini termičnega tiskalnika."
-                                    : "This preview shows the same saved content, section order, and 58 mm layout settings; the actual POS print adapts them to the printer’s native thermal width."
-                                  : locale === "sl"
-                                    ? "Predogled obstoječe 80 mm ESC/POS predloge."
-                                    : "Preview of the existing 80 mm ESC/POS template."}
-                              </span>
-                            </div>
-                            {posPaperWidth === "58" ? (
-                              <div className="pos-raster-stage">
-                                {pos58PreviewUrl ? (
-                                  <div className="pos-raster-paper">
-                                    <img src={pos58PreviewUrl} alt={locale === "sl" ? "Predogled 58 mm računa" : "58 mm receipt preview"} />
-                                  </div>
-                                ) : (
-                                  <div className="pos-raster-placeholder">
-                                    {pos58PreviewLoading
-                                      ? locale === "sl" ? "Pripravljam predogled iz Postavitve računa …" : "Rendering preview from Invoice layout…"
-                                      : pos58PreviewError
-                                        ? locale === "sl" ? "Predogleda ni bilo mogoče pripraviti. Shranjena 58 mm postavitev se bo kljub temu uporabila pri nativnem POS izpisu." : "The preview could not be rendered. The saved 58 mm layout will still be used by the native POS print renderer."
-                                        : locale === "sl" ? "Predogled ni na voljo." : "Preview unavailable."}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="pos-receipt-stage">
-                                <div className="pos-receipt-paper is-wide">
-                                  <div className="pos-receipt-center">
-                                    {posPrintLogo ? <div className="pos-receipt-logo">{locale === "sl" ? "LOGOTIP" : "LOGO"}</div> : null}
-                                    <div className="pos-receipt-company">{settings.COMPANY_NAME?.trim() || "Hospit, David Mirc s. p."}</div>
-                                    <div className="pos-receipt-muted">{[settings.COMPANY_ADDRESS, [settings.COMPANY_POSTAL_CODE, settings.COMPANY_CITY].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "Grajska cesta 10, 1000 Ljubljana"}</div>
-                                    <div className="pos-receipt-muted">{settings.COMPANY_VAT_ID ? `${locale === "sl" ? "Davčna št." : "VAT ID"}: ${settings.COMPANY_VAT_ID}` : `${locale === "sl" ? "Davčna št." : "VAT ID"}: SI12345678`}</div>
-                                    <div className="pos-receipt-muted">{settings.COMPANY_TELEPHONE || "Tel: 01 123 45 67"}</div>
-                                  </div>
-                                  <div className="pos-receipt-divider" />
-                                  <div className="pos-receipt-meta">
-                                    <div className="pos-receipt-row"><strong>{locale === "sl" ? "RAČUN: 2024-000123" : "RECEIPT: 2024-000123"}</strong><span /></div>
-                                    <div className="pos-receipt-row"><span>{locale === "sl" ? "Datum:" : "Date:"}</span><span>22. 05. 2024 10:24</span></div>
-                                    <div className="pos-receipt-row"><span>{locale === "sl" ? "Miza:" : "Table:"}</span><span>5</span></div>
-                                    <div className="pos-receipt-row"><span>{locale === "sl" ? "Natakar:" : "Cashier:"}</span><span>David</span></div>
-                                  </div>
-                                  <div className="pos-receipt-divider" />
-                                  <div className="pos-receipt-row"><strong>{locale === "sl" ? "Artikel" : "Item"}</strong><strong>{locale === "sl" ? "Znesek" : "Amount"}</strong></div>
-                                  <div className="pos-receipt-items">
-                                    <div className="pos-receipt-row"><span>Espresso</span><span>1,40</span></div>
-                                    <div className="pos-receipt-row"><span>Cappuccino</span><span>2,20</span></div>
-                                    <div className="pos-receipt-row"><span>Mineralna voda 0,5 l</span><span>1,50</span></div>
-                                    <div className="pos-receipt-row"><span>Croissant</span><span>1,80</span></div>
-                                  </div>
-                                  <div className="pos-receipt-divider" />
-                                  <div className="pos-receipt-summary">
-                                    <div className="pos-receipt-row"><span>{locale === "sl" ? "Vmesni seštevek" : "Subtotal"}</span><span>6,90</span></div>
-                                    <div className="pos-receipt-row"><span>DDV 9,5 %</span><span>0,66</span></div>
-                                    <div className="pos-receipt-divider" style={{ margin: "4px 0" }} />
-                                    <div className="pos-receipt-row total"><strong>{locale === "sl" ? "SKUPAJ" : "TOTAL"}</strong><strong>7,56 €</strong></div>
-                                    <div className="pos-receipt-row"><span>{locale === "sl" ? "Gotovina" : "Cash"}</span><span>7,56</span></div>
-                                  </div>
-                                  {posPrintQr ? (
-                                    <>
-                                      <div className="pos-receipt-divider" />
-                                      <div className="pos-receipt-qr" aria-hidden />
-                                      <div className="pos-receipt-center pos-receipt-muted" style={{ marginTop: 6 }}>
-                                        {locale === "sl" ? "Skeniraj in plačaj" : "Scan and pay"}
-                                      </div>
-                                    </>
-                                  ) : null}
-                                  <div className="pos-receipt-center pos-receipt-muted" style={{ marginTop: 14 }}>
-                                    {locale === "sl" ? "Hvala za vaš obisk!" : "Thank you for your visit!"}
-                                    <br />
-                                    www.calendra.si
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
                           </div>
                         </div>
                       </>
@@ -14529,115 +13055,6 @@ export function ConfigurationPage() {
                     )}
                   </div>
                 </Card>
-              ) : tab === "website" ? (
-                <>
-                  {(me.workspaceFeatures == null || me.workspaceFeatures.includes('WORKSPACE_PUBLIC_BOOKING')) && isWorkspaceRolloutEnabled(me, 'WORKSPACE_PUBLIC_BOOKING') && <WorkspacePublicBookingSettingsSection locale={locale} />}
-                <Card className="settings-card website-payment-settings-moved">
-                  <style>{`
-                    .website-payment-settings-moved {
-                      max-width: 980px;
-                      border-radius: 22px;
-                      border: 1px solid rgba(203, 213, 225, .86);
-                      background: #fff;
-                      box-shadow: 0 22px 64px rgba(15, 23, 42, .08);
-                      padding: 34px;
-                    }
-                    .website-payment-moved-content {
-                      display: grid;
-                      grid-template-columns: auto minmax(0, 1fr) auto;
-                      gap: 18px;
-                      align-items: center;
-                    }
-                    .website-payment-moved-icon {
-                      width: 58px;
-                      height: 58px;
-                      border-radius: 18px;
-                      display: inline-flex;
-                      align-items: center;
-                      justify-content: center;
-                      color: #2563eb;
-                      background: #eaf2ff;
-                    }
-                    .website-payment-moved-copy h2 {
-                      margin: 0 0 7px;
-                      color: #0f1b3d;
-                      font-size: 22px;
-                      line-height: 1.2;
-                    }
-                    .website-payment-moved-copy p {
-                      margin: 0;
-                      color: #64748b;
-                      font-size: 14px;
-                      line-height: 1.55;
-                    }
-                    .website-payment-moved-button {
-                      appearance: none;
-                      display: inline-flex;
-                      align-items: center;
-                      justify-content: center;
-                      gap: 9px;
-                      min-height: 44px;
-                      border: 0;
-                      border-radius: 12px;
-                      padding: 10px 18px;
-                      color: #fff;
-                      background: #2563eb;
-                      font-weight: 850;
-                      cursor: pointer;
-                      box-shadow: 0 12px 24px rgba(37, 99, 235, .25);
-                    }
-                    @media (max-width: 1024px) {
-                      .website-payment-settings-moved { padding: 22px; }
-                      .website-payment-moved-content { grid-template-columns: 1fr; }
-                      .website-payment-moved-button { width: 100%; }
-                    }
-                  `}</style>
-                  <div className="website-payment-moved-content">
-                    <span className="website-payment-moved-icon">
-                      <BillingPaymentTypeIcon type="CARD" />
-                    </span>
-                    <div className="website-payment-moved-copy">
-                      <h2>
-                        {locale === "sl"
-                          ? "Načini plačila so zdaj v zavihku Obračun"
-                          : "Payment methods are now under Billing"}
-                      </h2>
-                      <p>
-                        {locale === "sl"
-                          ? "Razpoložljivost načinov plačila, delno plačilo in plačilo na lokaciji se odslej upravljajo na enem mestu za Aplikacijo za goste in Spletni vtičnik."
-                          : "Payment method availability, partial payment and pay on location are now managed in one place for the Guest app and Website widget."}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className="website-payment-moved-button"
-                      onClick={() => {
-                        setTab("billing");
-                        setBillingSubtab("paymentMethods");
-                        navigate(
-                          "/configuration?tab=billing&subtab=paymentMethods",
-                        );
-                      }}
-                    >
-                      <BillingPaymentTypeIcon type="CARD" />
-                      {locale === "sl"
-                        ? "Odpri načine plačila"
-                        : "Open payment methods"}
-                    </button>
-                  </div>
-                </Card>
-                </>
-              ) : tab === "notifications" || notificationTemplateDrawerOpen ? (
-                <ConfigurationNotificationsSection
-                  settings={settings}
-                  setSettings={setSettings}
-                  savingSettings={savingSettings}
-                  onSave={saveSettings}
-                  t={t}
-                  locale={locale}
-                  waitlistEnabled={waitlistEnabledCommitted}
-                  settingsLoaded={settingsLoaded}
-                />
               ) : tab === "integrations" ? (
                 <div className="integrations-modern-shell">
                   <style>{`

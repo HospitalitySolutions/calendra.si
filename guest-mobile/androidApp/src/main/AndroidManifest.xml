@@ -23,7 +23,6 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="calendra-guest" android:host="paypal" android:pathPrefix="/return" />
                 <data android:scheme="calendra-guest" android:host="stripe" android:pathPrefix="/return" />
             </intent-filter>
 

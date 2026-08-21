@@ -16,7 +16,6 @@ import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.guest.model.*;
 import com.example.app.guest.notifications.GuestNotificationService;
 import com.example.app.guest.tenant.GuestTenantService;
-import com.example.app.paypal.PayPalClient;
 import com.example.app.settings.GlobalPaymentProviderService;
 import com.example.app.stripe.StripeCheckoutSessionResult;
 import com.example.app.stripe.StripeGuestCheckoutService;
@@ -86,7 +85,6 @@ public class GuestOrderService {
     private LocationRepository locations;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private CommerceLocationScopeService commerceLocations;
-    private final PayPalClient payPalClient;
     private final StripeGuestCheckoutService stripeGuestCheckoutService;
     private final GlobalPaymentProviderService globalPaymentProviders;
     private final WebsiteWidgetSettingsService websiteWidgetSettings;
@@ -111,7 +109,6 @@ public class GuestOrderService {
             GuestEntitlementService entitlementService,
             GuestBankTransferBillingService bankTransferBillingService,
             GuestProductBillingService productBillingService,
-            PayPalClient payPalClient,
             StripeGuestCheckoutService stripeGuestCheckoutService,
             GlobalPaymentProviderService globalPaymentProviders,
             WebsiteWidgetSettingsService websiteWidgetSettings,
@@ -134,7 +131,6 @@ public class GuestOrderService {
         this.entitlementService = entitlementService;
         this.bankTransferBillingService = bankTransferBillingService;
         this.productBillingService = productBillingService;
-        this.payPalClient = payPalClient;
         this.stripeGuestCheckoutService = stripeGuestCheckoutService;
         this.globalPaymentProviders = globalPaymentProviders;
         this.websiteWidgetSettings = websiteWidgetSettings;
@@ -159,12 +155,11 @@ public class GuestOrderService {
             ReminderService reminders,
             GuestEntitlementService entitlementService,
             GuestBankTransferBillingService bankTransferBillingService,
-            GuestProductBillingService productBillingService,
-            PayPalClient payPalClient
+            GuestProductBillingService productBillingService
     ) {
         this(guestTenantService, catalogService, guestSettings, companies, orders, entitlements, entitlementUsages,
                 bookings, bookingCreationService, bookingChangePublisher, users, paymentMethods, notifications, reminders,
-                entitlementService, bankTransferBillingService, productBillingService, payPalClient, null, null, null, null);
+                entitlementService, bankTransferBillingService, productBillingService, null, null, null, null);
     }
 
     /** Backwards-compatible constructor used by unit tests that mock Stripe and global payment providers. */
@@ -186,13 +181,12 @@ public class GuestOrderService {
             GuestEntitlementService entitlementService,
             GuestBankTransferBillingService bankTransferBillingService,
             GuestProductBillingService productBillingService,
-            PayPalClient payPalClient,
             StripeGuestCheckoutService stripeGuestCheckoutService,
             GlobalPaymentProviderService globalPaymentProviders
     ) {
         this(guestTenantService, catalogService, guestSettings, companies, orders, entitlements, entitlementUsages,
                 bookings, bookingCreationService, bookingChangePublisher, users, paymentMethods, notifications, reminders,
-                entitlementService, bankTransferBillingService, productBillingService, payPalClient,
+                entitlementService, bankTransferBillingService, productBillingService,
                 stripeGuestCheckoutService, globalPaymentProviders, null, null);
     }
 
@@ -887,7 +881,7 @@ public class GuestOrderService {
             // Do not create the tenant invoice before Stripe succeeds. The GuestOrder
             // already has the public TenantCode-client-counter reference for Wallet > Orders.
             if (stripeGuestCheckoutService == null) {
-                order = markOrderPaid(order, paymentMethodType, null);
+                order = markOrderPaid(order, paymentMethodType);
                 return new GuestDtos.CheckoutResponse(
                         String.valueOf(order.getId()),
                         paymentMethodType.name(),
@@ -922,31 +916,8 @@ public class GuestOrderService {
             );
         }
 
-        if (paymentMethodType == GuestPaymentMethodType.PAYPAL) {
-            String merchantId = order.getCompany().getPaypalMerchantId();
-            if (merchantId == null || merchantId.isBlank()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal is not configured for this tenancy.");
-            }
-            PayPalClient.PayPalOrderSession session = channel == PaymentChannel.CUSTOMER_WEB
-                    ? payPalClient.createCustomerWebOrder(order, merchantId)
-                    : payPalClient.createOrder(order, merchantId);
-            order.setPaypalOrderId(session.paypalOrderId());
-            order = orders.save(order);
-            return new GuestDtos.CheckoutResponse(
-                    String.valueOf(order.getId()),
-                    paymentMethodType.name(),
-                    order.getStatus().name(),
-                    session.approveUrl(),
-                    null,
-                    "REDIRECT",
-                    null,
-                    null,
-                    null,
-                    order.getCompany().getName()
-            );
-        }
 
-        order = markOrderPaid(order, paymentMethodType, null);
+        order = markOrderPaid(order, paymentMethodType);
         return new GuestDtos.CheckoutResponse(
                 String.valueOf(order.getId()),
                 paymentMethodType.name(),
@@ -960,39 +931,6 @@ public class GuestOrderService {
                 order.getCompany().getName()
         );
     }
-
-    @Transactional
-    public PayPalCompletionResult handlePayPalReturn(Long orderId, String token) {
-        GuestOrder order = orders.findById(orderId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found."));
-        if (token != null && !token.isBlank() && order.getPaypalOrderId() != null && !order.getPaypalOrderId().isBlank() && !token.equals(order.getPaypalOrderId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal return token did not match the pending order.");
-        }
-        if (order.getStatus() == OrderStatus.PAID) {
-            return new PayPalCompletionResult(order, true, "PayPal payment confirmed.");
-        }
-        String merchantId = order.getCompany().getPaypalMerchantId();
-        if (merchantId == null || merchantId.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal is not configured for this tenancy.");
-        }
-        String paypalOrderId = order.getPaypalOrderId();
-        if (paypalOrderId == null || paypalOrderId.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing PayPal checkout session for this order.");
-        }
-        PayPalClient.PayPalCaptureResult capture = payPalClient.captureOrder(paypalOrderId, merchantId);
-        order = markOrderPaid(order, GuestPaymentMethodType.PAYPAL, capture.captureId());
-        return new PayPalCompletionResult(order, true, "PayPal payment confirmed.");
-    }
-
-    public PayPalCompletionResult handlePayPalCancel(Long orderId, String token) {
-        GuestOrder order = orders.findById(orderId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found."));
-        if (token != null && !token.isBlank() && order.getPaypalOrderId() != null && !order.getPaypalOrderId().isBlank() && !token.equals(order.getPaypalOrderId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal return token did not match the pending order.");
-        }
-        return new PayPalCompletionResult(order, false, "PayPal payment was canceled.");
-    }
-
 
     @Transactional
     public GuestDtos.CheckoutResponse cancelPendingExternalCheckout(GuestUser guestUser, Long orderId, String checkoutSessionId) {
@@ -1034,8 +972,7 @@ public class GuestOrderService {
                 && (paymentMethodType == GuestPaymentMethodType.PAY_AT_VENUE
                 || paymentMethodType == GuestPaymentMethodType.ENTITLEMENT
                 || paymentMethodType == GuestPaymentMethodType.GIFT_CARD
-                || paymentMethodType == GuestPaymentMethodType.CARD
-                || paymentMethodType == GuestPaymentMethodType.PAYPAL)) {
+                || paymentMethodType == GuestPaymentMethodType.CARD)) {
             return true;
         }
         // Bank transfer keeps the order PENDING until the bank payment is reconciled.
@@ -1095,13 +1032,12 @@ public class GuestOrderService {
 
     private void cancelOpenExternalCheckoutsForGuest(GuestUser guestUser, Long companyId, GuestPaymentMethodType newPaymentMethodType) {
         if (guestUser == null || companyId == null) return;
-        if (newPaymentMethodType != GuestPaymentMethodType.CARD && newPaymentMethodType != GuestPaymentMethodType.PAYPAL) return;
+        if (newPaymentMethodType != GuestPaymentMethodType.CARD) return;
         orders.findAllByGuestUserIdAndCompanyIdAndStatusOrderByCreatedAtDesc(
                         guestUser.getId(), companyId, OrderStatus.PENDING, PageRequest.of(0, 50)
                 )
                 .stream()
-                .filter(order -> order.getPaymentMethodType() == GuestPaymentMethodType.CARD
-                        || order.getPaymentMethodType() == GuestPaymentMethodType.PAYPAL)
+                .filter(order -> order.getPaymentMethodType() == GuestPaymentMethodType.CARD)
                 .forEach(this::cancelUnfinishedExternalOrder);
     }
 
@@ -1567,11 +1503,6 @@ public class GuestOrderService {
                 && !globalPaymentProviders.isStripeEnabled()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stripe is disabled in Platform Admin.");
         }
-        if (paymentMethodType == GuestPaymentMethodType.PAYPAL
-                && globalPaymentProviders != null
-                && !globalPaymentProviders.isPaypalEnabled()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal is disabled in Platform Admin.");
-        }
 
         if (paymentMethodType != GuestPaymentMethodType.ENTITLEMENT) {
             List<String> accepted = acceptedPaymentMethodsForChannel(companyId, channel);
@@ -1597,23 +1528,6 @@ public class GuestOrderService {
                         || commerceLocations.paymentMethodAvailableAt(method, locationId))
                 .toList();
 
-        if (paymentMethodType == GuestPaymentMethodType.PAYPAL) {
-            String merchantId = companies.findById(companyId).map(c -> c.getPaypalMerchantId()).orElse(null);
-            if (merchantId == null || merchantId.isBlank()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal is not configured for this tenancy.");
-            }
-            PaymentMethod method = methods.stream()
-                    .filter(pm -> isChannelEnabled(pm, channel) && matches(pm, paymentMethodType))
-                    .findFirst()
-                    .orElse(null);
-            if (method == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal is not enabled for the selected booking channel.");
-            }
-            if (!allowedGuestProductTypes(method).contains(productType)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This payment method is not allowed for the selected product.");
-            }
-            return;
-        }
         PaymentMethod method = methods.stream()
                 .filter(pm -> isChannelEnabled(pm, channel) && matches(pm, paymentMethodType))
                 .findFirst()
@@ -1656,8 +1570,7 @@ public class GuestOrderService {
 
     private boolean matches(PaymentMethod method, GuestPaymentMethodType type) {
         return (type == GuestPaymentMethodType.CARD && method.getPaymentType() == PaymentType.CARD && method.isStripeEnabled())
-                || (type == GuestPaymentMethodType.BANK_TRANSFER && method.getPaymentType() == PaymentType.BANK_TRANSFER)
-                || (type == GuestPaymentMethodType.PAYPAL && method.getPaymentType() == PaymentType.OTHER);
+                || (type == GuestPaymentMethodType.BANK_TRANSFER && method.getPaymentType() == PaymentType.BANK_TRANSFER);
     }
 
     private boolean isChannelEnabled(PaymentMethod method, PaymentChannel channel) {
@@ -1676,20 +1589,15 @@ public class GuestOrderService {
         return ALL_ALLOWED_GUEST_PRODUCT_TYPES;
     }
 
-    private GuestOrder markOrderPaid(GuestOrder order, GuestPaymentMethodType paymentMethodType, String paypalCaptureId) {
+    private GuestOrder markOrderPaid(GuestOrder order, GuestPaymentMethodType paymentMethodType) {
         order.setPaymentMethodType(paymentMethodType);
         order.setStatus(OrderStatus.PAID);
         order.setPaidAt(Instant.now());
-        if (paypalCaptureId != null && !paypalCaptureId.isBlank()) {
-            order.setPaypalCaptureId(paypalCaptureId);
-        }
         order = orders.save(order);
         SessionBooking booking = maybeCreateConfirmedBooking(order);
         if (booking != null) consumeSelectedServiceEntitlements(order, booking);
         maybeCreateEntitlement(order);
-        if (booking != null
-                && (paymentMethodType == GuestPaymentMethodType.CARD
-                || paymentMethodType == GuestPaymentMethodType.PAYPAL)) {
+        if (booking != null && paymentMethodType == GuestPaymentMethodType.CARD) {
             try {
                 var bill = bankTransferBillingService.issuePaidAdvanceBill(order, booking, paymentMethodType.name());
                 order.setBillId(bill.getId());
@@ -1700,9 +1608,7 @@ public class GuestOrderService {
         }
         // Wallet product purchases (no booking) should also land in the web-app Billing
         // UI as a PAID invoice. Session-linked paid guest bookings always receive an ADVANCE bill.
-        if (booking == null
-                && (paymentMethodType == GuestPaymentMethodType.CARD
-                        || paymentMethodType == GuestPaymentMethodType.PAYPAL)) {
+        if (booking == null && paymentMethodType == GuestPaymentMethodType.CARD) {
             GuestProduct walletProduct = loadWalletProduct(order);
             if (walletProduct != null) {
                 try {
@@ -1760,7 +1666,7 @@ public class GuestOrderService {
         }
         order.setStripePaymentIntentId(paymentIntentId == null || paymentIntentId.isBlank() ? order.getStripePaymentIntentId() : paymentIntentId);
         order.setStripeCustomerId(customerId == null || customerId.isBlank() ? order.getStripeCustomerId() : customerId);
-        return markOrderPaid(order, GuestPaymentMethodType.CARD, null);
+        return markOrderPaid(order, GuestPaymentMethodType.CARD);
     }
 
     @Transactional
@@ -1788,7 +1694,7 @@ public class GuestOrderService {
         if (billId == null) return;
         orders.findByBillId(billId).ifPresent(order -> {
             if (order.getStatus() != OrderStatus.PAID) {
-                markOrderPaid(order, order.getPaymentMethodType(), null);
+                markOrderPaid(order, order.getPaymentMethodType());
             } else {
                 // Idempotent safety net: if an order was already flipped to PAID but the
                 // entitlement was not created (for example before this listener existed),
@@ -2174,8 +2080,6 @@ public class GuestOrderService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid identifier.");
         }
     }
-
-    public record PayPalCompletionResult(GuestOrder order, boolean completed, String message) {}
 
     private record GiftCardPaymentAdjustment(GuestOrder order, boolean coveredInFull) {}
 

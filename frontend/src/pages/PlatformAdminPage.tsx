@@ -2612,9 +2612,7 @@ function PlanPricesAdminPanel() {
 type MessagingProviderKey =
   | "GLOBAL_MESSAGING_WHATSAPP_ENABLED"
   | "GLOBAL_MESSAGING_VIBER_ENABLED";
-type PaymentProviderKey =
-  | "GLOBAL_PAYMENTS_STRIPE_ENABLED"
-  | "GLOBAL_PAYMENTS_PAYPAL_ENABLED";
+type PaymentProviderKey = "GLOBAL_PAYMENTS_STRIPE_ENABLED";
 type AjpesProviderKey = "GLOBAL_AJPES_PRS_ENABLED";
 type FiscalUrlKey =
   | "GLOBAL_FISCAL_TEST_INVOICE_URL"
@@ -2875,9 +2873,6 @@ function PaymentProvidersAdminPanel() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
-  const [activeProvider, setActiveProvider] = useState<"stripe" | "paypal">(
-    "stripe",
-  );
   const [activeMode, setActiveMode] = useState<"sandbox" | "production">(
     "sandbox",
   );
@@ -2885,7 +2880,6 @@ function PaymentProvidersAdminPanel() {
     Record<PaymentProviderKey, boolean>
   >({
     GLOBAL_PAYMENTS_STRIPE_ENABLED: true,
-    GLOBAL_PAYMENTS_PAYPAL_ENABLED: false,
   });
   const [values, setValues] = useState<StripeAdminSettings>({
     sandbox: emptyStripeModeSettings(),
@@ -2916,10 +2910,6 @@ function PaymentProvidersAdminPanel() {
             globalSettings?.GLOBAL_PAYMENTS_STRIPE_ENABLED,
             true,
           ),
-          GLOBAL_PAYMENTS_PAYPAL_ENABLED: parseEnabledFlag(
-            globalSettings?.GLOBAL_PAYMENTS_PAYPAL_ENABLED,
-            false,
-          ),
         });
       } catch {
         if (!cancelled) setErr("Could not load payment provider settings.");
@@ -2947,9 +2937,6 @@ function PaymentProvidersAdminPanel() {
       await api.put("/platform-admin/settings", {
         GLOBAL_PAYMENTS_STRIPE_ENABLED: String(
           providerFlags.GLOBAL_PAYMENTS_STRIPE_ENABLED,
-        ),
-        GLOBAL_PAYMENTS_PAYPAL_ENABLED: String(
-          providerFlags.GLOBAL_PAYMENTS_PAYPAL_ENABLED,
         ),
       });
       const payload: StripeAdminSettings = {
@@ -2984,13 +2971,12 @@ function PaymentProvidersAdminPanel() {
   const current = values[activeMode];
   const modeLabel = activeMode === "sandbox" ? "Sandbox" : "Production";
   const stripeGloballyEnabled = providerFlags.GLOBAL_PAYMENTS_STRIPE_ENABLED;
-  const paypalGloballyEnabled = providerFlags.GLOBAL_PAYMENTS_PAYPAL_ENABLED;
 
   return (
     <div className="platform-admin-panel platform-admin-panel-pad">
       <div className="platform-admin-plan-price-head">
         <div className="platform-admin-eyebrow">Payment providers</div>
-        <h2>{activeProvider === "stripe" ? "Stripe Connect" : "PayPal"}</h2>
+        <h2>Stripe Connect</h2>
         <p
           className="platform-admin-muted"
           style={{ margin: 0, fontWeight: 700, lineHeight: 1.5 }}
@@ -2998,31 +2984,6 @@ function PaymentProvidersAdminPanel() {
           Configure global provider availability. OFF is enforced as a hard
           platform override across tenant web and guest apps.
         </p>
-      </div>
-
-      <div className="platform-admin-top-actions" style={{ marginBottom: 12 }}>
-        <button
-          type="button"
-          className={
-            activeProvider === "stripe"
-              ? "button primary small"
-              : "button secondary small"
-          }
-          onClick={() => setActiveProvider("stripe")}
-        >
-          Stripe
-        </button>
-        <button
-          type="button"
-          className={
-            activeProvider === "paypal"
-              ? "button primary small"
-              : "button secondary small"
-          }
-          onClick={() => setActiveProvider("paypal")}
-        >
-          PayPal
-        </button>
       </div>
 
       {loading ? (
@@ -3042,7 +3003,7 @@ function PaymentProvidersAdminPanel() {
         </p>
       ) : null}
 
-      {!loading && activeProvider === "stripe" ? (
+      {!loading ? (
         <>
           <div
             className="platform-admin-section-card"
@@ -3300,55 +3261,6 @@ function PaymentProvidersAdminPanel() {
             </p>
           </div>
         </>
-      ) : null}
-
-      {!loading && activeProvider === "paypal" ? (
-        <div className="platform-admin-section-card" style={{ marginTop: 12 }}>
-          <div className="platform-admin-section-head">
-            <div className="platform-admin-section-title">
-              <strong>PayPal global status</strong>
-              <span>
-                {paypalGloballyEnabled
-                  ? "PayPal is currently enabled for all tenants."
-                  : "PayPal is currently disabled for all tenants."}
-              </span>
-            </div>
-          </div>
-          <div className="platform-admin-top-actions">
-            <button
-              type="button"
-              className={
-                paypalGloballyEnabled
-                  ? "button primary small"
-                  : "button secondary small"
-              }
-              onClick={() =>
-                setProviderFlags((prev) => ({
-                  ...prev,
-                  GLOBAL_PAYMENTS_PAYPAL_ENABLED: true,
-                }))
-              }
-            >
-              ON
-            </button>
-            <button
-              type="button"
-              className={
-                !paypalGloballyEnabled
-                  ? "button danger small"
-                  : "button secondary small"
-              }
-              onClick={() =>
-                setProviderFlags((prev) => ({
-                  ...prev,
-                  GLOBAL_PAYMENTS_PAYPAL_ENABLED: false,
-                }))
-              }
-            >
-              OFF
-            </button>
-          </div>
-        </div>
       ) : null}
 
       <div style={{ marginTop: 18 }} className="platform-admin-top-actions">

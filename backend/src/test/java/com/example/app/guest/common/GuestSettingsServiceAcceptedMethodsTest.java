@@ -18,7 +18,7 @@ class GuestSettingsServiceAcceptedMethodsTest {
 
         var result = GuestSettingsService.parseAcceptedPaymentMethods(node);
 
-        assertThat(result).containsExactly("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD");
+        assertThat(result).containsExactly("CARD", "BANK_TRANSFER", "GIFT_CARD");
     }
 
     @Test
@@ -36,9 +36,9 @@ class GuestSettingsServiceAcceptedMethodsTest {
         var emptyResult = GuestSettingsService.parseAcceptedPaymentMethods(JSON.readTree("[]"));
         var legacyOnly = GuestSettingsService.parseAcceptedPaymentMethods(JSON.readTree("[\"cash\"]"));
 
-        assertThat(nullResult).containsExactly("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD");
+        assertThat(nullResult).containsExactly("CARD", "BANK_TRANSFER", "GIFT_CARD");
         assertThat(emptyResult).isEmpty();
-        assertThat(legacyOnly).containsExactly("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD");
+        assertThat(legacyOnly).containsExactly("CARD", "BANK_TRANSFER", "GIFT_CARD");
     }
 
     @Test
@@ -47,14 +47,14 @@ class GuestSettingsServiceAcceptedMethodsTest {
 
         var result = GuestSettingsService.parseAcceptedPaymentMethods(node);
 
-        assertThat(result).containsExactly("CARD", "PAYPAL");
+        assertThat(result).containsExactly("CARD");
     }
 
     @Test
-    void applyGlobalProviderCapabilities_filtersCardAndPaypalWhenDisabled() {
+    void applyGlobalProviderCapabilities_filtersDisabledCardAndRemovedPaypal() {
         var result = GuestSettingsService.applyGlobalProviderCapabilities(
                 List.of("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD"),
-                new GlobalPaymentProviderService.ProviderCapabilities(false, false)
+                new GlobalPaymentProviderService.ProviderCapabilities(false)
         );
 
         assertThat(result).containsExactly("BANK_TRANSFER", "GIFT_CARD");
@@ -64,7 +64,7 @@ class GuestSettingsServiceAcceptedMethodsTest {
     void applyGlobalProviderCapabilities_preservesExplicitNone() {
         var result = GuestSettingsService.applyGlobalProviderCapabilities(
                 List.of(),
-                new GlobalPaymentProviderService.ProviderCapabilities(true, true)
+                new GlobalPaymentProviderService.ProviderCapabilities(true)
         );
 
         assertThat(result).isEmpty();
@@ -74,7 +74,7 @@ class GuestSettingsServiceAcceptedMethodsTest {
     void applyGlobalProviderCapabilities_returnsSafeFallbackWhenAllConfiguredMethodsAreDisabled() {
         var result = GuestSettingsService.applyGlobalProviderCapabilities(
                 List.of("CARD", "PAYPAL"),
-                new GlobalPaymentProviderService.ProviderCapabilities(false, false)
+                new GlobalPaymentProviderService.ProviderCapabilities(false)
         );
 
         assertThat(result).containsExactly("BANK_TRANSFER", "GIFT_CARD");

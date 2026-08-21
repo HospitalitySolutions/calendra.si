@@ -60,7 +60,7 @@ class CustomerCommerceServiceTest {
 
         when(locations.findById(31L)).thenReturn(Optional.of(location));
         when(settings.publicSettings(7L)).thenReturn(publicSettings);
-        when(settings.acceptedPaymentMethods(7L)).thenReturn(List.of("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD"));
+        when(settings.acceptedPaymentMethods(7L)).thenReturn(List.of("CARD", "BANK_TRANSFER", "GIFT_CARD"));
         when(catalog.publicProducts(7L, 31L)).thenReturn(List.of(
                 product("501", "Paket 5 obiskov", "PACK", 150d),
                 product("502", "Mesečno članstvo", "MEMBERSHIP", 49d),

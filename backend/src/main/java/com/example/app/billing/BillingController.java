@@ -6490,9 +6490,6 @@ public class BillingController {
         if (paymentType == PaymentType.CARD && !globalPaymentProviders.isStripeEnabled()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Stripe is disabled in Platform Admin.");
         }
-        if (paymentType == PaymentType.OTHER && !globalPaymentProviders.isPaypalEnabled()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PayPal is disabled in Platform Admin.");
-        }
     }
 
     private static boolean isPaymentMethodAllowedByGlobalSettings(
@@ -6500,9 +6497,6 @@ public class BillingController {
             GlobalPaymentProviderService.ProviderCapabilities capabilities
     ) {
         if (paymentMethod.getPaymentType() == PaymentType.CARD && !capabilities.stripeEnabled()) {
-            return false;
-        }
-        if (paymentMethod.getPaymentType() == PaymentType.OTHER && !capabilities.paypalEnabled()) {
             return false;
         }
         return true;

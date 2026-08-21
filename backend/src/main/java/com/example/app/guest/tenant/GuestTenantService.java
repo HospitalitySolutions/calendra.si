@@ -468,9 +468,6 @@ public class GuestTenantService {
                     if ("BANK_TRANSFER".equals(normalized)) {
                         return paymentMethods == null || methods.stream().anyMatch(row -> row.getPaymentType() == PaymentType.BANK_TRANSFER);
                     }
-                    if ("PAYPAL".equals(normalized)) {
-                        return paymentMethods == null || methods.stream().anyMatch(row -> row.getPaymentType() == PaymentType.OTHER);
-                    }
                     return true;
                 })
                 .toList();

@@ -81,7 +81,6 @@ public class SettingsController {
             SettingKey.BILLING_INVOICES_ENABLED.name(),
             SettingKey.BILLING_ONLINE_CARD_PAYMENTS_ENABLED.name(),
             SettingKey.BILLING_BANK_TRANSFER_ENABLED.name(),
-            SettingKey.BILLING_PAYPAL_ENABLED.name(),
             SettingKey.BILLING_GIFT_CARDS_ENABLED.name(),
             SettingKey.BILLING_FISCAL_CASH_REGISTER_ENABLED.name(),
             SettingKey.BILLING_ADVANCE_ENABLED.name(),
@@ -207,7 +206,7 @@ public class SettingsController {
         this.invoiceSeriesRepository = invoiceSeriesRepository;
     }
 
-    public record PaymentProviderCapabilitiesResponse(boolean stripeEnabled, boolean paypalEnabled) {}
+    public record PaymentProviderCapabilitiesResponse(boolean stripeEnabled) {}
     public record ModuleCapabilitiesResponse(boolean waitlistEnabled, boolean consumablesEnabled) {}
     public record SmsQuotaResponse(int quota, int used, int remaining, boolean warning, boolean exhausted) {}
 
@@ -428,7 +427,7 @@ public class SettingsController {
     @GetMapping("/payment-capabilities")
     public PaymentProviderCapabilitiesResponse paymentCapabilities(@AuthenticationPrincipal User me) {
         var caps = globalPaymentProviders.capabilities();
-        return new PaymentProviderCapabilitiesResponse(caps.stripeEnabled(), caps.paypalEnabled());
+        return new PaymentProviderCapabilitiesResponse(caps.stripeEnabled());
     }
 
     @GetMapping("/module-capabilities")
@@ -966,7 +965,6 @@ public class SettingsController {
                     "BILLING_INVOICES_ENABLED",
                     "BILLING_ONLINE_CARD_PAYMENTS_ENABLED",
                     "BILLING_BANK_TRANSFER_ENABLED",
-                    "BILLING_PAYPAL_ENABLED",
                     "BILLING_GIFT_CARDS_ENABLED",
                     "BILLING_FISCAL_CASH_REGISTER_ENABLED",
                     "BILLING_ADVANCE_ENABLED",

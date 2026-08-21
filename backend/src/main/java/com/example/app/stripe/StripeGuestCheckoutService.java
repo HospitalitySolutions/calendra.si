@@ -133,8 +133,6 @@ public class StripeGuestCheckoutService {
                 environment.getProperty("app.public-base-url"),
                 environment.getProperty("APP_STRIPE_GUEST_PUBLIC_BASE_URL"),
                 environment.getProperty("app.stripe.guest-public-base-url"),
-                environment.getProperty("APP_PAYPAL_PUBLIC_BASE_URL"),
-                environment.getProperty("app.paypal.public-base-url"),
                 environment.getProperty("APP_AUTH_FRONTEND_URL"),
                 environment.getProperty("app.auth.frontend-url")
         );

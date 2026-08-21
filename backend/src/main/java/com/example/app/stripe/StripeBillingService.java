@@ -281,8 +281,6 @@ public class StripeBillingService {
                 environment == null ? null : environment.getProperty("app.stripe.billing-public-base-url"),
                 environment == null ? null : environment.getProperty("APP_STRIPE_GUEST_PUBLIC_BASE_URL"),
                 environment == null ? null : environment.getProperty("app.stripe.guest-public-base-url"),
-                environment == null ? null : environment.getProperty("APP_PAYPAL_PUBLIC_BASE_URL"),
-                environment == null ? null : environment.getProperty("app.paypal.public-base-url"),
                 environment == null ? null : environment.getProperty("APP_AUTH_FRONTEND_URL"),
                 environment == null ? null : environment.getProperty("app.auth.frontend-url")
         );

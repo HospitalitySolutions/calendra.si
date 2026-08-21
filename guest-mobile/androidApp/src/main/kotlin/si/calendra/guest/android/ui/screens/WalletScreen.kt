@@ -217,7 +217,7 @@ fun WalletScreen(
     wallet: WalletPayload?,
     accessCards: List<AccessCard> = emptyList(),
     offers: List<WalletOfferCard> = emptyList(),
-    tenantPaymentMethods: List<String> = listOf("CARD", "BANK_TRANSFER", "PAYPAL"),
+    tenantPaymentMethods: List<String> = listOf("CARD", "BANK_TRANSFER"),
     /** Guest profile language (`en`, `sl`, …); drives wallet sub-tab labels. */
     languageCode: String = "en",
     initialSubTab: WalletSubTab = WalletSubTab.Entitlements,
@@ -2398,9 +2398,9 @@ private fun normalizeWalletBuyMethods(rawMethods: List<String>): List<String> {
     val normalized = rawMethods
         .map { it.uppercase(Locale.ROOT) }
         // Wallet Buy follows tenant accepted methods but intentionally excludes gift cards.
-        .filter { it == "CARD" || it == "BANK_TRANSFER" || it == "PAYPAL" }
+        .filter { it == "CARD" || it == "BANK_TRANSFER" }
         .distinct()
-    val ordered = listOf("CARD", "BANK_TRANSFER", "PAYPAL")
+    val ordered = listOf("CARD", "BANK_TRANSFER")
         .filter { normalized.contains(it) }
     // If tenant config exposes no wallet-compatible methods, default to bank transfer only.
     return if (ordered.isNotEmpty()) ordered else listOf("BANK_TRANSFER")
@@ -3394,7 +3394,7 @@ private fun PaymentLogoStrip(methods: List<String>) {
 private fun paymentMethodsSentence(methods: List<String>): String {
     val labels = methods.map { paymentMethodDisplayName(it) }
     return when (labels.size) {
-        0 -> "Card, PayPal, or Bank transfer"
+        0 -> "Card or Bank transfer"
         1 -> labels.first()
         2 -> labels.joinToString(" or ")
         else -> labels.dropLast(1).joinToString(", ") + ", or " + labels.last()

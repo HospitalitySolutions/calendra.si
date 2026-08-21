@@ -692,7 +692,7 @@ fun GuestMobileRoot() {
     LaunchedEffect(paymentRedirectUri) {
         val uri = paymentRedirectUri ?: return@LaunchedEffect
         val provider = uri.host?.lowercase()
-        val providerLabel = if (provider == "stripe") "Stripe" else "PayPal"
+        val providerLabel = "Stripe"
         val status = uri.getQueryParameter("status")?.lowercase() ?: uri.lastPathSegment?.lowercase()
         val message = when (status) {
             "success" -> "$providerLabel payment completed"
@@ -746,7 +746,7 @@ fun GuestMobileRoot() {
                     val pending = pendingExternalCheckout
                     if (pending != null && pending.appWasBackgrounded) {
                         scope.launch {
-                            // Give the Stripe/PayPal success or cancel deep link a short moment to arrive first.
+                            // Give the Stripe success or cancel deep link a short moment to arrive first.
                             delay(1200)
                             val stillPending = pendingExternalCheckout
                             if (stillPending != null && stillPending.orderId == pending.orderId) {
@@ -1270,7 +1270,7 @@ fun GuestMobileRoot() {
                                 throw it
                             }
 
-                            if ((paymentMethodType == "CARD" || paymentMethodType == "PAYPAL") && !checkout.checkoutUrl.isNullOrBlank()) {
+                            if (paymentMethodType == "CARD" && !checkout.checkoutUrl.isNullOrBlank()) {
                                 pendingExternalCheckout = PendingExternalCheckout(
                                     orderId = checkout.orderId,
                                     companyId = primary.companyId,
@@ -1513,7 +1513,7 @@ fun GuestMobileRoot() {
                                             } ?: "Bank transfer instructions issued"
                                         }
                                         else -> {
-                                            if ((paymentMethod == "CARD" || paymentMethod == "PAYPAL") && !checkout.checkoutUrl.isNullOrBlank()) {
+                                            if (paymentMethod == "CARD" && !checkout.checkoutUrl.isNullOrBlank()) {
                                                 pendingExternalCheckout = PendingExternalCheckout(
                                                     orderId = checkout.orderId,
                                                     companyId = offer.companyId,

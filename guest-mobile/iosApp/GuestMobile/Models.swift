@@ -35,7 +35,7 @@ struct TenantModel: Identifiable, Hashable, Codable {
     let paymentRequirement: String?
     /// Deposit percent used when paymentRequirement is deposit.
     let depositPercent: Int?
-    /// Runtime payment ids enabled for this tenant: CARD, BANK_TRANSFER, PAYPAL, GIFT_CARD. Nil/empty means no allowlist enforced.
+    /// Runtime payment ids enabled for this tenant: CARD, BANK_TRANSFER, GIFT_CARD. Nil/empty means no allowlist enforced.
     let acceptedPaymentMethods: [String]?
     /// Enables ordered multi-service selection in Calendra Connect.
     let multipleServicesEnabled: Bool?

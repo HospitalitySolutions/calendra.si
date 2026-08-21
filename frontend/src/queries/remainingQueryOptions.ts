@@ -71,17 +71,6 @@ export function fiscalCertificateMetaQueryOptions<T = unknown>(unitId: ScopeId) 
   }
 }
 
-export function paypalConfigQueryOptions<T = unknown>(unitId: ScopeId) {
-  return {
-    queryKey: queryKeys.configuration.paypalConfig(unitId),
-    queryFn: async (): Promise<T> => {
-      const response = await api.get<T>('/paypal/onboarding/config', { headers: unitHeaders(unitId) })
-      return response.data
-    },
-    staleTime: 2 * MINUTE,
-  }
-}
-
 export function stripeConnectConfigQueryOptions<T = unknown>(unitId: ScopeId) {
   return {
     queryKey: queryKeys.configuration.stripeConnectConfig(unitId),

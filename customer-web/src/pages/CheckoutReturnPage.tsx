@@ -13,11 +13,9 @@ export function CheckoutReturnPage() {
   const processedRef = useRef(false)
   const [processing, setProcessing] = useState(true)
   const [actionError, setActionError] = useState('')
-  const provider = (params.get('provider') || 'stripe').toLowerCase()
   const status = (params.get('status') || 'success').toLowerCase()
   const orderId = params.get('orderId') || ''
   const sessionId = params.get('session_id')
-  const token = params.get('token')
 
   useEffect(() => {
     if (!orderId || processedRef.current) { setProcessing(false); return }
@@ -25,9 +23,7 @@ export function CheckoutReturnPage() {
     const run = async () => {
       try {
         if (status === 'cancelled' || status === 'canceled' || status === 'cancel') {
-          await customerApi.cancelCommerceCheckout(orderId, { sessionId, token })
-        } else if (provider === 'paypal') {
-          await customerApi.completeCommercePayPal(orderId, token)
+          await customerApi.cancelCommerceCheckout(orderId, { sessionId })
         }
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ['customer-wallet'] }),
@@ -40,13 +36,13 @@ export function CheckoutReturnPage() {
       }
     }
     void run()
-  }, [orderId, provider, queryClient, sessionId, status, token])
+  }, [orderId, queryClient, sessionId, status])
 
   const orderQuery = useQuery({
     queryKey: ['customer-commerce-order', orderId],
     queryFn: () => customerApi.commerceOrder(orderId),
     enabled: Boolean(orderId) && !processing,
-    // Stripe and PayPal may settle asynchronously via webhook/capture.
+    // Stripe may settle asynchronously via webhook.
     // Poll while the customer remains on the return page; the page unmounts
     // as soon as they navigate away.
     refetchInterval: status === 'cancelled' || status === 'canceled' ? false : 1500,

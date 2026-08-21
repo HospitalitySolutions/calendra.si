@@ -26,7 +26,6 @@ import com.example.app.guest.notifications.GuestNotificationService;
 import com.example.app.guest.tenant.GuestTenantService;
 import com.example.app.location.Location;
 import com.example.app.location.LocationRepository;
-import com.example.app.paypal.PayPalClient;
 import com.example.app.reminder.ReminderService;
 import com.example.app.settings.GlobalPaymentProviderService;
 import com.example.app.session.BookingChangePublisher;
@@ -98,7 +97,7 @@ class GuestOrderServicePaymentRulesTest {
     private Fixture fixtureWithRules(boolean requireOnlinePayment) {
         return fixtureWith(
                 requireOnlinePayment,
-                List.of("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD"),
+                List.of("CARD", "BANK_TRANSFER", "GIFT_CARD"),
                 requireOnlinePayment ? "full" : "none",
                 20,
                 "SESSION_SINGLE",
@@ -142,10 +141,8 @@ class GuestOrderServicePaymentRulesTest {
         GuestEntitlementService entitlementService = mock(GuestEntitlementService.class);
         GuestBankTransferBillingService bankTransferBillingService = mock(GuestBankTransferBillingService.class);
         GuestProductBillingService productBillingService = mock(GuestProductBillingService.class);
-        PayPalClient payPalClient = mock(PayPalClient.class);
         GlobalPaymentProviderService globalPaymentProviders = mock(GlobalPaymentProviderService.class);
         when(globalPaymentProviders.isStripeEnabled()).thenReturn(true);
-        when(globalPaymentProviders.isPaypalEnabled()).thenReturn(true);
 
         GuestOrderService service = new GuestOrderService(
                 tenantService,
@@ -165,7 +162,6 @@ class GuestOrderServicePaymentRulesTest {
                 entitlementService,
                 bankTransferBillingService,
                 productBillingService,
-                payPalClient,
                 null,
                 globalPaymentProviders
         );
@@ -183,17 +179,14 @@ class GuestOrderServicePaymentRulesTest {
         // Mockito booleans default to false, so mirror the production default explicitly.
         when(settingsService.entitlementsEnabled(any(Long.class))).thenReturn(true);
         when(settingsService.acceptedPaymentMethods(any(Long.class))).thenReturn(acceptedPaymentMethods);
-        // Default: PayPal merchant configured, PayPal method present.
-        // guestEnabled is intentionally false to verify guest channel no longer depends on it.
         Company defaultCompany = new Company();
         defaultCompany.setId(10L);
-        defaultCompany.setPaypalMerchantId("PAYPAL_MERCHANT_ABC");
         when(companies.findById(10L)).thenReturn(java.util.Optional.of(defaultCompany));
-        com.example.app.billing.PaymentMethod paypalMethod = mock(com.example.app.billing.PaymentMethod.class);
-        when(paypalMethod.getPaymentType()).thenReturn(com.example.app.billing.PaymentType.OTHER);
-        when(paypalMethod.isGuestEnabled()).thenReturn(false);
-        when(paypalMethod.isWidgetEnabled()).thenReturn(true);
-        when(paymentMethods.findAllByCompanyIdOrderByNameAsc(10L)).thenReturn(List.of(paypalMethod));
+        com.example.app.billing.PaymentMethod bankTransferMethod = mock(com.example.app.billing.PaymentMethod.class);
+        when(bankTransferMethod.getPaymentType()).thenReturn(com.example.app.billing.PaymentType.BANK_TRANSFER);
+        when(bankTransferMethod.isGuestEnabled()).thenReturn(true);
+        when(bankTransferMethod.isWidgetEnabled()).thenReturn(true);
+        when(paymentMethods.findAllByCompanyIdOrderByNameAsc(10L)).thenReturn(List.of(bankTransferMethod));
 
         GuestUser guestUser = new GuestUser();
         guestUser.setId(1L);
@@ -250,7 +243,7 @@ class GuestOrderServicePaymentRulesTest {
     void createOrder_oldGuestClientWithoutLocationUsesItsSingleSubscribedLocation() {
         Fixture fixture = fixtureWith(
                 false,
-                List.of("PAYPAL"),
+                List.of("BANK_TRANSFER"),
                 "none",
                 20,
                 "PACK",
@@ -291,7 +284,7 @@ class GuestOrderServicePaymentRulesTest {
 
         fixture.service.createOrder(
                 fixture.guestUser,
-                new GuestDtos.CreateOrderRequest("10", "product-1", null, GuestPaymentMethodType.PAYPAL.name(), null),
+                new GuestDtos.CreateOrderRequest("10", "product-1", null, GuestPaymentMethodType.BANK_TRANSFER.name(), null),
                 GuestOrderService.PaymentChannel.GUEST
         );
 
@@ -305,7 +298,7 @@ class GuestOrderServicePaymentRulesTest {
     void createOrder_combinesOrderedWebsiteServicesIntoOneOrderTotal() {
         Fixture fixture = fixtureWith(
                 false,
-                List.of("CARD", "BANK_TRANSFER", "PAYPAL", "GIFT_CARD"),
+                List.of("CARD", "BANK_TRANSFER", "GIFT_CARD"),
                 "none",
                 20,
                 "CLASS_TICKET",
@@ -347,7 +340,7 @@ class GuestOrderServicePaymentRulesTest {
 
     @Test
     void createOrder_rejectsCardWhenNotInAcceptedMethods() {
-        Fixture fixture = fixtureWith(true, List.of("BANK_TRANSFER", "PAYPAL"));
+        Fixture fixture = fixtureWith(true, List.of("BANK_TRANSFER"));
 
         assertThatThrownBy(() -> fixture.service.createOrder(
                 fixture.guestUser,
@@ -380,46 +373,8 @@ class GuestOrderServicePaymentRulesTest {
     }
 
     @Test
-    void createOrder_allowsPaypalWhenAcceptedAndMerchantConfigured() {
-        Fixture fixture = fixtureWith(true, List.of("CARD", "PAYPAL"));
-        when(fixture.orders.save(any(GuestOrder.class))).thenAnswer(invocation -> {
-            GuestOrder order = invocation.getArgument(0);
-            order.setId(99L);
-            return order;
-        });
-
-        fixture.service.createOrder(
-                fixture.guestUser,
-                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.PAYPAL.name(), null),
-                GuestOrderService.PaymentChannel.GUEST
-        );
-
-        verify(fixture.orders).save(any(GuestOrder.class));
-    }
-
-    @Test
-    void createOrder_rejectsWebsiteCheckoutWhenWidgetDisabled() {
-        Fixture fixture = fixtureWith(true, List.of("PAYPAL"));
-        com.example.app.billing.PaymentMethod paypalMethod = mock(com.example.app.billing.PaymentMethod.class);
-        when(paypalMethod.getPaymentType()).thenReturn(com.example.app.billing.PaymentType.OTHER);
-        when(paypalMethod.isWidgetEnabled()).thenReturn(false);
-        when(fixture.paymentMethods.findAllByCompanyIdOrderByNameAsc(10L)).thenReturn(List.of(paypalMethod));
-
-        assertThatThrownBy(() -> fixture.service.createOrder(
-                fixture.guestUser,
-                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.PAYPAL.name(), null),
-                GuestOrderService.PaymentChannel.WEBSITE))
-                .isInstanceOf(ResponseStatusException.class)
-                .satisfies((ex) -> {
-                    ResponseStatusException rse = (ResponseStatusException) ex;
-                    org.assertj.core.api.Assertions.assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-                    org.assertj.core.api.Assertions.assertThat(rse.getReason()).isEqualTo("PayPal is not enabled for the selected booking channel.");
-                });
-    }
-
-    @Test
     void createOrder_rejectsCardWhenPlatformStripeIsDisabled() {
-        Fixture fixture = fixtureWith(true, List.of("CARD", "BANK_TRANSFER", "PAYPAL"));
+        Fixture fixture = fixtureWith(true, List.of("CARD", "BANK_TRANSFER"));
         when(fixture.globalPaymentProviders.isStripeEnabled()).thenReturn(false);
 
         assertThatThrownBy(() -> fixture.service.createOrder(
@@ -431,23 +386,6 @@ class GuestOrderServicePaymentRulesTest {
                     ResponseStatusException rse = (ResponseStatusException) ex;
                     org.assertj.core.api.Assertions.assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
                     org.assertj.core.api.Assertions.assertThat(rse.getReason()).isEqualTo("Stripe is disabled in Platform Admin.");
-                });
-    }
-
-    @Test
-    void createOrder_rejectsPaypalWhenPlatformPaypalIsDisabled() {
-        Fixture fixture = fixtureWith(true, List.of("CARD", "BANK_TRANSFER", "PAYPAL"));
-        when(fixture.globalPaymentProviders.isPaypalEnabled()).thenReturn(false);
-
-        assertThatThrownBy(() -> fixture.service.createOrder(
-                fixture.guestUser,
-                new GuestDtos.CreateOrderRequest("10", "product-1", fixture.slotId, GuestPaymentMethodType.PAYPAL.name(), null),
-                GuestOrderService.PaymentChannel.GUEST))
-                .isInstanceOf(ResponseStatusException.class)
-                .satisfies((ex) -> {
-                    ResponseStatusException rse = (ResponseStatusException) ex;
-                    org.assertj.core.api.Assertions.assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-                    org.assertj.core.api.Assertions.assertThat(rse.getReason()).isEqualTo("PayPal is disabled in Platform Admin.");
                 });
     }
 

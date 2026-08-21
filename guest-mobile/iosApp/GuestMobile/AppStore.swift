@@ -1029,8 +1029,8 @@ final class AppStore: ObservableObject {
     func handlePaymentReturn(url: URL) {
         guard url.scheme == "calendra-guest" else { return }
         let provider = (url.host ?? "").lowercased()
-        guard provider == "paypal" || provider == "stripe" else { return }
-        let providerLabel = provider == "stripe" ? "Stripe" : "PayPal"
+        guard provider == "stripe" else { return }
+        let providerLabel = "Stripe"
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         let status = components?.queryItems?.first(where: { $0.name == "status" })?.value?.lowercased()
         let message = components?.queryItems?.first(where: { $0.name == "message" })?.value
@@ -1101,9 +1101,9 @@ final class AppStore: ObservableObject {
                 orderId: UUID().uuidString,
                 paymentMethodType: paymentMethod,
                 status: completeImmediately ? "PAID" : "PENDING",
-                checkoutUrl: paymentMethod == "CARD" ? "https://checkout.stripe.example/session/mock" : (paymentMethod == "PAYPAL" ? "https://www.sandbox.paypal.com/checkoutnow?token=mock" : nil),
+                checkoutUrl: paymentMethod == "CARD" ? "https://checkout.stripe.example/session/mock" : nil,
                 bankTransfer: paymentMethod == "BANK_TRANSFER" ? BankTransferInstructionsModel(amount: 59, currency: "EUR", referenceCode: "ORD-2026-00014", instructions: "Use the reference code when paying.") : nil,
-                nextAction: completeImmediately ? "COMPLETE" : ((paymentMethod == "CARD" || paymentMethod == "PAYPAL") ? "REDIRECT" : "SHOW_INSTRUCTIONS"),
+                nextAction: completeImmediately ? "COMPLETE" : (paymentMethod == "CARD" ? "REDIRECT" : "SHOW_INSTRUCTIONS"),
                 paymentIntentClientSecret: nil,
                 customerId: nil,
                 customerEphemeralKeySecret: nil,

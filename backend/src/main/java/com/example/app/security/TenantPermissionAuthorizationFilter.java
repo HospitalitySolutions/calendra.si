@@ -189,7 +189,6 @@ public class TenantPermissionAuthorizationFilter extends OncePerRequestFilter {
                 RouteRule.prefix("/api/google", "INTEGRATIONS"),
                 RouteRule.prefix("/api/zoom", "INTEGRATIONS"),
                 RouteRule.prefix("/api/stripe/connect", "INTEGRATIONS"),
-                RouteRule.prefix("/api/paypal/onboarding", "INTEGRATIONS"),
 
                 // Scanner and operational inventory/resources.
                 RouteRule.prefix("/api/wallet-scanner", "SCANNER"),

@@ -128,7 +128,6 @@ customer/CustomerController.java|@PostMapping("/booking-handoffs")|createBooking
 customer/CustomerController.java|@PostMapping("/commerce/orders")|createCommerceOrder
 customer/CustomerController.java|@PostMapping("/commerce/orders/{orderId}/cancel")|cancelCommerceCheckout
 customer/CustomerController.java|@PostMapping("/commerce/orders/{orderId}/checkout")|checkoutCommerceOrder
-customer/CustomerController.java|@PostMapping("/commerce/orders/{orderId}/paypal/complete")|completeCommercePayPal
 customer/CustomerController.java|@PostMapping("/notifications/read-all")|markAllNotificationsRead
 customer/CustomerController.java|@PostMapping("/notifications/{notificationId}/read")|markNotificationRead
 customfield/CustomFieldController.java|@DeleteMapping("/{id}")|delete
@@ -219,9 +218,6 @@ notification/PlatformAnnouncementAdminController.java|@PostMapping|create
 notification/PlatformAnnouncementAdminController.java|@PutMapping("/{id}")|update
 notification/TenantNotificationController.java|@PutMapping("/read-all")|markAllRead
 notification/TenantNotificationController.java|@PutMapping("/{key}/read")|markRead
-paypal/PayPalOnboardingController.java|@PostMapping("/complete")|complete
-paypal/PayPalOnboardingController.java|@PostMapping("/start")|start
-paypal/PayPalOnboardingController.java|@PutMapping("/config")|saveConfig
 register/RegisterContactController.java|@PostMapping("/contact")|contact
 securitycenter/SecurityCenterController.java|@DeleteMapping("/passkeys/{credentialId}")|removePasskey
 securitycenter/SecurityCenterController.java|@DeleteMapping("/sessions/{sessionKey}")|revokeSession

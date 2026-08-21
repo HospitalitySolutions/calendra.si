@@ -132,7 +132,6 @@ public class CompanyProvisioningService {
         ensureDefaultPaymentMethod(all, company, "Cash", PaymentType.CASH, fiscalCashRegisterEnabled, false, false, 0);
         ensureDefaultPaymentMethod(all, company, "Spletno plačilo s kartico", PaymentType.CARD, fiscalCashRegisterEnabled, true, true, 1);
         ensureDefaultPaymentMethod(all, company, "Bank Transfer", PaymentType.BANK_TRANSFER, false, false, true, 2);
-        ensureDefaultPaymentMethod(all, company, "PayPal", PaymentType.OTHER, false, false, true, 3);
         ensureDefaultPaymentMethod(all, company, "Advance", PaymentType.ADVANCE, false, false, false, 4);
     }
 

@@ -70,7 +70,7 @@ class GuestPreferencesStore(context: Context) {
 
     /**
      * Local saved-card storage is intentionally disabled until card saving is backed by a
-     * tokenized provider payment method (Stripe/PayPal). Existing legacy card data is
+     * tokenized provider payment method (Stripe). Existing legacy card data is
      * purged so full PAN values that were previously Base64-obfuscated are removed.
      */
     fun loadSavedCards(): List<SavedCardUi> {
