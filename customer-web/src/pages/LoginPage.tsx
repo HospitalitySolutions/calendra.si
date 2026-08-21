@@ -103,7 +103,7 @@ function LanguageSelector({ locale, onChange }: { locale: AuthLocale; onChange: 
       <span className="auth-language__chevron" aria-hidden="true">⌄</span>
     </button>
     {open && <div className="auth-language-menu" role="listbox" aria-label="Select language">
-      {AUTH_LOCALE_OPTIONS.map(option => <button key={option.code} type="button" role="option" aria-selected={option.code === locale} className={`auth-language-option${option.code === locale ? ' is-active' : ''}`} onClick={() => { onChange(option.code); setOpen(false) }}><span className={`auth-language-option__flag auth-language-option__flag--${option.code}`} aria-hidden="true"/><span>{option.nativeLabel}</span><span className="auth-language-option__check" aria-hidden="true">{option.code === locale ? '✓' : ''}</span></button>)}
+      {AUTH_LOCALE_OPTIONS.map(option => <button key={option.code} type="button" role="option" aria-selected={option.code === locale} className={`auth-language-option${option.code === locale ? ' is-active' : ''}`} onClick={() => { onChange(option.code); setOpen(false) }}><span className={`auth-language-option__flag auth-language-option__flag--${option.code}`} aria-hidden="true"/><span className="auth-language-option__label">{option.nativeLabel}</span><span className="auth-language-option__check" aria-hidden="true">{option.code === locale ? '✓' : ''}</span></button>)}
     </div>}
   </div>
 }

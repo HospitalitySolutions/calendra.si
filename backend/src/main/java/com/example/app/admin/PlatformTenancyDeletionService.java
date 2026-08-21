@@ -452,6 +452,21 @@ public class PlatformTenancyDeletionService {
                 companyId,
                 companyId);
 
+        // Older open bills may predate batch_target_company_id/reference tagging and only point at
+        // the dedicated Platform Admin billing client. Purge those variants as well.
+        exec(
+                "DELETE FROM advance_allocations WHERE open_bill_id IN (SELECT ob.id FROM open_bills ob WHERE ob.client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?)))",
+                companyId);
+        exec(
+                "DELETE FROM open_bill_payments WHERE open_bill_id IN (SELECT ob.id FROM open_bills ob WHERE ob.client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?)))",
+                companyId);
+        exec(
+                "DELETE FROM open_bill_items WHERE open_bill_id IN (SELECT ob.id FROM open_bills ob WHERE ob.client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?)))",
+                companyId);
+        exec(
+                "DELETE FROM open_bills WHERE client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?))",
+                companyId);
+
         // Remove the dedicated Platform Admin payee client and its auxiliary data.
         exec(
                 """
@@ -477,6 +492,39 @@ public class PlatformTenancyDeletionService {
                 """,
                 companyId,
                 companyId);
+        // Delivery history is owned by Platform Admin, but older subscription emails may still carry
+        // a direct FK to the dedicated tenant payee client. Remove those rows before deleting the client.
+        exec(
+                "DELETE FROM message_delivery_logs WHERE client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?))",
+                companyId);
+        // A legacy billing client may also have been reused by older Platform Admin flows. Remove or
+        // detach every restrictive client FK before deleting that dedicated billing identity.
+        exec(
+                "UPDATE session_booking SET client_id = NULL WHERE client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?))",
+                companyId);
+        exec(
+                "DELETE FROM guest_notifications WHERE client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?))",
+                companyId);
+        exec(
+                "DELETE FROM guest_entitlement_usages WHERE entitlement_id IN (SELECT ge.id FROM guest_entitlements ge WHERE ge.client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?)))",
+                companyId);
+        exec(
+                "DELETE FROM guest_entitlements WHERE client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?))",
+                companyId);
+        exec(
+                "DELETE FROM guest_order_items WHERE order_id IN (SELECT go.id FROM guest_orders go WHERE go.client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?)))",
+                companyId);
+        exec(
+                "DELETE FROM guest_orders WHERE client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?))",
+                companyId);
+        // Keep any Platform Admin waitlist records but detach the soon-to-be-deleted billing client.
+        // V4 and V5 created two waitlist schemas, and both can exist in upgraded databases.
+        exec(
+                "UPDATE waitlist_requests SET client_id = NULL WHERE client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?))",
+                companyId);
+        exec(
+                "UPDATE waitlist_request SET client_id = NULL WHERE client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?))",
+                companyId);
         exec(
                 "DELETE FROM scheduled_messages WHERE client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?))",
                 companyId);
@@ -501,6 +549,7 @@ public class PlatformTenancyDeletionService {
         exec(
                 "DELETE FROM company_files WHERE company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?)",
                 companyId);
+        assertNoRestrictingPlatformPayeeClientReferences(companyId);
         exec(
                 "DELETE FROM clients WHERE billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?)",
                 companyId);
@@ -509,6 +558,60 @@ public class PlatformTenancyDeletionService {
             if (platformWorkspaceId != null && platformWorkspaceId > 0) {
                 purgeOrphanWorkspaceClients(platformWorkspaceId);
             }
+        }
+    }
+
+    private void assertNoRestrictingPlatformPayeeClientReferences(long tenantCompanyId) {
+        List<Map<String, Object>> references = jdbc.queryForList(
+                """
+                SELECT DISTINCT
+                       child.relname AS table_name,
+                       child_col.attname AS column_name,
+                       con.conname AS constraint_name
+                  FROM pg_constraint con
+                  JOIN pg_class child ON child.oid = con.conrelid
+                  JOIN pg_namespace child_ns ON child_ns.oid = child.relnamespace
+                  JOIN pg_class parent ON parent.oid = con.confrelid
+                  JOIN pg_namespace parent_ns ON parent_ns.oid = parent.relnamespace
+                  JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS ck(attnum, ord) ON TRUE
+                  JOIN LATERAL unnest(con.confkey) WITH ORDINALITY AS fk(attnum, ord) ON fk.ord = ck.ord
+                  JOIN pg_attribute child_col ON child_col.attrelid = child.oid AND child_col.attnum = ck.attnum
+                  JOIN pg_attribute parent_col ON parent_col.attrelid = parent.oid AND parent_col.attnum = fk.attnum
+                 WHERE con.contype = 'f'
+                   AND child_ns.nspname = current_schema()
+                   AND parent_ns.nspname = current_schema()
+                   AND parent.relname = 'clients'
+                   AND parent_col.attname = 'id'
+                   AND con.confdeltype IN ('a', 'r')
+                """);
+
+        List<String> leftovers = new ArrayList<>();
+        Set<String> checked = new LinkedHashSet<>();
+        for (Map<String, Object> row : references) {
+            String table = stringValue(row.get("table_name"));
+            String column = stringValue(row.get("column_name"));
+            String constraint = stringValue(row.get("constraint_name"));
+            if (table == null || column == null || !safeIdentifier(table) || !safeIdentifier(column)) {
+                continue;
+            }
+            String key = table + "." + column;
+            if (!checked.add(key)) {
+                continue;
+            }
+            Integer count = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM \"" + table + "\" WHERE \"" + column
+                            + "\" IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN "
+                            + "(SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?))",
+                    Integer.class,
+                    tenantCompanyId);
+            if (count != null && count > 0) {
+                leftovers.add(key + "=" + count + (constraint == null ? "" : " (" + constraint + ")"));
+            }
+        }
+        if (!leftovers.isEmpty()) {
+            throw new IllegalStateException(
+                    "Tenant purge left restrictive Platform Admin billing-client references: "
+                            + String.join(", ", leftovers));
         }
     }
 
@@ -577,6 +680,15 @@ public class PlatformTenancyDeletionService {
         exec("DELETE FROM bills WHERE company_id = ?", companyId);
 
         // Waitlist and booking adjuncts.
+        // Purge the legacy V4 singular tables too. They remain present on upgraded databases and
+        // use RESTRICT/NO ACTION foreign keys, so even one historical row can otherwise block tenant deletion.
+        exec("DELETE FROM waitlist_event WHERE company_id = ? OR waitlist_request_id IN (SELECT id FROM waitlist_request WHERE company_id = ?)", companyId, companyId);
+        exec("DELETE FROM waitlist_offer WHERE company_id = ? OR waitlist_request_id IN (SELECT id FROM waitlist_request WHERE company_id = ?)", companyId, companyId);
+        exec("DELETE FROM waitlist_request_employee WHERE waitlist_request_id IN (SELECT id FROM waitlist_request WHERE company_id = ?) OR employee_id IN (SELECT id FROM users WHERE company_id = ?)", companyId, companyId);
+        exec("DELETE FROM waitlist_request_window WHERE waitlist_request_id IN (SELECT id FROM waitlist_request WHERE company_id = ?)", companyId);
+        exec("DELETE FROM booking_hold WHERE company_id = ?", companyId);
+        exec("DELETE FROM waitlist_request WHERE company_id = ?", companyId);
+
         exec("DELETE FROM waitlist_events WHERE waitlist_request_id IN (SELECT id FROM waitlist_requests WHERE company_id = ?)", companyId);
         exec("DELETE FROM waitlist_slot_skips WHERE waitlist_request_id IN (SELECT id FROM waitlist_requests WHERE company_id = ?)", companyId);
         exec("DELETE FROM waitlist_booking_holds WHERE company_id = ?", companyId);
@@ -592,6 +704,13 @@ public class PlatformTenancyDeletionService {
         exec("DELETE FROM widget_booking_idempotency WHERE company_id = ?", companyId);
 
         // Session/inventory joins must disappear before sessions, services, rooms, users and locations.
+        // Delete procurement/inventory children explicitly instead of relying on multi-level cascades.
+        // The receipt-line -> purchase-order-line FK is restrictive, so cascade trigger ordering can
+        // otherwise surface as a foreign-key failure while purging purchase orders.
+        exec("DELETE FROM consumable_purchase_order_receipt_line WHERE company_id = ?", companyId);
+        exec("DELETE FROM consumable_purchase_order_receipt WHERE company_id = ?", companyId);
+        exec("DELETE FROM consumable_purchase_order_line WHERE company_id = ?", companyId);
+        exec("DELETE FROM consumable_inventory_line WHERE company_id = ?", companyId);
         exec("DELETE FROM consumable_inventory_session WHERE company_id = ?", companyId);
         exec("DELETE FROM session_consumable WHERE company_id = ?", companyId);
         exec("DELETE FROM service_type_consumable WHERE company_id = ?", companyId);

@@ -315,10 +315,10 @@ public class PlatformSubscriptionBillingService {
                 .map(this::parseDateOrNull)
                 .orElse(null);
         LocalDate today = timeService.localDate(ZoneId.systemDefault(), tenantId);
-        if (billingStart != null && billingStart.isAfter(today)) {
-            // Basic monthly registrations keep an open bill during the free trial. The invoice is
-            // issued on billingStart itself (for example 14/08 for a 14/08-13/09 period), or when
-            // the tenant explicitly activates a paid package early.
+        if (billingStart != null && !billingStart.equals(today)) {
+            // Subscription invoices are created only on the exact first day of their billing period.
+            // A future trial start stays as an open bill, while a missed historical start is not
+            // recreated later (for example never issue 14/08-13/09 on 21/08).
             return SignupBillingInvoiceResult.empty();
         }
         Company platformCompany = resolvePlatformCompany().orElse(null);
@@ -697,7 +697,38 @@ public class PlatformSubscriptionBillingService {
 
         RegisterPriceCatalog catalog = registerCatalogService.mergedCatalog();
         PlatformBillingCatalog billingCatalog = ensurePlatformBillingCatalog(platformCompany, catalog);
-        RenewTenantResult result = renewTenantSubscription(platformCompany, tenant, billingCatalog, nextPeriodStart);
+
+        // Never issue a subscription invoice for a period whose first day has already passed.
+        // If a scheduler/deploy outage made us miss one or more boundaries, advance the stored
+        // subscription state silently until the active/current boundary is reached. This prevents
+        // a tenant from receiving an invoice on (for example) 21/08 for a 14/08-13/09 period, while
+        // still keeping the next renewal aligned so 14/09 can be invoiced normally.
+        boolean advancedMissedBoundary = false;
+        int safety = 0;
+        while (nextPeriodStart.isBefore(today)) {
+            if (++safety > 120) {
+                throw new IllegalStateException("Could not catch up subscription period for tenant " + tenantId);
+            }
+            RenewTenantResult catchUp = renewTenantSubscription(
+                    platformCompany, tenant, billingCatalog, nextPeriodStart, false);
+            if (catchUp == null || !catchUp.renewed() || catchUp.nextPeriodStart() == null
+                    || !catchUp.nextPeriodStart().isAfter(nextPeriodStart)) {
+                return RenewalPreparation.skipped();
+            }
+            log.info("Advanced missed platform subscription boundary without issuing invoice tenantId={} missedStart={} nextStart={}",
+                    tenantId, nextPeriodStart, catchUp.nextPeriodStart());
+            nextPeriodStart = catchUp.nextPeriodStart();
+            advancedMissedBoundary = true;
+        }
+
+        if (nextPeriodStart.isAfter(today)) {
+            return advancedMissedBoundary
+                    ? new RenewalPreparation(true, tenantId, platformCompanyId, null)
+                    : RenewalPreparation.skipped();
+        }
+
+        // Exact first day of the billing period: this is the only automatic renewal invoice day.
+        RenewTenantResult result = renewTenantSubscription(platformCompany, tenant, billingCatalog, nextPeriodStart, true);
         if (result == null || !result.renewed()) {
             return RenewalPreparation.skipped();
         }
@@ -718,7 +749,13 @@ public class PlatformSubscriptionBillingService {
         startSubscriptionBillPayment(bill, platformCompany);
     }
 
-    private RenewTenantResult renewTenantSubscription(Company platformCompany, Company tenant, PlatformBillingCatalog billingCatalog, LocalDate nextPeriodStart) {
+    private RenewTenantResult renewTenantSubscription(
+            Company platformCompany,
+            Company tenant,
+            PlatformBillingCatalog billingCatalog,
+            LocalDate nextPeriodStart,
+            boolean issueInvoice
+    ) {
         Long tenantId = tenant.getId();
 
         // Promote deferred downgrade / interval change so it applies for the new cycle.
@@ -806,17 +843,18 @@ public class PlatformSubscriptionBillingService {
         upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_CURRENT_SMS_ADD_COUNT, "0");
         upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_CURRENT_ADDON_KEYS, "");
         upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_UPGRADE_DIFF_AMOUNT, "0");
-        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, totalGross.toPlainString());
+        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT,
+                issueInvoice ? totalGross.toPlainString() : "0");
 
         Long renewalBillId = null;
-        if (totalGross.compareTo(BigDecimal.ZERO) > 0) {
+        if (issueInvoice && totalGross.compareTo(BigDecimal.ZERO) > 0) {
             Bill saved = createBillFromSignupOpenBill(open, platformCompany);
             renewalBillId = saved.getId();
         }
         if (workspaceSubscriptions != null) {
             workspaceSubscriptions.syncFromLegacyCompany(tenantId);
         }
-        return RenewTenantResult.completed(renewalBillId);
+        return RenewTenantResult.completed(renewalBillId, newEnd);
     }
 
     private static int packageRank(String normalizedPackage) {
@@ -980,12 +1018,16 @@ public class PlatformSubscriptionBillingService {
                 currentUserAddCount, currentSmsAddCount, currentAddonKeys);
         upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_START, billingStart.toString());
         upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_END, billingEnd.toString());
-        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT, totalGross.toPlainString());
+        // Keep the upcoming amount visible while the start date is still in the future. If the
+        // exact first day was missed, however, do not leave a historical period looking payable.
+        upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_DUE_AMOUNT,
+                billingStart.isBefore(today) ? "0" : totalGross.toPlainString());
         openBills.saveAndFlush(open);
 
-        // First paid invoice is due ON the period start, not at its end.
-        // Example: 14/08/2026-13/09/2026 is issued on 14/08/2026.
-        if (billingStart.isAfter(today) || totalGross.compareTo(BigDecimal.ZERO) <= 0) {
+        // First paid invoice is due ONLY ON the period start, never later as a catch-up email.
+        // Example: 14/08/2026-13/09/2026 may be issued on 14/08/2026, but not on 15/08+
+        // if the scheduler/deployment missed the first day.
+        if (!billingStart.equals(today) || totalGross.compareTo(BigDecimal.ZERO) <= 0) {
             return OpenBillRefreshResult.refreshed(null);
         }
 
@@ -2013,13 +2055,13 @@ public class PlatformSubscriptionBillingService {
         }
     }
 
-    private record RenewTenantResult(boolean renewed, Long billId) {
+    private record RenewTenantResult(boolean renewed, Long billId, LocalDate nextPeriodStart) {
         private static RenewTenantResult skipped() {
-            return new RenewTenantResult(false, null);
+            return new RenewTenantResult(false, null, null);
         }
 
-        private static RenewTenantResult completed(Long billId) {
-            return new RenewTenantResult(true, billId);
+        private static RenewTenantResult completed(Long billId, LocalDate nextPeriodStart) {
+            return new RenewTenantResult(true, billId, nextPeriodStart);
         }
     }
 
