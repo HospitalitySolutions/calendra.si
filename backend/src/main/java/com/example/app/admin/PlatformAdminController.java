@@ -67,6 +67,7 @@ public class PlatformAdminController {
     private final ManualTenantService manualTenantService;
     private final TrialFollowUpEmailService trialFollowUpEmailService;
     private final ReferralRepository referrals;
+    private final TenantPresenceService tenantPresenceService;
 
     public PlatformAdminController(
             CompanyRepository companies,
@@ -80,7 +81,8 @@ public class PlatformAdminController {
             PlatformTenancyDeletionService tenancyDeletionService,
             ManualTenantService manualTenantService,
             TrialFollowUpEmailService trialFollowUpEmailService,
-            ReferralRepository referrals) {
+            ReferralRepository referrals,
+            TenantPresenceService tenantPresenceService) {
         this.companies = companies;
         this.settings = settings;
         this.users = users;
@@ -93,6 +95,7 @@ public class PlatformAdminController {
         this.manualTenantService = manualTenantService;
         this.trialFollowUpEmailService = trialFollowUpEmailService;
         this.referrals = referrals;
+        this.tenantPresenceService = tenantPresenceService;
     }
 
     // Keep Platform Admin service errors intact even when their root cause is a DataIntegrityViolationException.
@@ -166,7 +169,7 @@ public class PlatformAdminController {
                 r.isReferredRewardGranted());
     }
 
-    public record TenancyRow(Long id, String tenantCode, String name) {}
+    public record TenancyRow(Long id, String tenantCode, String name, int activeUserCount) {}
 
     public record TenancySearchHit(
             long id,
@@ -355,8 +358,15 @@ public class PlatformAdminController {
 
     @GetMapping("/tenancies")
     public List<TenancyRow> tenancies() {
-        return companies.findAll().stream()
-                .map(c -> new TenancyRow(c.getId(), c.getTenantCode(), c.getName()))
+        List<Company> allCompanies = companies.findAll();
+        Map<Long, Integer> activeUsersByCompany = tenantPresenceService.activeUserCounts(
+                allCompanies.stream().map(Company::getId).toList());
+        return allCompanies.stream()
+                .map(c -> new TenancyRow(
+                        c.getId(),
+                        c.getTenantCode(),
+                        c.getName(),
+                        activeUsersByCompany.getOrDefault(c.getId(), 0)))
                 .sorted(java.util.Comparator.comparing(TenancyRow::name, String.CASE_INSENSITIVE_ORDER))
                 .collect(Collectors.toList());
     }

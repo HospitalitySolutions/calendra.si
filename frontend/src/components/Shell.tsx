@@ -287,6 +287,28 @@ function ShellInner({ children, user: authenticatedUser }: ShellProps) {
   const [currentUser, setCurrentUser] = useState(authenticatedUser)
   const user = currentUser ?? authenticatedUser
   const activeUnitId = user.activeUnitId ?? user.companyId
+
+  useEffect(() => {
+    let cancelled = false
+
+    const sendPresence = () => {
+      if (cancelled) return
+      void api.post('/auth/presence').catch(() => undefined)
+    }
+
+    sendPresence()
+    const interval = window.setInterval(sendPresence, 60_000)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') sendPresence()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [activeUnitId])
   const shellSettingsQuery = useQuery(settingsQueryOptions(activeUnitId))
   const shellModuleCapabilitiesQuery = useQuery(moduleCapabilitiesQueryOptions(activeUnitId))
   const locationsQuery = useQuery(locationsQueryOptions(activeUnitId))

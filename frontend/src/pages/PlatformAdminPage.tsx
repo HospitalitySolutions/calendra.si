@@ -27,6 +27,7 @@ type TenancySearchHit = {
   packageType: string;
   subscriptionInterval: string;
   signupCompletionSummary: string;
+  activeUserCount?: number;
 };
 
 /** Matches `PlatformAdminController.TenancyRow` JSON. */
@@ -34,6 +35,7 @@ type TenancyRow = {
   id: number;
   tenantCode: string;
   name: string;
+  activeUserCount: number;
 };
 
 type AuditLogEntryDto = {
@@ -574,6 +576,7 @@ function tenancyRowToSearchHit(row: TenancyRow): TenancySearchHit {
     packageType: "—",
     subscriptionInterval: "—",
     signupCompletionSummary: "Click to load plan, billing, and signup status",
+    activeUserCount: row.activeUserCount ?? 0,
   };
 }
 
@@ -5617,6 +5620,34 @@ export function PlatformAdminPage() {
     void loadTenanciesList();
   }, [loadTenanciesList]);
 
+  useEffect(() => {
+    if (workspace !== "tenants") return;
+
+    let cancelled = false;
+    const refreshPresence = async () => {
+      try {
+        const { data } = await api.get<TenancyRow[]>("/platform-admin/tenancies");
+        if (cancelled || !Array.isArray(data)) return;
+        const counts = new Map(data.map((row) => [row.id, row.activeUserCount ?? 0]));
+        setHits((current) =>
+          current.map((hit) => ({
+            ...hit,
+            activeUserCount: counts.get(hit.id) ?? 0,
+          })),
+        );
+      } catch {
+        // Presence is supplemental; keep the current tenant list/status if a poll fails.
+      }
+    };
+
+    void refreshPresence();
+    const interval = window.setInterval(refreshPresence, 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [workspace]);
+
   const visibleHits = useMemo(() => {
     const n = searchInput.trim().toLowerCase();
     if (!n) return hits;
@@ -6449,7 +6480,16 @@ export function PlatformAdminPage() {
                                   className="platform-admin-search-hit"
                                   onClick={() => onPickHit(h)}
                                 >
-                                  <strong>{h.companyName}</strong>
+                                  <span className="platform-admin-tenant-card-title">
+                                    <strong>{h.companyName}</strong>
+                                    {(h.activeUserCount ?? 0) > 0 ? (
+                                      <span
+                                        className="platform-admin-tenant-online-dot"
+                                        title={`${h.activeUserCount ?? 0} active user${h.activeUserCount === 1 ? "" : "s"}`}
+                                        aria-label={`${h.activeUserCount ?? 0} active user${h.activeUserCount === 1 ? "" : "s"}`}
+                                      />
+                                    ) : null}
+                                  </span>
                                   <div className="platform-admin-sub">
                                     {isPlaceholderHit(h)
                                       ? h.tenantCode || "—"

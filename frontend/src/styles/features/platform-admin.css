@@ -354,3 +354,26 @@
   font-weight: 750;
   line-height: 1.5;
 }
+
+/* Tenant live-presence indicator. A tenant is online when at least one app heartbeat was seen in the last 2 minutes. */
+.platform-admin-tenant-card-title{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  min-width:0;
+}
+.platform-admin-tenant-card-title strong{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.platform-admin-tenant-online-dot{
+  flex:0 0 auto;
+  width:9px;
+  height:9px;
+  border-radius:999px;
+  background:#22c55e;
+  box-shadow:0 0 0 3px rgba(34,197,94,.14);
+}
