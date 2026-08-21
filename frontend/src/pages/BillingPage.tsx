@@ -23,7 +23,6 @@ import { canIssueAdvanceInvoices, canIssueOpenInvoices, canIssueRefundInvoices }
 import { useMobileKeyboardOpen } from '../hooks/useMobileKeyboardOpen'
 import { DEFAULT_INVOICE_PRINT_FORMAT_KEY, normalizeInvoicePrintPreference, type InvoicePrintFormat } from '../lib/invoicePrintFormat'
 import { acquirePosPrinterPort, buildPosReceiptEscPosBytes, directPosPrintingEnabled, getWebSerialApi, readPosPrintingPreferences, sendEscPosBytes, type PosReceiptLayout, type PosReceiptPrintRequest, type WebSerialPortLike } from '../lib/posPrinter'
-import { SimpleClientCreatePage } from './clients/SimpleClientCreatePage'
 import { isWorkspaceRolloutEnabled } from '../lib/workspaceRollout'
 import { useSelectedLocationId } from '../lib/locationContext'
 import {
@@ -59,6 +58,118 @@ import '../styles/main/billing-pos-editor.css'
 
 /** POS-style entry: typed digits are minor units (new digits append on the right), e.g. "55" → €0.55, "555" → €5.55. */
 const MAX_CASH_REGISTER_DIGITS = 12
+
+function BillingClientProfileSectionIcon({ name }: { name: 'person' | 'email' | 'phone' }) {
+  const common = {
+    width: 20,
+    height: 20,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.9,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  }
+  if (name === 'email') {
+    return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>
+  }
+  if (name === 'phone') {
+    return <svg {...common}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.92Z" /></svg>
+  }
+  return <svg {...common}><circle cx="12" cy="7" r="4" /><path d="M5.5 21a6.5 6.5 0 0 1 13 0" /></svg>
+}
+
+function BillingCompanySectionIcon() {
+  const common = {
+    width: 20,
+    height: 20,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.9,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  }
+  return <svg {...common}><path d="M3 21h18" /><path d="M5 21V7.8A1.8 1.8 0 0 1 6.8 6h5.4A1.8 1.8 0 0 1 14 7.8V21" /><path d="M14 21V4.8A1.8 1.8 0 0 1 15.8 3H20a1 1 0 0 1 1 1v17" /><path d="M8 10h3" /><path d="M8 14h3" /><path d="M17 8h1" /><path d="M17 12h1" /></svg>
+}
+
+function BillingMobileCreateFieldIcon({ name }: { name: 'person' | 'email' | 'phone' | 'company' | 'document' | 'address' | 'postal' | 'city' }) {
+  const common = {
+    width: 22,
+    height: 22,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.9,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  }
+  if (name === 'person') return <BillingClientProfileSectionIcon name="person" />
+  if (name === 'email') return <BillingClientProfileSectionIcon name="email" />
+  if (name === 'phone') return <BillingClientProfileSectionIcon name="phone" />
+  if (name === 'company') return <BillingCompanySectionIcon />
+  if (name === 'document') {
+    return <svg {...common}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6" /><path d="M9 17h6" /></svg>
+  }
+  if (name === 'address') {
+    return <svg {...common}><path d="M4 21h16" /><path d="M6 21V6.5A2.5 2.5 0 0 1 8.5 4h7A2.5 2.5 0 0 1 18 6.5V21" /><path d="M9 8h1" /><path d="M14 8h1" /><path d="M9 12h1" /><path d="M14 12h1" /><path d="M10 21v-4h4v4" /></svg>
+  }
+  if (name === 'postal') {
+    return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>
+  }
+  return <svg {...common}><path d="M12 21s6-5.2 6-11a6 6 0 1 0-12 0c0 5.8 6 11 6 11Z" /><circle cx="12" cy="10" r="2.5" /></svg>
+}
+
+function BillingMobileCreateField({
+  icon,
+  label,
+  value,
+  onChange,
+  name,
+  inputType = 'text',
+  required = false,
+  autoFocus = false,
+  autoCapitalize = 'none',
+}: {
+  icon: 'person' | 'email' | 'phone' | 'company' | 'document' | 'address' | 'postal' | 'city'
+  label: string
+  value: string
+  onChange: (value: string) => void
+  name: string
+  inputType?: 'text' | 'email' | 'tel'
+  required?: boolean
+  autoFocus?: boolean
+  autoCapitalize?: 'none' | 'words' | 'sentences'
+}) {
+  return (
+    <label className="clients-mobile-create-field">
+      <span className="clients-mobile-create-field__icon" aria-hidden><BillingMobileCreateFieldIcon name={icon} /></span>
+      <input
+        autoFocus={autoFocus}
+        required={required}
+        type={inputType}
+        name={name}
+        autoComplete="new-password"
+        autoCorrect="off"
+        autoCapitalize={autoCapitalize}
+        spellCheck={false}
+        aria-autocomplete="none"
+        data-lpignore="true"
+        data-1p-ignore="true"
+        data-bwignore="true"
+        data-form-type="other"
+        inputMode={inputType === 'email' ? 'email' : inputType === 'tel' ? 'tel' : 'text'}
+        enterKeyHint={inputType === 'tel' ? 'done' : 'next'}
+        value={value}
+        placeholder={`${label}${required ? ' *' : ''}`}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  )
+}
 
 function cashRegisterDigitsFromRaw(raw: string): string {
   return raw.replace(/\D/g, '').slice(0, MAX_CASH_REGISTER_DIGITS)
@@ -1555,8 +1666,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const [advancePaymentShowOther, setAdvancePaymentShowOther] = useState(false)
   const [] = useState(false)
   const [newCompanyName, setNewCompanyName] = useState('')
+  const [newCompanyVatId, setNewCompanyVatId] = useState('')
   const [newCompanyEmail, setNewCompanyEmail] = useState('')
   const [newCompanyTelephone, setNewCompanyTelephone] = useState('')
+  const [newCompanyAddress, setNewCompanyAddress] = useState('')
+  const [newCompanyPostalCode, setNewCompanyPostalCode] = useState('')
+  const [newCompanyCity, setNewCompanyCity] = useState('')
   const [creatingCompany, setCreatingCompany] = useState(false)
   const [showAddCompanyModal, setShowAddCompanyModal] = useState(false)
   const [addCompanyTarget, setAddCompanyTarget] = useState<{ mode: 'createBill' } | { mode: 'editOpenBill'; openBillId: number } | null>(null)
@@ -4882,8 +4997,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
   const openAddCompanyModal = (target: { mode: 'createBill' } | { mode: 'editOpenBill'; openBillId: number }) => {
     setAddCompanyTarget(target)
     setNewCompanyName('')
+    setNewCompanyVatId('')
     setNewCompanyEmail('')
     setNewCompanyTelephone('')
+    setNewCompanyAddress('')
+    setNewCompanyPostalCode('')
+    setNewCompanyCity('')
     setRecipientCompanyPickerOpen(false)
     setEditingRecipientCompanySearch(false)
     setShowAddCompanyModal(true)
@@ -5119,8 +5238,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     try {
       const { data } = await api.post('/companies', {
         name,
+        vatId: newCompanyVatId.trim() || null,
         email: newCompanyEmail.trim() || null,
         telephone: newCompanyTelephone.trim() || null,
+        address: newCompanyAddress.trim() || null,
+        postalCode: newCompanyPostalCode.trim() || null,
+        city: newCompanyCity.trim() || null,
       })
       setCompanies((prev) => [data, ...prev].sort((a, b) => a.name.localeCompare(b.name)))
       if (addCompanyTarget?.mode === 'editOpenBill') {
@@ -5154,8 +5277,12 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         setBillForm((prev) => ({ ...prev, billingTarget: 'COMPANY', recipientCompanyId: data.id }))
       }
       setNewCompanyName('')
+      setNewCompanyVatId('')
       setNewCompanyEmail('')
       setNewCompanyTelephone('')
+      setNewCompanyAddress('')
+      setNewCompanyPostalCode('')
+      setNewCompanyCity('')
       setRecipientCompanyPickerOpen(false)
       setEditingRecipientCompanySearch(false)
       closeAddCompanyModal()
@@ -11297,81 +11424,155 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           onClose={closeAddClientModal}
           ariaLabel={billingCopy.newClientTitle}
           size="lg"
+          className="clients-standard-customer-panel clients-standard-customer-panel--create"
         >
           {isBillingMobileOrTablet ? (
-            <SimpleClientCreatePage
-              title={billingCopy.newClientTitle}
-              closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
-              submitLabel={locale === 'sl' ? 'Ustvari stranko' : 'Create client'}
-              savingLabel={locale === 'sl' ? 'Shranjujem…' : 'Saving…'}
-              draft={{
-                firstName: newClientFirstName,
-                lastName: newClientLastName,
-                email: newClientEmail,
-                phone: newClientPhone,
-              }}
-              labels={{
-                firstName: billingCopy.clientFirstName,
-                lastName: billingCopy.clientLastName,
-                email: billingCopy.email,
-                phone: billingCopy.telephone,
-              }}
-              saving={creatingClientInline}
-              submitDisabled={creatingClientInline || !newClientFirstName.trim() || !newClientLastName.trim()}
-              keyboardOpen={mobileKeyboardOpen}
-              error={newClientInlineError}
-              inputNamePrefix="calendra-billing-new-client"
-              onClose={closeAddClientModal}
-              onChange={(field, value) => {
-                if (newClientInlineError) setNewClientInlineError('')
-                if (field === 'firstName') setNewClientFirstName(value)
-                else if (field === 'lastName') setNewClientLastName(value)
-                else if (field === 'email') setNewClientEmail(value)
-                else setNewClientPhone(value)
-              }}
-              onSubmit={(event) => {
-                event.preventDefault()
-                if (!creatingClientInline && newClientFirstName.trim() && newClientLastName.trim()) void createClientInline()
-              }}
-            />
+            <>
+              <PanelHeader
+                title={billingCopy.newClientTitle}
+                onClose={closeAddClientModal}
+                closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+                closeVisible={false}
+                leading={(
+                  <button
+                    type="button"
+                    className="clients-customer-mobile-back"
+                    onClick={closeAddClientModal}
+                    aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}
+                    title={locale === 'sl' ? 'Nazaj' : 'Back'}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="m15 18-6-6 6-6" />
+                    </svg>
+                  </button>
+                )}
+                actions={(
+                  <button
+                    type="button"
+                    className="cp-icon-btn clients-mobile-header-confirm"
+                    onClick={() => {
+                      const formElement = document.getElementById('billing-new-client-form') as HTMLFormElement | null
+                      formElement?.requestSubmit()
+                    }}
+                    disabled={creatingClientInline || !newClientFirstName.trim() || !newClientLastName.trim()}
+                    aria-label={locale === 'sl' ? 'Ustvari stranko' : 'Create client'}
+                    title={locale === 'sl' ? 'Ustvari stranko' : 'Create client'}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  </button>
+                )}
+              />
+              <PanelBody
+                as="form"
+                id="billing-new-client-form"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  if (!creatingClientInline && newClientFirstName.trim() && newClientLastName.trim()) void createClientInline()
+                }}
+              >
+                <div className="clients-mobile-create-form">
+                  <div className="clients-mobile-create-fields">
+                    <BillingMobileCreateField
+                      icon="person"
+                      label={billingCopy.clientFirstName}
+                      value={newClientFirstName}
+                      onChange={(value) => { setNewClientInlineError(''); setNewClientFirstName(value) }}
+                      name="calendra-billing-new-client-first-name"
+                      required
+                      autoFocus
+                      autoCapitalize="words"
+                    />
+                    <BillingMobileCreateField
+                      icon="person"
+                      label={billingCopy.clientLastName}
+                      value={newClientLastName}
+                      onChange={(value) => { setNewClientInlineError(''); setNewClientLastName(value) }}
+                      name="calendra-billing-new-client-last-name"
+                      required
+                      autoCapitalize="words"
+                    />
+                    <BillingMobileCreateField
+                      icon="email"
+                      label={billingCopy.email}
+                      value={newClientEmail}
+                      onChange={(value) => { setNewClientInlineError(''); setNewClientEmail(value) }}
+                      name="calendra-billing-new-client-email-mobile"
+                      inputType="email"
+                    />
+                    <BillingMobileCreateField
+                      icon="phone"
+                      label={billingCopy.telephone}
+                      value={newClientPhone}
+                      onChange={(value) => { setNewClientInlineError(''); setNewClientPhone(value) }}
+                      name="calendra-billing-new-client-phone-mobile"
+                      inputType="tel"
+                    />
+                  </div>
+                  {newClientInlineError ? <div className="error">{newClientInlineError}</div> : null}
+                </div>
+              </PanelBody>
+            </>
           ) : (
             <>
-            <PanelHeader
-              title={billingCopy.newClientTitle}
-              subtitle={billingCopy.newClientSubtitle}
-              onClose={closeAddClientModal}
-              closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
-            />
-            <PanelBody>
-            <div className="billing-add-company-modal-body">
-              <div className="form-grid">
-                <Field label={billingCopy.clientFirstName}>
-                  <input value={newClientFirstName} onChange={(e) => { setNewClientInlineError(''); setNewClientFirstName(e.target.value) }} placeholder={billingCopy.clientFirstName} />
-                </Field>
-                <Field label={billingCopy.clientLastName}>
-                  <input value={newClientLastName} onChange={(e) => { setNewClientInlineError(''); setNewClientLastName(e.target.value) }} placeholder={billingCopy.clientLastName} />
-                </Field>
-                <Field label={billingCopy.email}>
-                  <input type="email" value={newClientEmail} onChange={(e) => { setNewClientInlineError(''); setNewClientEmail(e.target.value) }} placeholder={billingCopy.emailOptional} />
-                </Field>
-                <Field label={billingCopy.telephone}>
-                  <input value={newClientPhone} onChange={(e) => { setNewClientInlineError(''); setNewClientPhone(e.target.value) }} placeholder={billingCopy.telephoneOptional} />
-                </Field>
-              </div>
-              {newClientInlineError ? <div className="error">{newClientInlineError}</div> : null}
-            </div>
-            </PanelBody>
-            <PanelFooter>
-              <PanelButton onClick={closeAddClientModal}>{t('cancel')}</PanelButton>
-              <PanelButton
-                variant="primary"
-                icon={<GuestConfigSaveIcon />}
-                onClick={() => void createClientInline()}
-                disabled={creatingClientInline || !newClientFirstName.trim() || !newClientLastName.trim()}
+              <PanelHeader
+                title={billingCopy.newClientTitle}
+                onClose={closeAddClientModal}
+                closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+              />
+              <PanelBody
+                as="form"
+                id="billing-new-client-form"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  if (!creatingClientInline && newClientFirstName.trim() && newClientLastName.trim()) void createClientInline()
+                }}
               >
-                {creatingClientInline ? billingCopy.creating : billingCopy.create}
-              </PanelButton>
-            </PanelFooter>
+                <div className="clients-standard-customer-profile">
+                  <section className="clients-standard-customer-section clients-standard-customer-section--person">
+                    <h3><BillingClientProfileSectionIcon name="person" /><span>{locale === 'sl' ? 'Osebni podatki' : 'Personal details'}</span></h3>
+                    <div className="clients-standard-profile-grid">
+                      <label className="clients-detail-field-card clients-create-field">
+                        <span>{billingCopy.clientFirstName} *</span>
+                        <input autoFocus required value={newClientFirstName} placeholder={`${billingCopy.clientFirstName} *`} onChange={(event) => { setNewClientInlineError(''); setNewClientFirstName(event.target.value) }} />
+                      </label>
+                      <label className="clients-detail-field-card clients-create-field">
+                        <span>{billingCopy.clientLastName} *</span>
+                        <input required value={newClientLastName} placeholder={`${billingCopy.clientLastName} *`} onChange={(event) => { setNewClientInlineError(''); setNewClientLastName(event.target.value) }} />
+                      </label>
+                    </div>
+                  </section>
+                  <section className="clients-standard-customer-section">
+                    <h3><BillingClientProfileSectionIcon name="email" /><span>{billingCopy.email}</span></h3>
+                    <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                      <span>{billingCopy.email}</span>
+                      <input type="email" value={newClientEmail} placeholder={billingCopy.email} onChange={(event) => { setNewClientInlineError(''); setNewClientEmail(event.target.value) }} />
+                    </label>
+                  </section>
+                  <section className="clients-standard-customer-section">
+                    <h3><BillingClientProfileSectionIcon name="phone" /><span>{billingCopy.telephone}</span></h3>
+                    <label className="clients-detail-field-card clients-create-field clients-detail-field-card--wide">
+                      <span>{billingCopy.telephone}</span>
+                      <input type="tel" value={newClientPhone} placeholder={billingCopy.telephone} onChange={(event) => { setNewClientInlineError(''); setNewClientPhone(event.target.value) }} />
+                    </label>
+                  </section>
+                </div>
+                {newClientInlineError ? <div className="error">{newClientInlineError}</div> : null}
+              </PanelBody>
+              <PanelFooter>
+                <PanelButton
+                  type="submit"
+                  form="billing-new-client-form"
+                  variant="primary"
+                  icon={<GuestConfigSaveIcon />}
+                  disabled={creatingClientInline || !newClientFirstName.trim() || !newClientLastName.trim()}
+                >
+                  {creatingClientInline
+                    ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…')
+                    : (locale === 'sl' ? 'Ustvari stranko' : 'Create client')}
+                </PanelButton>
+              </PanelFooter>
             </>
           )}
         </SidePanel>
@@ -11383,39 +11584,110 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           onClose={closeAddCompanyModal}
           ariaLabel={billingCopy.newCompanyTitle}
           size="lg"
+          className="clients-standard-entity-panel clients-standard-company-panel clients-standard-entity-panel--create"
         >
-            <PanelHeader
-              title={billingCopy.newCompanyTitle}
-              subtitle={billingCopy.newCompanySubtitle}
-              onClose={closeAddCompanyModal}
-              closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
-            />
-            <PanelBody>
-            <div className="billing-add-company-modal-body">
-              <div className="form-grid">
-                <Field label={billingCopy.companyName}>
-                  <input value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} placeholder={billingCopy.companyName} />
-                </Field>
-                <Field label={billingCopy.email}>
-                  <input type="email" value={newCompanyEmail} onChange={(e) => setNewCompanyEmail(e.target.value)} placeholder={billingCopy.emailOptional} />
-                </Field>
-                <Field label={billingCopy.telephone}>
-                  <input value={newCompanyTelephone} onChange={(e) => setNewCompanyTelephone(e.target.value)} placeholder={billingCopy.telephoneOptional} />
-                </Field>
-              </div>
-            </div>
-            </PanelBody>
-            <PanelFooter>
-              <PanelButton onClick={closeAddCompanyModal}>{t('cancel')}</PanelButton>
-              <PanelButton
-                variant="primary"
-                icon={<GuestConfigSaveIcon />}
-                onClick={() => void createCompanyInline()}
-                disabled={creatingCompany || !newCompanyName.trim()}
+          {isBillingMobileOrTablet ? (
+            <>
+              <PanelHeader
+                title={billingCopy.newCompanyTitle}
+                onClose={closeAddCompanyModal}
+                closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+                closeVisible={false}
+                leading={(
+                  <button
+                    type="button"
+                    className="clients-customer-mobile-back"
+                    onClick={closeAddCompanyModal}
+                    aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}
+                    title={locale === 'sl' ? 'Nazaj' : 'Back'}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="m15 18-6-6 6-6" />
+                    </svg>
+                  </button>
+                )}
+                actions={(
+                  <button
+                    type="button"
+                    className="cp-icon-btn clients-mobile-header-confirm"
+                    onClick={() => {
+                      const formElement = document.getElementById('billing-new-company-form') as HTMLFormElement | null
+                      formElement?.requestSubmit()
+                    }}
+                    disabled={creatingCompany || !newCompanyName.trim()}
+                    aria-label={locale === 'sl' ? 'Ustvari podjetje' : 'Create company'}
+                    title={locale === 'sl' ? 'Ustvari podjetje' : 'Create company'}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  </button>
+                )}
+              />
+              <PanelBody
+                as="form"
+                id="billing-new-company-form"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  if (!creatingCompany && newCompanyName.trim()) void createCompanyInline()
+                }}
               >
-                {creatingCompany ? billingCopy.creating : billingCopy.create}
-              </PanelButton>
-            </PanelFooter>
+                <div className="clients-mobile-create-form">
+                  <div className="clients-mobile-create-fields">
+                    <BillingMobileCreateField icon="company" label={billingCopy.companyName} value={newCompanyName} onChange={setNewCompanyName} name="calendra-billing-new-company-name-mobile" required autoFocus autoCapitalize="words" />
+                    <BillingMobileCreateField icon="document" label={locale === 'sl' ? 'Davčna številka / ID' : 'Tax ID / ID'} value={newCompanyVatId} onChange={setNewCompanyVatId} name="calendra-billing-new-company-vat-id-mobile" />
+                    <BillingMobileCreateField icon="email" label={billingCopy.email} value={newCompanyEmail} onChange={setNewCompanyEmail} name="calendra-billing-new-company-email-mobile" inputType="email" />
+                    <BillingMobileCreateField icon="phone" label={billingCopy.telephone} value={newCompanyTelephone} onChange={setNewCompanyTelephone} name="calendra-billing-new-company-telephone-mobile" inputType="tel" />
+                    <BillingMobileCreateField icon="address" label={locale === 'sl' ? 'Naslov' : 'Address'} value={newCompanyAddress} onChange={setNewCompanyAddress} name="calendra-billing-new-company-address-mobile" autoCapitalize="words" />
+                    <BillingMobileCreateField icon="postal" label={locale === 'sl' ? 'Poštna številka' : 'Postal code'} value={newCompanyPostalCode} onChange={setNewCompanyPostalCode} name="calendra-billing-new-company-postal-code-mobile" />
+                    <BillingMobileCreateField icon="city" label={locale === 'sl' ? 'Mesto' : 'City'} value={newCompanyCity} onChange={setNewCompanyCity} name="calendra-billing-new-company-city-mobile" autoCapitalize="words" />
+                  </div>
+                </div>
+              </PanelBody>
+            </>
+          ) : (
+            <>
+              <PanelHeader
+                title={billingCopy.newCompanyTitle}
+                onClose={closeAddCompanyModal}
+                closeLabel={locale === 'sl' ? 'Zapri' : 'Close'}
+              />
+              <PanelBody
+                as="form"
+                id="billing-new-company-form"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  if (!creatingCompany && newCompanyName.trim()) void createCompanyInline()
+                }}
+              >
+                <section className="clients-standard-entity-profile clients-standard-company-profile">
+                  <h3><BillingCompanySectionIcon /><span>{locale === 'sl' ? 'Podatki o podjetju' : 'Company details'}</span></h3>
+                  <div className="clients-standard-entity-grid clients-standard-company-grid">
+                    <label className="clients-standard-entity-field clients-standard-entity-field--wide"><span>{billingCopy.companyName} *</span><input required placeholder={billingCopy.companyName} value={newCompanyName} onChange={(event) => setNewCompanyName(event.target.value)} /></label>
+                    <label className="clients-standard-entity-field clients-standard-entity-field--wide"><span>{locale === 'sl' ? 'Davčna številka / ID' : 'Tax ID / ID'}</span><input placeholder={locale === 'sl' ? 'Davčna številka / ID' : 'Tax ID / ID'} value={newCompanyVatId} onChange={(event) => setNewCompanyVatId(event.target.value)} /></label>
+                    <label className="clients-standard-entity-field"><span>{billingCopy.email}</span><input type="email" placeholder={billingCopy.email} value={newCompanyEmail} onChange={(event) => setNewCompanyEmail(event.target.value)} /></label>
+                    <label className="clients-standard-entity-field"><span>{billingCopy.telephone}</span><input type="tel" placeholder={billingCopy.telephone} value={newCompanyTelephone} onChange={(event) => setNewCompanyTelephone(event.target.value)} /></label>
+                    <label className="clients-standard-entity-field clients-standard-entity-field--wide"><span>{locale === 'sl' ? 'Naslov' : 'Address'}</span><input placeholder={locale === 'sl' ? 'Naslov' : 'Address'} value={newCompanyAddress} onChange={(event) => setNewCompanyAddress(event.target.value)} /></label>
+                    <label className="clients-standard-entity-field"><span>{locale === 'sl' ? 'Poštna številka' : 'Postal code'}</span><input placeholder={locale === 'sl' ? 'Poštna številka' : 'Postal code'} value={newCompanyPostalCode} onChange={(event) => setNewCompanyPostalCode(event.target.value)} /></label>
+                    <label className="clients-standard-entity-field"><span>{locale === 'sl' ? 'Mesto' : 'City'}</span><input placeholder={locale === 'sl' ? 'Mesto' : 'City'} value={newCompanyCity} onChange={(event) => setNewCompanyCity(event.target.value)} /></label>
+                  </div>
+                </section>
+              </PanelBody>
+              <PanelFooter>
+                <PanelButton
+                  type="submit"
+                  form="billing-new-company-form"
+                  variant="primary"
+                  icon={<GuestConfigSaveIcon />}
+                  disabled={creatingCompany || !newCompanyName.trim()}
+                >
+                  {creatingCompany
+                    ? (locale === 'sl' ? 'Shranjujem…' : 'Saving…')
+                    : (locale === 'sl' ? 'Ustvari podjetje' : 'Create company')}
+                </PanelButton>
+              </PanelFooter>
+            </>
+          )}
         </SidePanel>
       )}
 
