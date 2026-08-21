@@ -21,7 +21,7 @@ export function ForgotPasswordPage() {
     if (!normalized) return
     setSubmitting(true)
     try {
-      await api.post('/auth/forgot-password', { email: normalized })
+      await api.post('/auth/forgot-password', { email: normalized, locale, language: locale })
       setStatus(t('forgotPasswordSentSuccess'))
       setError('')
       setStep('sent')

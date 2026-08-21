@@ -104,7 +104,7 @@ export function ResetPasswordPage() {
     setError('')
     setResendStatus('')
     try {
-      await api.post(forgotPasswordEndpoint, { email: normalizedEmail, locale })
+      await api.post(forgotPasswordEndpoint, { email: normalizedEmail, locale, language: locale })
       setResendStatus(t('resetPasswordResendSent'))
     } catch {
       setError(t('resetPasswordResendFailed'))
