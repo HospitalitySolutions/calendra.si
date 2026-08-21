@@ -5,6 +5,7 @@ import { useToast } from '../../components/Toast'
 import { useConfirm } from '../../components/panel'
 import type { InvoiceIssuerOption } from '../../lib/types'
 import { GuestSwitch, GuestUploadDropzone } from './ConfigurationVisualComponents'
+import { TENANT_CONFIG_TYPE_OPTIONS, normalizeTenantConfigType, type TenantConfigType } from './guestWebsiteSettings'
 import './operating-units.css'
 
 type OperatingLocation = {
@@ -22,6 +23,7 @@ type OperatingLocation = {
   publicName?: string | null
   publicAddress?: string | null
   publicDescription?: string | null
+  publicBusinessType?: string | null
   publicLogoS3Key?: string | null
   publicLogoUrl?: string | null
   publicDirectoryEnabled: boolean
@@ -60,6 +62,7 @@ type LocationDraft = {
   publicName: string
   publicAddress: string
   publicDescription: string
+  publicBusinessType: TenantConfigType
   publicDirectoryEnabled: boolean
   guestAppDiscoverable: boolean
   websitePresentationEnabled: boolean
@@ -80,6 +83,7 @@ type OperatingUnitsPanelProps = {
   spacesEnabled: boolean
   issuerOptions?: InvoiceIssuerOption[]
   companyLogoUrl?: string | null
+  tenantType: TenantConfigType
   onChanged?: () => void | Promise<void>
 }
 
@@ -114,7 +118,7 @@ const COUNTRY_CODES = [
   'AF','AL','DZ','AS','AD','AO','AI','AQ','AG','AR','AM','AW','AU','AT','AZ','BS','BH','BD','BB','BY','BE','BZ','BJ','BM','BT','BO','BQ','BA','BW','BV','BR','IO','BN','BG','BF','BI','CV','KH','CM','CA','KY','CF','TD','CL','CN','CX','CC','CO','KM','CG','CD','CK','CR','CI','HR','CU','CW','CY','CZ','DK','DJ','DM','DO','EC','EG','SV','GQ','ER','EE','SZ','ET','FK','FO','FJ','FI','FR','GF','PF','TF','GA','GM','GE','DE','GH','GI','GR','GL','GD','GP','GU','GT','GG','GN','GW','GY','HT','HM','VA','HN','HK','HU','IS','IN','ID','IR','IQ','IE','IM','IL','IT','JM','JP','JE','JO','KZ','KE','KI','KP','KR','KW','KG','LA','LV','LB','LS','LR','LY','LI','LT','LU','MO','MG','MW','MY','MV','ML','MT','MH','MQ','MR','MU','YT','MX','FM','MD','MC','MN','ME','MS','MA','MZ','MM','NA','NR','NP','NL','NC','NZ','NI','NE','NG','NU','NF','MK','MP','NO','OM','PK','PW','PS','PA','PG','PY','PE','PH','PN','PL','PT','PR','QA','RE','RO','RU','RW','BL','SH','KN','LC','MF','PM','VC','WS','SM','ST','SA','SN','RS','SC','SL','SG','SX','SK','SI','SB','SO','ZA','GS','SS','ES','LK','SD','SR','SJ','SE','CH','SY','TW','TJ','TZ','TH','TL','TG','TK','TO','TT','TN','TR','TM','TC','TV','UG','UA','AE','GB','US','UM','UY','UZ','VU','VE','VN','VG','VI','WF','EH','YE','ZM','ZW',
 ]
 
-const blankDraft = (issuerId: number | null): LocationDraft => ({
+const blankDraft = (issuerId: number | null, tenantType: TenantConfigType): LocationDraft => ({
   name: '',
   address: '',
   postalCode: '',
@@ -127,6 +131,7 @@ const blankDraft = (issuerId: number | null): LocationDraft => ({
   publicName: '',
   publicAddress: '',
   publicDescription: '',
+  publicBusinessType: normalizeTenantConfigType(tenantType),
   publicDirectoryEnabled: false,
   guestAppDiscoverable: false,
   websitePresentationEnabled: true,
@@ -141,7 +146,7 @@ const blankDraft = (issuerId: number | null): LocationDraft => ({
   invoiceElectronicDeviceId: '1',
 })
 
-const draftFromLocation = (location: OperatingLocation): LocationDraft => ({
+const draftFromLocation = (location: OperatingLocation, tenantType: TenantConfigType): LocationDraft => ({
   name: location.name || '',
   address: location.address || '',
   postalCode: location.postalCode || '',
@@ -154,6 +159,7 @@ const draftFromLocation = (location: OperatingLocation): LocationDraft => ({
   publicName: location.publicName || '',
   publicAddress: location.publicAddress || '',
   publicDescription: location.publicDescription || '',
+  publicBusinessType: normalizeTenantConfigType(location.publicBusinessType || tenantType),
   publicDirectoryEnabled: location.publicDirectoryEnabled === true,
   guestAppDiscoverable: location.guestAppDiscoverable === true,
   websitePresentationEnabled: location.websitePresentationEnabled !== false,
@@ -185,6 +191,7 @@ export function OperatingUnitsPanel({
   spacesEnabled,
   issuerOptions = [],
   companyLogoUrl,
+  tenantType,
   onChanged,
 }: OperatingUnitsPanelProps) {
   const sl = locale === 'sl'
@@ -194,7 +201,7 @@ export function OperatingUnitsPanel({
   const [issuers, setIssuers] = useState<InvoiceIssuerOption[]>(issuerOptions)
   const [spaces, setSpaces] = useState<Space[]>([])
   const [selectedLocationId, setSelectedLocationId] = useState<number | 'new' | null>(null)
-  const [draft, setDraft] = useState<LocationDraft>(() => blankDraft(issuerOptions[0]?.id ?? null))
+  const [draft, setDraft] = useState<LocationDraft>(() => blankDraft(issuerOptions[0]?.id ?? null, tenantType))
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [premiseBusy, setPremiseBusy] = useState(false)
@@ -249,21 +256,21 @@ export function OperatingUnitsPanel({
       const requested = preferredLocationId ?? selectedLocationId
       if (requested === 'new' && locationsEnabled) {
         setSelectedLocationId('new')
-        setDraft(blankDraft((nextIssuers.find((x: InvoiceIssuerOption) => x.defaultForCurrentUnit) ?? nextIssuers[0])?.id ?? null))
+        setDraft(blankDraft((nextIssuers.find((x: InvoiceIssuerOption) => x.defaultForCurrentUnit) ?? nextIssuers[0])?.id ?? null, tenantType))
       } else {
         const selected = nextLocations.find((item) => item.id === requested)
           ?? nextLocations.find((item) => item.defaultLocation)
           ?? nextLocations[0]
           ?? null
         setSelectedLocationId(selected?.id ?? null)
-        setDraft(selected ? draftFromLocation(selected) : blankDraft((nextIssuers.find((x: InvoiceIssuerOption) => x.defaultForCurrentUnit) ?? nextIssuers[0])?.id ?? null))
+        setDraft(selected ? draftFromLocation(selected, tenantType) : blankDraft((nextIssuers.find((x: InvoiceIssuerOption) => x.defaultForCurrentUnit) ?? nextIssuers[0])?.id ?? null, tenantType))
       }
     } catch (error: any) {
       showToast('error', error?.response?.data?.message || (sl ? 'Poslovnih prostorov ni bilo mogoče naložiti.' : 'Business units could not be loaded.'))
     } finally {
       setLoading(false)
     }
-  }, [issuerOptions, locationsEnabled, selectedLocationId, showToast, sl, spacesEnabled])
+  }, [issuerOptions, locationsEnabled, selectedLocationId, showToast, sl, spacesEnabled, tenantType])
 
   useEffect(() => {
     void load()
@@ -280,7 +287,7 @@ export function OperatingUnitsPanel({
 
   const selectLocation = (location: OperatingLocation) => {
     setSelectedLocationId(location.id)
-    setDraft(draftFromLocation(location))
+    setDraft(draftFromLocation(location, tenantType))
     setAddingSpace(false)
     setEditingSpaceId(null)
   }
@@ -289,15 +296,15 @@ export function OperatingUnitsPanel({
     if (locationsEnabled || selectedLocationId !== 'new') return
     const fallback = locations.find((location) => location.defaultLocation) ?? locations[0] ?? null
     setSelectedLocationId(fallback?.id ?? null)
-    setDraft(fallback ? draftFromLocation(fallback) : blankDraft(defaultIssuer?.id ?? null))
+    setDraft(fallback ? draftFromLocation(fallback, tenantType) : blankDraft(defaultIssuer?.id ?? null, tenantType))
     setAddingSpace(false)
     setEditingSpaceId(null)
-  }, [defaultIssuer?.id, locations, locationsEnabled, selectedLocationId])
+  }, [defaultIssuer?.id, locations, locationsEnabled, selectedLocationId, tenantType])
 
   const beginNewLocation = () => {
     if (!locationsEnabled) return
     setSelectedLocationId('new')
-    setDraft(blankDraft(defaultIssuer?.id ?? null))
+    setDraft(blankDraft(defaultIssuer?.id ?? null, tenantType))
     setAddingSpace(false)
     setEditingSpaceId(null)
   }
@@ -586,6 +593,20 @@ export function OperatingUnitsPanel({
                     placeholder={draft.name || (sl ? 'Ime lokacije' : 'Location name')}
                   />
                   <small>{sl ? 'Če pustite prazno, se uporabi ime lokacije.' : 'If left blank, the location name is used.'}</small>
+                </label>
+                <label className="ou-field">
+                  <span>{sl ? 'Tip podjetja' : 'Business type'}</span>
+                  <DesktopSelect
+                    value={draft.publicBusinessType}
+                    onChange={(event) => setDraft((current) => ({ ...current, publicBusinessType: normalizeTenantConfigType(event.target.value) }))}
+                  >
+                    {TENANT_CONFIG_TYPE_OPTIONS.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {sl ? option.labelSl : option.labelEn}
+                      </option>
+                    ))}
+                  </DesktopSelect>
+                  <small>{sl ? 'Ta oznaka se uporablja za kategorijo lokacije v Calendra Connect.' : 'This label is used as the location category in Calendra Connect.'}</small>
                 </label>
                 <label className="ou-field">
                   <span>{sl ? 'Javni naslov' : 'Public address'}</span>

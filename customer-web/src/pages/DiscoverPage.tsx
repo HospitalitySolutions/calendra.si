@@ -9,9 +9,27 @@ import { ArrowUpRightIcon, MapPinIcon, SearchIcon, StarIcon } from '../component
 import { EmptyState, ErrorState, PageLoader } from '../components/Loading'
 import { ProviderAvatar } from '../components/ProviderAvatar'
 
-const CATEGORY_LABELS: Record<string, string> = {
-  BEAUTY: 'Lepota', HAIR: 'Frizerstvo', HEALTH: 'Zdravje', WELLNESS: 'Dobro počutje', FITNESS: 'Fitnes', CONSULTING: 'Svetovanje', EDUCATION: 'Izobraževanje', OTHER: 'Drugo',
-}
+const BUSINESS_TYPE_OPTIONS = [
+  { id: 'hair_salon', label: 'Frizerski salon' },
+  { id: 'beauty_salon', label: 'Kozmetični salon' },
+  { id: 'massage', label: 'Masaža' },
+  { id: 'spa_sauna', label: 'Spa & savna' },
+  { id: 'tattooing_piercing', label: 'Tetoviranje & piercing' },
+  { id: 'fitness_personal_training', label: 'Fitnes & osebno trenerstvo' },
+  { id: 'physical_therapy', label: 'Fizioterapija' },
+  { id: 'psychology_counselling', label: 'Psihologija & svetovanje' },
+  { id: 'yoga_pilates', label: 'Joga & pilates' },
+  { id: 'pet_services', label: 'Storitve za hišne ljubljenčke' },
+  { id: 'education_coaching', label: 'Izobraževanje & coaching' },
+  { id: 'other', label: 'Drugo' },
+] as const
+
+const BUSINESS_TYPE_LABELS: Record<string, string> = Object.fromEntries(
+  BUSINESS_TYPE_OPTIONS.map(option => [option.id, option.label]),
+)
+
+const normalizedBusinessType = (value?: string | null) => String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_')
+const businessTypeLabel = (value?: string | null) => BUSINESS_TYPE_LABELS[normalizedBusinessType(value)] || value || 'Storitve'
 
 type DisplayProvider = PublicLocation & { distanceKm?: number }
 
@@ -51,17 +69,20 @@ export function DiscoverPage() {
   const providers = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('sl')
     return sourceProviders.filter(provider => {
-      const categoryKey = (provider.category || '').toUpperCase()
-      const categoryLabel = CATEGORY_LABELS[categoryKey]
+      const categoryKey = normalizedBusinessType(provider.category)
+      const categoryLabel = businessTypeLabel(provider.category)
       const matchesSearch = !needle || [provider.publicName, categoryKey, categoryLabel, provider.publicDescription, provider.publicAddress, provider.physicalAddress?.city]
         .filter(Boolean)
         .some(value => String(value).toLocaleLowerCase('sl').includes(needle))
-      const matchesCategory = !category || (provider.category || '').toUpperCase() === category
+      const matchesCategory = !category || normalizedBusinessType(provider.category) === category
       return matchesSearch && matchesCategory
     })
   }, [sourceProviders, search, category])
 
-  const categories = useMemo(() => Array.from(new Set((query.data || []).map(p => (p.category || '').toUpperCase()).filter(Boolean))), [query.data])
+  const categories = useMemo(() => {
+    const available = new Set((query.data || []).map(provider => normalizedBusinessType(provider.category)).filter(Boolean))
+    return BUSINESS_TYPE_OPTIONS.filter(option => available.has(option.id)).map(option => option.id)
+  }, [query.data])
 
   const submitLocation = (event: FormEvent) => {
     event.preventDefault()
@@ -97,7 +118,7 @@ export function DiscoverPage() {
         </button>
       </form>
       {activeLocation && nearbyQuery.isError && <div className="form-alert form-alert--error">{nearbyQuery.error instanceof ApiError ? nearbyQuery.error.message : 'Lokacije ni bilo mogoče poiskati.'}</div>}
-      <div className="chip-row"><button className={!category ? 'chip chip--active' : 'chip'} onClick={() => setCategory('')}>Vse</button>{categories.map(item => <button key={item} className={category === item ? 'chip chip--active' : 'chip'} onClick={() => setCategory(item)}>{CATEGORY_LABELS[item] || item}</button>)}</div>
+      <div className="chip-row"><button className={!category ? 'chip chip--active' : 'chip'} onClick={() => setCategory('')}>Vse</button>{categories.map(item => <button key={item} className={category === item ? 'chip chip--active' : 'chip'} onClick={() => setCategory(item)}>{businessTypeLabel(item)}</button>)}</div>
     </section>
 
     <div className="results-heading">
@@ -110,7 +131,7 @@ export function DiscoverPage() {
     {bookingError && <div className="form-alert form-alert--error">{bookingError}</div>}
     {nearbyQuery.isFetching && activeLocation ? <PageLoader /> : providers.length === 0 ? <EmptyState title="Ni najdenih ponudnikov" description={activeLocation ? 'V bližini te lokacije trenutno ni najdenih ponudnikov. Poskusite z drugim naslovom ali odstranite lokacijski filter.' : 'Poskusite z drugim iskalnim izrazom ali odstranite filter.'} action={<button className="button button--secondary" onClick={clearFilters}>Počisti filtre</button>}/>
       : <div className="provider-grid">{providers.map(provider => <article className="provider-card" key={provider.locationId}>
-        <div className="provider-card__header"><ProviderAvatar name={provider.publicName} logoUrl={provider.logoUrl} size="lg"/><div className="provider-card__category">{CATEGORY_LABELS[(provider.category || '').toUpperCase()] || provider.category || 'Storitve'}</div></div>
+        <div className="provider-card__header"><ProviderAvatar name={provider.publicName} logoUrl={provider.logoUrl} size="lg"/><div className="provider-card__category">{businessTypeLabel(provider.category)}</div></div>
         <div className="provider-card__body"><h3>{provider.publicName}</h3>{provider.publicDescription && <p>{provider.publicDescription}</p>}<div className="provider-card__meta">{provider.publicAddress && <span><MapPinIcon size={16}/>{provider.publicAddress}</span>}{provider.distanceKm != null && <span><MapPinIcon size={16}/>{formatDistance(provider.distanceKm)}</span>}{provider.googleRating != null && <span><StarIcon size={16}/>{provider.googleRating.toFixed(1)} {provider.googleReviewCount ? `(${provider.googleReviewCount})` : ''}</span>}</div></div>
         <div className="provider-card__footer"><Link className="button button--secondary button--full" to={`/ponudniki/${provider.slug}`}>Prikaži ponudnika <ArrowUpRightIcon size={17}/></Link>{provider.publicBookingEnabled && <button className="button button--primary button--full" disabled={booking.isPending && bookingLocationId === provider.locationId} onClick={() => booking.mutate(provider.locationId)}>{booking.isPending && bookingLocationId === provider.locationId ? 'Odpiram …' : 'Rezerviraj termin'}</button>}</div>
       </article>)}</div>}

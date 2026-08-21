@@ -9118,6 +9118,7 @@ export function ConfigurationPage() {
                       spacesEnabled={spacesEnabledCommitted}
                       issuerOptions={locationIssuerOptions}
                       companyLogoUrl={settings.COMPANY_LOGO_URL}
+                      tenantType={companyTenantType}
                       onChanged={load}
                     />
                   ) : accountSubtab === "receivedInvoices" ? (
@@ -10517,6 +10518,7 @@ export function ConfigurationPage() {
                     spacesEnabled={spacesEnabledCommitted}
                     issuerOptions={locationIssuerOptions}
                     companyLogoUrl={settings.COMPANY_LOGO_URL}
+                    tenantType={companyTenantType}
                     onChanged={load}
                   />
                 </div>

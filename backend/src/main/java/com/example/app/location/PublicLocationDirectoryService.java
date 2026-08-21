@@ -6,6 +6,7 @@ import com.example.app.google.places.GooglePlacesProperties;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.settings.TenantConfigTypeCatalog;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
@@ -278,10 +279,12 @@ public class PublicLocationDirectoryService {
         }
 
         JsonNode guest = parse(values.get(SettingKey.GUEST_APP_SETTINGS_JSON.name()));
-        String category = normalizeCategory(firstNonBlank(
+        String tenantBusinessType = TenantConfigTypeCatalog.normalizeOrDefault(firstNonBlank(
                 values.get(SettingKey.MODULE_CONFIG_TYPE.name()),
                 text(guest.path("tenantType"))
         ));
+        String category = TenantConfigTypeCatalog.normalizeOrNull(location.getPublicBusinessType());
+        if (category == null) category = tenantBusinessType;
         String tenantSlug = firstNonBlank(company.getTenantCode(), String.valueOf(company.getId()));
         String slug = slugify(tenantSlug) + "-" + location.getId();
         String displayAddress = emptyIfNull(presentation.publicAddress());
@@ -381,18 +384,6 @@ public class PublicLocationDirectoryService {
             }
         }
         return String.join(", ", normalized);
-    }
-
-    private static String normalizeCategory(String raw) {
-        String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT).replace('-', '_');
-        return switch (value) {
-            case "gym", "personal_training", "fitness", "sport", "šport", "fitness_personal_training", "yoga_pilates" -> "fitness";
-            case "therapy", "health", "healthcare", "zdravje", "physical_therapy", "psychology_counselling" -> "health";
-            case "spa", "wellness", "massage", "spa_sauna" -> "wellness";
-            case "consulting", "counselling", "counseling", "svetovanje", "education_coaching" -> "consulting";
-            case "salon", "beauty", "lepota", "hair_salon", "beauty_salon", "tattooing_piercing", "pet_services" -> "salon";
-            default -> null;
-        };
     }
 
     private static String slugify(String value) {

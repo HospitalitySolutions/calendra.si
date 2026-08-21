@@ -17,6 +17,7 @@ import com.example.app.session.SpaceRepository;
 import com.example.app.settings.AppSetting;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.SettingKey;
+import com.example.app.settings.TenantConfigTypeCatalog;
 import com.example.app.user.Role;
 import com.example.app.user.User;
 import com.example.app.waitlist.WaitlistRequestRepository;
@@ -97,6 +98,7 @@ public class LocationController {
             String publicName,
             String publicAddress,
             String publicDescription,
+            String publicBusinessType,
             Boolean publicDirectoryEnabled,
             Boolean guestAppDiscoverable,
             Boolean websitePresentationEnabled,
@@ -127,6 +129,7 @@ public class LocationController {
             String publicName,
             String publicAddress,
             String publicDescription,
+            String publicBusinessType,
             String publicLogoS3Key,
             String publicLogoUrl,
             boolean publicDirectoryEnabled,
@@ -168,6 +171,7 @@ public class LocationController {
         Location location = new Location();
         location.setCompany(me.getCompany());
         apply(location, input, me.getCompany().getId());
+        ensurePublicBusinessType(location, me.getCompany().getId());
         refreshLocationCoordinates(location);
         if (location.getDefaultLegalEntity() == null) {
             location.setDefaultLegalEntity(defaultIssuer(me.getCompany().getId()));
@@ -202,6 +206,7 @@ public class LocationController {
         }
         if (Boolean.TRUE.equals(input.defaultLocation()) && !wasDefault) clearDefault(me.getCompany().getId(), id);
         apply(location, input, me.getCompany().getId());
+        ensurePublicBusinessType(location, me.getCompany().getId());
         refreshLocationCoordinates(location);
         if (wasDefault || Boolean.TRUE.equals(input.defaultLocation())) location.setDefaultLocation(true);
         if (location.isDefaultLocation()) location.setActive(true);
@@ -259,7 +264,7 @@ public class LocationController {
         var details = ActivityDetails.of(
                 "city", row.city(), "country", row.country(), "timezone", row.timezone(),
                 "active", row.active(), "defaultLocation", row.defaultLocation(),
-                "publicName", row.publicName(), "publicDirectoryEnabled", row.publicDirectoryEnabled(),
+                "publicName", row.publicName(), "publicBusinessType", row.publicBusinessType(), "publicDirectoryEnabled", row.publicDirectoryEnabled(),
                 "guestAppDiscoverable", row.guestAppDiscoverable(), "websitePresentationEnabled", row.websitePresentationEnabled(),
                 "invoiceResetPolicy", row.invoiceResetPolicy(), "targetPath", "/configuration?tab=company&subtab=operatingUnits"
         );
@@ -267,18 +272,26 @@ public class LocationController {
             details.put("before", ActivityDetails.of(
                     "name", before.name(), "city", before.city(), "country", before.country(), "timezone", before.timezone(),
                     "active", before.active(), "defaultLocation", before.defaultLocation(),
-                    "publicName", before.publicName(), "publicDirectoryEnabled", before.publicDirectoryEnabled(),
+                    "publicName", before.publicName(), "publicBusinessType", before.publicBusinessType(), "publicDirectoryEnabled", before.publicDirectoryEnabled(),
                     "guestAppDiscoverable", before.guestAppDiscoverable(), "websitePresentationEnabled", before.websitePresentationEnabled(),
                     "invoiceResetPolicy", before.invoiceResetPolicy(), "invoiceElectronicDeviceId", before.invoiceElectronicDeviceId()));
             details.put("after", ActivityDetails.of(
                     "name", row.name(), "city", row.city(), "country", row.country(), "timezone", row.timezone(),
                     "active", row.active(), "defaultLocation", row.defaultLocation(),
-                    "publicName", row.publicName(), "publicDirectoryEnabled", row.publicDirectoryEnabled(),
+                    "publicName", row.publicName(), "publicBusinessType", row.publicBusinessType(), "publicDirectoryEnabled", row.publicDirectoryEnabled(),
                     "guestAppDiscoverable", row.guestAppDiscoverable(), "websitePresentationEnabled", row.websitePresentationEnabled(),
                     "invoiceResetPolicy", row.invoiceResetPolicy(), "invoiceElectronicDeviceId", row.invoiceElectronicDeviceId()));
         }
         activityLogs.recordUser(me, ActivityModule.CONFIGURATION, action,
                 "LOCATION", row.id(), row.name(), summary, row.id(), null, details);
+    }
+
+    private void ensurePublicBusinessType(Location location, Long companyId) {
+        if (location == null || location.getPublicBusinessType() != null) return;
+        String configured = settings.findByCompanyIdAndKey(companyId, SettingKey.MODULE_CONFIG_TYPE)
+                .map(AppSetting::getValue)
+                .orElse(null);
+        location.setPublicBusinessType(TenantConfigTypeCatalog.normalizeOrDefault(configured));
     }
 
     private void clearDefault(Long companyId, Long exceptId) {
@@ -343,6 +356,18 @@ public class LocationController {
         if (input.publicName() != null) location.setPublicName(trimMax(input.publicName(), 255, "Public name"));
         if (input.publicAddress() != null) location.setPublicAddress(trimMax(input.publicAddress(), 512, "Public address"));
         if (input.publicDescription() != null) location.setPublicDescription(trimMax(input.publicDescription(), 500, "Public description"));
+        if (input.publicBusinessType() != null) {
+            String rawBusinessType = trim(input.publicBusinessType());
+            if (rawBusinessType == null) {
+                location.setPublicBusinessType(null);
+            } else {
+                String publicBusinessType = TenantConfigTypeCatalog.normalizeOrNull(rawBusinessType);
+                if (publicBusinessType == null) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown public business type.");
+                }
+                location.setPublicBusinessType(publicBusinessType);
+            }
+        }
         if (input.googlePlaceId() != null) location.setGooglePlaceId(trimMax(input.googlePlaceId(), 255, "Google Place ID"));
         if (input.publicDirectoryEnabled() != null) location.setPublicDirectoryEnabled(input.publicDirectoryEnabled());
         if (input.guestAppDiscoverable() != null) location.setGuestAppDiscoverable(input.guestAppDiscoverable());
@@ -517,6 +542,7 @@ public class LocationController {
                 l.getPublicName(),
                 l.getPublicAddress(),
                 l.getPublicDescription(),
+                l.getPublicBusinessType(),
                 l.getPublicLogoS3Key(),
                 LocationPublicPresentationService.publicLogoPath(l.getPublicLogoS3Key()),
                 l.isPublicDirectoryEnabled(),

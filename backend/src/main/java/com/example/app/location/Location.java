@@ -50,6 +50,8 @@ public class Location extends BaseEntity {
     private String publicAddress;
     @Column(name = "public_description", length = 500)
     private String publicDescription;
+    @Column(name = "public_business_type", length = 64)
+    private String publicBusinessType;
     @Column(name = "public_logo_s3_key", length = 1024)
     private String publicLogoS3Key;
     @Column(name = "public_directory_enabled", nullable = false)

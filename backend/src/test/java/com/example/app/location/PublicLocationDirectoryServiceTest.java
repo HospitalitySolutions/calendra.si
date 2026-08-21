@@ -54,6 +54,7 @@ class PublicLocationDirectoryServiceTest {
         Location ljubljana = location(31L, company, "Ljubljana", "Slovenska cesta 10", "1000", "Ljubljana");
         ljubljana.setPublicName("Studio LUX Ljubljana");
         ljubljana.setPublicDescription("Frizerski studio v Ljubljani.");
+        ljubljana.setPublicBusinessType("psychology_counselling");
         ljubljana.setPublicDirectoryEnabled(true);
         ljubljana.setPublicBookingEnabled(true);
         ljubljana.setGooglePlaceId("place-lj");
@@ -91,11 +92,13 @@ class PublicLocationDirectoryServiceTest {
         assertThat(result.get(0).publicName()).isEqualTo("Studio LUX Ljubljana");
         assertThat(result.get(0).logoUrl()).isEqualTo("https://app.calendra.si/logo.png");
         assertThat(result.get(0).bookingUrl()).isEqualTo("/narocanje/STUDIO-LUX?locationId=31");
+        assertThat(result.get(0).category()).isEqualTo("psychology_counselling");
         assertThat(result.get(0).googleRating()).isEqualTo(4.9);
         assertThat(result.get(0).googleReviewCount()).isEqualTo(128L);
         assertThat(result.get(1).locationId()).isEqualTo(32L);
         assertThat(result.get(1).logoUrl()).contains("/api/public/widget/location-assets");
         assertThat(result.get(1).logoUrl()).contains("key=");
+        assertThat(result.get(1).category()).isEqualTo("hair_salon");
         assertThat(result.get(1).publicBookingEnabled()).isFalse();
         assertThat(result.get(1).bookingUrl()).isEmpty();
     }
