@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { customerApi } from '../api/customerApi'
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
-import { ArrowRightIcon, EyeIcon, EyeOffIcon, GlobeIcon, LockIcon, MailIcon } from '../components/Icons'
+import { ArrowRightIcon, CheckIcon, EyeIcon, EyeOffIcon, GlobeIcon, LockIcon, MailIcon } from '../components/Icons'
 import { Spinner } from '../components/Loading'
 import { returnToCustomerPage } from '../auth/returnTo'
 import { AUTH_LOCALE_OPTIONS, authCopy, getLocaleOption, type AuthLocale, useAuthLocale } from '../auth/authLocale'
@@ -99,11 +99,37 @@ function LanguageSelector({ locale, onChange }: { locale: AuthLocale; onChange: 
 
   return <div ref={selectorRef} className={`auth-language-picker${open ? ' is-open' : ''}`}>
     <button type="button" className="auth-language" onClick={() => setOpen(value => !value)} aria-haspopup="listbox" aria-expanded={open}>
-      <span className="auth-language__lead"><GlobeIcon size={17}/><span>{current.nativeLabel}</span></span>
-      <span className="auth-language__chevron" aria-hidden="true">⌄</span>
+      <span className="auth-language__lead"><GlobeIcon size={18}/><span>{current.nativeLabel}</span></span>
+      <svg className="auth-language__chevron" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
     </button>
     {open && <div className="auth-language-menu" role="listbox" aria-label="Select language">
-      {AUTH_LOCALE_OPTIONS.map(option => <button key={option.code} type="button" role="option" aria-selected={option.code === locale} className={`auth-language-option${option.code === locale ? ' is-active' : ''}`} onClick={() => { onChange(option.code); setOpen(false) }}><span className={`auth-language-option__flag auth-language-option__flag--${option.code}`} aria-hidden="true"/><span className="auth-language-option__label">{option.nativeLabel}</span><span className="auth-language-option__check" aria-hidden="true">{option.code === locale ? '✓' : ''}</span></button>)}
+      {AUTH_LOCALE_OPTIONS.map(option => <button key={option.code} type="button" role="option" aria-selected={option.code === locale} className={`auth-language-option${option.code === locale ? ' is-active' : ''}`} onClick={() => { onChange(option.code); setOpen(false) }}><LanguageFlag locale={option.code}/><span className="auth-language-option__label">{option.nativeLabel}</span><span className="auth-language-option__check" aria-hidden="true">{option.code === locale ? <CheckIcon size={20}/> : null}</span></button>)}
     </div>}
   </div>
+}
+
+function LanguageFlag({ locale }: { locale: AuthLocale }) {
+  if (locale === 'en') {
+    return <svg className="auth-language-option__flag" viewBox="0 0 60 40" role="img" aria-label="United Kingdom flag">
+      <rect width="60" height="40" rx="4" fill="#21468B"/>
+      <path d="M0 0 60 40M60 0 0 40" stroke="#fff" strokeWidth="9"/>
+      <path d="M0 0 60 40M60 0 0 40" stroke="#CF142B" strokeWidth="4"/>
+      <path d="M30 0v40M0 20h60" stroke="#fff" strokeWidth="13"/>
+      <path d="M30 0v40M0 20h60" stroke="#CF142B" strokeWidth="7"/>
+    </svg>
+  }
+
+  if (locale === 'sr') {
+    return <svg className="auth-language-option__flag" viewBox="0 0 60 40" role="img" aria-label="Serbian flag">
+      <defs><clipPath id="sr-flag-clip"><rect width="60" height="40" rx="4"/></clipPath></defs>
+      <g clipPath="url(#sr-flag-clip)"><rect width="60" height="13.34" fill="#C6363C"/><rect y="13.33" width="60" height="13.34" fill="#0C4076"/><rect y="26.66" width="60" height="13.34" fill="#fff"/></g>
+      <g transform="translate(14 8)"><path d="M8 0 14 3.2v8.3c0 5.1-2.8 8.8-6 11-3.2-2.2-6-5.9-6-11V3.2Z" fill="#fff" stroke="#B32235" strokeWidth="1"/><path d="M8 3.2v14.2M4.7 8.2h6.6" stroke="#B32235" strokeWidth="1.3"/><path d="m5 3.2 3-2 3 2-1.2 2.1H6.2Z" fill="#F6C445"/></g>
+    </svg>
+  }
+
+  return <svg className="auth-language-option__flag" viewBox="0 0 60 40" role="img" aria-label="Slovenian flag">
+    <defs><clipPath id="sl-flag-clip"><rect width="60" height="40" rx="4"/></clipPath></defs>
+    <g clipPath="url(#sl-flag-clip)"><rect width="60" height="13.34" fill="#fff"/><rect y="13.33" width="60" height="13.34" fill="#005DA4"/><rect y="26.66" width="60" height="13.34" fill="#ED1C24"/></g>
+    <g transform="translate(13 4)"><path d="M0 0h12v9.5c0 4.2-2.7 7.1-6 8.7-3.3-1.6-6-4.5-6-8.7Z" fill="#0B63B6" stroke="#fff" strokeWidth=".9"/><path d="m1.8 9.7 2.3-3 1.9 2.1 2.2-3.6 2 4.5" fill="none" stroke="#fff" strokeWidth="1"/><path d="M1.7 11.4c2.5-1 6.1-1 8.6 0M2.4 13.2c2.1-.8 5.1-.8 7.2 0" fill="none" stroke="#fff" strokeWidth=".8"/></g>
+  </svg>
 }
