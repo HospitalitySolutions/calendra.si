@@ -28,6 +28,7 @@ public class GuestSocialTokenVerifier {
 
     public GuestSocialTokenVerifier(
             @Value("${app.guest.auth.google-client-id:}") String googleClientId,
+            @Value("${GOOGLE_CLIENT_ID:}") String googleOAuthClientId,
             @Value("${app.guest.auth.google-client-ids:}") String googleClientIds,
             @Value("${app.guest.auth.google-android-client-id:}") String googleAndroidClientId,
             @Value("${app.guest.auth.google-ios-client-id:}") String googleIosClientId,
@@ -35,10 +36,15 @@ public class GuestSocialTokenVerifier {
             @Value("${app.guest.auth.apple-client-ids:}") String appleClientIds,
             @Value("${app.guest.auth.apple-web-client-id:}") String appleWebClientId
     ) {
-        List<String> configuredGoogleWebClientIds = parseClientIds(String.join(",", nullToBlank(googleClientId), nullToBlank(googleClientIds)));
+        List<String> configuredGoogleWebClientIds = parseClientIds(String.join(",",
+                nullToBlank(googleClientId),
+                nullToBlank(googleOAuthClientId),
+                nullToBlank(googleClientIds)
+        ));
         this.googleWebClientId = configuredGoogleWebClientIds.isEmpty() ? "" : configuredGoogleWebClientIds.get(0);
         this.googleClientIds = parseClientIds(String.join(",",
                 nullToBlank(googleClientId),
+                nullToBlank(googleOAuthClientId),
                 nullToBlank(googleClientIds),
                 nullToBlank(googleAndroidClientId),
                 nullToBlank(googleIosClientId)
