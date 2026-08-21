@@ -447,6 +447,9 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const isTenantAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN'
   const activeUnitId = user.activeUnitId ?? user.companyId ?? null
   const calendarNavigationKey = useMemo(() => calendarNavigationStorageKey(user), [user.companyId, user.id, user.tenantCode])
+  // Nadzorna plošča is intentionally hidden in every calendar view. Keep the
+  // implementation dormant so it can be restored later without changing the normal calendar.
+  const calendarDashboardFeatureVisible = false
   const calendarDashboardViewStorageKey = useMemo(
     () => `calendra.calendar.dashboard.view.v1:${String(user.companyId ?? user.tenantCode ?? 'company')}:${String(user.id ?? 'user')}`,
     [user.companyId, user.id, user.tenantCode],
@@ -582,7 +585,8 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const [dashboardConsultantIds, setDashboardConsultantIds] = useState<number[]>([])
   const [dashboardSpaceIds, setDashboardSpaceIds] = useState<number[]>([])
   const [dashboardUnassignedDimensions, setDashboardUnassignedDimensions] = useState<UnassignedBookingDimension[]>([])
-  const [calendarDashboardViewEnabled, setCalendarDashboardViewEnabled] = useState(() => {
+  const [calendarDashboardViewEnabled, setCalendarDashboardViewEnabled] = useState<boolean>(() => {
+    if (!calendarDashboardFeatureVisible) return false
     try {
       return window.localStorage.getItem(calendarDashboardViewStorageKey) !== 'calendar'
     } catch {
@@ -2932,7 +2936,10 @@ export default function CalendarPage({ user }: CalendarPageProps) {
   const calendarDashboardThreeDayView =
     (view === 'timeGridThreeDay' || view === 'resourceTimeGridThreeDay') && calendarMode !== 'spaces' && !bookingsUseResourceColumns
   const calendarDashboardEligible =
-    !isNativeAndroid && !calendarFiltersBottomBar && (calendarDashboardDayView || calendarDashboardThreeDayView)
+    calendarDashboardFeatureVisible
+    && !isNativeAndroid
+    && !calendarFiltersBottomBar
+    && (calendarDashboardDayView || calendarDashboardThreeDayView)
   const calendarDashboardEnabled = calendarDashboardEligible && calendarDashboardViewEnabled
   const calendarDashboardUnassignedFilterActive = calendarDashboardEnabled && dashboardUnassignedDimensions.length > 0
 

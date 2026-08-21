@@ -1914,6 +1914,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [walletPaymentMethodsLoading, setWalletPaymentMethodsLoading] = useState(false)
   const [selectedWalletPaymentMethodId, setSelectedWalletPaymentMethodId] = useState<number | null>(null)
   const [walletPurchaseError, setWalletPurchaseError] = useState('')
+  const [walletBillingAccessDenied, setWalletBillingAccessDenied] = useState(false)
   const [creatingWalletOpenBill, setCreatingWalletOpenBill] = useState(false)
   const [grantingWalletEntitlement, setGrantingWalletEntitlement] = useState(false)
   const [deletingWalletEntitlementId, setDeletingWalletEntitlementId] = useState<number | null>(null)
@@ -2005,8 +2006,9 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   const [giftCardMessage, setGiftCardMessage] = useState('')
   const groupBookingEnabled = settings.GROUP_BOOKING_ENABLED === 'true'
   const entitlementsFeatureEnabled = settings.ENTITLEMENTS_ENABLED !== 'false'
+  const billingFeatureEnabled = settings.BILLING_ENABLED !== 'false'
   const giftCardsFeatureEnabled =
-    entitlementsFeatureEnabled && settings.BILLING_GIFT_CARDS_ENABLED === 'true'
+    entitlementsFeatureEnabled && billingFeatureEnabled && settings.BILLING_GIFT_CARDS_ENABLED === 'true'
   const invoiceEmailDeliveryEnabled = settings.INVOICE_DELIVERY_EMAIL_ENABLED !== 'false'
   const giftCardDisplaySettings = parseGiftCardDisplaySettings(settings[GIFT_CARD_SETTINGS_KEY])
   const clientCustomFieldDefs = useMemo(() => activeCustomFields(customFieldDefinitions, 'CLIENT'), [customFieldDefinitions])
@@ -2586,7 +2588,16 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
   }, [locale, giftCardsFeatureEnabled, selectedLocationId])
 
   const loadWalletPaymentMethods = useCallback(async () => {
+    if (!billingFeatureEnabled) {
+      setWalletBillingAccessDenied(true)
+      setWalletPaymentMethods([])
+      setSelectedWalletPaymentMethodId(null)
+      setWalletPaymentMethodsLoading(false)
+      return
+    }
+
     setWalletPaymentMethodsLoading(true)
+    setWalletBillingAccessDenied(false)
     try {
       const res = await api.get<PaymentMethod[]>('/billing/payment-methods')
       const rows = (res.data ?? [])
@@ -2595,14 +2606,21 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         .filter((method) => method.paymentType !== 'ADVANCE')
       setWalletPaymentMethods(rows)
       setSelectedWalletPaymentMethodId((prev) => rows.some((row) => row.id === prev) ? prev : (rows[0]?.id ?? null))
-    } catch {
+    } catch (err: unknown) {
       setWalletPaymentMethods([])
       setSelectedWalletPaymentMethodId(null)
-      setWalletPurchaseError(locale === 'sl' ? 'Načinov plačila ni bilo mogoče naložiti.' : 'Failed to load payment methods.')
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 402 || status === 403) {
+        // Payment methods are not required for "Dodaj brez prodaje". Package/module
+        // denial therefore switches this drawer to the no-sale-only path instead.
+        setWalletBillingAccessDenied(true)
+      } else {
+        setWalletPurchaseError(locale === 'sl' ? 'Načinov plačila ni bilo mogoče naložiti.' : 'Failed to load payment methods.')
+      }
     } finally {
       setWalletPaymentMethodsLoading(false)
     }
-  }, [locale])
+  }, [billingFeatureEnabled, locale])
 
   const openWalletPurchaseDrawer = useCallback(() => {
     if (!detailClient || !entitlementsFeatureEnabled) return
@@ -2610,14 +2628,21 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
     setWalletPurchaseTab('entitlements')
     setWalletProductSearch('')
     setWalletPurchaseError('')
+    setWalletBillingAccessDenied(!billingFeatureEnabled)
     void loadWalletProducts(detailClient.id)
-    void loadWalletPaymentMethods()
-  }, [detailClient, entitlementsFeatureEnabled, loadWalletProducts, loadWalletPaymentMethods])
+    if (billingFeatureEnabled) void loadWalletPaymentMethods()
+    else {
+      setWalletPaymentMethods([])
+      setSelectedWalletPaymentMethodId(null)
+      setWalletPaymentMethodsLoading(false)
+    }
+  }, [detailClient, entitlementsFeatureEnabled, billingFeatureEnabled, loadWalletProducts, loadWalletPaymentMethods])
 
   const closeWalletPurchaseDrawer = useCallback(() => {
     setWalletPurchaseDrawerOpen(false)
     setWalletPurchaseTab('entitlements')
     setWalletPurchaseError('')
+    setWalletBillingAccessDenied(false)
     setWalletProductSearch('')
     setGiftCardPersonalizationOpen(false)
     setGiftCardRecipientName('')
@@ -5902,6 +5927,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                 </div>
               </div>
 
+              {billingFeatureEnabled && !walletBillingAccessDenied ? (
               <div className="clients-wallet-payment-section">
                 <h3>{locale === 'sl' ? 'Načini plačila' : 'Payment methods'}</h3>
                 {walletPaymentMethodsLoading ? (
@@ -5927,6 +5953,7 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
                   </div>
                 )}
               </div>
+              ) : null}
 
               <div className="clients-wallet-checkout-total">
                 <span>{locale === 'sl' ? 'Skupaj' : 'Total'}</span>
@@ -5938,19 +5965,22 @@ export function ClientsPage({ embeddedClientId = null, embeddedGroupId = null, o
         <PanelFooter>
           {walletPurchaseTab === 'entitlements' && selectedWalletProduct && !isGiftCardWalletProduct(selectedWalletProduct) ? (
             <PanelButton
+              variant={!billingFeatureEnabled || walletBillingAccessDenied ? 'primary' : undefined}
               onClick={() => void grantWalletEntitlementWithoutSale()}
               disabled={walletProductsLoading || grantingWalletEntitlement || creatingWalletOpenBill}
             >
               {grantingWalletEntitlement ? (locale === 'sl' ? 'Dodajam…' : 'Adding…') : (locale === 'sl' ? 'Dodaj brez prodaje' : 'Add without sale')}
             </PanelButton>
           ) : null}
-          <PanelButton
-            variant="primary"
-            onClick={continueWalletPurchaseOpenBill}
-            disabled={!selectedWalletProduct || !selectedWalletPaymentMethod || walletProductsLoading || walletPaymentMethodsLoading || creatingWalletOpenBill || grantingWalletEntitlement}
-          >
-            {creatingWalletOpenBill ? (locale === 'sl' ? 'Zaključujem…' : 'Closing…') : (locale === 'sl' ? 'Zaključi račun' : 'Close invoice')}
-          </PanelButton>
+          {billingFeatureEnabled && !walletBillingAccessDenied ? (
+            <PanelButton
+              variant="primary"
+              onClick={continueWalletPurchaseOpenBill}
+              disabled={!selectedWalletProduct || !selectedWalletPaymentMethod || walletProductsLoading || walletPaymentMethodsLoading || creatingWalletOpenBill || grantingWalletEntitlement}
+            >
+              {creatingWalletOpenBill ? (locale === 'sl' ? 'Zaključujem…' : 'Closing…') : (locale === 'sl' ? 'Zaključi račun' : 'Close invoice')}
+            </PanelButton>
+          ) : null}
         </PanelFooter>
       </SidePanel>
 

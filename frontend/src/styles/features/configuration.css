@@ -3096,3 +3096,43 @@ a.config-nav-item {
     outline: none;
 }
 
+/* Word issue fix: keep number + unit controls readable at every breakpoint. */
+.modules-design-inline-control--numeric-unit {
+    width: 124px;
+    min-width: 124px;
+    grid-template-columns: minmax(58px, 1fr) auto;
+}
+
+.modules-design-inline-control--numeric-unit > input {
+    min-width: 58px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* DesktopSelect has global desktop chrome/padding. Inside this compact value+unit
+   control the outer wrapper owns that chrome, otherwise the numeric value is squeezed. */
+@media (min-width: 1025px) {
+    .modules-design-inline-control--numeric-unit > select.app-desktop-select:not([multiple]) {
+        width: 100%;
+        min-width: 58px;
+        min-height: 34px;
+        padding: 6px 25px 6px 4px !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background-color: transparent !important;
+        box-shadow: none !important;
+    }
+}
+
+/* These rules intentionally come after the generic mobile/desktop widths above. */
+.config-shell--modules-mobile .modules-design-inline-control--numeric-unit {
+    width: 118px;
+    min-width: 118px;
+}
+
+@media (min-width: 1025px) {
+    .modules-design-inline-control--numeric-unit {
+        width: 124px;
+        min-width: 124px;
+    }
+}
+
