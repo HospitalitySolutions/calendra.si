@@ -31,6 +31,7 @@ auth/AuthController.java|@PostMapping("/signup/pending-session")|saveSignupPendi
 auth/AuthController.java|@PostMapping("/signup/resend-code")|resendSignupCode
 auth/AuthController.java|@PostMapping("/signup/resend-email-intent")|resendSignupEmailIntent
 auth/AuthController.java|@PostMapping("/signup/verify-code")|verifySignupCode
+auth/AuthPresenceController.java|@PostMapping("/presence")|presence
 billing/BillingController.java|@DeleteMapping("/folio-layout")|resetFolioLayout
 billing/BillingController.java|@DeleteMapping("/folio-layout-pos58")|resetPos58FolioLayout
 billing/BillingController.java|@DeleteMapping("/folio-layout-styles/{id}")|deleteFolioLayoutStyle
