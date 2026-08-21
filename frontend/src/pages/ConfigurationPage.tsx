@@ -2900,7 +2900,6 @@ export function ConfigurationPage() {
       subtabQuery === "settings" ||
       subtabQuery === "paymentMethods" ||
       subtabQuery === "stripe" ||
-      subtabQuery === "fiscal" ||
       subtabQuery === "giftCard" ||
       subtabQuery === "folioLayout" ||
       subtabQuery === "posPrinting"
@@ -2925,12 +2924,6 @@ export function ConfigurationPage() {
             replace: true,
           });
       } else if (subtabQuery === "giftCard" && !giftCardsEnabledCommitted) {
-        setBillingSubtab("paymentMethods");
-        if (q === "billing")
-          navigate("/configuration?tab=billing&subtab=paymentMethods", {
-            replace: true,
-          });
-      } else if (subtabQuery === "fiscal" && !fiscalCashRegisterEnabledCommitted) {
         setBillingSubtab("paymentMethods");
         if (q === "billing")
           navigate("/configuration?tab=billing&subtab=paymentMethods", {
