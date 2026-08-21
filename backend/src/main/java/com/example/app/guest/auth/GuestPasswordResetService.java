@@ -1,5 +1,6 @@
 package com.example.app.guest.auth;
 
+import com.example.app.auth.PasswordResetEmailTemplate;
 import com.example.app.guest.model.GuestUser;
 import com.example.app.logging.LogSanitizer;
 import com.example.app.guest.model.GuestUserRepository;
@@ -7,6 +8,9 @@ import jakarta.mail.internet.MimeMessage;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.Optional;
@@ -14,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -27,6 +32,16 @@ public class GuestPasswordResetService {
     private static final int TOKEN_BYTES = 32;
     private static final int RESET_CODE_DIGITS = 6;
     private static final int MAX_CODE_ATTEMPTS = 5;
+    private static final String CALENDRA_LOGO_CONTENT_ID = "calendraLogo";
+    private static final String CALENDRA_LOGO_CLASSPATH = "static/widget/calendra-transparent-logo.png";
+    private static final String PASSWORD_RESET_LOCK_CONTENT_ID = "passwordResetLockIcon";
+    private static final String PASSWORD_RESET_SHIELD_CONTENT_ID = "passwordResetShieldIcon";
+    private static final String PASSWORD_RESET_CLOCK_CONTENT_ID = "passwordResetClockIcon";
+    private static final String PASSWORD_RESET_DOCUMENT_CONTENT_ID = "passwordResetDocumentIcon";
+    private static final String PASSWORD_RESET_ICON_CLASSPATH = "static/email/password-reset-icons/";
+    private static final String PLATFORM_EMAIL_ICON_CLASSPATH = "static/email/platform-invoice-icons/";
+    private static final ZoneId PASSWORD_RESET_DISPLAY_ZONE = ZoneId.of("Europe/Ljubljana");
+    private static final DateTimeFormatter PASSWORD_RESET_TIME_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     private final GuestUserRepository guestUsers;
     private final GuestPasswordResetTokenRepository resetTokens;
@@ -190,6 +205,7 @@ public class GuestPasswordResetService {
         String greeting = sl
                 ? (firstName.isBlank() ? "Pozdravljeni," : "Pozdravljeni " + firstName + ",")
                 : "Hello " + firstName + ",";
+        String requestTime = PASSWORD_RESET_TIME_FORMAT.format(ZonedDateTime.now(PASSWORD_RESET_DISPLAY_ZONE));
         String body = sl ? """
                 %s
 
@@ -211,18 +227,77 @@ public class GuestPasswordResetService {
                 This code expires in 15 minutes.
                 If you did not request this, you can safely ignore this email.
                 """.formatted(greeting, code);
+        PasswordResetEmailTemplate.Model emailModel = sl
+                ? new PasswordResetEmailTemplate.Model(
+                        "sl",
+                        "Vaša potrditvena koda za ponastavitev gesla v Calendra Connect.",
+                        "Varnost",
+                        "Ponastavite svoje geslo",
+                        greeting,
+                        "Prejeli smo zahtevo za ponastavitev gesla za vaš Calendra Connect račun.",
+                        "V aplikaciji vnesite spodnjo potrditveno kodo.",
+                        PasswordResetEmailTemplate.ActionType.CODE,
+                        "Potrditvena koda",
+                        code,
+                        "Koda velja 15 minut.",
+                        "Če tega niste zahtevali, lahko to sporočilo prezrete.",
+                        "Podrobnosti zahteve",
+                        "Čas zahteve",
+                        requestTime,
+                        "Način",
+                        "6-mestna potrditvena koda",
+                        "Veljavnost",
+                        "15 minut",
+                        "Uporabnik",
+                        guestUser.getEmail(),
+                        "Calendra Connect – pametno upravljanje vašega poslovanja."
+                )
+                : new PasswordResetEmailTemplate.Model(
+                        "en",
+                        "Your verification code for resetting your Calendra Connect password.",
+                        "Security",
+                        "Reset your password",
+                        greeting,
+                        "We received a request to reset the password for your Calendra Connect account.",
+                        "Enter the verification code below in the app.",
+                        PasswordResetEmailTemplate.ActionType.CODE,
+                        "Verification code",
+                        code,
+                        "This code expires in 15 minutes.",
+                        "If you did not request this, you can safely ignore this email.",
+                        "Request details",
+                        "Request time",
+                        requestTime,
+                        "Method",
+                        "6-digit verification code",
+                        "Validity",
+                        "15 minutes",
+                        "User",
+                        guestUser.getEmail(),
+                        "Calendra Connect — smart management for your business."
+                );
+        String html = PasswordResetEmailTemplate.renderHtml(emailModel);
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
             helper.setFrom(mailFrom);
             helper.setTo(guestUser.getEmail());
             helper.setSubject(subject);
-            helper.setText(body, false);
+            helper.setText(body, html);
+            addPasswordResetInlineAssets(helper);
             mailSender.send(message);
             log.info("Guest password reset verification code email sent to {}", LogSanitizer.emailHash(guestUser.getEmail()));
         } catch (Exception ex) {
             log.warn("Failed sending guest password reset code email to {}: {}", LogSanitizer.emailHash(guestUser.getEmail()), ex.getMessage());
         }
+    }
+
+    private void addPasswordResetInlineAssets(MimeMessageHelper helper) throws jakarta.mail.MessagingException {
+        helper.addInline(CALENDRA_LOGO_CONTENT_ID, new ClassPathResource(CALENDRA_LOGO_CLASSPATH), "image/png");
+        helper.addInline(PASSWORD_RESET_LOCK_CONTENT_ID, new ClassPathResource(PASSWORD_RESET_ICON_CLASSPATH + "lock.png"), "image/png");
+        helper.addInline(PASSWORD_RESET_SHIELD_CONTENT_ID, new ClassPathResource(PASSWORD_RESET_ICON_CLASSPATH + "shield.png"), "image/png");
+        helper.addInline(PASSWORD_RESET_CLOCK_CONTENT_ID, new ClassPathResource(PLATFORM_EMAIL_ICON_CLASSPATH + "clock.png"), "image/png");
+        helper.addInline(PASSWORD_RESET_DOCUMENT_CONTENT_ID, new ClassPathResource(PLATFORM_EMAIL_ICON_CLASSPATH + "document.png"), "image/png");
     }
 
     private String generateToken() {

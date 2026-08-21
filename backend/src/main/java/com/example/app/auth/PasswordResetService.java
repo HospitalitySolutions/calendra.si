@@ -10,6 +10,9 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
@@ -32,6 +35,14 @@ public class PasswordResetService {
     private static final int TOKEN_BYTES = 32;
     private static final String CALENDRA_LOGO_CONTENT_ID = "calendraLogo";
     private static final String CALENDRA_LOGO_CLASSPATH = "static/widget/calendra-transparent-logo.png";
+    private static final String PASSWORD_RESET_LOCK_CONTENT_ID = "passwordResetLockIcon";
+    private static final String PASSWORD_RESET_SHIELD_CONTENT_ID = "passwordResetShieldIcon";
+    private static final String PASSWORD_RESET_CLOCK_CONTENT_ID = "passwordResetClockIcon";
+    private static final String PASSWORD_RESET_DOCUMENT_CONTENT_ID = "passwordResetDocumentIcon";
+    private static final String PASSWORD_RESET_ICON_CLASSPATH = "static/email/password-reset-icons/";
+    private static final String PLATFORM_EMAIL_ICON_CLASSPATH = "static/email/platform-invoice-icons/";
+    private static final ZoneId PASSWORD_RESET_DISPLAY_ZONE = ZoneId.of("Europe/Ljubljana");
+    private static final DateTimeFormatter PASSWORD_RESET_TIME_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     private final UserRepository users;
     private final LoginAccountService loginAccountService;
@@ -223,6 +234,33 @@ public class PasswordResetService {
         String firstName = user.getFirstName() == null || user.getFirstName().isBlank()
                 ? copy.greetingFallback()
                 : user.getFirstName().trim();
+        String greeting = copy.greetingPrefix() + " " + firstName + ",";
+        String requestTime = PASSWORD_RESET_TIME_FORMAT.format(ZonedDateTime.now(PASSWORD_RESET_DISPLAY_ZONE));
+        PasswordResetEmailTemplate.Model emailModel = new PasswordResetEmailTemplate.Model(
+                locale,
+                copy.preheader(),
+                copy.badge(),
+                copy.title(),
+                greeting,
+                copy.requestText(),
+                copy.openLinkText(),
+                PasswordResetEmailTemplate.ActionType.BUTTON,
+                copy.buttonLabel(),
+                resetUrl,
+                copy.expiryText(),
+                copy.ignoreText(),
+                copy.detailsTitle(),
+                copy.requestTimeLabel(),
+                requestTime,
+                copy.methodLabel(),
+                copy.methodValue(),
+                copy.validityLabel(),
+                copy.validityValue(),
+                copy.userLabel(),
+                recipientEmail,
+                copy.footerText()
+        );
+        String html = PasswordResetEmailTemplate.renderHtml(emailModel);
         String body = """
                 %s %s,
 
@@ -244,16 +282,25 @@ public class PasswordResetService {
         );
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
             helper.setFrom(mailFrom);
             helper.setTo(recipientEmail);
             helper.setSubject(copy.subject());
-            helper.setText(body, false);
+            helper.setText(body, html);
+            addPasswordResetInlineAssets(helper);
             mailSender.send(message);
             log.info("Password reset email sent to {}", LogSanitizer.emailHash(recipientEmail));
         } catch (Exception e) {
             log.warn("Failed sending password reset email to {}: {}", LogSanitizer.emailHash(recipientEmail), e.getMessage());
         }
+    }
+
+    private void addPasswordResetInlineAssets(MimeMessageHelper helper) throws jakarta.mail.MessagingException {
+        helper.addInline(CALENDRA_LOGO_CONTENT_ID, new ClassPathResource(CALENDRA_LOGO_CLASSPATH), "image/png");
+        helper.addInline(PASSWORD_RESET_LOCK_CONTENT_ID, new ClassPathResource(PASSWORD_RESET_ICON_CLASSPATH + "lock.png"), "image/png");
+        helper.addInline(PASSWORD_RESET_SHIELD_CONTENT_ID, new ClassPathResource(PASSWORD_RESET_ICON_CLASSPATH + "shield.png"), "image/png");
+        helper.addInline(PASSWORD_RESET_CLOCK_CONTENT_ID, new ClassPathResource(PLATFORM_EMAIL_ICON_CLASSPATH + "clock.png"), "image/png");
+        helper.addInline(PASSWORD_RESET_DOCUMENT_CONTENT_ID, new ClassPathResource(PLATFORM_EMAIL_ICON_CLASSPATH + "document.png"), "image/png");
     }
 
     private void sendEmployeeAccountCreatedEmail(User user, String token, String localeCode) {
@@ -483,30 +530,66 @@ public class PasswordResetService {
         return switch (normalizeSupportedLocale(locale)) {
             case "sl" -> new ResetEmailCopy(
                     "Nastavite novo geslo",
+                    "Ponastavite svoje geslo v Calendri.",
+                    "Varnost",
+                    "Ponastavite svoje geslo",
                     "Pozdravljeni",
                     "pozdravljeni",
-                    "Prejeli smo zahtevo za nastavitev novega gesla za vaš račun.",
-                    "Novo geslo nastavite prek varne povezave:",
+                    "Prejeli smo zahtevo za ponastavitev gesla za vaš račun na platformi Calendra.",
+                    "Kliknite spodnji gumb, da nastavite novo geslo.",
+                    "Ponastavi geslo",
                     "Povezava poteče čez 1 uro.",
-                    "Če tega niste zahtevali, lahko to e-pošto prezrete."
+                    "Če tega niste zahtevali, lahko to e-pošto prezrete.",
+                    "Podrobnosti zahteve",
+                    "Čas zahteve",
+                    "Način",
+                    "Varna povezava za ponastavitev",
+                    "Veljavnost",
+                    "1 ura",
+                    "Uporabnik",
+                    "Calendra – za sodobno in učinkovito upravljanje vašega podjetja."
             );
             case "sr" -> new ResetEmailCopy(
                     "Podesite novu lozinku",
+                    "Podesite novu lozinku za svoj Calendra nalog.",
+                    "Bezbednost",
+                    "Podesite svoju lozinku",
                     "Zdravo",
                     "zdravo",
-                    "Primili smo zahtev za podešavanje nove lozinke za vaš nalog.",
-                    "Novu lozinku podesite preko sigurne veze:",
+                    "Primili smo zahtev za resetovanje lozinke za vaš Calendra nalog.",
+                    "Kliknite na dugme ispod da podesite novu lozinku.",
+                    "Podesi lozinku",
                     "Ova veza ističe za 1 sat.",
-                    "Ako ovo niste zatražili, možete ignorisati ovu e-poštu."
+                    "Ako ovo niste zatražili, možete ignorisati ovu e-poštu.",
+                    "Detalji zahteva",
+                    "Vreme zahteva",
+                    "Način",
+                    "Sigurna veza za resetovanje",
+                    "Važi",
+                    "1 sat",
+                    "Korisnik",
+                    "Calendra – za moderno i efikasno upravljanje vašim poslovanjem."
             );
             default -> new ResetEmailCopy(
                     "Reset your password",
+                    "Reset your Calendra account password securely.",
+                    "Security",
+                    "Reset your password",
                     "Hello",
                     "there",
-                    "We received a request to reset your password.",
-                    "Open this link to set a new one:",
+                    "We received a request to reset the password for your Calendra account.",
+                    "Click the button below to set a new password.",
+                    "Reset password",
                     "This link expires in 1 hour.",
-                    "If you did not request this, you can safely ignore this email."
+                    "If you did not request this, you can safely ignore this email.",
+                    "Request details",
+                    "Request time",
+                    "Method",
+                    "Secure reset link",
+                    "Validity",
+                    "1 hour",
+                    "User",
+                    "Calendra — modern and efficient management for your business."
             );
         };
     }
@@ -587,12 +670,24 @@ public class PasswordResetService {
 
     private record ResetEmailCopy(
             String subject,
+            String preheader,
+            String badge,
+            String title,
             String greetingPrefix,
             String greetingFallback,
             String requestText,
             String openLinkText,
+            String buttonLabel,
             String expiryText,
-            String ignoreText
+            String ignoreText,
+            String detailsTitle,
+            String requestTimeLabel,
+            String methodLabel,
+            String methodValue,
+            String validityLabel,
+            String validityValue,
+            String userLabel,
+            String footerText
     ) {}
 
     private record EmployeeAccountEmailCopy(
