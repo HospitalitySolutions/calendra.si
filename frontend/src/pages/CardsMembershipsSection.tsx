@@ -26,6 +26,7 @@ import {
 import { EmptyState, Field } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { currency } from "../lib/format";
+import { appSessionTypeDescription } from "../lib/sessionTypeDisplay";
 import { useLocale } from "../locale";
 import {
   PanelBody,
@@ -514,7 +515,7 @@ function guestProductTransactionServiceLabel(
 
 function sessionTypeDisplayLabel(sessionType: SessionTypeT | undefined): string {
   if (!sessionType) return "—";
-  const description = sessionType.description?.trim();
+  const description = appSessionTypeDescription(sessionType);
   if (description) return description;
 
   const linkedDescriptions = (sessionType.linkedServices || [])
@@ -1439,7 +1440,7 @@ export const CardsMembershipsSection = forwardRef<
       );
       return;
     }
-    if (!guestProductForm.availableAllLocations && guestProductForm.locationIds.length === 0) {
+    if (locations.length !== 1 && !guestProductForm.availableAllLocations && guestProductForm.locationIds.length === 0) {
       window.alert(
         locale === "sl"
           ? "Izberite vsaj eno lokacijo, kjer ugodnost velja."
@@ -1458,8 +1459,8 @@ export const CardsMembershipsSection = forwardRef<
       active: guestProductForm.active,
       guestVisible: guestProductForm.guestVisible,
       bookable: false,
-      availableAllLocations: guestProductForm.availableAllLocations,
-      locationIds: guestProductForm.availableAllLocations
+      availableAllLocations: locations.length === 1 || guestProductForm.availableAllLocations,
+      locationIds: locations.length === 1 || guestProductForm.availableAllLocations
         ? []
         : guestProductForm.locationIds.map((id) => Number.parseInt(id, 10)).filter(Number.isFinite),
       usageLimit:
@@ -2139,51 +2140,55 @@ export const CardsMembershipsSection = forwardRef<
                 </span>
               </label>
 
-              <label className="cards-product-mobile-field">
-                <span className="cards-product-mobile-field__icon"><GuestProductMobileFieldIcon name="location" /></span>
-                <span className="cards-product-mobile-field__body">
-                  <span className="cards-product-mobile-field__label">{locale === "sl" ? "Lokacije" : "Locations"}</span>
-                  <DesktopSelect
-                    className="cards-product-mobile-field__control cards-product-mobile-field__control--select"
-                    value={guestProductForm.availableAllLocations ? "ALL" : "SELECTED"}
-                    onChange={(event) =>
-                      setGuestProductForm((current) => ({
-                        ...current,
-                        availableAllLocations: event.target.value === "ALL",
-                        locationIds: event.target.value === "ALL" ? [] : current.locationIds,
-                      }))
-                    }
-                  >
-                    <option value="ALL">{locale === "sl" ? "Vse lokacije" : "All locations"}</option>
-                    <option value="SELECTED">{locale === "sl" ? "Izbrane lokacije" : "Selected locations"}</option>
-                  </DesktopSelect>
-                </span>
-              </label>
+              {locations.length !== 1 ? (
+                <>
+                  <label className="cards-product-mobile-field">
+                    <span className="cards-product-mobile-field__icon"><GuestProductMobileFieldIcon name="location" /></span>
+                    <span className="cards-product-mobile-field__body">
+                      <span className="cards-product-mobile-field__label">{locale === "sl" ? "Lokacije" : "Locations"}</span>
+                      <DesktopSelect
+                        className="cards-product-mobile-field__control cards-product-mobile-field__control--select"
+                        value={guestProductForm.availableAllLocations ? "ALL" : "SELECTED"}
+                        onChange={(event) =>
+                          setGuestProductForm((current) => ({
+                            ...current,
+                            availableAllLocations: event.target.value === "ALL",
+                            locationIds: event.target.value === "ALL" ? [] : current.locationIds,
+                          }))
+                        }
+                      >
+                        <option value="ALL">{locale === "sl" ? "Vse lokacije" : "All locations"}</option>
+                        <option value="SELECTED">{locale === "sl" ? "Izbrane lokacije" : "Selected locations"}</option>
+                      </DesktopSelect>
+                    </span>
+                  </label>
 
-              {!guestProductForm.availableAllLocations ? (
-                <div className="cards-product-mobile-location-options">
-                  {locations.map((location) => {
-                    const id = String(location.id);
-                    const checked = guestProductForm.locationIds.includes(id);
-                    return (
-                      <label key={location.id} className={`cards-product-mobile-check-row${checked ? " is-selected" : ""}`}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(event) =>
-                            setGuestProductForm((current) => ({
-                              ...current,
-                              locationIds: event.target.checked
-                                ? Array.from(new Set([...current.locationIds, id]))
-                                : current.locationIds.filter((value) => value !== id),
-                            }))
-                          }
-                        />
-                        <span>{location.name}</span>
-                      </label>
-                    );
-                  })}
-                </div>
+                  {!guestProductForm.availableAllLocations ? (
+                    <div className="cards-product-mobile-location-options">
+                      {locations.map((location) => {
+                        const id = String(location.id);
+                        const checked = guestProductForm.locationIds.includes(id);
+                        return (
+                          <label key={location.id} className={`cards-product-mobile-check-row${checked ? " is-selected" : ""}`}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(event) =>
+                                setGuestProductForm((current) => ({
+                                  ...current,
+                                  locationIds: event.target.checked
+                                    ? Array.from(new Set([...current.locationIds, id]))
+                                    : current.locationIds.filter((value) => value !== id),
+                                }))
+                              }
+                            />
+                            <span>{location.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </>
               ) : null}
 
               <label className="cards-product-mobile-field">
@@ -2413,7 +2418,10 @@ export const CardsMembershipsSection = forwardRef<
 
               <label className="cards-product-mobile-switch-row">
                 <span className="cards-product-mobile-switch-row__icon"><GuestProductMobileFieldIcon name="visibility" /></span>
-                <span className="cards-product-mobile-switch-row__text">{locale === "sl" ? "Vidno v aplikaciji za goste" : "Visible in guest app"}</span>
+                <span className="cards-product-mobile-switch-row__copy">
+                  <strong>{locale === "sl" ? "Vidno gostom" : "Visible to guests"}</strong>
+                  <small>{locale === "sl" ? "Prikaži to ugodnost v portalu in aplikaciji za gost." : "Show this entitlement in the guest portal and app."}</small>
+                </span>
                 <span className="session-type-config-switch cards-product-switch">
                   <input
                     type="checkbox"
@@ -2530,63 +2538,62 @@ export const CardsMembershipsSection = forwardRef<
                     ))}
                   </DesktopSelect>
                 </Field>
-                <Field
-                  label={locale === "sl" ? "Lokacije *" : "Locations *"}
-                  hint={
-                    locale === "sl"
-                      ? "Določite, v katerih poslovnih prostorih je ugodnost mogoče kupiti in unovčiti."
-                      : "Choose the locations where this entitlement can be purchased and redeemed."
-                  }
-                >
-                  <DesktopSelect
-                    value={guestProductForm.availableAllLocations ? "ALL" : "SELECTED"}
-                    onChange={(event) =>
-                      setGuestProductForm((current) => ({
-                        ...current,
-                        availableAllLocations: event.target.value === "ALL",
-                        locationIds: event.target.value === "ALL" ? [] : current.locationIds,
-                      }))
-                    }
-                  >
-                    <option value="ALL">{locale === "sl" ? "Vse lokacije" : "All locations"}</option>
-                    <option value="SELECTED">{locale === "sl" ? "Izbrane lokacije" : "Selected locations"}</option>
-                  </DesktopSelect>
-                </Field>
-                {!guestProductForm.availableAllLocations && (
-                  <Field label={locale === "sl" ? "Izbrane lokacije *" : "Selected locations *"}>
-                    <div className="cards-product-voucher-services">
-                      {locations.map((location) => {
-                        const id = String(location.id);
-                        const checked = guestProductForm.locationIds.includes(id);
-                        return (
-                          <label
-                            key={location.id}
-                            className={`cards-product-voucher-service-option${checked ? " is-selected" : ""}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(event) =>
-                                setGuestProductForm((current) => ({
-                                  ...current,
-                                  locationIds: event.target.checked
-                                    ? Array.from(new Set([...current.locationIds, id]))
-                                    : current.locationIds.filter((value) => value !== id),
-                                }))
-                              }
-                            />
-                            <span>{location.name}</span>
-                          </label>
-                        );
-                      })}
-                      {locations.length === 0 && (
-                        <span className="muted">
-                          {locale === "sl" ? "Ni aktivnih lokacij." : "No active locations."}
-                        </span>
-                      )}
-                    </div>
-                  </Field>
-                )}
+                {locations.length !== 1 ? (
+                  <>
+                    <Field
+                      label={locale === "sl" ? "Lokacije *" : "Locations *"}
+                      hint={
+                        locale === "sl"
+                          ? "Določite, v katerih poslovnih prostorih je ugodnost mogoče kupiti in unovčiti."
+                          : "Choose the locations where this entitlement can be purchased and redeemed."
+                      }
+                    >
+                      <DesktopSelect
+                        value={guestProductForm.availableAllLocations ? "ALL" : "SELECTED"}
+                        onChange={(event) =>
+                          setGuestProductForm((current) => ({
+                            ...current,
+                            availableAllLocations: event.target.value === "ALL",
+                            locationIds: event.target.value === "ALL" ? [] : current.locationIds,
+                          }))
+                        }
+                      >
+                        <option value="ALL">{locale === "sl" ? "Vse lokacije" : "All locations"}</option>
+                        <option value="SELECTED">{locale === "sl" ? "Izbrane lokacije" : "Selected locations"}</option>
+                      </DesktopSelect>
+                    </Field>
+                    {!guestProductForm.availableAllLocations && (
+                      <Field label={locale === "sl" ? "Izbrane lokacije *" : "Selected locations *"}>
+                        <div className="cards-product-voucher-services">
+                          {locations.map((location) => {
+                            const id = String(location.id);
+                            const checked = guestProductForm.locationIds.includes(id);
+                            return (
+                              <label
+                                key={location.id}
+                                className={`cards-product-voucher-service-option${checked ? " is-selected" : ""}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(event) =>
+                                    setGuestProductForm((current) => ({
+                                      ...current,
+                                      locationIds: event.target.checked
+                                        ? Array.from(new Set([...current.locationIds, id]))
+                                        : current.locationIds.filter((value) => value !== id),
+                                    }))
+                                  }
+                                />
+                                <span>{location.name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </Field>
+                    )}
+                  </>
+                ) : null}
                 {guestProductForm.productType === "GIFT_CARD" && (
                   <>
                     <Field
@@ -3082,8 +3089,8 @@ export const CardsMembershipsSection = forwardRef<
                       </span>
                     </span>
                     <span className="cards-product-toggle-copy">
-                      <strong>{locale === "sl" ? "Vidno v aplikaciji za goste" : "Visible in guest app"}</strong>
-                      <span>{locale === "sl" ? "Prikaži to ugodnost v aplikaciji za goste." : "Show this card in the guest app."}</span>
+                      <strong>{locale === "sl" ? "Vidno gostom" : "Visible to guests"}</strong>
+                      <span>{locale === "sl" ? "Prikaži to ugodnost v portalu in aplikaciji za gost." : "Show this entitlement in the guest portal and app."}</span>
                     </span>
                   </label>
                 </div>

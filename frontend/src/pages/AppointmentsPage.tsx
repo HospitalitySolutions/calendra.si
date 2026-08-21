@@ -17,6 +17,7 @@ import {
   useConfirm,
 } from '../components/panel'
 import { WAITLIST_DRAWERS, useDrawerRoute } from '../lib/drawerRoutes'
+import { appSessionTypeDescription } from '../lib/sessionTypeDisplay'
 import { ModernTimePicker } from '../components/ModernTimePicker'
 import { useAuthenticatedUser } from '../authUserContext'
 import { queryClient } from '../queries/queryClient'
@@ -472,9 +473,8 @@ export function AppointmentsPage() {
         value
           .filter((item: any) => item.active !== false)
           .map((item: any) => {
-            const visibleName = item.description || item.name || `#${item.id}`
-            const internalDescription = String(item.internalDescription || '').trim()
-            return { id: item.id, name: internalDescription ? `${visibleName} — ${internalDescription}` : visibleName, durationMinutes: item.durationMinutes, serviceGroupId: item.serviceGroupId, serviceGroupName: item.serviceGroupName }
+            const visibleName = appSessionTypeDescription(item, item.name || `#${item.id}`)
+            return { id: item.id, name: visibleName, durationMinutes: item.durationMinutes, serviceGroupId: item.serviceGroupId, serviceGroupName: item.serviceGroupName }
           }),
       )
     }

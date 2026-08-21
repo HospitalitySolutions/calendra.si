@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../../../api'
 import { PanelBody, PanelFooter } from '../../../components/panel'
+import { appSessionTypeDescription } from '../../../lib/sessionTypeDisplay'
 
 type QuickMode = 'invoice' | 'advance'
 
@@ -330,7 +331,7 @@ export function CalendarSessionQuickBilling({
       const rawOverrideGross = Number(ref?.grossPriceOverride ?? ref?.grossPrice)
       const overrideGross = Number.isFinite(rawOverrideGross) ? Math.max(0, rawOverrideGross) : null
       const displayGross = overrideGross != null ? overrideGross : defaultGross
-      const name = String(type?.name || type?.description || ref?.serviceName || (locale === 'sl' ? 'Storitev' : 'Service')).trim()
+      const name = appSessionTypeDescription(type, String(type?.name || ref?.serviceName || (locale === 'sl' ? 'Storitev' : 'Service')).trim())
 
       if (mode === 'advance') {
         const advanceParts = sourceParts.map((part: any) => {

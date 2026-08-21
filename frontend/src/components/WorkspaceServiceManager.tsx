@@ -7,6 +7,7 @@ import type {
   SessionType,
   WorkspaceServiceTemplate,
 } from '../lib/types'
+import { appSessionTypeDescription } from '../lib/sessionTypeDisplay'
 import {
   PanelBody,
   PanelButton,
@@ -474,7 +475,7 @@ export function WorkspaceServiceManager({
             <label>{sl ? 'Lokalna storitev' : 'Unit service'}
               <DesktopSelect value={linkSessionTypeId} onChange={(e) => setLinkSessionTypeId(e.target.value)}>
                 <option value="">—</option>
-                {linkableTypes.map((type) => <option key={type.id} value={type.id}>{type.description || type.name}</option>)}
+                {linkableTypes.map((type) => <option key={type.id} value={type.id}>{appSessionTypeDescription(type, type.name)}</option>)}
               </DesktopSelect>
             </label>
             <label className="workspace-copy-overwrite"><input type="checkbox" checked={applyDefaults} onChange={(e) => setApplyDefaults(e.target.checked)} /><span>{sl ? 'Uporabi skupno ime, trajanje in barvo' : 'Apply shared name, duration and color'}</span></label>

@@ -26,6 +26,7 @@ import { queryKeys } from '../queries/queryKeys'
 import { useAuthenticatedUser } from '../authUserContext'
 import { Card, EmptyState } from '../components/ui'
 import { fullName } from '../lib/format'
+import { appSessionTypeDescription } from '../lib/sessionTypeDisplay'
 import { hasEmployeePermission } from '../lib/employeePermissions'
 import { isWorkspaceRolloutEnabled } from '../lib/workspaceRollout'
 import { useSelectedLocationId } from '../lib/locationContext'
@@ -1071,9 +1072,8 @@ export function AnalyticsPage() {
               <DesktopSelect value={typeId} onChange={(e) => setTypeId(e.target.value)}>
                 <option value="">{text.allTypes}</option>
                 {filteredTypeOptions.map((item) => {
-                  const visibleName = item.description || item.name
-                  const internalDescription = String(item.internalDescription || '').trim()
-                  return <option key={item.id} value={item.id}>{internalDescription ? `${visibleName} — ${internalDescription}` : visibleName}</option>
+                  const visibleName = appSessionTypeDescription(item, item.name || `#${item.id}`)
+                  return <option key={item.id} value={item.id}>{visibleName}</option>
                 })}
               </DesktopSelect>
             </div>
@@ -1123,9 +1123,8 @@ export function AnalyticsPage() {
             <DesktopSelect value={typeId} onChange={(e) => setTypeId(e.target.value)}>
               <option value="">{text.allTypes}</option>
               {filteredTypeOptions.map((item) => {
-                const visibleName = item.description || item.name
-                const internalDescription = String(item.internalDescription || '').trim()
-                return <option key={item.id} value={item.id}>{internalDescription ? `${visibleName} — ${internalDescription}` : visibleName}</option>
+                const visibleName = appSessionTypeDescription(item, item.name || `#${item.id}`)
+                return <option key={item.id} value={item.id}>{visibleName}</option>
               })}
             </DesktopSelect>
           </div>

@@ -1761,6 +1761,26 @@ button.cards-product-delete-btn {
         font-weight: 600;
     }
 
+    .cards-product-mobile-switch-row__copy {
+        min-width: 0;
+        display: grid;
+        gap: 3px;
+        color: #0f172a;
+    }
+
+    .cards-product-mobile-switch-row__copy strong {
+        font-size: 0.98rem;
+        line-height: 1.3;
+        font-weight: 700;
+    }
+
+    .cards-product-mobile-switch-row__copy small {
+        color: #718096;
+        font-size: 0.78rem;
+        line-height: 1.35;
+        font-weight: 500;
+    }
+
     .cards-product-mobile-switch-row .cards-product-switch {
         margin: 0;
     }

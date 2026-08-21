@@ -5988,7 +5988,7 @@ export function ConfigurationPage() {
               ? "Dolžina termina (minute)"
               : "Session length (minutes)",
           valueControl: (
-            <span className="modules-design-inline-control modules-design-inline-control--with-suffix">
+            <span className="modules-design-inline-control modules-design-inline-control--with-suffix modules-design-inline-control--prominent-value">
               <input
                 type="number"
                 min="15"
@@ -6258,7 +6258,7 @@ export function ConfigurationPage() {
                   ? "Uporabi se pri vseh storitvah brez posebej določene pavze."
                   : "Applied to every service that does not define its own break.",
               valueControl: (
-                <span className="modules-design-inline-control modules-design-inline-control--with-suffix">
+                <span className="modules-design-inline-control modules-design-inline-control--with-suffix modules-design-inline-control--prominent-value">
                   <DesktopSelect
                     value={moduleDraftForDesign.DEFAULT_SERVICE_BREAK_MINUTES}
                     onChange={(event) =>

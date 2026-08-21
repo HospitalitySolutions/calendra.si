@@ -15,6 +15,7 @@ import {
 } from '../../../components/panel'
 import { CalendarSectionIcon } from './CalendarIcons'
 import { useMobileKeyboardOpen } from '../../../hooks/useMobileKeyboardOpen'
+import { appSessionTypeDescription } from '../../../lib/sessionTypeDisplay'
 
 function formatMinutes(totalMinutes: number, locale: string) {
   const minutes = Math.max(0, Math.round(totalMinutes || 0))
@@ -31,16 +32,16 @@ function timePart(value: string | null | undefined) {
 }
 
 function serviceName(type: any, locale: string) {
-  const visible = serviceDescription(type, locale)
-  const internal = String(type?.internalDescription || '').trim()
-  return internal ? `${visible} — ${internal}` : visible
+  return serviceDescription(type, locale)
 }
 
-/** Plain service label, without the internal description. Used for collapsed summaries. */
+/** Staff-facing service description used throughout the internal web app. */
 export function serviceDescription(type: any, locale: string) {
-  const description = String(type?.description || '').trim()
-  const name = String(type?.name || '').trim()
-  return description || name || (locale === 'sl' ? 'Izberite storitev' : locale === 'sr' ? 'Izaberite uslugu' : 'Select service')
+  return appSessionTypeDescription(
+    type,
+    String(type?.name || '').trim()
+      || (locale === 'sl' ? 'Izberite storitev' : locale === 'sr' ? 'Izaberite uslugu' : 'Select service'),
+  )
 }
 
 function labels(locale: string) {

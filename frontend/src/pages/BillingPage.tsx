@@ -13,6 +13,7 @@ import { clientMutationErrorMessage, skipConflictToastHeaders } from '../lib/cli
 import { useAuthenticatedUser } from '../authUserContext'
 import type { Bill, BillingService, Booking, Client, Company, InvoiceIssuerOption, InvoiceSeriesOption, Location, OpenBill, PaymentMethod, PaymentSplit, SessionType, User, WorkspaceBill } from '../lib/types'
 import { normalizePaymentMethod } from '../lib/types'
+import { appSessionTypeDescription } from '../lib/sessionTypeDisplay'
 import { Card, EmptyState, Field } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useLocale, type AppLocale } from '../locale'
@@ -2803,11 +2804,13 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           ? regularLinks.find((link) => Number(link.transactionServiceId) === Number(mappedBillingService.id)) ?? regularLinks[0]
           : regularLinks[0]
         const transactionServiceId = mappedBillingService?.id ?? (firstLink ? Number(firstLink.transactionServiceId) : null)
-        const displayName = mappedBillingService?.description?.trim()
-          || type.description?.trim()
-          || type.name?.trim()
-          || (locale === 'sl' ? 'Storitev' : 'Service')
-        const secondaryText = type.internalDescription?.trim() || ''
+        const displayName = appSessionTypeDescription(
+          type,
+          mappedBillingService?.description?.trim()
+            || type.name?.trim()
+            || (locale === 'sl' ? 'Storitev' : 'Service'),
+        )
+        const secondaryText = ''
 
         let priceGross: number | null = null
         if (mappedBillingService) {

@@ -37,6 +37,7 @@ import {
   Field,
 } from "../components/ui";
 import { currency } from "../lib/format";
+import { appSessionTypeDescription } from "../lib/sessionTypeDisplay";
 import { useLocale, type AppLocale } from "../locale";
 import {
   PanelBody,
@@ -1668,7 +1669,7 @@ export function SessionTypesPage() {
       ordered,
       typeSort,
       (type, key) => {
-        if (key === "name") return type.description?.trim() || type.name;
+        if (key === "name") return appSessionTypeDescription(type, type.name);
         if (key === "category") return typeLinkedCategory(type);
         if (key === "duration") return type.durationMinutes;
         if (key === "price") return typeGrossPrice(type);
@@ -3239,13 +3240,10 @@ export function SessionTypesPage() {
               >
                 <div className="clients-mobile-card-head">
                   <ServiceConfigNameCell
-                    title={
-                      [
-                        type.description?.trim() ||
-                          (locale === "sl" ? "Storitev" : locale === "sr" ? "Usluga" : "Service"),
-                        type.internalDescription?.trim(),
-                      ].filter(Boolean).join(" — ")
-                    }
+                    title={appSessionTypeDescription(
+                      type,
+                      locale === "sl" ? "Storitev" : locale === "sr" ? "Usluga" : "Service",
+                    )}
                     visual={serviceConfigVisual(index)}
                     showIcon={false}
                   />
@@ -3397,8 +3395,10 @@ export function SessionTypesPage() {
                         title={
                           <span className="service-config-name-inline">
                             <span>
-                              {type.description?.trim() ||
-                                (locale === "sl" ? "Storitev" : locale === "sr" ? "Usluga" : "Service")}
+                              {appSessionTypeDescription(
+                                type,
+                                locale === "sl" ? "Storitev" : locale === "sr" ? "Usluga" : "Service",
+                              )}
                             </span>
                             {type.groupBookingEnabled === true ? (
                               <span className="service-group-indicator">
@@ -3407,7 +3407,6 @@ export function SessionTypesPage() {
                             ) : null}
                           </span>
                         }
-                        subtitle={type.internalDescription?.trim() || undefined}
                         visual={serviceConfigVisual(index)}
                         showIcon={false}
                       />

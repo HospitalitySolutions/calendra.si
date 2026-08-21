@@ -825,6 +825,24 @@ a.config-nav-item {
     font-size: 12px;
     font-weight: 800;
 }
+
+.modules-design-inline-control--prominent-value {
+    width: 106px;
+    min-height: 38px;
+    border-color: #b9c9dd;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+.modules-design-inline-control--prominent-value input,
+.modules-design-inline-control--prominent-value select {
+    color: #0f172a;
+    font-weight: 850;
+    text-align: right;
+}
+.modules-design-inline-control--prominent-value span {
+    color: #475569;
+    font-weight: 800;
+}
 .modules-design-time-control {
     padding: 0 9px;
 }
@@ -1479,6 +1497,13 @@ a.config-nav-item {
         border-color: #dce3ec;
         font-size: 12.5px;
         box-shadow: none;
+    }
+
+    .modules-design-inline-control--prominent-value {
+        width: 106px;
+        min-height: 38px;
+        border-color: #b9c9dd;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, .08);
     }
 
     .modules-design-row-chevron {

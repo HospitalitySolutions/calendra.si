@@ -72,6 +72,7 @@ import { dayOptions, type BookingPaymentAllocation, type BookingPaymentStatus, t
 import { CALENDAR_TIME_SCALE_MINUTES_KEY, normalizeCalendarTimeScaleMinutes } from '../../lib/calendarTimeScale'
 import { isWorkspaceRolloutEnabled } from '../../lib/workspaceRollout'
 import { useSelectedLocationId } from '../../lib/locationContext'
+import { appSessionTypeDescription } from '../../lib/sessionTypeDisplay'
 import { queryClient } from '../../queries/queryClient'
 import { queryKeys } from '../../queries/queryKeys'
 import {
@@ -7371,7 +7372,7 @@ ${AVAILABILITY_BLOCK_METADATA_PREFIX}${metadata}`
       ? metaTypes.find((type: any) => Number(type?.id) === typeId)
       : null
     const sourceType = sessionType?.type || sessionType
-    const description = String(sourceType?.description || catalogType?.description || '').trim()
+    const description = appSessionTypeDescription(sourceType) || appSessionTypeDescription(catalogType)
     if (description) return description
     return String(sourceType?.name || catalogType?.name || '').trim()
   }

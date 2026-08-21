@@ -11,6 +11,7 @@ import { CalendarSectionIcon } from './CalendarIcons'
 import { CalendarSessionQuickBilling } from './CalendarSessionQuickBilling'
 import { useMobileKeyboardOpen } from '../../../hooks/useMobileKeyboardOpen'
 import { hasEmployeePermission } from '../../../lib/employeePermissions'
+import { appSessionTypeCodeAndDescription, appSessionTypeDescription } from '../../../lib/sessionTypeDisplay'
 import { urlForNewForm } from '../../calendarFormRoutes'
 import {
   ConfirmDialog,
@@ -1086,11 +1087,8 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
 
   const bookedSessionSelectedTypeId = Number(selectedBookedSession?.type?.id ?? 0)
   const bookedSessionTypeFromMeta = metaTypes.find((type: any) => Number(type?.id) === bookedSessionSelectedTypeId)
-  const formatSessionTypeOptionLabel = (ty: any): string => {
-    const code = String(ty?.name ?? '').trim()
-    const description = String(ty?.description ?? '').trim()
-    return description ? `${code} - ${description}` : code
-  }
+  const formatSessionTypeOptionLabel = (ty: any): string =>
+    appSessionTypeCodeAndDescription(ty)
   const waitlistMatchCountLabel = (value: any): string => {
     const count = Math.max(0, Number(value) || 0)
     if (locale === 'sl') {
@@ -2411,7 +2409,7 @@ export function CalendarSessionModals({ ctx }: { ctx: any }) {
     .map((entry: any) => {
       const typeId = Number(entry?.type?.id ?? entry?.typeId)
       const catalogType = metaTypes.find((type: any) => Number(type?.id) === typeId)
-      return String(entry?.type?.name || entry?.type?.description || catalogType?.name || catalogType?.description || entry?.serviceName || '').trim()
+      return appSessionTypeDescription(entry?.type) || appSessionTypeDescription(catalogType) || String(entry?.serviceName || '').trim()
     })
     .filter(Boolean)
   const sessionViewServiceName = sessionViewServiceNames.length > 0
