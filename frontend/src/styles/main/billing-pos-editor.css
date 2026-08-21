@@ -1621,7 +1621,11 @@
      side-panel height, matching Dodaj termin. */
   .billing-pos-footer {
     position: relative;
-    overflow: hidden;
+    /* The desktop Predogled računa menu opens above its footer button. Hiding
+       overflow clipped the popover to the footer height, leaving only a small
+       white sliver visible. Keep footer overflow visible on desktop so the
+       anchored popup can extend upward into the panel. */
+    overflow: visible;
     border-top: 0;
   }
 
@@ -2333,5 +2337,238 @@
   .billing-pos-panel--advance.billing-pos-panel--keyboard-open .billing-pos-subtotal,
   .billing-pos-panel--advance.billing-pos-panel--keyboard-open .billing-pos-grand-total {
     display: none !important;
+  }
+}
+
+
+/* ========================================================================== */
+/* Mobile/tablet preview-choice popup + restored line-item discount modal      */
+/* ========================================================================== */
+@media (max-width: 1024px) {
+  .billing-pos-panel--mobile-two-step .billing-preview-choice-mobile-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10030;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(15, 29, 52, 0.22);
+    backdrop-filter: blur(1.5px);
+    -webkit-backdrop-filter: blur(1.5px);
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-preview-choice-mobile-modal {
+    width: min(320px, calc(100vw - 32px));
+    max-width: 320px;
+    padding: 16px;
+    border: 1px solid #d9e2ee;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 22px 52px rgba(15, 29, 52, 0.26);
+    display: grid;
+    gap: 12px;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-preview-choice-mobile-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 2px;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-preview-choice-mobile-modal-head h3 {
+    margin: 0 !important;
+    color: #101828;
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-preview-choice-mobile-modal-close {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    border: 1px solid #eaecf0;
+    border-radius: 12px;
+    background: #f2f4f7;
+    color: #667085;
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: none;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-preview-choice-mobile-options {
+    display: grid;
+    gap: 10px;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-preview-choice-mobile-option {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) 16px;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 12px;
+    border: 1px solid #d9e2ee;
+    border-radius: 12px;
+    background: #fff;
+    text-align: left;
+    color: #101828;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-preview-choice-mobile-option:disabled {
+    opacity: .64;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-preview-choice-mobile-option-icon {
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 11px;
+    background: #eef4ff;
+    color: #1769ff;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-preview-choice-mobile-option-copy {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-preview-choice-mobile-option-copy strong {
+    color: #101828;
+    font-size: .88rem;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-preview-choice-mobile-option-copy small {
+    color: #667085;
+    font-size: .75rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-preview-choice-mobile-option-chevron {
+    color: #98a2b3;
+    font-size: 1.15rem;
+    line-height: 1;
+    text-align: right;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-pos-line-discount:has(> .billing-line-discount-popover)::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 10040;
+    background: rgba(15, 29, 52, 0.18);
+    backdrop-filter: blur(1.5px);
+    -webkit-backdrop-filter: blur(1.5px);
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-pos-line-discount > .billing-line-discount-popover {
+    position: fixed !important;
+    left: 50% !important;
+    right: auto !important;
+    top: 50% !important;
+    bottom: auto !important;
+    transform: translate(-50%, -50%) !important;
+    width: min(304px, calc(100vw - 32px)) !important;
+    max-width: 304px !important;
+    max-height: calc(100dvh - 32px) !important;
+    overflow-y: auto !important;
+    z-index: 10041 !important;
+    display: grid !important;
+    gap: 12px !important;
+    margin: 0 !important;
+    padding: 14px !important;
+    border: 1px solid #d9e2ee !important;
+    border-radius: 14px !important;
+    background: #fff !important;
+    box-shadow: 0 20px 48px rgba(15, 29, 52, 0.24) !important;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-pos-line-discount > .billing-line-discount-popover::before {
+    display: none !important;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-line-discount-popover-head {
+    align-items: center !important;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-line-discount-popover-head strong {
+    font-size: .94rem !important;
+    line-height: 1.2 !important;
+    letter-spacing: 0 !important;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-line-discount-popover-head button {
+    width: 30px !important;
+    min-width: 30px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    border-radius: 8px !important;
+    background: #f4f7fb !important;
+    color: #667085 !important;
+    font-size: 1.15rem !important;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-line-discount-segmented {
+    min-height: 42px !important;
+    padding: 3px !important;
+    border-radius: 10px !important;
+    background: #f6f8fb !important;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-line-discount-segmented button {
+    min-height: 34px !important;
+    border-radius: 8px !important;
+    font-size: .88rem !important;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-line-discount-input-wrap {
+    min-height: 42px !important;
+    border-radius: 9px !important;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-line-discount-input-wrap input {
+    min-height: 40px !important;
+    font-size: 1rem !important;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-line-discount-footer {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding-top: 2px !important;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-line-discount-footer p {
+    margin: 0 !important;
+    color: #7d8ba0 !important;
+    font-size: .72rem !important;
+    line-height: 1.35 !important;
+  }
+
+  .billing-pos-panel--mobile-two-step .billing-line-discount-save {
+    min-width: 76px !important;
+    min-height: 36px !important;
+    padding: 0 14px !important;
+    border-radius: 9px !important;
+    font-size: .82rem !important;
+  }
+
+  .billing-pos-panel--keyboard-open .billing-pos-mobile-selection-summary:has(.billing-line-discount-popover) {
+    display: block !important;
   }
 }

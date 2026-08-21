@@ -524,6 +524,91 @@ const billingPosSectionIcon = (kind: 'payee' | 'selected' | 'payment' | 'summary
   )
 }
 
+type BillingPayeeEditorIconKind = 'person' | 'employee' | 'email' | 'phone' | 'company' | 'address' | 'postal' | 'city' | 'vat'
+
+const billingPayeeEditorIcon = (kind: BillingPayeeEditorIconKind): ReactNode => {
+  if (kind === 'email') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
+        <path d="m4.5 7 7.5 6 7.5-6" />
+      </svg>
+    )
+  }
+  if (kind === 'phone') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M7.3 3.5 4.9 5.9c-.8.8-.9 2-.3 3 2.1 4.1 5.4 7.4 9.5 9.5 1 .6 2.2.5 3-.3l2.4-2.4-4-3-1.8 1.8c-1.9-1.1-3.1-2.3-4.2-4.2l1.8-1.8-3-4Z" />
+      </svg>
+    )
+  }
+  if (kind === 'company' || kind === 'city') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M5 21V5.5a1.5 1.5 0 0 1 1.5-1.5h8A1.5 1.5 0 0 1 16 5.5V21M16 9h2.5A1.5 1.5 0 0 1 20 10.5V21M8 8h2M8 12h2M8 16h2M13 8h.01M13 12h.01M13 16h.01M3 21h19" />
+      </svg>
+    )
+  }
+  if (kind === 'address') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
+        <circle cx="12" cy="10" r="2.5" />
+      </svg>
+    )
+  }
+  if (kind === 'postal') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <rect x="4" y="4" width="16" height="16" rx="2" />
+        <path d="M8 8h8M8 12h5M8 16h3" />
+      </svg>
+    )
+  }
+  if (kind === 'vat') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+        <path d="M3.5 9h17M7.5 14h4" />
+      </svg>
+    )
+  }
+  if (kind === 'employee') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <rect x="4" y="7" width="16" height="13" rx="2" />
+        <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M4 11h16M9.5 14h5" />
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="7.5" r="3.5" />
+      <path d="M5.5 20v-1.4A6.5 6.5 0 0 1 12 12.1a6.5 6.5 0 0 1 6.5 6.5V20" />
+    </svg>
+  )
+}
+
+function BillingPayeeEditorField({
+  label,
+  icon,
+  children,
+  picker = false,
+}: {
+  label: string
+  icon: BillingPayeeEditorIconKind
+  children: ReactNode
+  picker?: boolean
+}) {
+  return (
+    <label className={`field billing-payee-editor-field${picker ? ' billing-payee-editor-field--picker' : ''}`}>
+      <span className="field-label">{label}</span>
+      <span className="billing-payee-editor-field-icon" aria-hidden>{billingPayeeEditorIcon(icon)}</span>
+      <div className="billing-payee-editor-field-control">{children}</div>
+    </label>
+  )
+}
+
 const entitlementPaymentIcon = (): ReactNode => (
   <span className="billing-payicon billing-payicon--entitlement" aria-hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -5780,19 +5865,88 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
     const { openBill, relatedBills, recipientEmail } = openBillPreviewChoice
     const { target } = resolveOpenBillPreviewTarget(openBill, relatedBills)
     const busy = previewingOpenBillId === target.id || printingOpenBillPreviewId === target.id || emailingOpenBillPreviewId === target.id
+
+    if (isBillingMobileOrTablet) {
+      return (
+        <div
+          className="billing-preview-choice-mobile-backdrop"
+          onClick={() => { if (!busy) setOpenBillPreviewChoice(null) }}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div
+            className="billing-preview-choice-mobile-modal"
+            onClick={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-label={locale === 'sl' ? 'Izberi dejanje predogleda računa' : 'Choose invoice preview action'}
+          >
+            <div className="billing-preview-choice-mobile-modal-head">
+              <h3>{locale === 'sl' ? 'Predogled računa' : 'Invoice preview'}</h3>
+              <button
+                type="button"
+                className="billing-preview-choice-mobile-modal-close"
+                onClick={() => setOpenBillPreviewChoice(null)}
+                disabled={busy}
+                aria-label={locale === 'sl' ? 'Zapri' : 'Close'}
+              >×</button>
+            </div>
+            <div className="billing-preview-choice-mobile-options">
+              <button
+                type="button"
+                className="billing-preview-choice-mobile-option"
+                disabled={busy}
+                onClick={() => void emailOpenBillPreview(openBill, relatedBills)}
+              >
+                <span className="billing-preview-choice-mobile-option-icon" aria-hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="5" width="18" height="14" rx="3" />
+                    <path d="m4.5 7.5 7.5 6 7.5-6" />
+                  </svg>
+                </span>
+                <span className="billing-preview-choice-mobile-option-copy">
+                  <strong>{emailingOpenBillPreviewId === target.id ? (locale === 'sl' ? 'Pošiljam predogled…' : 'Sending preview…') : (locale === 'sl' ? 'Pošlji predogled po e-pošti' : 'Email the preview')}</strong>
+                  <small>{locale === 'sl' ? `Predogled računa boste poslali na ${recipientEmail}` : `Send the invoice preview to ${recipientEmail}`}</small>
+                </span>
+                <span className="billing-preview-choice-mobile-option-chevron" aria-hidden>›</span>
+              </button>
+              <button
+                type="button"
+                className="billing-preview-choice-mobile-option"
+                disabled={busy}
+                onClick={() => {
+                  setOpenBillPreviewChoice(null)
+                  void previewOpenBillInvoice(openBill, relatedBills)
+                }}
+              >
+                <span className="billing-preview-choice-mobile-option-icon" aria-hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M7 3.75h7l4 4V20a1 1 0 0 1-1 1H7a2 2 0 0 1-2-2V5.75a2 2 0 0 1 2-2Z" />
+                    <path d="M14 3.75V8h4" />
+                    <path d="M9 12h6" />
+                    <path d="M9 16h6" />
+                  </svg>
+                </span>
+                <span className="billing-preview-choice-mobile-option-copy">
+                  <strong>{previewingOpenBillId === target.id ? (locale === 'sl' ? 'Pripravljam predogled…' : 'Preparing preview…') : (locale === 'sl' ? 'Ustvari predogled' : 'Create preview')}</strong>
+                  <small>{locale === 'sl' ? 'Predogled računa boste lahko pregledali na naslednjem koraku' : 'Open the invoice preview on the next step'}</small>
+                </span>
+                <span className="billing-preview-choice-mobile-option-chevron" aria-hidden>›</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div
         className="billing-preview-choice-popover"
         onMouseDown={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label={locale === 'sl' ? 'Izberi način predračuna' : 'Choose proforma invoice action'}
+        aria-label={locale === 'sl' ? 'Izberi dejanje predogleda računa' : 'Choose invoice preview action'}
       >
         <div className="billing-preview-choice-popover-head">
-          <span className="billing-preview-choice-popover-icon" aria-hidden>{renderPlainFolioPdfIcon()}</span>
-          <div>
-            <h3>{locale === 'sl' ? 'Predračun' : 'Proforma invoice'}</h3>
-            <p>{locale === 'sl' ? 'Odprite, natisnite ali predračun pošljite po e-pošti.' : 'Open, print, or email the proforma invoice.'}</p>
-          </div>
+          <h3>{locale === 'sl' ? 'Predogled računa' : 'Invoice preview'}</h3>
           <button
             type="button"
             className="billing-preview-choice-popover-close"
@@ -5801,37 +5955,47 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             aria-label={locale === 'sl' ? 'Zapri' : 'Close'}
           >×</button>
         </div>
-        <div className="billing-preview-choice-popover-email">
-          <span>{locale === 'sl' ? 'Prejemnik' : 'Recipient'}</span>
-          <strong>{recipientEmail}</strong>
-        </div>
-        <div className="billing-preview-choice-popover-actions">
+        <div className="billing-preview-choice-popover-options">
           <button
             type="button"
-            className="billing-preview-choice-popover-secondary"
+            className="billing-preview-choice-popover-option"
+            disabled={busy}
+            onClick={() => void emailOpenBillPreview(openBill, relatedBills)}
+          >
+            <span className="billing-preview-choice-popover-option-icon" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="5" width="18" height="14" rx="3" />
+                <path d="m4.5 7.5 7.5 6 7.5-6" />
+              </svg>
+            </span>
+            <span className="billing-preview-choice-popover-option-copy">
+              <strong>{emailingOpenBillPreviewId === target.id ? (locale === 'sl' ? 'Pošiljam predogled…' : 'Sending preview…') : (locale === 'sl' ? 'Pošlji predogled po e-pošti' : 'Email the preview')}</strong>
+              <small>{locale === 'sl' ? `Predogled računa boste poslali na ${recipientEmail}` : `Send the invoice preview to ${recipientEmail}`}</small>
+            </span>
+            <span className="billing-preview-choice-popover-option-chevron" aria-hidden>›</span>
+          </button>
+          <button
+            type="button"
+            className="billing-preview-choice-popover-option"
             disabled={busy}
             onClick={() => {
               setOpenBillPreviewChoice(null)
               void previewOpenBillInvoice(openBill, relatedBills)
             }}
           >
-            {previewingOpenBillId === target.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : (locale === 'sl' ? 'Predogled' : 'Preview')}
-          </button>
-          <button
-            type="button"
-            className="billing-preview-choice-popover-secondary"
-            disabled={busy}
-            onClick={() => void printOpenBillInvoicePreview(openBill, relatedBills)}
-          >
-            {printingOpenBillPreviewId === target.id ? (locale === 'sl' ? 'Pripravljam…' : 'Preparing…') : (locale === 'sl' ? 'Natisni predogled' : 'Print preview')}
-          </button>
-          <button
-            type="button"
-            className="billing-preview-choice-popover-primary"
-            disabled={busy}
-            onClick={() => void emailOpenBillPreview(openBill, relatedBills)}
-          >
-            {emailingOpenBillPreviewId === target.id ? (locale === 'sl' ? 'Pošiljam…' : 'Sending…') : (locale === 'sl' ? 'Pošlji po e-pošti' : 'Email')}
+            <span className="billing-preview-choice-popover-option-icon" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M7 3.75h7l4 4V20a1 1 0 0 1-1 1H7a2 2 0 0 1-2-2V5.75a2 2 0 0 1 2-2Z" />
+                <path d="M14 3.75V8h4" />
+                <path d="M9 12h6" />
+                <path d="M9 16h6" />
+              </svg>
+            </span>
+            <span className="billing-preview-choice-popover-option-copy">
+              <strong>{previewingOpenBillId === target.id ? (locale === 'sl' ? 'Pripravljam predogled…' : 'Preparing preview…') : (locale === 'sl' ? 'Ustvari predogled' : 'Create preview')}</strong>
+              <small>{locale === 'sl' ? 'Predogled računa boste lahko pregledali na naslednjem koraku' : 'Open the invoice preview on the next step'}</small>
+            </span>
+            <span className="billing-preview-choice-popover-option-chevron" aria-hidden>›</span>
           </button>
         </div>
       </div>
@@ -7094,17 +7258,47 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         onClose={() => setEditingCreateBillPayee(false)}
         ariaLabel={locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}
         size="lg"
+        className="billing-payee-side-panel"
       >
         <div className="billing-payee-modal billing-payee-modal--editor">
           <div className="billing-payee-mobile-topbar">
-            <button type="button" className="billing-bill-modal-close" onClick={() => setEditingCreateBillPayee(false)} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
+            <button type="button" className="billing-bill-modal-close billing-payee-mobile-back" onClick={() => setEditingCreateBillPayee(false)} aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m15 18-6-6 6-6" /></svg>
+            </button>
             <div className="billing-payee-mobile-topbar-title">{locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}</div>
-            <button type="button" className="billing-payee-mobile-save" onClick={() => void saveCreateBillPayeeDialog()} disabled={savingPayeeEditor}>{locale === 'sl' ? 'Shrani' : 'Save'}</button>
+            <button type="button" className="billing-payee-mobile-save" onClick={() => void saveCreateBillPayeeDialog()} disabled={savingPayeeEditor} aria-label={locale === 'sl' ? 'Shrani' : 'Save'}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m5 12 4 4L19 6" /></svg>
+            </button>
+          </div>
+          <div className="billing-payee-desktop-tabs" role="tablist" aria-label={locale === 'sl' ? 'Vrsta plačnika' : 'Payee type'}>
+            <button
+              type="button"
+              role="tab"
+              className={billForm.billingTarget === 'PERSON' ? 'billing-payee-desktop-tab is-active' : 'billing-payee-desktop-tab'}
+              aria-selected={billForm.billingTarget === 'PERSON'}
+              onClick={() => setBillForm({ ...billForm, billingTarget: 'PERSON', recipientCompanyId: undefined })}
+            >
+              <span className="billing-payee-desktop-tab-icon">{billingPayeeEditorIcon('person')}</span>
+              <span>{billingCopy.targetPerson}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className={billForm.billingTarget === 'COMPANY' ? 'billing-payee-desktop-tab is-active' : 'billing-payee-desktop-tab'}
+              aria-selected={billForm.billingTarget === 'COMPANY'}
+              onClick={() => setBillForm({
+                ...billForm,
+                billingTarget: 'COMPANY',
+                recipientCompanyId: billForm.recipientCompanyId ?? selectedClientCompany?.id,
+              })}
+            >
+              <span className="billing-payee-desktop-tab-icon">{billingPayeeEditorIcon('company')}</span>
+              <span>{billingCopy.targetCompany}</span>
+            </button>
           </div>
           <div className="billing-payee-modal-head">
             <div>
               <h3>{locale === 'sl' ? 'Uredi plačnika računa' : 'Edit payee for this bill'}</h3>
-              <p>{locale === 'sl' ? 'Izberite prejemnika in zaposlenega (opcijsko).' : 'Choose recipient and optional employee.'}</p>
             </div>
             <button type="button" className="billing-bill-modal-close" onClick={() => setEditingCreateBillPayee(false)} aria-label="Close">×</button>
           </div>
@@ -7133,7 +7327,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <div className="billing-payee-modal-grid">
             {billForm.billingTarget === 'COMPANY' ? (
               <>
-                <Field label={locale === 'sl' ? 'Prejemnik (podjetje)' : 'Recipient (company)'}>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Prejemnik (podjetje)' : 'Recipient (company)'} icon="company" picker>
                   <div className="billing-payee-client-picker-row billing-payee-client-picker-row--search" onClick={(e) => e.stopPropagation()}>
                     <div className="client-picker" style={{ minWidth: 0 }}>
                       <div className={`client-search-wrap${!editingRecipientCompanySearch ? ' client-search-wrap--compact-client' : ''}`}>
@@ -7206,17 +7400,17 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       +
                     </button>
                   </div>
-                </Field>
-                <Field label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'} icon="employee">
                   <DesktopSelect value={billForm.consultantId ?? ''} onChange={(e) => setBillForm({ ...billForm, consultantId: e.target.value === '' ? undefined : Number(e.target.value) })}>
                     <option value="">{locale === 'sl' ? 'Privzeto: trenutni uporabnik' : 'Default: current user'}</option>
                     {(isAdmin ? users : [me]).map((user) => (
                       <option key={user.id} value={user.id}>{fullName(user)}</option>
                     ))}
                   </DesktopSelect>
-                </Field>
+                </BillingPayeeEditorField>
                 {clientsLinkedToInvoiceCompany.length > 0 && (
-                  <Field label={billingCopy.clientOptional}>
+                  <BillingPayeeEditorField label={billingCopy.clientOptional} icon="person">
                     <DesktopSelect
                       value={billForm.clientId ?? ''}
                       onChange={(e) => {
@@ -7234,33 +7428,33 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                         <option key={client.id} value={client.id}>{fullName(client)}</option>
                       ))}
                     </DesktopSelect>
-                  </Field>
+                  </BillingPayeeEditorField>
                 )}
-                <Field label={locale === 'sl' ? 'Podjetje' : 'Company'}>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Podjetje' : 'Company'} icon="company">
                   <input value={selectedPayeeCompanyEdit.name} onChange={(e) => updatePayeeCompanyEdit(selectedPayeeCompany, { name: e.target.value })} disabled={!selectedPayeeCompany} />
-                </Field>
-                <Field label={locale === 'sl' ? 'E-pošta' : 'Email'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'E-pošta' : 'Email'} icon="email">
                   <input value={selectedPayeeCompanyEdit.email} onChange={(e) => updatePayeeCompanyEdit(selectedPayeeCompany, { email: e.target.value })} disabled={!selectedPayeeCompany} />
-                </Field>
-                <Field label={locale === 'sl' ? 'Telefon' : 'Phone'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Telefon' : 'Phone'} icon="phone">
                   <input value={selectedPayeeCompanyEdit.telephone} onChange={(e) => updatePayeeCompanyEdit(selectedPayeeCompany, { telephone: e.target.value })} disabled={!selectedPayeeCompany} />
-                </Field>
-                <Field label={locale === 'sl' ? 'Naslov' : 'Address'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Naslov' : 'Address'} icon="address">
                   <input value={selectedPayeeCompanyEdit.address} onChange={(e) => updatePayeeCompanyEdit(selectedPayeeCompany, { address: e.target.value })} disabled={!selectedPayeeCompany} />
-                </Field>
-                <Field label={locale === 'sl' ? 'Poštna številka' : 'Postal code'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Poštna številka' : 'Postal code'} icon="postal">
                   <input value={selectedPayeeCompanyEdit.postalCode} onChange={(e) => updatePayeeCompanyEdit(selectedPayeeCompany, { postalCode: e.target.value })} disabled={!selectedPayeeCompany} />
-                </Field>
-                <Field label={locale === 'sl' ? 'Mesto' : 'City'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Mesto' : 'City'} icon="city">
                   <input value={selectedPayeeCompanyEdit.city} onChange={(e) => updatePayeeCompanyEdit(selectedPayeeCompany, { city: e.target.value })} disabled={!selectedPayeeCompany} />
-                </Field>
-                <Field label={locale === 'sl' ? 'Davčna številka' : 'VAT ID'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Davčna številka' : 'VAT ID'} icon="vat">
                   <input value={selectedPayeeCompanyEdit.vatId} onChange={(e) => updatePayeeCompanyEdit(selectedPayeeCompany, { vatId: e.target.value })} disabled={!selectedPayeeCompany} />
-                </Field>
+                </BillingPayeeEditorField>
               </>
             ) : (
               <>
-                <Field label={locale === 'sl' ? 'Prejemnik' : 'Recipient'}>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Prejemnik' : 'Recipient'} icon="person" picker>
                   <div className="billing-payee-client-picker-row">
                     <DesktopSelect
                       value={billForm.clientId ?? ''}
@@ -7287,27 +7481,27 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       +
                     </button>
                   </div>
-                </Field>
-                <Field label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'} icon="employee">
                   <DesktopSelect value={billForm.consultantId ?? ''} onChange={(e) => setBillForm({ ...billForm, consultantId: e.target.value === '' ? undefined : Number(e.target.value) })}>
                     <option value="">{locale === 'sl' ? 'Privzeto: trenutni uporabnik' : 'Default: current user'}</option>
                     {(isAdmin ? users : [me]).map((user) => (
                       <option key={user.id} value={user.id}>{fullName(user)}</option>
                     ))}
                   </DesktopSelect>
-                </Field>
-                <Field label={locale === 'sl' ? 'Ime' : 'First name'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Ime' : 'First name'} icon="person">
                   <input value={selectedPayeeClientEdit.firstName} onChange={(e) => updatePayeeClientEdit(selectedPayeeClient, { firstName: e.target.value })} disabled={!selectedPayeeClient} />
-                </Field>
-                <Field label={locale === 'sl' ? 'Priimek' : 'Last name'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Priimek' : 'Last name'} icon="person">
                   <input value={selectedPayeeClientEdit.lastName} onChange={(e) => updatePayeeClientEdit(selectedPayeeClient, { lastName: e.target.value })} disabled={!selectedPayeeClient} />
-                </Field>
-                <Field label={locale === 'sl' ? 'E-pošta' : 'Email'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'E-pošta' : 'Email'} icon="email">
                   <input value={selectedPayeeClientEdit.email} onChange={(e) => updatePayeeClientEdit(selectedPayeeClient, { email: e.target.value })} disabled={!selectedPayeeClient} />
-                </Field>
-                <Field label={locale === 'sl' ? 'Telefon' : 'Phone'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Telefon' : 'Phone'} icon="phone">
                   <input value={selectedPayeeClientEdit.phone} onChange={(e) => updatePayeeClientEdit(selectedPayeeClient, { phone: e.target.value })} disabled={!selectedPayeeClient} />
-                </Field>
+                </BillingPayeeEditorField>
               </>
             )}
           </div>
@@ -7563,17 +7757,46 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
         onClose={closeOpenBillPayeeEditor}
         ariaLabel={locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}
         size="lg"
+        className="billing-payee-side-panel"
       >
         <div className="billing-payee-modal billing-payee-modal--editor">
           <div className="billing-payee-mobile-topbar">
-            <button type="button" className="billing-bill-modal-close" onClick={closeOpenBillPayeeEditor} aria-label={locale === 'sl' ? 'Zapri' : 'Close'}>×</button>
+            <button type="button" className="billing-bill-modal-close billing-payee-mobile-back" onClick={closeOpenBillPayeeEditor} aria-label={locale === 'sl' ? 'Nazaj' : 'Back'}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m15 18-6-6 6-6" /></svg>
+            </button>
             <div className="billing-payee-mobile-topbar-title">{locale === 'sl' ? 'Uredi plačnika računa' : 'Edit bill payee'}</div>
-            <button type="button" className="billing-payee-mobile-save" onClick={() => void saveOpenBillPayeeDialog()} disabled={savingPayeeEditor}>{locale === 'sl' ? 'Shrani' : 'Save'}</button>
+            <button type="button" className="billing-payee-mobile-save" onClick={() => void saveOpenBillPayeeDialog()} disabled={savingPayeeEditor} aria-label={locale === 'sl' ? 'Shrani' : 'Save'}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m5 12 4 4L19 6" /></svg>
+            </button>
+          </div>
+          <div className="billing-payee-desktop-tabs" role="tablist" aria-label={locale === 'sl' ? 'Vrsta plačnika' : 'Payee type'}>
+            <button
+              type="button"
+              role="tab"
+              className={draft.billingTarget === 'PERSON' ? 'billing-payee-desktop-tab is-active' : 'billing-payee-desktop-tab'}
+              aria-selected={draft.billingTarget === 'PERSON'}
+              onClick={() => updateDialogDetails({ billingTarget: 'PERSON' })}
+            >
+              <span className="billing-payee-desktop-tab-icon">{billingPayeeEditorIcon('person')}</span>
+              <span>{billingCopy.targetPerson}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className={draft.billingTarget === 'COMPANY' ? 'billing-payee-desktop-tab is-active' : 'billing-payee-desktop-tab'}
+              aria-selected={draft.billingTarget === 'COMPANY'}
+              onClick={() => updateDialogDetails({
+                billingTarget: 'COMPANY',
+                recipientCompanyId: draft.recipientCompanyId ?? draftClient?.billingCompany?.id,
+              })}
+            >
+              <span className="billing-payee-desktop-tab-icon">{billingPayeeEditorIcon('company')}</span>
+              <span>{billingCopy.targetCompany}</span>
+            </button>
           </div>
           <div className="billing-payee-modal-head">
             <div>
               <h3>{locale === 'sl' ? 'Uredi plačnika računa' : 'Edit payee for this bill'}</h3>
-              <p>{locale === 'sl' ? 'Spremembe veljajo samo za izbrani račun.' : 'Changes apply to this bill only.'}</p>
             </div>
             <button type="button" className="billing-bill-modal-close" onClick={closeOpenBillPayeeEditor} aria-label="Close">×</button>
           </div>
@@ -7601,7 +7824,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
           <div className="billing-payee-modal-grid">
             {draft.billingTarget === 'COMPANY' ? (
               <>
-                <Field label={locale === 'sl' ? 'Prejemnik (podjetje)' : 'Recipient (company)'}>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Prejemnik (podjetje)' : 'Recipient (company)'} icon="company" picker>
                   <div className="billing-payee-client-picker-row billing-payee-client-picker-row--search" onClick={(e) => e.stopPropagation()}>
                     <div className="client-picker" style={{ minWidth: 0 }}>
                       <div className={`client-search-wrap${!editingRecipientCompanySearch ? ' client-search-wrap--compact-client' : ''}`}>
@@ -7674,8 +7897,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       +
                     </button>
                   </div>
-                </Field>
-                <Field label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'} icon="employee">
                   <DesktopSelect
                     value={draft.consultantId ?? ''}
                     onChange={(e) => updateDialogDetails({
@@ -7687,8 +7910,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <option key={user.id} value={user.id}>{fullName(user)}</option>
                     ))}
                   </DesktopSelect>
-                </Field>
-                <Field label={billingCopy.clientOptional}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={billingCopy.clientOptional} icon="person">
                   <DesktopSelect
                     value={draft.clientId ?? ''}
                     onChange={(e) => updateDialogDetails({
@@ -7700,32 +7923,32 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <option key={client.id} value={client.id}>{fullName(client)}</option>
                     ))}
                   </DesktopSelect>
-                </Field>
-                <Field label={locale === 'sl' ? 'Podjetje' : 'Company'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Podjetje' : 'Company'} icon="company">
                   <input value={draftCompanyEdit.name} onChange={(e) => updateDialogCompanyEdit(draftCompany, { name: e.target.value })} disabled={!draftCompany} />
-                </Field>
-                <Field label={locale === 'sl' ? 'E-pošta' : 'Email'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'E-pošta' : 'Email'} icon="email">
                   <input value={draftCompanyEdit.email} onChange={(e) => updateDialogCompanyEdit(draftCompany, { email: e.target.value })} disabled={!draftCompany} />
-                </Field>
-                <Field label={locale === 'sl' ? 'Telefon' : 'Phone'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Telefon' : 'Phone'} icon="phone">
                   <input value={draftCompanyEdit.telephone} onChange={(e) => updateDialogCompanyEdit(draftCompany, { telephone: e.target.value })} disabled={!draftCompany} />
-                </Field>
-                <Field label={locale === 'sl' ? 'Naslov' : 'Address'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Naslov' : 'Address'} icon="address">
                   <input value={draftCompanyEdit.address} onChange={(e) => updateDialogCompanyEdit(draftCompany, { address: e.target.value })} disabled={!draftCompany} />
-                </Field>
-                <Field label={locale === 'sl' ? 'Poštna številka' : 'Postal code'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Poštna številka' : 'Postal code'} icon="postal">
                   <input value={draftCompanyEdit.postalCode} onChange={(e) => updateDialogCompanyEdit(draftCompany, { postalCode: e.target.value })} disabled={!draftCompany} />
-                </Field>
-                <Field label={locale === 'sl' ? 'Mesto' : 'City'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Mesto' : 'City'} icon="city">
                   <input value={draftCompanyEdit.city} onChange={(e) => updateDialogCompanyEdit(draftCompany, { city: e.target.value })} disabled={!draftCompany} />
-                </Field>
-                <Field label={locale === 'sl' ? 'Davčna številka' : 'VAT ID'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Davčna številka' : 'VAT ID'} icon="vat">
                   <input value={draftCompanyEdit.vatId} onChange={(e) => updateDialogCompanyEdit(draftCompany, { vatId: e.target.value })} disabled={!draftCompany} />
-                </Field>
+                </BillingPayeeEditorField>
               </>
             ) : (
               <>
-                <Field label={locale === 'sl' ? 'Prejemnik' : 'Recipient'}>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Prejemnik' : 'Recipient'} icon="person" picker>
                   <div className="billing-payee-client-picker-row">
                     <DesktopSelect
                       value={draft.clientId ?? ''}
@@ -7747,8 +7970,8 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       +
                     </button>
                   </div>
-                </Field>
-                <Field label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Zaposleni (opcijsko)' : 'Employee (optional)'} icon="employee">
                   <DesktopSelect
                     value={draft.consultantId ?? ''}
                     onChange={(e) => updateDialogDetails({
@@ -7760,19 +7983,19 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                       <option key={user.id} value={user.id}>{fullName(user)}</option>
                     ))}
                   </DesktopSelect>
-                </Field>
-                <Field label={locale === 'sl' ? 'Ime' : 'First name'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Ime' : 'First name'} icon="person">
                   <input value={draftClientEdit.firstName} onChange={(e) => updateDialogClientEdit(draftClient, { firstName: e.target.value })} disabled={!draftClient} />
-                </Field>
-                <Field label={locale === 'sl' ? 'Priimek' : 'Last name'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Priimek' : 'Last name'} icon="person">
                   <input value={draftClientEdit.lastName} onChange={(e) => updateDialogClientEdit(draftClient, { lastName: e.target.value })} disabled={!draftClient} />
-                </Field>
-                <Field label={locale === 'sl' ? 'E-pošta' : 'Email'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'E-pošta' : 'Email'} icon="email">
                   <input value={draftClientEdit.email} onChange={(e) => updateDialogClientEdit(draftClient, { email: e.target.value })} disabled={!draftClient} />
-                </Field>
-                <Field label={locale === 'sl' ? 'Telefon' : 'Phone'}>
+                </BillingPayeeEditorField>
+                <BillingPayeeEditorField label={locale === 'sl' ? 'Telefon' : 'Phone'} icon="phone">
                   <input value={draftClientEdit.phone} onChange={(e) => updateDialogClientEdit(draftClient, { phone: e.target.value })} disabled={!draftClient} />
-                </Field>
+                </BillingPayeeEditorField>
               </>
             )}
           </div>
@@ -8384,7 +8607,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               <strong className="billing-pos-line-total">{currency(lineTotal)}</strong>
               <div className={`billing-pos-line-actions${showButtonStyle ? '' : ' billing-pos-line-actions--remove-only'}`}>
                 {showButtonStyle && (
-                  <div className="billing-pos-line-discount">
+                  <div className={`billing-pos-line-discount${lineDiscountOpen ? ' is-open' : ''}`}>
                     <button
                       type="button"
                       className={`billing-pos-inline-discount-btn${lineDiscountActive ? ' is-active' : ''}`}
@@ -8453,7 +8676,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
               </div>
               <strong className="billing-pos-line-total">{currency(lineTotal)}</strong>
               <div className="billing-pos-line-actions">
-                <div className="billing-pos-line-discount">
+                <div className={`billing-pos-line-discount${lineDiscountOpen ? ' is-open' : ''}`}>
                   <button
                     type="button"
                     className={`${showButtonStyle ? 'billing-pos-inline-discount-btn ' : ''}${lineDiscountActive ? 'is-active' : ''}`.trim()}
@@ -8527,7 +8750,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   <button type="button" onClick={() => setBillForm((prev) => ({ ...prev, items: prev.items.map((row, rowIndex) => rowIndex === index ? { ...row, quantity: Number(row.quantity || 0) + 1 } : row) }))}>+</button>
                 </div>
                 <strong className="billing-pos-mobile-selected-price">{currency(Number(item.grossPrice || 0))}</strong>
-                <div className="billing-pos-line-discount">
+                <div className={`billing-pos-line-discount${lineDiscountOpen ? ' is-open' : ''}`}>
                   <button
                     type="button"
                     className={`billing-pos-mobile-inline-discount-btn${lineDiscountActive ? ' is-active' : ''}`}
@@ -8579,7 +8802,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
                   <button type="button" onClick={() => { const next = [...items]; next[index] = { ...next[index], quantity: Number(next[index].quantity || 0) + 1 }; setOpenBillItems(ob, next) }}>+</button>
                 </div>
                 <strong className="billing-pos-mobile-selected-price">{currency(Number(item.grossPrice || 0))}</strong>
-                <div className="billing-pos-line-discount">
+                <div className={`billing-pos-line-discount${lineDiscountOpen ? ' is-open' : ''}`}>
                   <button
                     type="button"
                     className={`billing-pos-mobile-inline-discount-btn${lineDiscountActive ? ' is-active' : ''}`}
@@ -8699,7 +8922,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             <section className="billing-pos-mobile-catalog-page">
               {renderPosCatalog(invoiceCatalogServices, guestProducts, addService, addProduct, billForm.locationId, 'INVOICE')}
             </section>
-            {!mobileKeyboardOpen ? renderPosMobileSummaryPanel({
+            {(!mobileKeyboardOpen || openCreateItemDiscountIndex != null) ? renderPosMobileSummaryPanel({
               count: selectedCount,
               totalGross,
               expanded: createMobileSelectedExpanded,
@@ -8722,7 +8945,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             {renderPosWholeBillDiscount(createBillDiscountDraft, subtotalGross, billForm.items, (value) => { setOpenCreateItemDiscountIndex(null); setBillForm((prev) => ({ ...prev, wholeBillDiscountPercent: value, discountType: 'PERCENT', discountValue: value, discountItemIndex: undefined })) }, true)}
             {renderPosCreatePaymentMethods(totalGross, billForm.items, createBillDiscountDraft, discountGross, true)}
           </section>
-          {!mobileKeyboardOpen ? renderPosMobileSummaryPanel({
+          {(!mobileKeyboardOpen || openCreateItemDiscountIndex != null) ? renderPosMobileSummaryPanel({
             count: selectedCount,
             totalGross,
             expanded: createMobileSelectedExpanded,
@@ -8810,7 +9033,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             <section className="billing-pos-mobile-catalog-page">
               {renderPosCatalog(catalogServices, guestProducts, addService, addProduct, ob.location?.id, ob.billType || 'INVOICE')}
             </section>
-            {!mobileKeyboardOpen ? renderPosMobileSummaryPanel({
+            {(!mobileKeyboardOpen || openOpenBillItemDiscount != null) ? renderPosMobileSummaryPanel({
               count: selectedCount,
               totalGross,
               expanded: openMobileSelectedExpanded,
@@ -8833,7 +9056,7 @@ export function BillingPage({ embeddedOpenBillId = null, embeddedCreateBill = nu
             {renderPosWholeBillDiscount(discountDraft, subtotalGross, items, (value) => { setOpenOpenBillItemDiscount(null); setOpenBillDiscountDraft(ob, { wholeBillPercent: value }) }, true)}
             {renderPosOpenPaymentMethods(ob, totalGross, items, discountDraft, discountGross, true)}
           </section>
-          {!mobileKeyboardOpen ? renderPosMobileSummaryPanel({
+          {(!mobileKeyboardOpen || openOpenBillItemDiscount != null) ? renderPosMobileSummaryPanel({
             count: selectedCount,
             totalGross,
             expanded: openMobileSelectedExpanded,

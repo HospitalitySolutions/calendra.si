@@ -13431,3 +13431,590 @@
     color: #60a5fa;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Uredi plačnika računa — approved responsive redesign (2026-08-21).
+   Desktop follows the Uredi stranko side-navigation pattern. Mobile/tablet
+   follows the compact bottom-line field pattern used by the client editor.
+   -------------------------------------------------------------------------- */
+.billing-payee-editor-field-icon {
+  display: none;
+}
+
+@media (min-width: 1025px) {
+  .billing-payee-side-panel.cp-panel {
+    width: min(840px, 100vw) !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-modal.billing-payee-modal--editor {
+    display: grid !important;
+    grid-template-columns: 86px minmax(0, 1fr) !important;
+    grid-template-rows: auto minmax(0, 1fr) auto !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-desktop-tabs {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 80px 6px 18px;
+    border-right: 1px solid #e3e9f2;
+    background: #fff;
+  }
+
+  .billing-payee-side-panel .billing-payee-desktop-tab {
+    position: relative;
+    display: flex;
+    min-height: 68px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 5px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: #42536c;
+    box-shadow: none;
+    font-size: .72rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .billing-payee-side-panel .billing-payee-desktop-tab::before {
+    content: '';
+    position: absolute;
+    left: -6px;
+    top: 10px;
+    bottom: 10px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: transparent;
+  }
+
+  .billing-payee-side-panel .billing-payee-desktop-tab:hover {
+    background: #f7faff;
+    color: #0b63f6;
+  }
+
+  .billing-payee-side-panel .billing-payee-desktop-tab.is-active {
+    background: #eef5ff;
+    color: #0b63f6;
+  }
+
+  .billing-payee-side-panel .billing-payee-desktop-tab.is-active::before {
+    background: #0b63f6;
+  }
+
+  .billing-payee-side-panel .billing-payee-desktop-tab-icon {
+    display: inline-flex;
+    width: 21px;
+    height: 21px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .billing-payee-side-panel .billing-payee-desktop-tab-icon svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  .billing-payee-side-panel .billing-payee-mobile-topbar,
+  .billing-payee-side-panel .billing-payee-type-switcher.booking-type-switcher {
+    display: none !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-modal-head {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex !important;
+    align-items: center;
+    min-height: 80px;
+    margin: 0 !important;
+    padding: 18px 24px !important;
+    border-bottom: 1px solid #e3e9f2;
+    background: #fff;
+  }
+
+  .billing-payee-side-panel .billing-payee-modal-head h3 {
+    margin: 0;
+    font-size: 1.28rem;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -.025em;
+    color: #0b1426;
+  }
+
+  .billing-payee-side-panel .billing-payee-modal-head p {
+    display: none !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-modal-head .billing-bill-modal-close {
+    width: 34px;
+    height: 34px;
+    min-height: 34px;
+    margin-left: auto;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: #46566d;
+    box-shadow: none;
+    font-size: 1.22rem;
+  }
+
+  .billing-payee-side-panel .billing-payee-modal-grid {
+    grid-column: 2;
+    grid-row: 2;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    align-content: start;
+    gap: 18px 18px !important;
+    min-height: 0;
+    padding: 26px 24px 30px !important;
+    overflow-y: auto;
+    background: #fff;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field .field-label {
+    display: block !important;
+    color: #344054;
+    font-size: .78rem;
+    font-weight: 500;
+    line-height: 1.25;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field-control {
+    display: block;
+    min-width: 0;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field-control > input,
+  .billing-payee-side-panel .billing-payee-editor-field-control > select,
+  .billing-payee-side-panel .billing-payee-editor-field-control > .app-desktop-select {
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding: 0 12px;
+    border: 1px solid #ccd6e4;
+    border-radius: 8px;
+    background: #fff;
+    color: #101828;
+    box-shadow: none;
+    font-size: .86rem;
+  }
+
+  .billing-payee-side-panel .billing-payee-client-picker-row {
+    grid-template-columns: minmax(0, 1fr) 42px;
+    gap: 8px;
+  }
+
+  .billing-payee-side-panel .billing-payee-client-picker-row .client-add-btn {
+    min-height: 42px;
+    height: 42px;
+    border: 1px solid #ccd6e4;
+    border-radius: 8px;
+    background: #fff;
+    color: #172033;
+    box-shadow: none;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field-control .client-search-wrap,
+  .billing-payee-side-panel .billing-payee-editor-field-control .client-selected-display {
+    min-height: 42px;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field-control .client-selected-display,
+  .billing-payee-side-panel .billing-payee-editor-field-control .client-search-wrap input {
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid #ccd6e4;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: none;
+    font-size: .86rem;
+  }
+
+  .billing-payee-side-panel .billing-payee-modal-footer {
+    grid-column: 2;
+    grid-row: 3;
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 68px;
+    margin: 0 !important;
+    padding: 12px 24px !important;
+    border-top: 1px solid #e3e9f2;
+    background: #fff;
+  }
+
+  .billing-payee-side-panel .billing-payee-modal-footer .billing-bill-modal-save-btn {
+    min-height: 38px;
+    padding: 0 16px;
+    border-radius: 8px;
+    background: #6ea6f7;
+    box-shadow: none;
+    font-size: .78rem;
+    font-weight: 700;
+  }
+}
+
+@media (max-width: 1024px) {
+  .billing-payee-side-panel.cp-panel {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-modal.billing-payee-modal--editor {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-desktop-tabs {
+    display: none !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-mobile-topbar {
+    display: grid !important;
+    grid-template-columns: 44px minmax(0, 1fr) 44px !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex: 0 0 auto !important;
+    min-height: 64px !important;
+    padding: max(8px, env(safe-area-inset-top, 0px)) 14px 8px !important;
+    border: 0 !important;
+    background: #fff !important;
+    color: #0b1426 !important;
+    box-shadow: none !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-mobile-topbar .billing-bill-modal-close.billing-payee-mobile-back {
+    display: inline-flex !important;
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 10px !important;
+    background: #f5f7fa !important;
+    color: #182230 !important;
+    box-shadow: none !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-mobile-back svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  .billing-payee-side-panel .billing-payee-mobile-topbar-title {
+    min-width: 0;
+    color: #090f1d !important;
+    font-size: 1.08rem !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+    text-align: center !important;
+    letter-spacing: -.025em !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-mobile-save {
+    display: inline-flex !important;
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    justify-self: end !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #7b8798 !important;
+    box-shadow: none !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-mobile-save svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .billing-payee-side-panel .billing-payee-mobile-save:disabled {
+    opacity: .45;
+  }
+
+  .billing-payee-side-panel .billing-payee-modal-head {
+    display: none !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-type-switcher.booking-type-switcher {
+    position: relative !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    flex: 0 0 56px !important;
+    width: auto !important;
+    min-height: 56px !important;
+    margin: 0 24px !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-type-switcher .booking-type-btn {
+    position: relative !important;
+    min-width: 0 !important;
+    min-height: 56px !important;
+    margin: 0 !important;
+    padding: 0 8px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #667085 !important;
+    box-shadow: none !important;
+    font-size: .82rem !important;
+    font-weight: 600 !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-type-switcher .booking-type-btn::after {
+    content: '' !important;
+    position: absolute !important;
+    left: 12px !important;
+    right: 12px !important;
+    bottom: 0 !important;
+    height: 2px !important;
+    border-radius: 2px !important;
+    background: transparent !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-type-switcher .booking-type-btn.active {
+    border: 0 !important;
+    background: transparent !important;
+    color: #0b63f6 !important;
+    box-shadow: none !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-type-switcher .booking-type-btn.active::after {
+    background: #0b63f6 !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-modal-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    align-content: start !important;
+    gap: 18px !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    padding: 24px 24px calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+    overflow-y: auto !important;
+    background: #fff !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field {
+    display: grid !important;
+    grid-template-columns: 34px minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 0 12px !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field > .field-label {
+    display: none !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field-icon {
+    grid-column: 1;
+    display: inline-flex !important;
+    width: 26px;
+    height: 52px;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+    color: #0b63f6;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field-icon svg {
+    width: 23px;
+    height: 23px;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field-control {
+    grid-column: 2;
+    display: flex !important;
+    min-width: 0 !important;
+    min-height: 52px !important;
+    align-items: stretch !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field-control > input,
+  .billing-payee-side-panel .billing-payee-editor-field-control > select,
+  .billing-payee-side-panel .billing-payee-editor-field-control > .app-desktop-select {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 51px !important;
+    height: 51px !important;
+    margin: 0 !important;
+    padding: 0 30px 0 12px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    outline: 0 !important;
+    background-color: transparent !important;
+    color: #202939 !important;
+    box-shadow: none !important;
+    font-size: .94rem !important;
+    font-weight: 400 !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field-control > input:focus,
+  .billing-payee-side-panel .billing-payee-editor-field-control > select:focus,
+  .billing-payee-side-panel .billing-payee-editor-field-control > .app-desktop-select:focus {
+    outline: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field--picker .billing-payee-editor-field-control {
+    border-bottom: 0 !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-client-picker-row,
+  .billing-payee-side-panel .billing-payee-client-picker-row--search {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 36px !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-client-picker-row > :first-child,
+  .billing-payee-side-panel .billing-payee-client-picker-row--search > :first-child {
+    min-width: 0 !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-client-picker-row > select,
+  .billing-payee-side-panel .billing-payee-client-picker-row > .app-desktop-select {
+    width: 100% !important;
+    min-height: 51px !important;
+    height: 51px !important;
+    margin: 0 !important;
+    padding: 0 30px 0 12px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    font-size: .94rem !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-client-picker-row .client-add-btn,
+  .billing-payee-side-panel .billing-payee-client-picker-row--search .client-add-btn {
+    display: inline-flex !important;
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 51px !important;
+    min-height: 51px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #172033 !important;
+    box-shadow: none !important;
+    font-size: 1.2rem !important;
+    font-weight: 600 !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-client-picker-row .client-add-btn:hover,
+  .billing-payee-side-panel .billing-payee-client-picker-row--search .client-add-btn:hover {
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field-control .client-picker,
+  .billing-payee-side-panel .billing-payee-editor-field-control .client-search-wrap {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 51px !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field-control .client-selected-display,
+  .billing-payee-side-panel .billing-payee-editor-field-control .client-search-wrap input {
+    width: 100% !important;
+    min-height: 51px !important;
+    height: 51px !important;
+    margin: 0 !important;
+    padding: 0 30px 0 12px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #202939 !important;
+    box-shadow: none !important;
+    font-size: .94rem !important;
+    font-weight: 400 !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-editor-field-control .client-search-icon {
+    right: 7px !important;
+    color: #0b63f6 !important;
+  }
+
+  .billing-payee-side-panel .billing-payee-modal-footer {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  /* Picker underline belongs to the value area only: never beneath the icon or + action. */
+  .billing-payee-side-panel .billing-payee-editor-field--picker .billing-payee-client-picker-row > :first-child,
+  .billing-payee-side-panel .billing-payee-editor-field--picker .billing-payee-client-picker-row--search > :first-child {
+    border: 0 !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+    border-radius: 0 !important;
+  }
+}
