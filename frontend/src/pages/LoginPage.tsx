@@ -139,113 +139,134 @@ export function LoginPage() {
   }
 
   return (
-    <div className="login-wrap login-bg">
-      <div className="login-brand-above login-brand-above--desktop">
-        <div className="login-modern-logo-mark" aria-hidden>
-          <img src={loginLogo} alt="" />
-        </div>
-      </div>
-      <form className="card login polished-login polished-login--modern" onSubmit={submitLogin} style={{ boxShadow: '0 24px 60px rgba(22, 114, 243, 0.15)' }}>
-        <div className="auth-card-topbar">
-          <div className="login-brand-inline" aria-hidden>
-            <div className="login-modern-logo-mark">
-              <img src={loginLogo} alt="" />
-            </div>
+    <div className="login-wrap login-bg login-page-wrap">
+      <main className="login-page-content">
+        <div className="login-page-logo" aria-label="Calendra">
+          <div className="login-modern-logo-mark" aria-hidden>
+            <img src={loginLogo} alt="" />
           </div>
+        </div>
+
+        <div className="login-page-language-row">
           <AuthLanguageDropdown locale={locale} setLocale={setLocale} ariaLabel={t('language')} />
         </div>
-        <label className="login-modern-label" htmlFor="login-email">{t('loginEmailLabel')}</label>
-        <input
-          id="login-email"
-          name="email"
-          autoComplete="username"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder={t('loginEmailLabel')}
-          type="email"
-        />
-        <label className="login-modern-label" htmlFor="login-password">{t('loginPasswordLabel')}</label>
-        <div className="login-password-wrap">
-          <input
-            id="login-password"
-            name="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder={t('loginPasswordLabel')}
-            type={loginPasswordVisible ? 'text' : 'password'}
-          />
+
+        <form className="login login-page-form" onSubmit={submitLogin}>
+          <label className="login-modern-label" htmlFor="login-email">{t('loginEmailLabel')}</label>
+          <div className="login-input-wrap">
+            <span className="login-field-icon" aria-hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <path d="m3 7 9 6 9-6" />
+              </svg>
+            </span>
+            <input
+              id="login-email"
+              name="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={t('loginEmailLabel')}
+              type="email"
+            />
+          </div>
+
+          <label className="login-modern-label" htmlFor="login-password">{t('loginPasswordLabel')}</label>
+          <div className="login-password-wrap login-input-wrap">
+            <span className="login-field-icon" aria-hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="5" y="10" width="14" height="10" rx="2" />
+                <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+              </svg>
+            </span>
+            <input
+              id="login-password"
+              name="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={t('loginPasswordLabel')}
+              type={loginPasswordVisible ? 'text' : 'password'}
+            />
+            <button
+              type="button"
+              className="login-password-toggle"
+              aria-label={t('loginShowPassword')}
+              aria-pressed={loginPasswordVisible}
+              onClick={() => setLoginPasswordVisible((visible) => !visible)}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                {loginPasswordVisible ? (
+                  <>
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </>
+                ) : (
+                  <>
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </>
+                )}
+              </svg>
+            </button>
+          </div>
+
+          <button type="button" className="login-forgot-open" onClick={() => navigate(forgotPasswordUrl)}>
+            {t('loginForgotPassword')}
+          </button>
+
+          {success && <div className="success">{success}</div>}
+          {error && <div className="error">{error}</div>}
+
+          <button type="submit" disabled={submitting} className="login-primary-btn">
+            {submitting ? t('loginSubmitting') : t('loginSubmit')}
+          </button>
+
+          <div className="login-social-separator"><span>{t('loginOr')}</span></div>
+
           <button
             type="button"
-            className="login-password-toggle"
-            aria-label={t('loginShowPassword')}
-            aria-pressed={loginPasswordVisible}
-            onClick={() => setLoginPasswordVisible((visible) => !visible)}
+            className="login-social-btn"
+            onClick={() => {
+              setPostLoginRedirect(nextPath)
+              window.location.assign('/api/auth/google')
+            }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              {loginPasswordVisible ? (
-                <>
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                  <line x1="1" y1="1" x2="23" y2="23" />
-                </>
-              ) : (
-                <>
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </>
-              )}
-            </svg>
+            <span className="social-icon google" aria-hidden>
+              <svg width="16" height="16" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.56 2.7-3.86 2.7-6.62Z" fill="#4285F4"/>
+                <path d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.58-5.05-3.72H.96v2.34A9 9 0 0 0 9 18Z" fill="#34A853"/>
+                <path d="M3.95 10.7A5.41 5.41 0 0 1 3.67 9c0-.6.1-1.2.28-1.7V4.96H.96A9 9 0 0 0 0 9c0 1.45.35 2.82.96 4.04l3-2.34Z" fill="#FBBC05"/>
+                <path d="M9 3.58c1.32 0 2.5.45 3.43 1.34l2.58-2.58A8.95 8.95 0 0 0 9 0 9 9 0 0 0 .96 4.96l3 2.34C4.65 5.16 6.64 3.58 9 3.58Z" fill="#EA4335"/>
+              </svg>
+            </span>
+            <span>{t('loginContinueGoogle')}</span>
           </button>
-        </div>
-        <button type="button" className="login-forgot-open" onClick={() => navigate(forgotPasswordUrl)}>
-          {t('loginForgotPassword')}
-        </button>
-        {success && <div className="success">{success}</div>}
-        {error && <div className="error">{error}</div>}
-        <button type="submit" disabled={submitting} className="login-primary-btn">
-          {submitting ? t('loginSubmitting') : t('loginSubmit')}
-        </button>
-        <div className="login-social-separator"><span>{t('loginOr')}</span></div>
-        <button
-          type="button"
-          className="login-social-btn"
-          onClick={() => {
-            setPostLoginRedirect(nextPath)
-            window.location.assign('/api/auth/google')
-          }}
-        >
-          <span className="social-icon google" aria-hidden>
-            <svg width="16" height="16" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.56 2.7-3.86 2.7-6.62Z" fill="#4285F4"/>
-              <path d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.58-5.05-3.72H.96v2.34A9 9 0 0 0 9 18Z" fill="#34A853"/>
-              <path d="M3.95 10.7A5.41 5.41 0 0 1 3.67 9c0-.6.1-1.2.28-1.7V4.96H.96A9 9 0 0 0 0 9c0 1.45.35 2.82.96 4.04l3-2.34Z" fill="#FBBC05"/>
-              <path d="M9 3.58c1.32 0 2.5.45 3.43 1.34l2.58-2.58A8.95 8.95 0 0 0 9 0 9 9 0 0 0 .96 4.96l3 2.34C4.65 5.16 6.64 3.58 9 3.58Z" fill="#EA4335"/>
-            </svg>
-          </span>
-          <span>{t('loginContinueGoogle')}</span>
-        </button>
-        <button
-          type="button"
-          className="login-social-btn"
-          onClick={() => {
-            setPostLoginRedirect(nextPath)
-            window.location.assign('/api/auth/apple')
-          }}
-        >
-          <span className="social-icon apple" aria-hidden>
-            <svg width="14" height="16" viewBox="0 0 14 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M11.47 8.52c.03 2.44 2.1 3.25 2.12 3.26-.02.06-.33 1.14-1.09 2.25-.65.96-1.33 1.91-2.39 1.93-1.05.02-1.39-.62-2.6-.62-1.2 0-1.58.6-2.58.64-1.02.04-1.8-1.03-2.46-1.99C1.16 11.97.1 8.31 1.45 5.98a3.77 3.77 0 0 1 3.2-1.92c1-.02 1.94.68 2.6.68.66 0 1.9-.84 3.2-.72.55.02 2.07.22 3.06 1.68-.08.05-1.82 1.06-1.8 2.82ZM9.95 2.32c.55-.67.92-1.6.82-2.52-.8.03-1.77.53-2.34 1.2-.51.6-.96 1.55-.84 2.46.9.07 1.81-.45 2.36-1.14Z" fill="currentColor"/>
-            </svg>
-          </span>
-          <span>{t('loginContinueApple')}</span>
-        </button>
-        <div className="login-signup-row">
-          <span className="muted">{t('loginNoAccount')}</span>
-          <button type="button" className="linkish-btn login-register-link" onClick={() => navigate('/register')}>
-            {t('loginRegister')}
+
+          <button
+            type="button"
+            className="login-social-btn"
+            onClick={() => {
+              setPostLoginRedirect(nextPath)
+              window.location.assign('/api/auth/apple')
+            }}
+          >
+            <span className="social-icon apple" aria-hidden>
+              <svg width="14" height="16" viewBox="0 0 14 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M11.47 8.52c.03 2.44 2.1 3.25 2.12 3.26-.02.06-.33 1.14-1.09 2.25-.65.96-1.33 1.91-2.39 1.93-1.05.02-1.39-.62-2.6-.62-1.2 0-1.58.6-2.58.64-1.02.04-1.8-1.03-2.46-1.99C1.16 11.97.1 8.31 1.45 5.98a3.77 3.77 0 0 1 3.2-1.92c1-.02 1.94.68 2.6.68.66 0 1.9-.84 3.2-.72.55.02 2.07.22 3.06 1.68-.08.05-1.82 1.06-1.8 2.82ZM9.95 2.32c.55-.67.92-1.6.82-2.52-.8.03-1.77.53-2.34 1.2-.51.6-.96 1.55-.84 2.46.9.07 1.81-.45 2.36-1.14Z" fill="currentColor"/>
+              </svg>
+            </span>
+            <span>{t('loginContinueApple')}</span>
           </button>
-        </div>
-      </form>
+
+          <div className="login-signup-row">
+            <span className="muted">{t('loginNoAccount')}</span>
+            <button type="button" className="linkish-btn login-register-link" onClick={() => navigate('/register')}>
+              {t('loginRegister')}
+            </button>
+          </div>
+        </form>
+      </main>
     </div>
   )
 }
