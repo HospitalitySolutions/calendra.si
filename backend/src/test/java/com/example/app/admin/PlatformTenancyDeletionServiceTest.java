@@ -131,6 +131,27 @@ class PlatformTenancyDeletionServiceTest {
 
 
     @Test
+    void deleteTenancy_neverReferencesDroppedLegacySingularWaitlistTable() {
+        Company tenant = new Company();
+        tenant.setId(7L);
+        tenant.setName("Current-schema tenant");
+        when(companies.findById(7L)).thenReturn(Optional.of(tenant));
+        when(users.getReferenceById(1L)).thenReturn(actor);
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+
+        service.deleteTenancy(7L, actor, "cleanup");
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbc, atLeastOnce()).update(sqlCaptor.capture(), any(Object[].class));
+        List<String> sql = sqlCaptor.getAllValues();
+
+        assertTrue(
+                sql.stream().noneMatch(statement -> statement != null
+                        && statement.matches("(?is).*\\bwaitlist_request\\b.*")),
+                "Tenant deletion must not reference Flyway V9's dropped singular waitlist_request table.");
+    }
+
+    @Test
     void deleteTenancy_clearsLocationIssuerBeforeDeletingLegalEntityAssignments() {
         Company tenant = new Company();
         tenant.setId(7L);

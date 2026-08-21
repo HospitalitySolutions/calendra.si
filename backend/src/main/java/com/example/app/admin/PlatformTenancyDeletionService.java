@@ -520,14 +520,10 @@ public class PlatformTenancyDeletionService {
         exec(
                 "DELETE FROM guest_orders WHERE client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?))",
                 companyId);
-        // Keep any Platform Admin waitlist records but detach the soon-to-be-deleted billing client.
-        // V4 and V5 created two waitlist schemas, and both can exist in upgraded databases.
+        // Keep canonical waitlist records but detach the soon-to-be-deleted billing client.
+        // Flyway V9 removes the obsolete V4 singular waitlist schema, so runtime code must never query it.
         exec(
                 "UPDATE waitlist_requests SET client_id = NULL WHERE client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?))",
-                companyId);
-        execIfTableExists(
-                "waitlist_request",
-                "UPDATE waitlist_request SET client_id = NULL WHERE client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?))",
                 companyId);
         exec(
                 "DELETE FROM scheduled_messages WHERE client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?))",
@@ -683,13 +679,8 @@ public class PlatformTenancyDeletionService {
         exec("DELETE FROM bill_item WHERE bill_id IN (SELECT id FROM bills WHERE company_id = ?)", companyId);
         exec("DELETE FROM bills WHERE company_id = ?", companyId);
 
-        // Waitlist and booking adjuncts.
-        // V9 drops the obsolete V4 singular waitlist schema on normal/current databases. Some old upgraded
-        // installations can still have those tables, so purge them only when they actually exist. Never issue
-        // an unconditional statement against waitlist_request: PostgreSQL aborts the whole transaction when a
-        // referenced relation is absent, which previously made every tenant deletion fail on a current schema.
-        purgeLegacyWaitlistData(companyId);
-
+        // Waitlist and booking adjuncts. Flyway V9 dropped the obsolete V4 singular tables.
+        // Only the canonical plural waitlist schema is valid at runtime.
         exec("DELETE FROM waitlist_events WHERE waitlist_request_id IN (SELECT id FROM waitlist_requests WHERE company_id = ?)", companyId);
         exec("DELETE FROM waitlist_slot_skips WHERE waitlist_request_id IN (SELECT id FROM waitlist_requests WHERE company_id = ?)", companyId);
         exec("DELETE FROM waitlist_booking_holds WHERE company_id = ?", companyId);
@@ -1317,65 +1308,6 @@ public class PlatformTenancyDeletionService {
 
     private static boolean safeIdentifier(String identifier) {
         return identifier != null && identifier.matches("[A-Za-z0-9_]+");
-    }
-
-    private void purgeLegacyWaitlistData(long companyId) {
-        boolean requestTableExists = tableExists("waitlist_request");
-
-        if (requestTableExists) {
-            execIfTableExists(
-                    "waitlist_event",
-                    "DELETE FROM waitlist_event WHERE company_id = ? OR waitlist_request_id IN (SELECT id FROM waitlist_request WHERE company_id = ?)",
-                    companyId,
-                    companyId);
-            execIfTableExists(
-                    "waitlist_offer",
-                    "DELETE FROM waitlist_offer WHERE company_id = ? OR waitlist_request_id IN (SELECT id FROM waitlist_request WHERE company_id = ?)",
-                    companyId,
-                    companyId);
-            execIfTableExists(
-                    "waitlist_request_employee",
-                    "DELETE FROM waitlist_request_employee WHERE waitlist_request_id IN (SELECT id FROM waitlist_request WHERE company_id = ?) OR employee_id IN (SELECT id FROM users WHERE company_id = ?)",
-                    companyId,
-                    companyId);
-            execIfTableExists(
-                    "waitlist_request_window",
-                    "DELETE FROM waitlist_request_window WHERE waitlist_request_id IN (SELECT id FROM waitlist_request WHERE company_id = ?)",
-                    companyId);
-        }
-
-        // booking_hold has its own company_id and can safely be purged even if a partially upgraded database no
-        // longer has waitlist_request.
-        execIfTableExists("booking_hold", "DELETE FROM booking_hold WHERE company_id = ?", companyId);
-
-        if (requestTableExists) {
-            exec("DELETE FROM waitlist_request WHERE company_id = ?", companyId);
-        }
-    }
-
-    private boolean tableExists(String table) {
-        if (!safeIdentifier(table)) {
-            throw new IllegalArgumentException("Unsafe table identifier: " + table);
-        }
-        Boolean exists = jdbc.queryForObject(
-                """
-                SELECT EXISTS (
-                    SELECT 1
-                      FROM information_schema.tables
-                     WHERE table_schema = current_schema()
-                       AND table_name = ?
-                       AND table_type = 'BASE TABLE'
-                )
-                """,
-                Boolean.class,
-                table);
-        return Boolean.TRUE.equals(exists);
-    }
-
-    private void execIfTableExists(String table, String sql, Object... args) {
-        if (tableExists(table)) {
-            exec(sql, args);
-        }
     }
 
     private void exec(String sql, Object... args) {
