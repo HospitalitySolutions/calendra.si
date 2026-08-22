@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext'
 import {
   BellIcon,
   CalendarIcon,
+  ChevronRightIcon,
   HomeIcon,
   LogOutIcon,
   MessageIcon,
@@ -60,51 +61,112 @@ export function CustomerShell() {
     window.location.replace('/racun')
   }
 
-  return <div className="app-shell">
-    <aside className="sidebar">
-      <a className="brand-button brand-button--main" href="/za-stranke" aria-label="Calendra za stranke">
-        <img src="/racun/calendra-wordmark.webp" alt="Calendra"/>
+  const profileInitials = initials(user?.firstName, user?.lastName)
+
+  return <div className="app-shell app-shell--customer-connect">
+    <aside className="sidebar sidebar--customer-connect">
+      <a className="brand-button brand-button--main brand-button--connect" href="/za-stranke" aria-label="Calendra Connect">
+        <img src="/racun/calendra-connect-logo.png" alt="Calendra Connect" />
       </a>
-      <div className="sidebar-user">
-        <span className="sidebar-user__avatar">{initials(user?.firstName, user?.lastName)}</span>
-        <span className="sidebar-user__copy"><strong>{user?.firstName} {user?.lastName}</strong><small>{user?.email}</small></span>
-        <span className="sidebar-user__caret" aria-hidden="true">⌄</span>
+
+      <div className="sidebar-user sidebar-user--card" aria-label="Prijavljeni uporabnik">
+        <span className="sidebar-user__avatar">{profileInitials}</span>
+        <span className="sidebar-user__copy">
+          <strong>{user?.firstName} {user?.lastName}</strong>
+          <small>Dobrodošli nazaj!</small>
+        </span>
+        <span className="sidebar-user__caret" aria-hidden="true"><ChevronRightIcon size={16} /></span>
       </div>
+
       <nav className="sidebar-nav" aria-label="Moj račun">
-        {navItems.map(({ to, label, icon: Icon, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}><Icon/><span>{label}</span>{label === 'Sporočila' && Boolean(home?.unreadInboxCount) && <b className="nav-badge">{home?.unreadInboxCount}</b>}{label === 'Obvestila' && Boolean(home?.unreadNotificationCount) && <b className="nav-badge">{home?.unreadNotificationCount}</b>}</NavLink>)}
+        {navItems.map(({ to, label, icon: Icon, end }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={end}
+            className={({ isActive }) => `nav-link nav-link--customer ${isActive ? 'nav-link--active' : ''}`}
+          >
+            <span className="nav-link__icon"><Icon size={21} /></span>
+            <span>{label}</span>
+            {label === 'Sporočila' && Boolean(home?.unreadInboxCount) && <b className="nav-badge">{home?.unreadInboxCount}</b>}
+            {label === 'Obvestila' && Boolean(home?.unreadNotificationCount) && <b className="nav-badge">{home?.unreadNotificationCount}</b>}
+          </NavLink>
+        ))}
       </nav>
+
       <div className="sidebar-bottom">
-        <a href="https://calendra.si/kontakt" className="nav-link sidebar-support"><MessageIcon/><span><strong>Pomoč in podpora</strong><small>Tukaj smo za vas</small></span></a>
+        <a href="https://calendra.si/kontakt" className="sidebar-support sidebar-support--customer">
+          <span className="sidebar-support__icon"><MessageIcon size={20} /></span>
+          <span className="sidebar-support__copy">
+            <strong>Pomoč in podpora</strong>
+            <small>Tu smo, da vam pomagamo.</small>
+          </span>
+          <ChevronRightIcon size={16} />
+        </a>
       </div>
     </aside>
 
-    <main className="app-main">
-      <header className="topbar">
-        <MarketplaceSearchBar/>
-        <div className="topbar__actions">
+    <main className="app-main app-main--customer-connect">
+      <header className="topbar topbar--customer-connect">
+        <MarketplaceSearchBar />
+
+        <div className="topbar__actions topbar__actions--customer-connect">
           <NavLink className="icon-button topbar-notifications" to="/obvestila" aria-label="Obvestila">
-            <BellIcon size={19}/>
+            <BellIcon size={19} />
             {Boolean(home?.unreadNotificationCount) && <span className="notification-dot">{home?.unreadNotificationCount}</span>}
           </NavLink>
-          <div className="account-menu" ref={menuRef}>
-            <button className="avatar-button avatar-button--menu" onClick={() => setMenuOpen(value => !value)} aria-label="Moj račun" aria-expanded={menuOpen}>
-              {initials(user?.firstName, user?.lastName)}<span className="avatar-caret">⌄</span>
+
+          <div className="account-menu account-menu--customer-connect" ref={menuRef}>
+            <button
+              className="avatar-button avatar-button--menu avatar-button--customer-connect"
+              onClick={() => setMenuOpen(value => !value)}
+              aria-label="Moj račun"
+              aria-expanded={menuOpen}
+            >
+              <span className="avatar-button__initials">{profileInitials}</span>
+              <span className="avatar-caret" aria-hidden="true">⌄</span>
             </button>
+
             {menuOpen && <div className="account-menu__panel" role="menu">
-              <div className="account-menu__identity"><strong>{user?.firstName} {user?.lastName}</strong><small>{user?.email}</small></div>
-              <div className="account-menu__divider"/>
-              {accountMenuItems.map(({ to, label, icon: Icon }) => <a key={to} href={`/racun${to}`} className="account-menu__item" role="menuitem"><Icon size={18}/><span>{label}</span></a>)}
-              <div className="account-menu__divider"/>
-              <button className="account-menu__item" type="button" onClick={performLogout} role="menuitem"><LogOutIcon size={18}/><span>Odjava</span></button>
+              <div className="account-menu__identity">
+                <strong>{user?.firstName} {user?.lastName}</strong>
+                <small>{user?.email}</small>
+              </div>
+              <div className="account-menu__divider" />
+              {accountMenuItems.map(({ to, label, icon: Icon }) => (
+                <a key={to} href={`/racun${to}`} className="account-menu__item" role="menuitem">
+                  <Icon size={18} />
+                  <span>{label}</span>
+                </a>
+              ))}
+              <div className="account-menu__divider" />
+              <button className="account-menu__item" type="button" onClick={performLogout} role="menuitem">
+                <LogOutIcon size={18} />
+                <span>Odjava</span>
+              </button>
             </div>}
           </div>
         </div>
       </header>
-      <div className="app-content"><Outlet/></div>
+
+      <div className="app-content app-content--customer-connect"><Outlet /></div>
     </main>
 
     <nav className="mobile-nav" aria-label="Moj račun">
-      {navItems.slice(0, 4).map(({ to, label, icon: Icon, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => `mobile-nav__item ${isActive ? 'mobile-nav__item--active' : ''}`}><span className="mobile-nav__icon"><Icon size={21}/>{label === 'Sporočila' && Boolean(home?.unreadInboxCount) && <i/>}</span><span>{label}</span></NavLink>)}
+      {navItems.slice(0, 4).map(({ to, label, icon: Icon, end }) => (
+        <NavLink
+          key={to}
+          to={to}
+          end={end}
+          className={({ isActive }) => `mobile-nav__item ${isActive ? 'mobile-nav__item--active' : ''}`}
+        >
+          <span className="mobile-nav__icon">
+            <Icon size={21} />
+            {label === 'Sporočila' && Boolean(home?.unreadInboxCount) && <i />}
+          </span>
+          <span>{label}</span>
+        </NavLink>
+      ))}
     </nav>
   </div>
 }

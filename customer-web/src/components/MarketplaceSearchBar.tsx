@@ -21,7 +21,7 @@ export function MarketplaceSearchBar() {
       <SearchIcon size={19}/>
       <span className="marketplace-search__copy">
         <span className="marketplace-search__label">Katero storitev iščete?</span>
-        <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Ime ponudnika, fitnes, zdravje …" aria-label="Katero storitev iščete?"/>
+        <input value={query} onChange={event => setQuery(event.target.value)} placeholder="npr. psiholog, fizioterapija, pregled ..." aria-label="Katero storitev iščete?"/>
       </span>
     </label>
     <button className="marketplace-search__submit" type="submit">Poišči <span aria-hidden="true">→</span></button>
