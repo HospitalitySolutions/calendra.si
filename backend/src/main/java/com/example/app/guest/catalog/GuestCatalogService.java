@@ -781,7 +781,7 @@ public class GuestCatalogService {
                 .filter(candidate -> candidate.getCompany() != null
                         && Objects.equals(candidate.getCompany().getId(), companyId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found."));
-        if (!type.isActive() || !type.isWidgetGroupBookingEnabled()) {
+        if (!type.isActive() || (!type.isGuestBookingEnabled() && !type.isWidgetGroupBookingEnabled())) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "This service is not available in the website widget."

@@ -110,6 +110,26 @@ class GuestCatalogServiceWebsiteProductTest {
     }
 
     @Test
+    void websiteResolverAllowsGuestVisibleService() {
+        Company company = new Company();
+        company.setId(10L);
+        SessionType type = new SessionType();
+        type.setId(11L);
+        type.setCompany(company);
+        type.setName("Consultation");
+        type.setActive(true);
+        type.setWidgetGroupBookingEnabled(false);
+        type.setGuestBookingEnabled(true);
+        when(sessionTypes.findById(11L)).thenReturn(Optional.of(type));
+
+        GuestCatalogService.ResolvedProduct product = service.resolveWebsiteSessionProduct(10L, 11L);
+
+        assertThat(product.sessionType()).isSameAs(type);
+        assertThat(product.productType()).isEqualTo("SESSION_SINGLE");
+        assertThat(product.name()).isEqualTo("Consultation");
+    }
+
+    @Test
     void websiteResolverRejectsServiceThatIsNotExposedInWidget() {
         Company company = new Company();
         company.setId(10L);
@@ -119,6 +139,7 @@ class GuestCatalogServiceWebsiteProductTest {
         type.setName("Hidden service");
         type.setActive(true);
         type.setWidgetGroupBookingEnabled(false);
+        type.setGuestBookingEnabled(false);
         when(sessionTypes.findById(11L)).thenReturn(Optional.of(type));
 
         assertThatThrownBy(() -> service.resolveWebsiteSessionProduct(10L, 11L))

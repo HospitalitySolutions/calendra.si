@@ -332,13 +332,6 @@ export function RegisterAccountPage() {
     navigate(`/register/account?${q.toString()}`, { replace: true })
   }
 
-  const headerContinue = () => {
-    if (view === 'form') void submitEmail()
-    else if (view === 'verify') void submitVerification()
-    else if (view === 'invalid') void resendCode()
-    else navigate(`/login?email=${encodeURIComponent(verifyEmail || email)}`)
-  }
-
   return (
     <div className="register-onboarding register-onboarding-step-three">
       <style>{registerOnboardingStyles}</style>
@@ -347,8 +340,6 @@ export function RegisterAccountPage() {
           activeStep={3}
           locale={locale}
           onBack={() => navigate(`/register/add-ons?${selectionToSearch(selection)}`)}
-          onContinue={headerContinue}
-          continueDisabled={submitting || resending}
         />
 
         <main className="register-onboarding-main">
@@ -378,7 +369,7 @@ export function RegisterAccountPage() {
                     </div>
                     {error ? <div className="register-form-error-new">{error}</div> : null}
                     <button type="submit" className="register-account-primary" disabled={submitting}>
-                      {submitting ? (sl ? 'Nadaljevanje…' : 'Continuing…') : (sl ? 'Nadaljuj z e-pošto →' : 'Continue with email →')}
+                      {submitting ? (sl ? 'Nadaljevanje…' : 'Continuing…') : (sl ? 'Nadaljuj z e-pošto' : 'Continue with email')}
                     </button>
                   </form>
 

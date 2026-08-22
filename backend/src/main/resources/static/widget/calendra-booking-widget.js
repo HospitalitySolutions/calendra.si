@@ -24,6 +24,18 @@
     en: {
       badge: 'Calendra booking',
       title: 'Choose service',
+      choiceTitle: 'Select an option',
+      stepChoice: 'Option',
+      choiceBookTitle: 'Book an appointment',
+      choiceBookSubtitle: 'Schedule services for yourself',
+      choiceEntitlementTitle: 'Buy an entitlement',
+      choiceEntitlementSubtitle: 'Buy a package, membership or another entitlement',
+      choiceGiftTitle: 'Send a gift',
+      choiceGiftSubtitle: 'Send a gift card to yourself or someone else',
+      productTitle: 'Choose an entitlement',
+      giftProductTitle: 'Choose a gift card',
+      stepProduct: 'Entitlement',
+      stepGift: 'Gift card',
       subtitle: '',
       locationTitle: 'Choose location',
       locationSubtitle: 'Choose the location where you want to book.',
@@ -218,6 +230,18 @@
     sl: {
       badge: 'Naročanje',
       title: 'Izberite storitev',
+      choiceTitle: 'Izberite možnost',
+      stepChoice: 'Možnost',
+      choiceBookTitle: 'Rezervirajte termin',
+      choiceBookSubtitle: 'Rezervirajte storitev zase',
+      choiceEntitlementTitle: 'Kupi ugodnost',
+      choiceEntitlementSubtitle: 'Kupite paket, članstvo ali drugo ugodnost',
+      choiceGiftTitle: 'Pošlji darilni bon',
+      choiceGiftSubtitle: 'Pošljite bon sebi ali komu drugemu',
+      productTitle: 'Izberite ugodnost',
+      giftProductTitle: 'Izberite darilni bon',
+      stepProduct: 'Ugodnost',
+      stepGift: 'Darilni bon',
       subtitle: '',
       locationTitle: 'Izberite lokacijo',
       locationSubtitle: 'Izberite lokacijo, kjer želite rezervirati termin.',
@@ -473,6 +497,9 @@
         selectedLocationId: null,
         locationSelectionRequired: false,
         services: [],
+        products: [],
+        bookingChoice: '',
+        selectedProductId: '',
         expandedServiceGroupKeys: [],
         consultants: [],
         selectedServiceId: null,
@@ -491,7 +518,7 @@
         slotHoldExpiresAt: '',
         creatingSlotHold: false,
         manualTime: '',
-        activeStep: 'service',
+        activeStep: 'choice',
         form: { firstName: '', lastName: '', email: '', phone: '', companyName: '' },
         bookingSuccess: null,
         turnstileToken: '',
@@ -769,6 +796,9 @@
           selectedLocationId: null,
           locationSelectionRequired: true,
           services: [],
+          products: [],
+          bookingChoice: '',
+          selectedProductId: '',
           selectedServiceId: null,
           selectedServiceIds: [],
           selectedConsultantId: null,
@@ -810,17 +840,27 @@
 
       const tenant = encodeURIComponent(this.options.tenant);
       const query = `?locationId=${encodeURIComponent(normalizedLocationId)}`;
-      const [config, services] = await Promise.all([
+      const [config, services, products] = await Promise.all([
         this.fetchJson(`/api/public/widget/${tenant}/config${query}`),
         this.fetchJson(`/api/public/widget/${tenant}/services${query}`),
+        this.fetchJson(`/api/public/widget/${tenant}/products${query}`),
       ]);
 
       const effectiveConfig = this.options.employeeSelectionAllowed
         ? config
         : { ...config, employeeSelectionStep: false };
+      const availableProducts = Array.isArray(products) ? products : [];
+      const guestVisibleServiceIds = new Set(
+        availableProducts
+          .filter((item) => ['SESSION_SINGLE', 'CLASS_TICKET'].includes(String(item?.productType || '').toUpperCase()))
+          .map((item) => String(item?.sessionTypeId || '').trim())
+          .filter(Boolean),
+      );
+      const guestVisibleServices = (Array.isArray(services) ? services : [])
+        .filter((item) => guestVisibleServiceIds.has(String(item?.id || '').trim()));
       const effectiveServices = this.options.showPrices
-        ? services
-        : services.map((item) => ({ ...item, priceLabel: null, priceGross: null }));
+        ? guestVisibleServices
+        : guestVisibleServices.map((item) => ({ ...item, priceLabel: null, priceGross: null }));
       const requestedInitialId = Number(this.options.initialServiceId);
       const selectedService = Number.isFinite(requestedInitialId)
         ? (effectiveServices.find((item) => Number(item.id) === requestedInitialId) || effectiveServices[0] || null)
@@ -837,6 +877,10 @@
       const locationSelectionRequired = options.locationSelectionRequired != null
         ? Boolean(options.locationSelectionRequired)
         : Boolean(this.state.locationSelectionRequired);
+      const hasBookingProduct = availableProducts.some((item) => ['SESSION_SINGLE', 'CLASS_TICKET'].includes(String(item?.productType || '').toUpperCase()));
+      const hasEntitlementProduct = availableProducts.some((item) => ['PACK', 'MEMBERSHIP', 'COURSE'].includes(String(item?.productType || '').toUpperCase()));
+      const hasGiftProduct = availableProducts.some((item) => String(item?.productType || '').toUpperCase() === 'GIFT_CARD');
+      const defaultChoice = hasBookingProduct && effectiveServices.length > 0 ? 'booking' : hasEntitlementProduct ? 'entitlement' : hasGiftProduct ? 'gift' : '';
 
       this.setState({
         loading: false,
@@ -845,6 +889,9 @@
         selectedLocationId: normalizedLocationId,
         locationSelectionRequired,
         services: effectiveServices,
+        products: availableProducts,
+        bookingChoice: defaultChoice,
+        selectedProductId: '',
         expandedServiceGroupKeys: initiallyExpandedGroup ? [initiallyExpandedGroup] : [],
         selectedServiceId,
         selectedServiceIds: selectedServiceId != null ? [selectedServiceId] : [],
@@ -863,7 +910,7 @@
         paymentResult: null,
         paymentMethod: defaultPaymentMethod,
         paymentMethodVariant: defaultPaymentMethod ? defaultPaymentMethod.toLowerCase() : '',
-        activeStep: 'service',
+        activeStep: 'choice',
         error: '',
       });
 
@@ -873,7 +920,6 @@
         location: selectedLocation,
       });
 
-      await this.loadConsultantsAndAvailability();
       if (this.state.config?.turnstileEnabled && this.state.config?.turnstileSiteKey) {
         await this.ensureTurnstileScript();
       }
@@ -889,12 +935,47 @@
       return formatIsoDate(firstOfMonth(date));
     }
 
+    guestVisibleServiceProducts() {
+      return (this.state.products || []).filter((item) => {
+        const type = String(item?.productType || '').toUpperCase();
+        return ['SESSION_SINGLE', 'CLASS_TICKET'].includes(type);
+      });
+    }
+
+    entitlementProducts() {
+      return (this.state.products || []).filter((item) => {
+        const type = String(item?.productType || '').toUpperCase();
+        return ['PACK', 'MEMBERSHIP', 'COURSE'].includes(type);
+      });
+    }
+
+    giftProducts() {
+      return (this.state.products || []).filter((item) => String(item?.productType || '').toUpperCase() === 'GIFT_CARD');
+    }
+
+    hasBookingChoice() {
+      return this.guestVisibleServiceProducts().length > 0
+        && Array.isArray(this.state.services)
+        && this.state.services.length > 0;
+    }
+
+    hasEntitlementChoice() {
+      return this.entitlementProducts().length > 0;
+    }
+
+    hasGiftChoice() {
+      return this.giftProducts().length > 0;
+    }
+
     stepDefinitions() {
       const t = this.text();
       const steps = [];
-      if (this.state.locationSelectionRequired) {
+      if (this.state.locationSelectionRequired && !this.effectiveLocationId()) {
         steps.push({ id: 'location', label: t.stepLocation });
+        return steps;
       }
+      steps.push({ id: 'choice', label: t.stepChoice });
+      if (!this.hasBookingChoice()) return steps;
       steps.push({ id: 'service', label: t.stepService });
       if (this.shouldShowConsultantStep()) {
         steps.push({ id: 'consultant', label: t.stepConsultant });
@@ -919,6 +1000,8 @@
       const t = this.text();
       if (this.state.bookingSuccess) return t.confirmed;
       if (this.state.activeStep === 'location') return t.locationTitle;
+      if (this.state.activeStep === 'choice') return t.choiceTitle;
+      if (this.state.activeStep === 'product') return this.state.bookingChoice === 'gift' ? t.giftProductTitle : t.productTitle;
       if (this.state.activeStep === 'consultant') return t.sectionConsultant || t.chooseConsultantRequired;
       if (this.state.activeStep === 'datetime') return t.dateTitle || t.sectionDateTime;
       if (this.state.activeStep === 'details') return t.detailsTitle || t.sectionGuest;
@@ -929,6 +1012,7 @@
       const t = this.text();
       if (this.state.bookingSuccess) return t.confirmationSent;
       if (this.state.activeStep === 'location') return t.locationSubtitle;
+      if (this.state.activeStep === 'choice' || this.state.activeStep === 'product') return '';
       if (this.state.activeStep === 'consultant') return '';
       if (this.state.activeStep === 'datetime') return t.dateSubtitle || t.subtitle;
       if (this.state.activeStep === 'details') return t.detailsSubtitle || t.summaryPrivacyText;
@@ -955,17 +1039,15 @@
     publicPresentationMarkup() {
       const config = this.state.config;
       const presentation = String(this.getAttribute('presentation') || '').trim().toLowerCase();
-      if (this.state.activeStep === 'location' || !config?.websitePresentationEnabled || presentation === 'standalone' || presentation === 'directory') return '';
+      if (this.state.activeStep === 'location' || !config?.websitePresentationEnabled || presentation === 'directory') return '';
 
       const name = String(config.publicName || '').trim();
       const description = String(config.publicDescription || '').trim();
       const address = String(config.publicAddress || '').trim();
-      const phone = String(config.publicPhone || '').trim();
       const logoUrl = this.publicPresentationLogoUrl(config.publicLogoUrl);
-      if (!name && !description && !address && !phone && !logoUrl) return '';
+      if (!name && !description && !address && !logoUrl) return '';
 
       const fallback = (name || 'C').slice(0, 1).toUpperCase();
-      const meta = [address, phone].filter(Boolean);
       return `
         <section class="public-presentation" aria-label="${escapeHtml(name || 'Location')}">
           <div class="public-presentation__logo">
@@ -975,8 +1057,8 @@
           </div>
           <div class="public-presentation__copy">
             ${name ? `<strong>${escapeHtml(name)}</strong>` : ''}
-            ${meta.length ? `<div class="public-presentation__meta">${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join('<span class="public-presentation__dot">•</span>')}</div>` : ''}
-            ${description ? `<p>${escapeHtml(description)}</p>` : ''}
+            ${address ? `<div class="public-presentation__meta"><span class="public-presentation__meta-item">${this.uiIcon('pin')}<span>${escapeHtml(address)}</span></span></div>` : ''}
+            ${description && presentation !== 'standalone' ? `<p>${escapeHtml(description)}</p>` : ''}
           </div>
         </section>
       `;
@@ -1001,6 +1083,9 @@
         arrowLeft: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>',
         close: '<svg class="line-icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>',
         waitlist: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M8 4h8M6 8h12M5 12h10M5 16h7M18 15v6M15 18h6"/></svg>',
+        appointment: '<svg class="line-icon" viewBox="0 0 24 24"><circle cx="8" cy="7" r="3"/><path d="M2.5 19a5.5 5.5 0 0 1 11 0"/><rect x="13" y="10" width="8.5" height="9" rx="1.5"/><path d="M15.5 8.5v3M19 8.5v3M13 13h8.5M17.25 15v2.5M16 16.25h2.5"/></svg>',
+        layers: '<svg class="line-icon" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 16l9 5 9-5"/></svg>',
+        gift: '<svg class="line-icon" viewBox="0 0 24 24"><path d="M3 10h18v11H3zM12 10v11M3 14h18M5 6h14v4H5z"/><path d="M12 6H8.5a2.5 2.5 0 1 1 2.2-3.7L12 6zm0 0h3.5a2.5 2.5 0 1 0-2.2-3.7L12 6z"/></svg>',
       };
       return icons[name] || icons.calendar;
     }
@@ -1033,7 +1118,7 @@
       const steps = this.stepDefinitions();
       const activeStep = nextState?.activeStep || this.state.activeStep;
       if (steps.some((step) => step.id === activeStep)) return activeStep;
-      return steps[0]?.id || 'service';
+      return steps[0]?.id || 'choice';
     }
 
     activeStepIndex() {
@@ -1172,7 +1257,7 @@
       const next = steps[index + 1];
       if (!next || this.state.creatingSlotHold || this.state.loading) return;
 
-      if (this.state.activeStep === 'location' && next.id === 'service') {
+      if (this.state.activeStep === 'location' && next.id === 'choice') {
         if (!this.validateCurrentStep()) return;
         try {
           await this.loadLocationContext(this.effectiveLocationId(), {
@@ -2340,6 +2425,8 @@
         bookingSuccess: null,
         error: '',
         saving: false,
+        bookingChoice: this.hasBookingChoice() ? 'booking' : this.hasEntitlementChoice() ? 'entitlement' : this.hasGiftChoice() ? 'gift' : '',
+        selectedProductId: '',
         selectedServiceId: null,
         selectedServiceIds: [],
         selectedConsultantId: null,
@@ -2359,7 +2446,7 @@
         giftCardCodes: [],
         termsAccepted: true,
         paymentResult: null,
-        activeStep: this.state.locationSelectionRequired ? 'location' : 'service',
+        activeStep: this.state.locationSelectionRequired ? 'location' : 'choice',
         availableDates: null,
         monthAvailabilityKey: '',
       });
@@ -2792,7 +2879,8 @@
     renderProgress() {
       const steps = this.stepDefinitions();
       const activeIndex = this.activeStepIndex();
-      return `
+      const standalone = String(this.getAttribute('presentation') || '').trim().toLowerCase() === 'standalone';
+      const progress = `
         <div class="progress" role="list">
           ${steps.map((step, index) => {
             const isDone = index < activeIndex || (index === activeIndex && this.state.bookingSuccess);
@@ -2804,6 +2892,14 @@
               </div>
             `;
           }).join('<div class="progress-sep"></div>')}
+        </div>
+      `;
+      if (!standalone) return progress;
+      return `
+        <div class="standalone-progress-row">
+          <button class="standalone-round-action" type="button" data-action="top-back" aria-label="${escapeHtml(this.text().back)}">${this.uiIcon('arrowLeft')}</button>
+          ${progress}
+          <button class="standalone-round-action" type="button" data-action="top-close" aria-label="Close">${this.uiIcon('close')}</button>
         </div>
       `;
     }
@@ -2997,7 +3093,6 @@
       const address = String(item?.publicAddress || '').trim();
       const showPresentation = item?.websitePresentationEnabled !== false;
       const description = showPresentation ? String(item?.publicDescription || '').trim() : '';
-      const phone = showPresentation ? String(item?.publicPhone || '').trim() : '';
       const logoUrl = showPresentation ? this.publicPresentationLogoUrl(item?.publicLogoUrl) : '';
       const fallback = name.slice(0, 1).toUpperCase();
       return `
@@ -3010,12 +3105,39 @@
           <span class="location-card-copy">
             <strong>${escapeHtml(name)}</strong>
             ${address ? `<span class="location-card-meta">${this.uiIcon('pin')}<span>${escapeHtml(address)}</span></span>` : ''}
-            ${phone ? `<span class="location-card-meta">${this.uiIcon('phone')}<span>${escapeHtml(phone)}</span></span>` : ''}
             ${description ? `<small>${escapeHtml(description)}</small>` : ''}
           </span>
           <span class="location-card-check">${this.uiIcon('check')}</span>
         </button>
       `;
+    }
+
+    choiceOptionMarkup({ id, title, subtitle, icon, available }) {
+      if (!available) return '';
+      const selected = this.state.bookingChoice === id;
+      return `
+        <button class="booking-choice-card ${selected ? 'is-active' : ''}" type="button" data-action="booking-choice" data-choice="${escapeHtml(id)}" aria-pressed="${selected ? 'true' : 'false'}">
+          <span class="booking-choice-card__select">${selected ? this.uiIcon('check') : ''}</span>
+          <span class="booking-choice-card__copy">
+            <strong>${escapeHtml(title)}</strong>
+            <small>${escapeHtml(subtitle)}</small>
+          </span>
+          <span class="booking-choice-card__icon">${this.uiIcon(icon)}</span>
+        </button>
+      `;
+    }
+
+    choiceMarkup() {
+      const t = this.text();
+      const cards = [
+        this.choiceOptionMarkup({ id: 'booking', title: t.choiceBookTitle, subtitle: t.choiceBookSubtitle, icon: 'appointment', available: this.hasBookingChoice() }),
+        this.choiceOptionMarkup({ id: 'entitlement', title: t.choiceEntitlementTitle, subtitle: t.choiceEntitlementSubtitle, icon: 'layers', available: this.hasEntitlementChoice() }),
+        this.choiceOptionMarkup({ id: 'gift', title: t.choiceGiftTitle, subtitle: t.choiceGiftSubtitle, icon: 'gift', available: this.hasGiftChoice() }),
+      ].filter(Boolean);
+      if (!cards.length) {
+        return `<div class="empty">${escapeHtml(this.normalizedLocale() === 'sl' ? 'Na tej lokaciji trenutno ni javno dostopnih možnosti.' : 'There are currently no public options at this location.')}</div>`;
+      }
+      return `<section class="panel-section panel-section--choice"><div class="booking-choice-list">${cards.join('')}</div></section>`;
     }
 
     renderStepContent() {
@@ -3065,6 +3187,10 @@
             <button class="primary success-restart-button" type="button" data-action="restart">${escapeHtml(t.bookAnother)}</button>
           </div>
         `;
+      }
+
+      if (this.state.activeStep === 'choice') {
+        return this.choiceMarkup();
       }
 
       if (this.state.activeStep === 'location') {
@@ -3514,6 +3640,8 @@
         .public-presentation__copy { min-width: 0; display: grid; gap: 5px; }
         .public-presentation__copy strong { color: var(--calendra-text); font-size: 18px; line-height: 1.25; }
         .public-presentation__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; color: var(--calendra-muted); font-size: 13px; line-height: 1.4; }
+        .public-presentation__meta-item { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+        .public-presentation__meta-item > svg { flex: 0 0 auto; font-size: 16px; color: #556a83; }
         .public-presentation__dot { opacity: .55; }
         .public-presentation__copy p { margin: 1px 0 0; color: var(--calendra-muted); font-size: 14px; line-height: 1.5; }
         :host([data-layout="micro"]) .public-presentation { padding: 14px; border-radius: 16px; }
@@ -4326,17 +4454,129 @@
         :host([data-layout="micro"]) .primary,
         :host([data-layout="micro"]) .secondary { width: 100%; }
 
+        .booking-choice-list {
+          width: min(100%, 1040px);
+          margin: 0 auto;
+          display: grid;
+          gap: 16px;
+        }
+        .booking-choice-card {
+          width: 100%;
+          min-height: 112px;
+          display: grid;
+          grid-template-columns: 58px minmax(0, 1fr) 58px;
+          align-items: center;
+          gap: 20px;
+          padding: 20px 26px;
+          border: 1px solid #d8e1ec;
+          border-radius: 18px;
+          background: rgba(255,255,255,.82);
+          color: var(--calendra-text);
+          text-align: left;
+          cursor: pointer;
+          transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
+        }
+        .booking-choice-card:hover { border-color: #bfcfe1; background: #fff; }
+        .booking-choice-card.is-active {
+          border-color: var(--calendra-primary);
+          background: linear-gradient(90deg, rgba(15,107,255,.08), rgba(15,107,255,.025));
+          box-shadow: inset 0 0 0 1px rgba(15,107,255,.04);
+        }
+        .booking-choice-card__select {
+          width: 44px;
+          height: 44px;
+          display: grid;
+          place-items: center;
+          border: 1.5px solid #aebbd0;
+          border-radius: 50%;
+          color: transparent;
+          background: #fff;
+          font-size: 23px;
+        }
+        .booking-choice-card.is-active .booking-choice-card__select {
+          border-color: var(--calendra-primary);
+          background: var(--calendra-primary);
+          color: #fff;
+        }
+        .booking-choice-card__copy { display: grid; gap: 6px; min-width: 0; }
+        .booking-choice-card__copy strong { color: #101827; font-size: 20px; line-height: 1.2; }
+        .booking-choice-card__copy small { color: #64758b; font-size: 15px; line-height: 1.35; }
+        .booking-choice-card__icon {
+          width: 58px;
+          height: 58px;
+          display: grid;
+          place-items: center;
+          justify-self: end;
+          border-radius: 50%;
+          background: rgba(247,249,252,.9);
+          color: #425268;
+          font-size: 31px;
+        }
+        .booking-choice-card.is-active .booking-choice-card__icon { color: var(--calendra-primary); background: transparent; }
+
+        .standalone-progress-row {
+          display: grid;
+          grid-template-columns: 52px minmax(0, 1fr) 52px;
+          align-items: center;
+          gap: 28px;
+          margin-bottom: 36px;
+        }
+        .standalone-round-action {
+          width: 48px;
+          height: 48px;
+          display: grid;
+          place-items: center;
+          padding: 0;
+          border: 1px solid #d6dee8;
+          border-radius: 50%;
+          background: rgba(255,255,255,.88);
+          color: #101827;
+          cursor: pointer;
+          font-size: 22px;
+          box-shadow: 0 5px 16px rgba(24, 39, 63, .04);
+        }
+        .standalone-progress-row .progress { width: min(100%, 1120px); min-width: 0; margin: 0 auto; }
+
         :host([presentation="standalone"]) .shell { gap: 0; }
         :host([presentation="standalone"]) .panel {
           border: 0;
           border-radius: 0;
           box-shadow: none;
           background: transparent;
-          padding: 28px clamp(6px, 2.8vw, 28px) 34px;
+          padding: 34px clamp(4px, 2vw, 20px) 56px;
+          overflow: visible;
         }
+        :host([presentation="standalone"]) .public-presentation {
+          width: min(100%, 1040px);
+          margin: 0 auto 56px;
+          padding: 0;
+          border: 0;
+          border-radius: 0;
+          background: transparent;
+          gap: 28px;
+          align-items: center;
+        }
+        :host([presentation="standalone"]) .public-presentation__logo {
+          width: 112px;
+          height: 112px;
+          flex-basis: 112px;
+          border-radius: 20px;
+          box-shadow: 0 10px 28px rgba(15, 35, 70, .08);
+        }
+        :host([presentation="standalone"]) .public-presentation__copy {
+          min-height: 112px;
+          align-content: center;
+          gap: 10px;
+          padding-left: 28px;
+          border-left: 1px solid #d7e0ea;
+        }
+        :host([presentation="standalone"]) .public-presentation__copy strong { font-size: 30px; line-height: 1.15; }
+        :host([presentation="standalone"]) .public-presentation__meta { color: #65758a; font-size: 17px; }
+        :host([presentation="standalone"]) .public-presentation__meta-item > svg { font-size: 19px; }
         :host([presentation="standalone"]) .powered-by { display: none; }
-        :host([presentation="standalone"]) .headline { margin: 24px 0 22px; }
-        :host([presentation="standalone"]) .headline h2 { font-size: clamp(30px, 3vw, 40px); line-height: 1.05; letter-spacing: -.04em; }
+        :host([presentation="standalone"]) .headline { width: min(100%, 1040px); margin: 0 auto 26px; }
+        :host([presentation="standalone"]) .headline h2 { font-size: clamp(32px, 3vw, 42px); line-height: 1.05; letter-spacing: -.04em; }
+        :host([presentation="standalone"]) .widget.step-choice .headline { text-align: center; margin-bottom: 30px; }
         :host([presentation="standalone"]) .widget.step-service .headline,
         :host([presentation="standalone"]) .widget.step-consultant .headline,
         :host([presentation="standalone"]) .widget.step-datetime .headline,
@@ -4356,6 +4596,7 @@
         :host([presentation="standalone"]) .progress-dot { width: 36px; height: 36px; font-size: 14px; }
         :host([presentation="standalone"]) .progress-item { gap: 10px; font-size: 14px; }
         :host([presentation="standalone"]) .panel-actions--footer { margin-top: 8px; }
+        :host([presentation="standalone"]) .panel-section--choice { margin-top: 0; }
 
         :host([presentation="standalone"][data-layout="compact"]) .standalone-service-children,
         :host([presentation="standalone"][data-layout="narrow"]) .standalone-service-children,
@@ -4385,6 +4626,31 @@
           border: 0;
           background: transparent;
         }
+
+        :host([presentation="standalone"][data-layout="narrow"]) .standalone-progress-row,
+        :host([presentation="standalone"][data-layout="micro"]) .standalone-progress-row { grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 10px; margin-bottom: 28px; }
+        :host([presentation="standalone"][data-layout="narrow"]) .standalone-round-action,
+        :host([presentation="standalone"][data-layout="micro"]) .standalone-round-action { width: 42px; height: 42px; font-size: 19px; }
+        :host([presentation="standalone"][data-layout="narrow"]) .public-presentation,
+        :host([presentation="standalone"][data-layout="micro"]) .public-presentation { margin-bottom: 34px; gap: 16px; }
+        :host([presentation="standalone"][data-layout="narrow"]) .public-presentation__logo,
+        :host([presentation="standalone"][data-layout="micro"]) .public-presentation__logo { width: 78px; height: 78px; flex-basis: 78px; border-radius: 16px; }
+        :host([presentation="standalone"][data-layout="narrow"]) .public-presentation__copy,
+        :host([presentation="standalone"][data-layout="micro"]) .public-presentation__copy { min-height: 78px; padding-left: 16px; }
+        :host([presentation="standalone"][data-layout="narrow"]) .public-presentation__copy strong,
+        :host([presentation="standalone"][data-layout="micro"]) .public-presentation__copy strong { font-size: 21px; }
+        :host([presentation="standalone"][data-layout="narrow"]) .public-presentation__meta,
+        :host([presentation="standalone"][data-layout="micro"]) .public-presentation__meta { font-size: 13px; }
+        :host([data-layout="narrow"]) .booking-choice-card,
+        :host([data-layout="micro"]) .booking-choice-card { grid-template-columns: 44px minmax(0,1fr) 44px; min-height: 92px; gap: 12px; padding: 16px; border-radius: 16px; }
+        :host([data-layout="narrow"]) .booking-choice-card__select,
+        :host([data-layout="micro"]) .booking-choice-card__select { width: 36px; height: 36px; font-size: 19px; }
+        :host([data-layout="narrow"]) .booking-choice-card__copy strong,
+        :host([data-layout="micro"]) .booking-choice-card__copy strong { font-size: 16px; }
+        :host([data-layout="narrow"]) .booking-choice-card__copy small,
+        :host([data-layout="micro"]) .booking-choice-card__copy small { font-size: 12px; }
+        :host([data-layout="narrow"]) .booking-choice-card__icon,
+        :host([data-layout="micro"]) .booking-choice-card__icon { width: 44px; height: 44px; font-size: 24px; }
 
         :host([presentation="directory"]) .shell { gap: 12px; }
         :host([presentation="directory"]) .panel {
@@ -4431,8 +4697,8 @@
         <div class="widget step-${escapeHtml(this.state.activeStep || 'service')}">
           <div class="shell">
             <div class="panel">
-              ${this.publicPresentationMarkup()}
               ${this.renderProgress()}
+              ${this.publicPresentationMarkup()}
               <div class="headline">
                 <h2>${escapeHtml(this.activeStepHeadline())}</h2>
                 ${headlineSubtitle ? `<p>${escapeHtml(headlineSubtitle)}</p>` : ''}
@@ -4484,6 +4750,38 @@
           if (!locationId) return;
           this.setState({ selectedLocationId: locationId, error: '' });
         });
+      });
+
+      this.shadowRoot.querySelectorAll('[data-action="booking-choice"]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const choice = String(button.dataset.choice || '').trim();
+          if (!choice) return;
+          this.state.bookingChoice = choice;
+          this.render();
+          this.emit('calendra-widget-option-select', {
+            tenant: this.options.tenant,
+            locationId: this.effectiveLocationId(),
+            option: choice,
+            products: choice === 'gift' ? this.giftProducts() : choice === 'entitlement' ? this.entitlementProducts() : [],
+          });
+          if (choice !== 'booking') return;
+          this.setState({ activeStep: 'service', error: '' });
+          await this.loadConsultantsAndAvailability();
+        });
+      });
+
+      this.shadowRoot.querySelectorAll('[data-action="top-back"]').forEach((button) => {
+        button.addEventListener('click', () => {
+          if (this.state.activeStep === 'choice') {
+            this.emit('calendra-widget-back-request', { tenant: this.options.tenant, locationId: this.effectiveLocationId() });
+            return;
+          }
+          this.goToPreviousStep();
+        });
+      });
+
+      this.shadowRoot.querySelectorAll('[data-action="top-close"]').forEach((button) => {
+        button.addEventListener('click', () => this.emit('calendra-widget-close-request', { tenant: this.options.tenant, locationId: this.effectiveLocationId() }));
       });
 
       this.shadowRoot.querySelectorAll('[data-action="service-group-toggle"]').forEach((button) => {

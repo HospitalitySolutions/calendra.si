@@ -219,6 +219,15 @@ public class PublicBookingWidgetController {
         return service.services(tenantCode, locationId, request);
     }
 
+    @GetMapping("/{tenantCode}/products")
+    public List<com.example.app.guest.common.GuestDtos.ProductResponse> products(
+            @PathVariable String tenantCode,
+            @RequestParam(required = false) Long locationId,
+            HttpServletRequest request
+    ) {
+        return service.publicProducts(tenantCode, locationId, request);
+    }
+
     @GetMapping("/{tenantCode}/consultants")
     public List<WidgetConsultantResponse> consultants(
             @PathVariable String tenantCode,

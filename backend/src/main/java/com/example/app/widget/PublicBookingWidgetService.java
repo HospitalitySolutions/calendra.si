@@ -12,6 +12,8 @@ import com.example.app.company.Company;
 import com.example.app.company.CompanyRepository;
 import com.example.app.commerce.CommerceLocationScopeService;
 import com.example.app.guest.auth.GuestTokenService;
+import com.example.app.guest.catalog.GuestCatalogService;
+import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.guest.model.GuestJoinMethod;
 import com.example.app.guest.model.GuestUser;
@@ -154,6 +156,9 @@ public class PublicBookingWidgetService {
 
     @Autowired(required = false)
     private GuestProviderLinkService guestProviderLinks;
+
+    @Autowired(required = false)
+    private GuestCatalogService guestCatalogService;
 
     public PublicBookingWidgetService(
             CompanyRepository companies,
@@ -366,6 +371,17 @@ public class PublicBookingWidgetService {
                     );
                 })
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<GuestDtos.ProductResponse> publicProducts(
+            String tenantCode, Long locationId, HttpServletRequest request
+    ) {
+        Company company = resolveCompany(tenantCode);
+        guardPublicWidgetRequest(company, request, false, "products");
+        Location location = requirePublicLocation(company, locationId, false);
+        if (guestCatalogService == null || location == null) return List.of();
+        return guestCatalogService.publicProducts(company.getId(), location.getId());
     }
 
     @Transactional(readOnly = true)
@@ -1395,11 +1411,15 @@ public class PublicBookingWidgetService {
     }
 
     private boolean isWebsiteBookingEnabled(SessionType type) {
-        return type != null && type.isActive() && type.isWidgetGroupBookingEnabled();
+        return type != null
+                && type.isActive()
+                && (type.isGuestBookingEnabled() || type.isWidgetGroupBookingEnabled());
     }
 
     private boolean isGroupWebsiteBookingOnly(SessionType type) {
-        return isWebsiteBookingEnabled(type) && type.getMaxParticipantsPerSession() != null;
+        return isWebsiteBookingEnabled(type)
+                && type.isWidgetGroupBookingEnabled()
+                && type.getMaxParticipantsPerSession() != null;
     }
 
     private List<PublicBookingWidgetController.AvailabilitySlotResponse> buildBookableSlots(
