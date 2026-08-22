@@ -300,7 +300,6 @@ async function prefetchConfiguration(unitId: ScopeId, priority: NavigationPrefet
   ]
   if (priority === 'commit') {
     tasks.push(
-      queryClient.prefetchQuery(paymentMethodsQueryOptions(unitId)),
       queryClient.prefetchQuery(usersQueryOptions(unitId)),
       queryClient.prefetchQuery(inboxCapabilitiesQueryOptions()),
     )

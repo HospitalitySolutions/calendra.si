@@ -209,6 +209,38 @@ import {
 const reservationRulesSnapshot = (raw: string | undefined) =>
   serializeTenantReservationRules(parseTenantReservationRules(raw));
 
+const billingAccessAllowedForSettings = (
+  source: Record<string, string>,
+  fallbackPackage: string | null | undefined,
+  isPlatformAdmin: boolean,
+) => {
+  if (isPlatformAdmin) return source.BILLING_ENABLED !== "false";
+
+  const explicitPackage = String(source.SIGNUP_PACKAGE_NAME || "").trim();
+  const configuredPackage = normalizePackageType(
+    explicitPackage || fallbackPackage,
+  );
+  if (explicitPackage && configuredPackage === "CUSTOM") {
+    return source.BILLING_ENABLED === "true";
+  }
+
+  const tenantType = normalizeTenantConfigType(
+    source.MODULE_CONFIG_TYPE || "hair_salon",
+  );
+  const rules = parseModuleVisibilityRules(
+    source[PLATFORM_MODULE_VISIBILITY_RULES_KEY],
+  );
+  return (
+    source.BILLING_ENABLED !== "false" &&
+    moduleVisibilityAllowed(
+      rules,
+      "BILLING_ENABLED",
+      configuredPackage,
+      tenantType,
+    )
+  );
+};
+
 type Tab =
   | "company"
   | "billing"
@@ -2695,7 +2727,12 @@ export function ConfigurationPage() {
     ],
   );
   const billingEnabledCommitted =
-    settingsLoaded && settings.BILLING_ENABLED !== "false";
+    settingsLoaded &&
+    billingAccessAllowedForSettings(
+      settings,
+      me.packageType || subscriptionPackage,
+      isPlatformAdminTenant,
+    );
   const multipleCompaniesEnabledCommitted =
     billingEnabledCommitted && settings.MULTIPLE_COMPANIES_ENABLED === "true";
   const defaultLocationIssuer =
@@ -2716,6 +2753,10 @@ export function ConfigurationPage() {
     paymentCapabilitiesLoaded &&
     stripeModuleEnabledCommitted &&
     paymentGlobalCapabilities.stripeEnabled;
+  const stripeConnectAvailableCommitted =
+    stripePaymentsAvailableCommitted &&
+    (me.role === "ADMIN" || me.role === "SUPER_ADMIN") &&
+    hasEmployeePermission(me, "INTEGRATIONS_VIEW");
   const notificationsEnabledCommitted =
     settingsLoaded && settings.NOTIFICATIONS_ENABLED !== "false";
   const waitlistEnabledCommitted =
@@ -2759,7 +2800,7 @@ export function ConfigurationPage() {
         settingsLoaded &&
         paymentCapabilitiesLoaded &&
         (googleCalendarModuleEnabledCommitted ||
-          stripePaymentsAvailableCommitted)
+          stripeConnectAvailableCommitted)
       );
     if (!settingsLoaded) return false;
     if (tabId === "billing") return billingEnabledCommitted;
@@ -2917,7 +2958,7 @@ export function ConfigurationPage() {
             replace: true,
           });
         }
-      } else if (subtabQuery === "stripe" && !stripePaymentsAvailableCommitted) {
+      } else if (subtabQuery === "stripe" && !stripeConnectAvailableCommitted) {
         setBillingSubtab("paymentMethods");
         if (q === "billing")
           navigate("/configuration?tab=billing&subtab=paymentMethods", {
@@ -2964,7 +3005,7 @@ export function ConfigurationPage() {
     inboxCapabilitiesLoaded,
     paymentCapabilitiesLoaded,
     isMobileBillingViewport,
-    stripePaymentsAvailableCommitted,
+    stripeConnectAvailableCommitted,
     billingEnabledCommitted,
     giftCardsEnabledCommitted,
     fiscalCashRegisterEnabledCommitted,
@@ -3143,10 +3184,40 @@ export function ConfigurationPage() {
       .catch(() => ({} as Record<string, string>));
     const settingsRes = { data: settingsRaw };
     const rawSettings = settingsRaw;
+    const rawBillingEnabled = billingAccessAllowedForSettings(
+      rawSettings,
+      me.packageType || subscriptionPackage,
+      me.role === "SUPER_ADMIN",
+    );
+    const canReadBillingInvoices = hasEmployeePermission(
+      me,
+      "BILLING_INVOICES_VIEW",
+    );
+    const canReadPayments = hasEmployeePermission(me, "PAYMENTS_VIEW");
+    const canReadIntegrations = hasEmployeePermission(me, "INTEGRATIONS_VIEW");
+    const isTenantAdmin = me.role === "ADMIN" || me.role === "SUPER_ADMIN";
+    const shouldLoadLocationIssuers =
+      rawBillingEnabled &&
+      canReadBillingInvoices &&
+      tabRef.current === "company" &&
+      accountSubtab === "operatingUnits";
+    const shouldLoadPaymentMethods =
+      rawBillingEnabled && canReadPayments && tabRef.current === "billing";
     const canReadFiscalCertificate =
-      rawSettings.BILLING_ENABLED !== "false" &&
+      rawBillingEnabled &&
       rawSettings.BILLING_FISCAL_CASH_REGISTER_ENABLED === "true" &&
-      hasEmployeePermission(me, "BILLING_INVOICES_VIEW");
+      canReadBillingInvoices &&
+      tabRef.current === "company" &&
+      accountSubtab === "company";
+    const shouldLoadStripeConnect =
+      rawBillingEnabled &&
+      rawSettings.BILLING_ONLINE_CARD_PAYMENTS_ENABLED !== "false" &&
+      paymentCapabilitiesLoaded &&
+      paymentGlobalCapabilities.stripeEnabled &&
+      canReadIntegrations &&
+      isTenantAdmin &&
+      ((tabRef.current === "billing" && billingSubtab === "stripe") ||
+        tabRef.current === "integrations");
     const [
       locationsData,
       locationIssuersData,
@@ -3158,12 +3229,30 @@ export function ConfigurationPage() {
       tenantUsersData,
     ] = await Promise.all([
       queryClient.fetchQuery(locationsQueryOptions(activeUnitId)).catch(() => []),
-      queryClient.fetchQuery(invoiceIssuersQueryOptions<InvoiceIssuerOption>(activeUnitId)).catch(() => [] as InvoiceIssuerOption[]),
-      queryClient.fetchQuery(paymentMethodsQueryOptions<PaymentMethod>(activeUnitId)).catch(() => [] as PaymentMethod[]),
+      shouldLoadLocationIssuers
+        ? queryClient
+            .fetchQuery(
+              invoiceIssuersQueryOptions<InvoiceIssuerOption>(activeUnitId),
+            )
+            .catch(() => [] as InvoiceIssuerOption[])
+        : Promise.resolve([] as InvoiceIssuerOption[]),
+      shouldLoadPaymentMethods
+        ? queryClient
+            .fetchQuery(paymentMethodsQueryOptions<PaymentMethod>(activeUnitId))
+            .catch(() => [] as PaymentMethod[])
+        : Promise.resolve([] as PaymentMethod[]),
       canReadFiscalCertificate
         ? queryClient.fetchQuery(fiscalCertificateMetaQueryOptions<any>(activeUnitId)).catch(() => ({ uploaded: false }))
         : Promise.resolve({ uploaded: false }),
-      queryClient.fetchQuery(stripeConnectConfigQueryOptions<StripeConnectTenantStatus>(activeUnitId)).catch(() => null),
+      shouldLoadStripeConnect
+        ? queryClient
+            .fetchQuery(
+              stripeConnectConfigQueryOptions<StripeConnectTenantStatus>(
+                activeUnitId,
+              ),
+            )
+            .catch(() => null)
+        : Promise.resolve(null),
       queryClient.fetchQuery(receivedInvoicesQueryOptions<AccountReceivedInvoice>(activeUnitId)).catch(() => [] as AccountReceivedInvoice[]),
       queryClient.fetchQuery(registerCatalogQueryOptions<AccountRegisterCatalog>()).catch(() => DEFAULT_ACCOUNT_REGISTER_CATALOG),
       queryClient.fetchQuery(usersQueryOptions<AccountUserResponse>(activeUnitId)).catch(() => [] as AccountUserResponse[]),
@@ -3354,7 +3443,32 @@ export function ConfigurationPage() {
   }, [activeUnitId, canViewConfiguration]);
 
   useEffect(() => {
-    if (!canViewConfiguration || !billingEnabledCommitted) return;
+    if (!canViewConfiguration || !settingsLoaded) return;
+    const needsProtectedConfigurationData =
+      (tab === "company" &&
+        accountSubtab === "operatingUnits" &&
+        billingEnabledCommitted) ||
+      (tab === "company" &&
+        accountSubtab === "company" &&
+        fiscalCashRegisterEnabledCommitted) ||
+      (tab === "billing" && billingEnabledCommitted) ||
+      (tab === "integrations" && stripeConnectAvailableCommitted);
+    if (!needsProtectedConfigurationData) return;
+    void load(false);
+  }, [
+    accountSubtab,
+    activeUnitId,
+    billingEnabledCommitted,
+    billingSubtab,
+    canViewConfiguration,
+    fiscalCashRegisterEnabledCommitted,
+    settingsLoaded,
+    stripeConnectAvailableCommitted,
+    tab,
+  ]);
+
+  useEffect(() => {
+    if (!canViewConfiguration || !stripeConnectAvailableCommitted) return;
     const stripeMode = query.get("stripeMode");
     if (!stripeMode) return;
 
@@ -3457,7 +3571,7 @@ export function ConfigurationPage() {
     notificationsEnabledCommitted,
     paymentCapabilitiesLoaded,
     googleCalendarModuleEnabledCommitted,
-    stripePaymentsAvailableCommitted,
+    stripeConnectAvailableCommitted,
     customFieldsEnabledCommitted,
   ]);
 
@@ -3905,7 +4019,7 @@ export function ConfigurationPage() {
       ...(googleCalendarModuleEnabledCommitted
         ? [refreshGoogleCalendarStatusSummary()]
         : []),
-      ...(stripePaymentsAvailableCommitted
+      ...(stripeConnectAvailableCommitted
         ? [
             api
               .get("/stripe/connect/config")
@@ -3931,7 +4045,7 @@ export function ConfigurationPage() {
   };
 
   const openStripeIntegration = () => {
-    if (!stripePaymentsAvailableCommitted) {
+    if (!stripeConnectAvailableCommitted) {
       setTab("modules");
       navigate("/configuration?tab=modules");
       return;
@@ -4240,14 +4354,14 @@ export function ConfigurationPage() {
   ]);
 
   useEffect(() => {
-    if (!stripePaymentsAvailableCommitted) {
+    if (!stripeConnectAvailableCommitted) {
       setStripeConnectStatus(null);
       setExpandedIntegrationCard((current) =>
         current === "stripe" ? null : current,
       );
       if (billingSubtab === "stripe") setBillingSubtab("paymentMethods");
     }
-  }, [stripePaymentsAvailableCommitted, billingSubtab]);
+  }, [stripeConnectAvailableCommitted, billingSubtab]);
 
 
   useEffect(() => {
@@ -5077,7 +5191,7 @@ export function ConfigurationPage() {
 
   const billingSubtabs: Array<{ id: BillingSubtab; label: string }> = [
     { id: "paymentMethods", label: t("configBillingPaymentMethodsTab") },
-    ...(stripePaymentsAvailableCommitted
+    ...(stripeConnectAvailableCommitted
       ? [
           { id: "stripe", label: "Stripe" } satisfies {
             id: BillingSubtab;
@@ -5103,13 +5217,13 @@ export function ConfigurationPage() {
     : billingSubtabs;
 
   useEffect(() => {
-    if (!stripePaymentsAvailableCommitted && billingSubtab === "stripe") {
+    if (!stripeConnectAvailableCommitted && billingSubtab === "stripe") {
       setBillingSubtab("paymentMethods");
     }
     if (!giftCardsEnabledCommitted && billingSubtab === "giftCard") {
       setBillingSubtab("paymentMethods");
     }
-  }, [billingSubtab, giftCardsEnabledCommitted, stripePaymentsAvailableCommitted]);
+  }, [billingSubtab, giftCardsEnabledCommitted, stripeConnectAvailableCommitted]);
 
   const resetAndOpenPaymentMethodModal = () => {
     setInlineEditingPaymentMethodId(-1);
@@ -13346,7 +13460,7 @@ export function ConfigurationPage() {
                             </article>
                           ) : null}
 
-                          {stripePaymentsAvailableCommitted ? (
+                          {stripeConnectAvailableCommitted ? (
                             <article
                               className={
                                 expandedIntegrationCard === "stripe"
@@ -13449,13 +13563,13 @@ export function ConfigurationPage() {
                                 </h3>
                                 <span className="integrations-section-kicker">
                                   {googleCalendarModuleEnabledCommitted &&
-                                  stripePaymentsAvailableCommitted
+                                  stripeConnectAvailableCommitted
                                     ? locale === "sl"
                                       ? "Stripe in Google Calendar za ta tenant."
                                       : "Stripe and Google Calendar for this tenant."
                                     : googleCalendarModuleEnabledCommitted
                                       ? "Google Calendar"
-                                      : stripePaymentsAvailableCommitted
+                                      : stripeConnectAvailableCommitted
                                         ? locale === "sl"
                                           ? "Stripe za ta tenant."
                                           : "Stripe for this tenant."
@@ -13536,7 +13650,7 @@ export function ConfigurationPage() {
                               </button>
                             ) : null}
 
-                            {stripePaymentsAvailableCommitted ? (
+                            {stripeConnectAvailableCommitted ? (
                               <button
                                 type="button"
                                 className="integrations-status-row"
