@@ -850,17 +850,13 @@
         ? config
         : { ...config, employeeSelectionStep: false };
       const availableProducts = Array.isArray(products) ? products : [];
-      const guestVisibleServiceIds = new Set(
-        availableProducts
-          .filter((item) => ['SESSION_SINGLE', 'CLASS_TICKET'].includes(String(item?.productType || '').toUpperCase()))
-          .map((item) => String(item?.sessionTypeId || '').trim())
-          .filter(Boolean),
-      );
-      const guestVisibleServices = (Array.isArray(services) ? services : [])
-        .filter((item) => guestVisibleServiceIds.has(String(item?.id || '').trim()));
+      // /services is the website-booking source of truth. Do not intersect it with
+      // the commerce product catalog: website-only services can legitimately be
+      // absent from guest-app derived SESSION_SINGLE products.
+      const websiteVisibleServices = Array.isArray(services) ? services : [];
       const effectiveServices = this.options.showPrices
-        ? guestVisibleServices
-        : guestVisibleServices.map((item) => ({ ...item, priceLabel: null, priceGross: null }));
+        ? websiteVisibleServices
+        : websiteVisibleServices.map((item) => ({ ...item, priceLabel: null, priceGross: null }));
       const requestedInitialId = Number(this.options.initialServiceId);
       const selectedService = Number.isFinite(requestedInitialId)
         ? (effectiveServices.find((item) => Number(item.id) === requestedInitialId) || effectiveServices[0] || null)
@@ -877,7 +873,7 @@
       const locationSelectionRequired = options.locationSelectionRequired != null
         ? Boolean(options.locationSelectionRequired)
         : Boolean(this.state.locationSelectionRequired);
-      const hasBookingProduct = availableProducts.some((item) => ['SESSION_SINGLE', 'CLASS_TICKET'].includes(String(item?.productType || '').toUpperCase()));
+      const hasBookingProduct = effectiveServices.length > 0;
       const hasEntitlementProduct = availableProducts.some((item) => ['PACK', 'MEMBERSHIP', 'COURSE'].includes(String(item?.productType || '').toUpperCase()));
       const hasGiftProduct = availableProducts.some((item) => String(item?.productType || '').toUpperCase() === 'GIFT_CARD');
       const defaultChoice = hasBookingProduct && effectiveServices.length > 0 ? 'booking' : hasEntitlementProduct ? 'entitlement' : hasGiftProduct ? 'gift' : '';
@@ -954,9 +950,7 @@
     }
 
     hasBookingChoice() {
-      return this.guestVisibleServiceProducts().length > 0
-        && Array.isArray(this.state.services)
-        && this.state.services.length > 0;
+      return Array.isArray(this.state.services) && this.state.services.length > 0;
     }
 
     hasEntitlementChoice() {

@@ -363,7 +363,7 @@ public class PublicBookingWidgetService {
                             toPriceLabel(type, location == null ? null : location.getId()),
                             grossPrice,
                             type.getMaxParticipantsPerSession(),
-                            isWebsiteBookingEnabled(type),
+                            isGroupService(type),
                             group == null ? null : group.getId(),
                             group == null ? null : group.getName(),
                             group == null ? null : group.getSortOrder(),
@@ -449,7 +449,7 @@ public class PublicBookingWidgetService {
         List<SessionType> publicServices = types.findAllWithLinkedServicesByCompanyId(company.getId()).stream()
                 .filter(this::isWebsiteBookingEnabled)
                 .filter(type -> isAvailableAtLocation(type, location.getId()))
-                .filter(type -> !Boolean.TRUE.equals(type.isWidgetGroupBookingEnabled()))
+                .filter(type -> !isGroupService(type))
                 .toList();
         if (publicServices.isEmpty()) return List.of();
 
@@ -1411,14 +1411,21 @@ public class PublicBookingWidgetService {
     }
 
     private boolean isWebsiteBookingEnabled(SessionType type) {
+        // SessionTypesPage maps the WEBSITE/ALL visibility modes to this flag.
+        // Guest-app visibility is independent and must not make a GUEST-only
+        // service appear on the public website/customer portal.
         return type != null
                 && type.isActive()
-                && (type.isGuestBookingEnabled() || type.isWidgetGroupBookingEnabled());
+                && type.isWidgetGroupBookingEnabled();
     }
 
     private boolean isGroupWebsiteBookingOnly(SessionType type) {
-        return isWebsiteBookingEnabled(type)
-                && type.isWidgetGroupBookingEnabled()
+        return isWebsiteBookingEnabled(type) && isGroupService(type);
+    }
+
+    private boolean isGroupService(SessionType type) {
+        return type != null
+                && type.isGroupBookingEnabled()
                 && type.getMaxParticipantsPerSession() != null;
     }
 

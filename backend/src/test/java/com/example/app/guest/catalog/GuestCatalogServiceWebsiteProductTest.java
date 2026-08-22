@@ -7,10 +7,13 @@ import static org.mockito.Mockito.when;
 
 import com.example.app.common.TimeService;
 import com.example.app.company.Company;
+import com.example.app.guest.common.GuestDtos;
 import com.example.app.guest.common.GuestSettingsService;
 import com.example.app.guest.model.GuestProduct;
 import com.example.app.guest.model.GuestProductRepository;
 import com.example.app.guest.model.ProductType;
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.session.BookableSlotRepository;
 import com.example.app.session.SessionBookingCreationService;
 import com.example.app.session.SessionBookingRepository;
@@ -89,6 +92,51 @@ class GuestCatalogServiceWebsiteProductTest {
     }
 
     @Test
+    void publicProductsUseWebsiteVisibilityInsteadOfGuestAppVisibility() throws Exception {
+        Company company = new Company();
+        company.setId(10L);
+
+        Location location = new Location();
+        location.setId(21L);
+        location.setCompany(company);
+        location.setActive(true);
+
+        SessionType websiteOnly = new SessionType();
+        websiteOnly.setId(11L);
+        websiteOnly.setCompany(company);
+        websiteOnly.setName("Website only");
+        websiteOnly.setActive(true);
+        websiteOnly.setAvailableAllLocations(true);
+        websiteOnly.setWidgetGroupBookingEnabled(true);
+        websiteOnly.setGuestBookingEnabled(false);
+
+        SessionType guestOnly = new SessionType();
+        guestOnly.setId(12L);
+        guestOnly.setCompany(company);
+        guestOnly.setName("Guest only");
+        guestOnly.setActive(true);
+        guestOnly.setAvailableAllLocations(true);
+        guestOnly.setWidgetGroupBookingEnabled(false);
+        guestOnly.setGuestBookingEnabled(true);
+
+        LocationRepository locationRepository = mock(LocationRepository.class);
+        when(locationRepository.findByIdAndCompanyId(21L, 10L)).thenReturn(Optional.of(location));
+        var field = GuestCatalogService.class.getDeclaredField("locationRepository");
+        field.setAccessible(true);
+        field.set(service, locationRepository);
+
+        when(sessionTypes.findAllWithLinkedServicesByCompanyId(10L)).thenReturn(List.of(websiteOnly, guestOnly));
+        when(guestProducts.findAllByCompanyIdAndActiveTrueAndGuestVisibleTrueOrderBySortOrderAscIdAsc(10L))
+                .thenReturn(List.of());
+
+        var products = service.publicProducts(10L, 21L);
+
+        assertThat(products).extracting(GuestDtos.ProductResponse::productId)
+                .containsExactly("session-11");
+        assertThat(products.getFirst().productType()).isEqualTo("SESSION_SINGLE");
+    }
+
+    @Test
     void websiteResolverDoesNotRequireGuestAppVisibility() {
         Company company = new Company();
         company.setId(10L);
@@ -99,6 +147,7 @@ class GuestCatalogServiceWebsiteProductTest {
         type.setActive(true);
         type.setWidgetGroupBookingEnabled(true);
         type.setGuestBookingEnabled(false);
+        type.setGroupBookingEnabled(true);
         type.setMaxParticipantsPerSession(12);
         when(sessionTypes.findById(11L)).thenReturn(Optional.of(type));
 
@@ -110,7 +159,7 @@ class GuestCatalogServiceWebsiteProductTest {
     }
 
     @Test
-    void websiteResolverAllowsGuestVisibleService() {
+    void websiteResolverRejectsGuestAppOnlyService() {
         Company company = new Company();
         company.setId(10L);
         SessionType type = new SessionType();
@@ -122,11 +171,13 @@ class GuestCatalogServiceWebsiteProductTest {
         type.setGuestBookingEnabled(true);
         when(sessionTypes.findById(11L)).thenReturn(Optional.of(type));
 
-        GuestCatalogService.ResolvedProduct product = service.resolveWebsiteSessionProduct(10L, 11L);
-
-        assertThat(product.sessionType()).isSameAs(type);
-        assertThat(product.productType()).isEqualTo("SESSION_SINGLE");
-        assertThat(product.name()).isEqualTo("Consultation");
+        assertThatThrownBy(() -> service.resolveWebsiteSessionProduct(10L, 11L))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(error -> {
+                    ResponseStatusException exception = (ResponseStatusException) error;
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(exception.getReason()).isEqualTo("This service is not available in the website widget.");
+                });
     }
 
     @Test

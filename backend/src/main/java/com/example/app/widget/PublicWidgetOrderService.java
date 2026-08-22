@@ -455,7 +455,7 @@ public class PublicWidgetOrderService {
         for (Long typeId : typeIds) {
             SessionType type = sessionTypes.findByIdAndCompanyIdWithLinkedServices(typeId, company.getId())
                     .filter(SessionType::isActive)
-                    .filter(candidate -> candidate.isGuestBookingEnabled() || candidate.isWidgetGroupBookingEnabled())
+                    .filter(SessionType::isWidgetGroupBookingEnabled)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid service."));
             boolean available = type.isAvailableAllLocations() || type.getLocations().stream()
                     .anyMatch(value -> Objects.equals(value.getId(), location.getId()));

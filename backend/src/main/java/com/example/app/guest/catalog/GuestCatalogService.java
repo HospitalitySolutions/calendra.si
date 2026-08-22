@@ -171,51 +171,33 @@ public class GuestCatalogService {
                         .filter(Location::isActive)
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found."));
         if (selectedLocation == null) return List.of();
-        return productsForScope(companyId, selectedLocation, null);
+        return productsForScope(companyId, selectedLocation, null, true);
     }
 
     private List<GuestDtos.ProductResponse> productsForScope(Long companyId, Long locationId, GuestUser guestUser) {
         Location selectedLocation = locationId == null || guestLocations == null
                 ? null : guestLocations.requireDiscoverable(companyId, locationId);
-        return productsForScope(companyId, selectedLocation, guestUser);
+        return productsForScope(companyId, selectedLocation, guestUser, false);
     }
 
-    private List<GuestDtos.ProductResponse> productsForScope(Long companyId, Location selectedLocation, GuestUser guestUser) {
+    private List<GuestDtos.ProductResponse> productsForScope(
+            Long companyId,
+            Location selectedLocation,
+            GuestUser guestUser,
+            boolean websiteChannel
+    ) {
         SimulatedTimeContext.set(companyId);
         List<GuestDtos.ProductResponse> out = new ArrayList<>();
         boolean billingEnabled = !Boolean.FALSE.equals(guestSettings.billingEnabled(companyId));
         boolean coursesEnabled = courseModuleAccessService == null || courseModuleAccessService.isEnabled(companyId);
         boolean giftCardsEnabled = guestSettings.giftCardsEnabled(companyId);
-        String defaultCurrency = tenantCurrency(companyId);
         for (SessionType type : sessionTypes.findAllWithLinkedServicesByCompanyId(companyId)) {
-            if (!isVisibleInGuestServiceStep(companyId, type, guestUser)) continue;
+            boolean visible = websiteChannel
+                    ? isWebsiteBookable(type)
+                    : isVisibleInGuestServiceStep(companyId, type, guestUser);
+            if (!visible) continue;
             if (selectedLocation != null && !serviceAvailableAtLocation(type, selectedLocation.getId())) continue;
-            BigDecimal price = sessionTypePriceGross(type, selectedLocation == null ? null : selectedLocation.getId());
-            String productType = Boolean.TRUE.equals(type.isWidgetGroupBookingEnabled()) ? "CLASS_TICKET" : "SESSION_SINGLE";
-            out.add(new GuestDtos.ProductResponse(
-                    derivedProductId(type),
-                    type.getName(),
-                    productType,
-                    price.doubleValue(),
-                    defaultCurrency,
-                    String.valueOf(type.getId()),
-                    type.getName(),
-                    true,
-                    type.getDescription(),
-                    type.getDurationMinutes() == null ? 60 : type.getDurationMinutes(),
-                    null,
-                    null,
-                    null,
-                    publicGroup(type) == null ? null : String.valueOf(publicGroup(type).getId()),
-                    publicGroup(type) == null ? null : publicGroup(type).getName(),
-                    publicGroup(type) == null ? null : publicGroup(type).getSortOrder(),
-                    type.getGuestSortOrder(),
-                    null,
-                    null,
-                    null,
-                    List.of(),
-                    List.of()
-            ));
+            out.add(derivedSessionProduct(companyId, type, selectedLocation));
         }
         if (!entitlementsEnabled(companyId)) {
             return out;
@@ -230,8 +212,12 @@ public class GuestCatalogService {
             // checks, any eligible service is sufficient; an unrestricted membership
             // (no explicit service scope) remains visible as a wildcard product. Course
             // access products intentionally ignore booking-step visibility.
-            if (product.getProductType() != ProductType.COURSE
-                    && !productHasVisibleEligibleService(product, companyId, guestUser)) continue;
+            if (product.getProductType() != ProductType.COURSE) {
+                boolean hasVisibleEligibleService = websiteChannel
+                        ? productHasWebsiteVisibleEligibleService(product)
+                        : productHasVisibleEligibleService(product, companyId, guestUser);
+                if (!hasVisibleEligibleService) continue;
+            }
             if (selectedLocation != null && commerceLocations != null
                     && !commerceLocations.productAvailableAt(product, selectedLocation.getId())) continue;
             if (selectedLocation != null
@@ -280,6 +266,37 @@ public class GuestCatalogService {
         return out;
     }
 
+    private GuestDtos.ProductResponse derivedSessionProduct(Long companyId, SessionType type, Location selectedLocation) {
+        Long locationId = selectedLocation == null ? null : selectedLocation.getId();
+        BigDecimal price = sessionTypePriceGross(type, locationId);
+        String productType = isGroupSessionType(type) ? "CLASS_TICKET" : "SESSION_SINGLE";
+        var group = publicGroup(type);
+        return new GuestDtos.ProductResponse(
+                derivedProductId(type),
+                type.getName(),
+                productType,
+                price.doubleValue(),
+                tenantCurrency(companyId),
+                String.valueOf(type.getId()),
+                type.getName(),
+                true,
+                type.getDescription(),
+                type.getDurationMinutes() == null ? 60 : type.getDurationMinutes(),
+                null,
+                null,
+                null,
+                group == null ? null : String.valueOf(group.getId()),
+                group == null ? null : group.getName(),
+                group == null ? null : group.getSortOrder(),
+                type.getGuestSortOrder(),
+                null,
+                null,
+                null,
+                List.of(),
+                List.of()
+        );
+    }
+
     private List<SessionType> productEligibleSessionTypes(GuestProduct product) {
         if (product == null) return List.of();
         if (product.getServiceGroup() != null && product.getServiceGroup().getId() != null
@@ -291,6 +308,13 @@ public class GuestCatalogService {
             return product.getEligibleSessionTypes().stream().filter(Objects::nonNull).toList();
         }
         return product.getSessionType() == null ? List.of() : List.of(product.getSessionType());
+    }
+
+    private boolean productHasWebsiteVisibleEligibleService(GuestProduct product) {
+        List<SessionType> eligible = productEligibleSessionTypes(product);
+        if (product != null && product.getServiceGroup() != null && eligible.isEmpty()) return false;
+        if (eligible.isEmpty()) return true;
+        return eligible.stream().anyMatch(this::isWebsiteBookable);
     }
 
     private boolean productHasVisibleEligibleService(GuestProduct product, Long companyId, GuestUser guestUser) {
@@ -781,16 +805,14 @@ public class GuestCatalogService {
                 .filter(candidate -> candidate.getCompany() != null
                         && Objects.equals(candidate.getCompany().getId(), companyId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Service not found."));
-        if (!type.isActive() || (!type.isGuestBookingEnabled() && !type.isWidgetGroupBookingEnabled())) {
+        if (!isWebsiteBookable(type)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "This service is not available in the website widget."
             );
         }
         BigDecimal price = sessionTypePriceGross(type, locationId);
-        String productType = type.getMaxParticipantsPerSession() == null
-                ? "SESSION_SINGLE"
-                : "CLASS_TICKET";
+        String productType = isGroupSessionType(type) ? "CLASS_TICKET" : "SESSION_SINGLE";
         return new ResolvedProduct(
                 null,
                 type,
@@ -861,7 +883,7 @@ public class GuestCatalogService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This service is not available in the guest app.");
             }
             BigDecimal price = sessionTypePriceGross(type, locationId);
-            return new ResolvedProduct(null, type, type.getName(), type.isWidgetGroupBookingEnabled() ? "CLASS_TICKET" : "SESSION_SINGLE", price, tenantCurrency(companyId), true);
+            return new ResolvedProduct(null, type, type.getName(), isGroupSessionType(type) ? "CLASS_TICKET" : "SESSION_SINGLE", price, tenantCurrency(companyId), true);
         }
         assertEntitlementsEnabled(companyId);
         GuestProduct product = guestProducts.findByIdAndCompanyId(parseId(productId), companyId)
@@ -1543,6 +1565,14 @@ public class GuestCatalogService {
 
     private static String groupSlotToken(Long representativeBookingId, LocalDateTime start, LocalDateTime end) {
         return "group|" + representativeBookingId + "|" + start + "|" + end;
+    }
+
+    private boolean isWebsiteBookable(SessionType type) {
+        return type != null && type.isActive() && type.isWidgetGroupBookingEnabled();
+    }
+
+    private boolean isGroupSessionType(SessionType type) {
+        return type != null && type.isGroupBookingEnabled() && type.getMaxParticipantsPerSession() != null;
     }
 
     private boolean isGuestBookable(SessionType type) {
