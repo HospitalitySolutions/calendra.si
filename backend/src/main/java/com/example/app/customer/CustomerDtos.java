@@ -43,7 +43,8 @@ public final class CustomerDtos {
             int totalDurationMinutes,
             double totalPriceGross,
             String currency,
-            String paymentStatus
+            String paymentStatus,
+            String paymentMethodType
     ) {}
 
     public record WalletEntitlementResponse(

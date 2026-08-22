@@ -63,9 +63,15 @@ public class WebsiteWidgetSettingsService {
                 values.get(SettingKey.WEBSITE_BOOKING_RULES_JSON.name()),
                 values.get(SettingKey.GUEST_BOOKING_RULES_JSON.name())
         ));
-        boolean paymentOnLocation = root.has("paymentOnLocation")
+        boolean billingEnabled = settingEnabled(values, SettingKey.BILLING_ENABLED, true);
+        boolean configuredPaymentOnLocation = root.has("paymentOnLocation")
                 ? root.path("paymentOnLocation").asBoolean(true)
                 : "none".equalsIgnoreCase(rulesRoot.path("paymentRequirement").asText(""));
+        // Public appointment booking must always remain usable when the tenant does not
+        // have Billing/Zaračunavanje enabled. Treat pay-at-venue as an effective runtime
+        // override only; keep the tenant's saved website payment settings untouched so
+        // they become active again if Billing is enabled later.
+        boolean paymentOnLocation = !billingEnabled || configuredPaymentOnLocation;
         var reservationRules = reservationRules(companyId, locationId, values);
         boolean giftCardsEnabled = giftCardsEnabled(values);
         return new WebsiteWidgetSettings(

@@ -57,6 +57,24 @@ class GuestSettingsServicePaymentRulesTest {
     }
 
     @Test
+    void billingDisabled_forcesGuestBookingToPayAtVenueMode() {
+        AppSettingRepository repo = mock(AppSettingRepository.class);
+        GuestSettingsService service = new GuestSettingsService(repo, mock(GlobalPaymentProviderService.class));
+        when(repo.findAllByCompanyId(16L)).thenReturn(List.of(
+                setting(16L, SettingKey.BILLING_ENABLED.name(), "false"),
+                setting(16L, SettingKey.GUEST_BOOKING_RULES_JSON.name(), "{\"requireOnlinePayment\":true,\"paymentRequirement\":\"full\"}"),
+                setting(16L, SettingKey.GUEST_APP_SETTINGS_JSON.name(), "{\"paymentOnLocation\":false,\"acceptedPaymentMethodIds\":[\"online_card\",\"bank_transfer\"]}")
+        ));
+
+        var rules = service.bookingRules(16L);
+
+        assertThat(service.billingEnabled(16L)).isFalse();
+        assertThat(service.acceptedPaymentMethods(16L)).isEmpty();
+        assertThat(rules.requireOnlinePayment()).isFalse();
+        assertThat(rules.paymentRequirement()).isEqualTo("none");
+    }
+
+    @Test
     void bookingRules_defaultsToRequireOnlinePaymentWhenBothFieldsMissing() {
         AppSettingRepository repo = mock(AppSettingRepository.class);
         GuestSettingsService service = new GuestSettingsService(repo, mock(GlobalPaymentProviderService.class));

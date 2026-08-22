@@ -92,9 +92,9 @@ public class CustomerService {
     public CustomerDtos.HomeResponse home(GuestUser guestUser) {
         List<SessionBooking> upcomingRows = bookings.findCustomerUpcomingBookings(
                 guestUser.getId(), GuestTenantLinkStatus.ACTIVE, LocalDateTime.now(), PageRequest.of(0, 5));
-        Map<Long, String> paymentStatuses = paymentStatuses(upcomingRows);
+        Map<Long, BookingPaymentInfo> paymentInfo = bookingPaymentInfo(upcomingRows);
         List<CustomerDtos.BookingResponse> upcoming = upcomingRows.stream()
-                .map(row -> toBooking(row, paymentStatuses.get(row.getId())))
+                .map(row -> toBooking(row, paymentInfo.get(row.getId())))
                 .toList();
 
         List<GuestEntitlement> entitlementRows = enabledEntitlements(
@@ -136,8 +136,8 @@ public class CustomerService {
             default -> bookings.findCustomerUpcomingBookings(
                     guestUser.getId(), GuestTenantLinkStatus.ACTIVE, now, PageRequest.of(safePage, safeSize));
         };
-        Map<Long, String> paymentStatuses = paymentStatuses(rows);
-        return rows.stream().map(row -> toBooking(row, paymentStatuses.get(row.getId()))).toList();
+        Map<Long, BookingPaymentInfo> paymentInfo = bookingPaymentInfo(rows);
+        return rows.stream().map(row -> toBooking(row, paymentInfo.get(row.getId()))).toList();
     }
 
     @Transactional(readOnly = true)
@@ -145,7 +145,7 @@ public class CustomerService {
         SessionBooking row = bookings.findCustomerBookingById(
                         bookingId, guestUser.getId(), GuestTenantLinkStatus.ACTIVE)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found."));
-        return toBooking(row, paymentStatuses(List.of(row)).get(row.getId()));
+        return toBooking(row, bookingPaymentInfo(List.of(row)).get(row.getId()));
     }
 
     @Transactional(readOnly = true)
@@ -328,7 +328,7 @@ public class CustomerService {
         );
     }
 
-    private CustomerDtos.BookingResponse toBooking(SessionBooking booking, String paymentStatus) {
+    private CustomerDtos.BookingResponse toBooking(SessionBooking booking, BookingPaymentInfo paymentInfo) {
         List<GuestDtos.BookingServiceResponse> serviceLines = GuestBookingViewSupport.services(booking, "EUR");
         GuestSettingsService.GuestPublicSettings settings = settingsService.publicSettings(booking.getCompany().getId());
         return new CustomerDtos.BookingResponse(
@@ -344,7 +344,8 @@ public class CustomerService {
                 SessionServiceSupport.totalServiceMinutes(booking),
                 GuestBookingViewSupport.totalPrice(serviceLines),
                 "EUR",
-                paymentStatus
+                paymentInfo == null ? null : paymentInfo.status(),
+                paymentInfo == null ? null : paymentInfo.paymentMethodType()
         );
     }
 
@@ -369,7 +370,7 @@ public class CustomerService {
         );
     }
 
-    private Map<Long, String> paymentStatuses(List<SessionBooking> rows) {
+    private Map<Long, BookingPaymentInfo> bookingPaymentInfo(List<SessionBooking> rows) {
         Map<Long, Long> orderIdByBookingId = new LinkedHashMap<>();
         for (SessionBooking booking : rows) {
             if (booking.getId() == null || booking.getSourceOrderId() == null || booking.getSourceOrderId().isBlank()) continue;
@@ -379,16 +380,21 @@ public class CustomerService {
             }
         }
         if (orderIdByBookingId.isEmpty()) return Map.of();
-        Map<Long, String> statusByOrderId = new LinkedHashMap<>();
+        Map<Long, BookingPaymentInfo> infoByOrderId = new LinkedHashMap<>();
         orders.findAllById(new LinkedHashSet<>(orderIdByBookingId.values()))
-                .forEach(order -> statusByOrderId.put(order.getId(), order.getStatus().name()));
-        Map<Long, String> out = new LinkedHashMap<>();
+                .forEach(order -> infoByOrderId.put(order.getId(), new BookingPaymentInfo(
+                        order.getStatus() == null ? null : order.getStatus().name(),
+                        order.getPaymentMethodType() == null ? null : order.getPaymentMethodType().name()
+                )));
+        Map<Long, BookingPaymentInfo> out = new LinkedHashMap<>();
         orderIdByBookingId.forEach((bookingId, orderId) -> {
-            String status = statusByOrderId.get(orderId);
-            if (status != null) out.put(bookingId, status);
+            BookingPaymentInfo info = infoByOrderId.get(orderId);
+            if (info != null) out.put(bookingId, info);
         });
         return out;
     }
+
+    private record BookingPaymentInfo(String status, String paymentMethodType) {}
 
     private Map<Long, ProductMetadata> loadProductMetadata(List<GuestOrder> orderRows) {
         List<Long> orderIds = orderRows.stream()

@@ -88,6 +88,7 @@ export type CustomerBooking = {
   totalPriceGross: number
   currency?: string | null
   paymentStatus?: string | null
+  paymentMethodType?: string | null
 }
 
 export type Entitlement = {
