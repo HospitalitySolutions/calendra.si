@@ -51,10 +51,17 @@ class PostgresApplicationContextTest {
     void applicationStartsAgainstFullyMigratedPostgresSchema() {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         assertThat(jdbc.queryForObject("select count(*) from flyway_schema_history where success", Long.class))
-                .isGreaterThanOrEqualTo(10L);
+                .isEqualTo(1L);
         assertThat(jdbc.queryForObject("select to_regclass('public.waitlist_requests') is not null", Boolean.class))
                 .isTrue();
         assertThat(jdbc.queryForObject("select to_regclass('public.waitlist_request') is null", Boolean.class))
                 .isTrue();
+        assertThat(jdbc.queryForObject("select to_regclass('public.workspace_subscription_legacy_sources') is null", Boolean.class))
+                .isTrue();
+        assertThat(jdbc.queryForObject("""
+                select count(*) from information_schema.columns
+                where table_schema='public' and table_name='workspace_subscriptions'
+                  and column_name='billing_owner_company_id'
+                """, Long.class)).isEqualTo(1L);
     }
 }

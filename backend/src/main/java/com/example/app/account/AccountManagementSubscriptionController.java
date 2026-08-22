@@ -112,7 +112,7 @@ public class AccountManagementSubscriptionController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "packageName is required.");
         }
         PackageChangeResult result = subscriptionBillingService.applyPackageChange(tenant, request.packageName(), request.interval());
-        if (workspaceSubscriptions != null) workspaceSubscriptions.syncFromLegacyCompany(tenant.getId());
+        if (workspaceSubscriptions != null) workspaceSubscriptions.syncFromBillingOwnerSettings(tenant.getId());
         return new ChangePackageResponse(
                 result.currentPackage(), result.nextPackage(), result.interval(), result.nextInterval(),
                 result.pendingUpgradeDiff(), result.changeKind(), result.trialEnded(), result.billId(),

@@ -1,9 +1,12 @@
-# Profile: dev — local development profile.
-# Keep Hibernate schema updates enabled for quick local iteration and keep Flyway disabled.
-# Staging/production profiles override this with Flyway enabled and ddl-auto=validate.
+# Profile: dev — development environment.
+# Keep the same migration-first lifecycle as local/staging/production so schema drift
+# cannot be hidden by Hibernate before launch.
 spring:
   flyway:
-    enabled: ${SPRING_FLYWAY_ENABLED:false}
+    enabled: true
+    validate-on-migrate: true
+    clean-disabled: true
+    baseline-on-migrate: false
   jpa:
     hibernate:
-      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+      ddl-auto: validate

@@ -288,7 +288,7 @@ public class StripeWebhookService {
                 setting.setValue("PAID");
                 appSettings.save(setting);
             });
-            if (workspaceSubscriptions != null) workspaceSubscriptions.syncFromLegacyCompany(tenantId);
+            if (workspaceSubscriptions != null) workspaceSubscriptions.syncFromBillingOwnerSettings(tenantId);
             grantReferralRewardIfApplicable(tenantId);
         } catch (Exception ignored) {
             // Keep the bill paid even if the subscription-status marker cannot be updated.

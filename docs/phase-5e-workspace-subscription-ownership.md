@@ -2,29 +2,18 @@
 
 ## Summary
 
-Phase 5E moves commercial Calendra subscription ownership above individual operating units. A workspace now has one subscription, one retained billing-owner unit for compatibility with the existing platform billing engine, an optional payer legal entity, pooled allowances, centralized feature entitlements, and per-unit usage reporting.
+Phase 5E places commercial Calendra subscription ownership above individual operating units. A workspace has one subscription, one billing-owner operating unit, an optional payer legal entity, pooled allowances, centralized feature entitlements, and per-unit usage reporting.
 
-Existing tenant data, client invoices, historical Calendra subscription invoices, and company-scoped settings are preserved. The migration does not create a second charge for companies that are already linked into the same workspace.
+## Database model
 
-## Database migration
-
-Flyway migration:
-
-```text
-V32__workspace_subscription_ownership_and_entitlements.sql
-```
-
-It creates:
+The canonical production schema contains:
 
 - `workspace_subscriptions`
-- `workspace_subscription_legacy_sources`
 - `workspace_usage_monthly`
 - `workspace_usage_events`
 - `workspace_subscription_audit_log`
 
-Every existing workspace receives one subscription. The company with the lowest ID is selected as the initial retained billing owner. All companies in the workspace are retained as legacy sources so historical platform subscription invoices remain discoverable. For workspaces created after V32, the first company automatically becomes the retained billing owner and later companies are attached as additional legacy sources.
-
-Malformed historical subscription dates and user limits do not block migration. The migration safely converts valid values and falls back when legacy free-form settings are invalid.
+Each workspace receives one subscription automatically. The first company attached to the workspace becomes its billing owner unless an administrator explicitly selects another company. No migration-source/history table is part of the production model.
 
 ### Limit semantics
 
@@ -45,19 +34,17 @@ Migrated limits are never placed below current workspace usage.
 
 ## Subscription ownership
 
-`WorkspaceSubscription.legacyPrimaryCompany` is the retained billing-owner operating unit. The existing platform billing implementation continues to use its immutable subscription reference:
+`WorkspaceSubscription.billingOwnerCompany` is the billing-owner operating unit. The platform billing implementation uses its immutable subscription reference:
 
 ```text
 CALENDRA-SUBSCRIPTION:{companyId}
 ```
 
-Only this operating unit generates future Calendra subscription renewals and past-due transitions. Changing the billing owner is an explicit workspace-administrator action.
-
-Historical platform invoices for every company later linked into the workspace remain visible under Account management → Received invoices.
+Only this operating unit generates Calendra subscription renewals and past-due transitions. Changing the billing owner is an explicit workspace-administrator action.
 
 ## Subscription payer
 
-The payer is independent from the operating unit used as the compatibility billing owner. A workspace administrator can select any legal entity belonging to the workspace and provide billing overrides:
+The payer is independent from the operating unit used as the billing owner. A workspace administrator can select any legal entity belonging to the workspace and provide billing overrides:
 
 - Contact name
 - Billing email
@@ -150,11 +137,9 @@ The existing Configuration → Subscription area now includes:
 
 Existing package, add-on, and received-invoice controls remain below the workspace panel.
 
-## Compatibility
+## Current synchronization boundary
 
-Company subscription settings remain a compatibility projection for the retained billing owner. When another operating unit is active, subscription-setting reads are overlaid from the retained owner and capacity writes are mirrored to it before synchronization. Package changes and subscription lifecycle jobs synchronize the workspace subscription. Existing focused controller/service constructors remain available for older unit tests.
-
-The migration preserves feature access for existing workspaces so deploying Phase 5E does not unexpectedly hide functionality already introduced in Phases 1–5D. Future package changes recalculate workspace features and limits from the retained billing owner and selected add-ons, while retaining multi-unit/configuration-copy/analytics access required by existing multi-unit usage and retaining workspace public booking while an enabled public workspace page exists.
+The workspace subscription is the canonical entitlement model. Company-level commercial settings are still synchronized for billing/configuration flows that actively use those settings today; they are not part of Flyway upgrade compatibility. Package changes and subscription lifecycle jobs synchronize the workspace subscription from the selected billing owner.
 
 ## Deployment checks
 
@@ -171,8 +156,8 @@ npm run build
 
 Pay particular attention to:
 
-- `WorkspaceSubscriptionMigrationTest`
-- Application-context JPA validation after V32
+- `FlywayBaselineMigrationTest`
+- `PostgresApplicationContextTest` JPA validation against the canonical V1
 - Subscription renewal and package-change regression tests
 - SMS and email delivery tests
 - Account-management received-invoice tests

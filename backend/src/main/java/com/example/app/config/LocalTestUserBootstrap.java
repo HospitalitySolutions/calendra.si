@@ -237,7 +237,7 @@ public class LocalTestUserBootstrap implements CommandLineRunner {
                 .orElseGet(WorkspaceSubscription::new);
 
         subscription.setWorkspace(company.getWorkspace());
-        subscription.setLegacyPrimaryCompany(company);
+        subscription.setBillingOwnerCompany(company);
         subscription.setPlanKey("PREMIUM");
         subscription.setBillingInterval("MONTHLY");
         subscription.setStatus(WorkspaceSubscriptionStatus.ACTIVE);

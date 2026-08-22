@@ -41,7 +41,7 @@ public class PlatformTenancyDeletionService {
             "actor_company_id",
             "source_company_id",
             "target_company_id",
-            "legacy_primary_company_id",
+            "billing_owner_company_id",
             "last_selected_company_id");
 
     private final CompanyRepository companies;
@@ -521,7 +521,7 @@ public class PlatformTenancyDeletionService {
                 "DELETE FROM guest_orders WHERE client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?))",
                 companyId);
         // Keep canonical waitlist records but detach the soon-to-be-deleted billing client.
-        // Flyway V9 removes the obsolete V4 singular waitlist schema, so runtime code must never query it.
+        // The production baseline contains only the canonical plural waitlist schema.
         exec(
                 "UPDATE waitlist_requests SET client_id = NULL WHERE client_id IN (SELECT c.id FROM clients c WHERE c.billing_company_id IN (SELECT cc.id FROM client_companies cc WHERE cc.platform_tenant_company_id = ?))",
                 companyId);
@@ -627,18 +627,17 @@ public class PlatformTenancyDeletionService {
                 companyId,
                 companyId);
         exec("DELETE FROM activity_logs WHERE company_id = ?", companyId);
-        exec("DELETE FROM workspace_subscription_legacy_sources WHERE company_id = ?", companyId);
         exec("DELETE FROM workspace_usage_events WHERE company_id = ?", companyId);
         exec("DELETE FROM workspace_usage_monthly WHERE company_id = ?", companyId);
         exec("UPDATE login_accounts SET last_selected_company_id = NULL WHERE last_selected_company_id = ?", companyId);
 
         if (survivingCompanyId != null) {
             exec(
-                    "UPDATE workspace_subscriptions SET legacy_primary_company_id = ? WHERE legacy_primary_company_id = ?",
+                    "UPDATE workspace_subscriptions SET billing_owner_company_id = ? WHERE billing_owner_company_id = ?",
                     survivingCompanyId,
                     companyId);
         } else {
-            exec("UPDATE workspace_subscriptions SET legacy_primary_company_id = NULL WHERE legacy_primary_company_id = ?", companyId);
+            exec("UPDATE workspace_subscriptions SET billing_owner_company_id = NULL WHERE billing_owner_company_id = ?", companyId);
         }
 
         // Messaging, notifications and integration jobs.
@@ -679,7 +678,7 @@ public class PlatformTenancyDeletionService {
         exec("DELETE FROM bill_item WHERE bill_id IN (SELECT id FROM bills WHERE company_id = ?)", companyId);
         exec("DELETE FROM bills WHERE company_id = ?", companyId);
 
-        // Waitlist and booking adjuncts. Flyway V9 dropped the obsolete V4 singular tables.
+        // Waitlist and booking adjuncts.
         // Only the canonical plural waitlist schema is valid at runtime.
         exec("DELETE FROM waitlist_events WHERE waitlist_request_id IN (SELECT id FROM waitlist_requests WHERE company_id = ?)", companyId);
         exec("DELETE FROM waitlist_slot_skips WHERE waitlist_request_id IN (SELECT id FROM waitlist_requests WHERE company_id = ?)", companyId);
@@ -1046,7 +1045,6 @@ public class PlatformTenancyDeletionService {
         exec("DELETE FROM workspace_service_templates WHERE workspace_id = ?", workspaceId);
 
         exec("DELETE FROM workspace_subscription_audit_log WHERE workspace_subscription_id IN (SELECT id FROM workspace_subscriptions WHERE workspace_id = ?)", workspaceId);
-        exec("DELETE FROM workspace_subscription_legacy_sources WHERE workspace_subscription_id IN (SELECT id FROM workspace_subscriptions WHERE workspace_id = ?)", workspaceId);
         exec("DELETE FROM workspace_usage_events WHERE workspace_id = ?", workspaceId);
         exec("DELETE FROM workspace_usage_monthly WHERE workspace_id = ?", workspaceId);
         exec("DELETE FROM workspace_subscriptions WHERE workspace_id = ?", workspaceId);

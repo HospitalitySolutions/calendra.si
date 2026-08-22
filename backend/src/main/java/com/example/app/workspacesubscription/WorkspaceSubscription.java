@@ -27,8 +27,8 @@ public class WorkspaceSubscription extends BaseEntity {
     private Workspace workspace;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "legacy_primary_company_id")
-    private Company legacyPrimaryCompany;
+    @JoinColumn(name = "billing_owner_company_id")
+    private Company billingOwnerCompany;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "payer_legal_entity_id")

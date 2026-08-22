@@ -24,6 +24,6 @@ Calendra's central `ActivityLog` is intended to describe meaningful business mut
 - `ActivityLogControllerTest`: admin-only read access, page-size safety, read-only HTTP boundary, response detail parsing.
 - `ActivityActionUsageTest`: active action codes cannot lose every production emission hook unnoticed.
 - `ActivityMutationEndpointSnapshotTest`: any POST/PUT/PATCH/DELETE controller surface change requires an explicit audit review.
-- `ActivityLogMigrationTest`: PostgreSQL migration/table/index/cascade behavior.
+- `FlywayBaselineMigrationTest`: canonical PostgreSQL V1/table/index/schema-contract behavior.
 
 The mutation snapshot is a review gate, not proof that every technical POST must create a business log entry. Preview, validation, OAuth callback, webhook and similar endpoints may legitimately remain non-audited, but changes to them still receive an explicit review.

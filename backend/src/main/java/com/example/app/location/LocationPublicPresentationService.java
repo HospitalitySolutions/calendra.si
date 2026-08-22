@@ -11,9 +11,8 @@ import org.springframework.web.util.UriComponentsBuilder;
  *
  * <p>Location fields override legal/company branding. The company logo remains a
  * deliberate fallback because it is also used by invoices, e-mails and other
- * company-level channels. Legacy public-name/address fields stored in
- * GUEST_APP_SETTINGS_JSON are intentionally not consulted at runtime; V44 migrates
- * them once into the default location.</p>
+ * company-level channels. Public-name/address fields stored in company settings are
+ * intentionally not consulted at runtime; the location record is authoritative.</p>
  */
 @Service
 public class LocationPublicPresentationService {

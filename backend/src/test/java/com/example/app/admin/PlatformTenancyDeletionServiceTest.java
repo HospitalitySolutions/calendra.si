@@ -131,7 +131,7 @@ class PlatformTenancyDeletionServiceTest {
 
 
     @Test
-    void deleteTenancy_neverReferencesDroppedLegacySingularWaitlistTable() {
+    void deleteTenancy_neverReferencesRetiredSingularWaitlistTable() {
         Company tenant = new Company();
         tenant.setId(7L);
         tenant.setName("Current-schema tenant");
@@ -148,7 +148,7 @@ class PlatformTenancyDeletionServiceTest {
         assertTrue(
                 sql.stream().noneMatch(statement -> statement != null
                         && statement.matches("(?is).*\\bwaitlist_request\\b.*")),
-                "Tenant deletion must not reference Flyway V9's dropped singular waitlist_request table.");
+                "Tenant deletion must not reference the retired singular waitlist_request table.");
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.example.app.guest.common;
 
+import com.example.app.location.Location;
+import com.example.app.location.LocationRepository;
 import com.example.app.settings.AppSettingRepository;
 import com.example.app.settings.GlobalPaymentProviderService;
 import com.example.app.settings.SettingKey;
@@ -22,21 +24,24 @@ public class GuestSettingsService {
     private final AppSettingRepository settings;
     private final GlobalPaymentProviderService globalPaymentProviders;
     private final TenantReservationRulesService reservationRulesService;
+    private final LocationRepository locations;
 
     @Autowired
     public GuestSettingsService(
             AppSettingRepository settings,
             GlobalPaymentProviderService globalPaymentProviders,
-            TenantReservationRulesService reservationRulesService
+            TenantReservationRulesService reservationRulesService,
+            LocationRepository locations
     ) {
         this.settings = settings;
         this.globalPaymentProviders = globalPaymentProviders;
         this.reservationRulesService = reservationRulesService;
+        this.locations = locations;
     }
 
-    /** Backwards-compatible constructor for unit tests. */
+    /** Focused unit-test constructor for payment rules that do not resolve a public location. */
     public GuestSettingsService(AppSettingRepository settings, GlobalPaymentProviderService globalPaymentProviders) {
-        this(settings, globalPaymentProviders, null);
+        this(settings, globalPaymentProviders, null, null);
     }
 
     public GuestPublicSettings publicSettings(Long companyId) {
@@ -56,18 +61,12 @@ public class GuestSettingsService {
         String companyStreet = textOrNull(values.get(SettingKey.COMPANY_ADDRESS.name()));
         String companyPostal = textOrNull(values.get(SettingKey.COMPANY_POSTAL_CODE.name()));
         String companyCity = textOrNull(values.get(SettingKey.COMPANY_CITY.name()));
-        String physicalStreet = firstNonBlank(
-                textOrNull(values.get(SettingKey.COMPANY_PHYSICAL_ADDRESS.name())),
-                companyStreet
-        );
-        String physicalPostal = firstNonBlank(
-                textOrNull(values.get(SettingKey.COMPANY_PHYSICAL_POSTAL_CODE.name())),
-                companyPostal
-        );
-        String physicalCity = firstNonBlank(
-                textOrNull(values.get(SettingKey.COMPANY_PHYSICAL_CITY.name())),
-                companyCity
-        );
+        Location defaultLocation = locations == null || companyId == null
+                ? null
+                : locations.findFirstByCompanyIdAndDefaultLocationTrue(companyId).orElse(null);
+        String physicalStreet = firstNonBlank(defaultLocation == null ? null : defaultLocation.getAddress(), companyStreet);
+        String physicalPostal = firstNonBlank(defaultLocation == null ? null : defaultLocation.getPostalCode(), companyPostal);
+        String physicalCity = firstNonBlank(defaultLocation == null ? null : defaultLocation.getCity(), companyCity);
         String formattedAddress = firstNonBlank(
                 formatCompanyAddressLine(physicalStreet, physicalPostal, physicalCity),
                 formatCompanyAddressLine(companyStreet, companyPostal, companyCity)

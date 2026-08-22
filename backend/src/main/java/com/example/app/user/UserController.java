@@ -227,7 +227,7 @@ public class UserController {
     public ResponseEntity<?> create(@RequestBody CreateUserRequest request, @AuthenticationPrincipal User me) {
         // Heal legacy/stale workspace limits before the application-level quota check and insert.
         // The subscription projection uses the same user entitlement calculation as PackageAccessService.
-        workspaceSubscriptionService.syncFromLegacyCompanyAndFlush(me.getCompany().getId());
+        workspaceSubscriptionService.syncFromBillingOwnerSettingsAndFlush(me.getCompany().getId());
         packageAccessService.requireCanCreateUser(me);
         String normalizedEmail = request.email().trim().toLowerCase();
 

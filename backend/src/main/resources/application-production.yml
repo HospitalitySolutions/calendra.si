@@ -26,9 +26,10 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: ${SPRING_LIFECYCLE_SHUTDOWN_TIMEOUT:30s}
   flyway:
-    enabled: ${SPRING_FLYWAY_ENABLED:true}
+    enabled: true
     validate-on-migrate: true
     clean-disabled: true
+    baseline-on-migrate: false
   datasource:
     hikari:
       maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:20}

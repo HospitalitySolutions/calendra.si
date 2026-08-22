@@ -5,14 +5,13 @@
 # silently skip the migration history; reset that local DB/volume once instead.
 spring:
   flyway:
-    enabled: ${SPRING_FLYWAY_ENABLED:true}
+    enabled: true
     validate-on-migrate: true
     clean-disabled: true
-    baseline-on-migrate: ${SPRING_FLYWAY_BASELINE_ON_MIGRATE:false}
-    baseline-version: ${SPRING_FLYWAY_BASELINE_VERSION:0}
+    baseline-on-migrate: false
   jpa:
     hibernate:
-      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
+      ddl-auto: validate
 
 app:
   # Keep the old multi-tenant demo seeder off by default locally. It can still be

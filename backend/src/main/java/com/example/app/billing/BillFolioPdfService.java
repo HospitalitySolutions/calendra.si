@@ -188,7 +188,6 @@ public class BillFolioPdfService {
         req.setCompanyCity(firstNonBlank(bill.getIssuerCitySnapshot(), settingValue(companyId, SettingKey.COMPANY_CITY)));
         req.setIssueCity(firstNonBlank(
                 bill.getLocation() == null ? null : bill.getLocation().getCity(),
-                settingValue(companyId, SettingKey.COMPANY_PHYSICAL_CITY),
                 req.getCompanyCity()
         ));
         req.setCompanyTaxId(firstNonBlank(bill.getIssuerVatIdSnapshot(), bill.getIssuerTaxNumberSnapshot(), settingValue(companyId, SettingKey.COMPANY_VAT_ID)));

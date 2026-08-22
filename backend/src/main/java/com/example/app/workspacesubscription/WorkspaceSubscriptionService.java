@@ -81,7 +81,7 @@ public class WorkspaceSubscriptionService {
     @Transactional(readOnly = true)
     public Company billingOwnerCompany(User actor) {
         WorkspaceSubscription subscription = requireFor(actor);
-        if (subscription.getLegacyPrimaryCompany() != null) return subscription.getLegacyPrimaryCompany();
+        if (subscription.getBillingOwnerCompany() != null) return subscription.getBillingOwnerCompany();
         return companies.findAllByWorkspaceIdOrderByNameAscIdAsc(workspaceId(actor)).stream().findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Workspace has no operating unit."));
     }
@@ -115,7 +115,7 @@ public class WorkspaceSubscriptionService {
         Company company = companies.findById(companyId).orElse(null);
         if (company == null || company.getWorkspace() == null) return false;
         return subscriptions.findByWorkspaceId(company.getWorkspace().getId())
-                .map(row -> row.getLegacyPrimaryCompany() == null || Objects.equals(row.getLegacyPrimaryCompany().getId(), companyId))
+                .map(row -> row.getBillingOwnerCompany() == null || Objects.equals(row.getBillingOwnerCompany().getId(), companyId))
                 .orElse(true);
     }
 
@@ -179,26 +179,26 @@ public class WorkspaceSubscriptionService {
         subscription.setAllowEmailOverage(request.allowEmailOverage() == null || request.allowEmailOverage());
         subscription.setAllowBookingOverage(request.allowBookingOverage() == null || request.allowBookingOverage());
         WorkspaceSubscription saved = subscriptions.save(subscription);
-        projectLegacyCapacity(saved);
+        projectCapacityToBillingSettings(saved);
         audit(saved, actor, "UPDATE_CAPACITY", "Workspace subscription capacity updated.");
         return toView(saved, usage(saved.getWorkspace().getId()), unitUsage(saved.getWorkspace().getId()));
     }
 
     @Transactional
-    public WorkspaceSubscription syncFromLegacyCompany(Long companyId) {
+    public WorkspaceSubscription syncFromBillingOwnerSettings(Long companyId) {
         if (companyId == null) return null;
         Company requestedCompany = companies.findById(companyId).orElse(null);
         if (requestedCompany == null || requestedCompany.getWorkspace() == null) return null;
         WorkspaceSubscription subscription = subscriptions.findByWorkspaceId(requestedCompany.getWorkspace().getId()).orElse(null);
         if (subscription == null) return null;
 
-        // Subscription settings are owned by the retained billing-owner operating unit. Callers may
-        // originate from any unit in the workspace, so always project from the billing owner when set.
-        Company company = subscription.getLegacyPrimaryCompany() == null
+        // Subscription settings are owned by the billing-owner operating unit. Callers may
+        // originate from any unit in the workspace, so always read from the billing owner when set.
+        Company company = subscription.getBillingOwnerCompany() == null
                 ? requestedCompany
-                : subscription.getLegacyPrimaryCompany();
+                : subscription.getBillingOwnerCompany();
         Long sourceCompanyId = company.getId();
-        subscription.setLegacyPrimaryCompany(company);
+        subscription.setBillingOwnerCompany(company);
         subscription.setPlanKey(normalizePlan(setting(sourceCompanyId, SettingKey.SIGNUP_PACKAGE_NAME, subscription.getPlanKey())));
         subscription.setBillingInterval(normalizeInterval(setting(sourceCompanyId, SettingKey.BILLING_SUBSCRIPTION_INTERVAL, subscription.getBillingInterval())));
         subscription.setStatus(normalizeStatus(setting(sourceCompanyId, SettingKey.BILLING_SUBSCRIPTION_STATUS, subscription.getStatus().name()), subscription.getPlanKey()));
@@ -220,8 +220,8 @@ public class WorkspaceSubscriptionService {
 
 
     @Transactional
-    public WorkspaceSubscription syncFromLegacyCompanyAndFlush(Long companyId) {
-        WorkspaceSubscription subscription = syncFromLegacyCompany(companyId);
+    public WorkspaceSubscription syncFromBillingOwnerSettingsAndFlush(Long companyId) {
+        WorkspaceSubscription subscription = syncFromBillingOwnerSettings(companyId);
         if (subscription != null) {
             subscriptions.flush();
         }
@@ -235,17 +235,10 @@ public class WorkspaceSubscriptionService {
         Company company = companies.findById(companyId)
                 .filter(value -> value.getWorkspace() != null && Objects.equals(value.getWorkspace().getId(), workspaceId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Billing owner must belong to this workspace."));
-        subscription.setLegacyPrimaryCompany(company);
+        subscription.setBillingOwnerCompany(company);
         subscriptions.save(subscription);
-        MapSqlParameterSource ownerParams = new MapSqlParameterSource()
-                .addValue("companyId", companyId)
-                .addValue("subscriptionId", subscription.getId());
-        jdbc.update("update workspace_subscription_legacy_sources set retained_billing_owner = false where workspace_subscription_id = :subscriptionId",
-                ownerParams);
-        jdbc.update("update workspace_subscription_legacy_sources set retained_billing_owner = true where workspace_subscription_id = :subscriptionId and company_id = :companyId",
-                ownerParams);
-        syncFromLegacyCompany(companyId);
-        audit(subscription, actor, "CHANGE_BILLING_OWNER", "Retained billing owner changed to operating unit " + companyId + ".");
+        syncFromBillingOwnerSettings(companyId);
+        audit(subscription, actor, "CHANGE_BILLING_OWNER", "Subscription billing owner changed to operating unit " + companyId + ".");
     }
 
     @Transactional(readOnly = true)
@@ -272,7 +265,7 @@ public class WorkspaceSubscriptionService {
     private SubscriptionView toView(WorkspaceSubscription row, UsageView usage, List<UnitUsageView> unitUsage) {
         Set<String> features = featureNames(row);
         LegalEntity payer = row.getPayerLegalEntity();
-        Company owner = row.getLegacyPrimaryCompany();
+        Company owner = row.getBillingOwnerCompany();
         return new SubscriptionView(
                 row.getId(), row.getWorkspace().getId(), row.getWorkspace().getName(),
                 row.getPlanKey(), row.getBillingInterval(), row.getStatus().name(),
@@ -348,8 +341,8 @@ public class WorkspaceSubscriptionService {
         return value == null ? 0L : value;
     }
 
-    private void projectLegacyCapacity(WorkspaceSubscription subscription) {
-        Company owner = subscription.getLegacyPrimaryCompany();
+    private void projectCapacityToBillingSettings(WorkspaceSubscription subscription) {
+        Company owner = subscription.getBillingOwnerCompany();
         if (owner == null) return;
         upsert(owner, SettingKey.SIGNUP_USER_COUNT, String.valueOf(subscription.getMaxActiveUsers()));
         upsert(owner, SettingKey.SIGNUP_SMS_COUNT, String.valueOf(subscription.getIncludedSmsParts()));

@@ -22,15 +22,16 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:${POSTGRES_USER:}}
     password: ${SPRING_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD:}}
   flyway:
-    # Disabled by default so local/dev schemas can still be created by Hibernate.
-    # Staging/production explicitly enable Flyway and use ddl-auto=validate.
-    enabled: ${SPRING_FLYWAY_ENABLED:false}
+    # Flyway is the only schema owner. A new/empty database must execute V1; never
+    # auto-baseline a non-empty schema because that would skip the production baseline.
+    enabled: true
     locations: classpath:db/migration
-    baseline-on-migrate: ${SPRING_FLYWAY_BASELINE_ON_MIGRATE:true}
-    baseline-version: ${SPRING_FLYWAY_BASELINE_VERSION:0}
+    validate-on-migrate: true
+    clean-disabled: true
+    baseline-on-migrate: false
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
     properties:
       hibernate:

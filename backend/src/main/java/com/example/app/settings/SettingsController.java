@@ -370,7 +370,7 @@ public class SettingsController {
             if (workspaceProjectionRequested) {
                 mirrorWorkspaceSubscriptionCapacity(workspaceBillingOwner, normalizedPayload);
             } else {
-                workspaceSubscriptions.syncFromLegacyCompany(companyId);
+                workspaceSubscriptions.syncFromBillingOwnerSettings(companyId);
             }
         }
         if (activityLogs != null) {
@@ -766,7 +766,7 @@ public class SettingsController {
             setting.setValue(encodeForSave(key, payload.get(key.name())));
             repository.save(setting);
         }
-        workspaceSubscriptions.syncFromLegacyCompany(owner.getId());
+        workspaceSubscriptions.syncFromBillingOwnerSettings(owner.getId());
     }
 
     private void persistSetting(User me, Long companyId, SettingKey key, String value) {

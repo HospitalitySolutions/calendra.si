@@ -83,8 +83,10 @@ class BillFolioPdfServicePaymentQrTest {
     void generate_usesConfiguredLocalTimezoneAndPhysicalCompanyCity() {
         stubGenerationDependencies();
         settingValues.put(SettingKey.COMPANY_CITY, "Ljubljana");
-        settingValues.put(SettingKey.COMPANY_PHYSICAL_CITY, "Maribor");
         Bill bill = bankTransferBill();
+        Location location = new Location();
+        location.setCity("Maribor");
+        bill.setLocation(location);
         bill.setCreatedAt(Instant.parse("2026-08-01T17:42:00Z"));
 
         service.generate(bill, COMPANY_ID, "sl");

@@ -6,11 +6,11 @@ This codebase now uses a single clean Flyway baseline migration:
 backend/src/main/resources/db/migration/V1__baseline_schema.sql
 ```
 
-The previous pre-production migration chain (`V1` through `V7`) was squashed into this one baseline. This is intended only before real production launch, while you can still reset the database.
+The complete pre-production migration chain (`V1` through `V70`) was squashed into this one canonical baseline. This is intended only before real production launch, while you can still reset the database.
 
 ## Required reset command
 
-Because the old database contains Flyway checksum history for the previous migrations, reset the Docker database volume before starting this version:
+Because an old pre-production database contains Flyway checksum/history for the removed migration chain, recreate the disposable database before starting this version:
 
 ```bash
 docker compose down -v
@@ -24,11 +24,11 @@ Or, if using the AWS secrets helper:
 ./scripts/docker-compose-with-aws-secrets.sh production up -d --build db backend frontend proxy
 ```
 
-`down -v` deletes the Postgres Docker volume. Do not use it after real tenants, clients, invoices, bookings, or guests exist.
+`down -v` deletes Docker volumes. Use it only for disposable pre-production/local environments. For the real production database, create a new empty database/schema and let Flyway execute V1 normally.
 
 ## After production launch
 
-After the real production database exists, do not edit `V1__baseline_schema.sql`. Add new migrations instead:
+After the first real production database has successfully applied V1, do not edit `V1__baseline_schema.sql`. Add new migrations instead:
 
 ```text
 V2__your_next_change.sql

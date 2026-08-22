@@ -1061,18 +1061,12 @@ public class ReminderService {
                     nz(location.getCountry())
             );
         }
-        boolean sameAsCompany = "true".equalsIgnoreCase(settingOr(companyId, SettingKey.COMPANY_PHYSICAL_ADDRESS_SAME_AS_COMPANY, ""));
-        String address = sameAsCompany
-                ? settingOr(companyId, SettingKey.COMPANY_ADDRESS, "")
-                : firstNonBlank(settingOr(companyId, SettingKey.COMPANY_PHYSICAL_ADDRESS, ""), settingOr(companyId, SettingKey.COMPANY_ADDRESS, ""));
-        String postalCode = sameAsCompany
-                ? settingOr(companyId, SettingKey.COMPANY_POSTAL_CODE, "")
-                : firstNonBlank(settingOr(companyId, SettingKey.COMPANY_PHYSICAL_POSTAL_CODE, ""), settingOr(companyId, SettingKey.COMPANY_POSTAL_CODE, ""));
-        String city = sameAsCompany
-                ? settingOr(companyId, SettingKey.COMPANY_CITY, "")
-                : firstNonBlank(settingOr(companyId, SettingKey.COMPANY_PHYSICAL_CITY, ""), settingOr(companyId, SettingKey.COMPANY_CITY, ""));
-        String country = settingOr(companyId, SettingKey.COMPANY_PHYSICAL_COUNTRY, "");
-        return new PhysicalAddress(address.strip(), postalCode.strip(), city.strip(), country.strip());
+        return new PhysicalAddress(
+                settingOr(companyId, SettingKey.COMPANY_ADDRESS, "").strip(),
+                settingOr(companyId, SettingKey.COMPANY_POSTAL_CODE, "").strip(),
+                settingOr(companyId, SettingKey.COMPANY_CITY, "").strip(),
+                ""
+        );
     }
 
     private record PhysicalAddress(String address, String postalCode, String city, String country) {

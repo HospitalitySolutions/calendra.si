@@ -292,7 +292,7 @@ public class PlatformSubscriptionBillingService {
 
         openBills.save(open);
         if (workspaceSubscriptions != null) {
-            workspaceSubscriptions.syncFromLegacyCompany(tenantCompany.getId());
+            workspaceSubscriptions.syncFromBillingOwnerSettings(tenantCompany.getId());
         }
     }
 
@@ -348,7 +348,7 @@ public class PlatformSubscriptionBillingService {
         if (BillPaymentStatus.PAID.equalsIgnoreCase(result.paymentStatus())) {
             upsertSetting(tenantCompany, SettingKey.BILLING_SUBSCRIPTION_STATUS, "PAID");
         }
-        if (workspaceSubscriptions != null) workspaceSubscriptions.syncFromLegacyCompany(tenantId);
+        if (workspaceSubscriptions != null) workspaceSubscriptions.syncFromBillingOwnerSettings(tenantId);
         return result;
     }
 
@@ -852,7 +852,7 @@ public class PlatformSubscriptionBillingService {
             renewalBillId = saved.getId();
         }
         if (workspaceSubscriptions != null) {
-            workspaceSubscriptions.syncFromLegacyCompany(tenantId);
+            workspaceSubscriptions.syncFromBillingOwnerSettings(tenantId);
         }
         return RenewTenantResult.completed(renewalBillId, newEnd);
     }
@@ -1039,7 +1039,7 @@ public class PlatformSubscriptionBillingService {
         Bill saved = createBillFromSignupOpenBill(open, platformCompany);
         upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_STATUS, "PENDING_PAYMENT");
         if (workspaceSubscriptions != null) {
-            workspaceSubscriptions.syncFromLegacyCompany(tenantId);
+            workspaceSubscriptions.syncFromBillingOwnerSettings(tenantId);
         }
         return OpenBillRefreshResult.refreshed(saved.getId());
     }
@@ -1069,7 +1069,7 @@ public class PlatformSubscriptionBillingService {
                 LocalDate today = timeService.localDate(ZoneId.systemDefault(), tenantId);
                 if (start != null && !start.plusDays(graceDays).isAfter(today)) {
                     upsertSetting(tenant, SettingKey.BILLING_SUBSCRIPTION_STATUS, "PAST_DUE");
-                    if (workspaceSubscriptions != null) workspaceSubscriptions.syncFromLegacyCompany(tenantId);
+                    if (workspaceSubscriptions != null) workspaceSubscriptions.syncFromBillingOwnerSettings(tenantId);
                     changed++;
                 }
             }

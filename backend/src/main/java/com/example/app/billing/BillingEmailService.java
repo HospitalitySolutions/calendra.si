@@ -9,6 +9,7 @@ import com.example.app.delivery.MessageDeliveryChannel;
 import com.example.app.delivery.MessageDeliveryLogService;
 import com.example.app.email.TenantEmailLayoutRenderer;
 import com.example.app.email.TenantEmailSenderResolver;
+import com.example.app.location.Location;
 import com.example.app.location.LocationPublicPresentationService;
 import com.example.app.logging.LogSanitizer;
 import com.example.app.workspacesubscription.WorkspaceEmailQuotaService;
@@ -1086,7 +1087,7 @@ public class BillingEmailService {
         String dueDateLabel = dueDate == null ? "" : dueDate.format(DATE_FORMAT);
         String amount = bill.getTotalGross() == null ? "EUR 0.00" : "EUR " + bill.getTotalGross().setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
         Long companyId = bill.getCompany() != null ? bill.getCompany().getId() : null;
-        PhysicalAddress physicalAddress = resolvePhysicalAddress(companyId);
+        PhysicalAddress physicalAddress = resolvePhysicalAddress(companyId, bill.getLocation());
 
         Map<String, String> tokens = new LinkedHashMap<>();
         tokens.put("{{guestName}}", guestName);
@@ -1121,22 +1122,17 @@ public class BillingEmailService {
                 .orElse(null);
     }
 
-    private PhysicalAddress resolvePhysicalAddress(Long companyId) {
-        if (companyId == null) {
-            return new PhysicalAddress("", "", "", "");
-        }
-        boolean sameAsCompany = "true".equalsIgnoreCase(defaultString(settingValue(companyId, SettingKey.COMPANY_PHYSICAL_ADDRESS_SAME_AS_COMPANY)));
-        String address = sameAsCompany
-                ? settingValue(companyId, SettingKey.COMPANY_ADDRESS)
-                : firstNonBlank(settingValue(companyId, SettingKey.COMPANY_PHYSICAL_ADDRESS), settingValue(companyId, SettingKey.COMPANY_ADDRESS));
-        String postalCode = sameAsCompany
-                ? settingValue(companyId, SettingKey.COMPANY_POSTAL_CODE)
-                : firstNonBlank(settingValue(companyId, SettingKey.COMPANY_PHYSICAL_POSTAL_CODE), settingValue(companyId, SettingKey.COMPANY_POSTAL_CODE));
-        String city = sameAsCompany
-                ? settingValue(companyId, SettingKey.COMPANY_CITY)
-                : firstNonBlank(settingValue(companyId, SettingKey.COMPANY_PHYSICAL_CITY), settingValue(companyId, SettingKey.COMPANY_CITY));
-        String country = settingValue(companyId, SettingKey.COMPANY_PHYSICAL_COUNTRY);
-        return new PhysicalAddress(defaultString(address), defaultString(postalCode), defaultString(city), defaultString(country));
+    private PhysicalAddress resolvePhysicalAddress(Long companyId, Location location) {
+        String address = location == null ? null : location.getAddress();
+        String postalCode = location == null ? null : location.getPostalCode();
+        String city = location == null ? null : location.getCity();
+        String country = location == null ? null : location.getCountry();
+        return new PhysicalAddress(
+                defaultString(firstNonBlank(address, settingValue(companyId, SettingKey.COMPANY_ADDRESS))),
+                defaultString(firstNonBlank(postalCode, settingValue(companyId, SettingKey.COMPANY_POSTAL_CODE))),
+                defaultString(firstNonBlank(city, settingValue(companyId, SettingKey.COMPANY_CITY))),
+                defaultString(country)
+        );
     }
 
     private static String firstNonBlank(String... values) {

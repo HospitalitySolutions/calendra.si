@@ -183,7 +183,6 @@ public class LocationController {
         location = locations.save(location);
         ensureLocationInvoiceSeries(location, input);
         location = locations.save(location);
-        synchronizeDefaultPhysicalAddress(location);
         LocationResponse result = response(location);
         recordLocation(me, ActivityAction.LOCATION_CREATED, result, "Created location", null);
         return result;
@@ -213,7 +212,6 @@ public class LocationController {
         if (!location.isDefaultLocation() && locations.countByCompanyId(me.getCompany().getId()) == 1) location.setDefaultLocation(true);
         ensureLocationInvoiceSeries(location, input);
         location = locations.save(location);
-        synchronizeDefaultPhysicalAddress(location);
         LocationResponse result = response(location);
         recordLocation(me, ActivityAction.LOCATION_UPDATED, result, "Updated location", beforeAudit);
         return result;
@@ -429,27 +427,6 @@ public class LocationController {
     private void refreshLocationCoordinates(Location location) {
         if (locationGeocoding == null) return;
         locationGeocoding.refreshAfterAddressWrite(location);
-    }
-
-    private void synchronizeDefaultPhysicalAddress(Location location) {
-        if (!location.isDefaultLocation()) return;
-        upsertSetting(location, SettingKey.COMPANY_PHYSICAL_ADDRESS, location.getAddress());
-        upsertSetting(location, SettingKey.COMPANY_PHYSICAL_POSTAL_CODE, location.getPostalCode());
-        upsertSetting(location, SettingKey.COMPANY_PHYSICAL_CITY, location.getCity());
-        upsertSetting(location, SettingKey.COMPANY_PHYSICAL_COUNTRY, location.getCountry());
-        upsertSetting(location, SettingKey.COMPANY_PHYSICAL_ADDRESS_SAME_AS_COMPANY, "false");
-    }
-
-    private void upsertSetting(Location location, SettingKey key, String rawValue) {
-        AppSetting setting = settings.findByCompanyIdAndKey(location.getCompany().getId(), key)
-                .orElseGet(() -> {
-                    AppSetting created = new AppSetting();
-                    created.setCompany(location.getCompany());
-                    created.setKey(key.name());
-                    return created;
-                });
-        setting.setValue(rawValue == null ? "" : rawValue);
-        settings.save(setting);
     }
 
     private LegalEntity defaultIssuer(Long companyId) {
