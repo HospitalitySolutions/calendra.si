@@ -128,7 +128,7 @@ export function LoginPage() {
     locale={locale}
     onLocaleChange={setLocale}
     title={t.loginTitle}
-    subtitle={t.loginSubtitle}
+    subtitle=""
     panelClassName="auth-panel--login"
     footerPrimaryLabel={t.footerTerms}
     footerPrimaryHref="https://calendra.si/pogoji-uporabe"
@@ -190,16 +190,18 @@ function AppleLogo() {
 
 export function AuthLayout({ title, subtitle, children, locale, onLocaleChange, footerPrimaryLabel, footerPrimaryHref, panelClassName }: { title: string; subtitle: string; children: React.ReactNode; locale: AuthLocale; onLocaleChange: (locale: AuthLocale) => void; footerPrimaryLabel?: string; footerPrimaryHref?: string; panelClassName?: string }) {
   const t = authCopy[locale]
-  return <div className="auth-page">
+  const isLogin = panelClassName === 'auth-panel--login'
+  const pageClassName = isLogin ? 'auth-page auth-page--login' : 'auth-page'
+  return <div className={pageClassName}>
     <div className="auth-page__visual">
-      <a href="/za-stranke" className="auth-brand auth-brand--visual"><img src="/racun/calendra-wordmark-white.png" alt="Calendra"/></a>
+      <a href="/za-stranke" className="auth-brand auth-brand--visual"><picture><source media="(max-width: 1100px)" srcSet="/racun/calendra-connect-logo.png"/><img src="/racun/calendra-connect-logo-on-blue.png" alt="Calendra Connect"/></picture></a>
       <div className="auth-visual-copy"><span>{t.authVisualEyebrow}</span><h2><span>{t.authVisualTitleBefore}</span><strong>{t.authVisualTitleAccent}</strong></h2><p>{t.authVisualBody}</p></div>
     </div>
     <div className="auth-page__form">
       <LanguageSelector locale={locale} onChange={onLocaleChange}/>
       <div className={`auth-panel${panelClassName ? ` ${panelClassName}` : ''}`}>
-        <a className="auth-brand auth-brand--mobile" href="/za-stranke"><img src="/racun/calendra-wordmark.webp" alt="Calendra"/></a>
-        <div className="auth-heading"><h1>{title}</h1><p>{subtitle}</p></div>
+        {!isLogin && <a className="auth-brand auth-brand--mobile" href="/za-stranke"><img src="/racun/calendra-connect-logo.png" alt="Calendra Connect"/></a>}
+        <div className="auth-heading"><h1>{title}</h1>{subtitle ? <p>{subtitle}</p> : null}</div>
         {children}
         <div className="auth-footer"><a href={footerPrimaryHref || "/za-stranke"}>{footerPrimaryLabel || t.footerBack}</a><span>•</span><a href="https://calendra.si/zasebnost">{t.footerPrivacy}</a></div>
       </div>

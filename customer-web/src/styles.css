@@ -1916,3 +1916,274 @@ body { color: var(--ink); }
   .auth-form--login .auth-input-wrap { min-height: 54px; }
   .auth-form--login .auth-input-wrap input { min-height: 52px; }
 }
+
+/* ======================================================================
+   /racun/prijava – final approved Calendra Connect login design
+   One logo, original blue visual panel, natural white form background.
+   ====================================================================== */
+.auth-page--login {
+  grid-template-columns: 34% minmax(0, 66%);
+  background: #fff;
+}
+
+.auth-page--login .auth-page__visual {
+  padding: 54px 64px 48px;
+  background:
+    radial-gradient(circle at -18px 31%, rgba(255, 255, 255, .105) 0 96px, transparent 97px),
+    radial-gradient(circle at 58px 34%, rgba(255, 255, 255, .075) 0 132px, transparent 133px),
+    linear-gradient(145deg, #087be7 0%, #118df1 56%, #42acf5 100%);
+}
+
+.auth-page--login .auth-page__visual::before {
+  left: auto;
+  top: auto;
+  right: -86px;
+  bottom: -112px;
+  width: 238px;
+  height: 238px;
+  border: 1px solid rgba(255, 255, 255, .42);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.auth-page--login .auth-page__visual::after {
+  left: 52%;
+  right: auto;
+  top: auto;
+  bottom: 34px;
+  width: 176px;
+  height: 118px;
+  border-radius: 0;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, .58) 1.2px, transparent 1.35px);
+  background-size: 18px 18px;
+  background-position: center;
+  opacity: .72;
+}
+
+.auth-page--login .auth-brand--visual {
+  width: 196px;
+  max-width: 42%;
+}
+
+.auth-page--login .auth-visual-copy {
+  max-width: 520px;
+  margin-bottom: 8.5vh;
+}
+
+.auth-page--login .auth-visual-copy > span {
+  margin-bottom: 14px;
+  font-size: 11px;
+}
+
+.auth-page--login .auth-visual-copy h2 {
+  font-size: clamp(46px, 3.05vw, 68px);
+  line-height: 1.03;
+}
+
+.auth-page--login .auth-visual-copy p {
+  margin-top: 18px;
+  max-width: 470px;
+  font-size: clamp(14px, .72vw, 17px);
+  line-height: 1.6;
+}
+
+.auth-page--login .auth-page__form {
+  min-height: 100vh;
+  padding: 86px clamp(42px, 4vw, 96px) 54px;
+  overflow-y: auto;
+  background: #fff;
+}
+
+.auth-page--login .auth-page__form::before,
+.auth-page--login .auth-page__form::after {
+  display: none;
+}
+
+.auth-page--login .auth-panel--login {
+  width: min(100%, 470px);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.auth-page--login .auth-heading {
+  margin-bottom: 34px;
+}
+
+.auth-page--login .auth-heading h1 {
+  margin: 0;
+  font-size: clamp(32px, 1.7vw, 40px);
+  line-height: 1.05;
+  letter-spacing: -.035em;
+}
+
+.auth-page--login .auth-form--login {
+  gap: 14px;
+}
+
+.auth-page--login .auth-form--login label {
+  gap: 8px;
+  font-size: clamp(13px, .54vw, 15px);
+}
+
+.auth-page--login .auth-form--login .auth-input-wrap {
+  min-height: 54px;
+  border-color: #d2dde7;
+  border-radius: 11px;
+}
+
+.auth-page--login .auth-form--login .auth-input-wrap input {
+  min-height: 52px;
+  font-size: clamp(14px, .58vw, 16px);
+}
+
+.auth-page--login .auth-form--login .auth-form__between {
+  margin-top: -2px;
+  margin-bottom: 2px;
+  font-size: clamp(12px, .5vw, 14px);
+}
+
+.auth-page--login .auth-form--login .auth-submit,
+.auth-page--login .auth-social-button {
+  min-height: 52px;
+  border-radius: 11px;
+  font-size: clamp(13px, .56vw, 15px);
+}
+
+.auth-page--login .auth-social-separator {
+  margin: 1px 0;
+}
+
+.auth-page--login .auth-panel--login .auth-switch {
+  margin-top: 8px;
+  font-size: clamp(12px, .5vw, 14px);
+}
+
+/* The approved login preview has no secondary legal row under registration. */
+.auth-page--login .auth-footer {
+  display: none;
+}
+
+.auth-page--login .auth-language-picker {
+  top: 32px;
+  right: 34px;
+}
+
+.auth-page--login .auth-language {
+  width: 176px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 13px;
+  font-size: 13px;
+}
+
+@media (max-height: 760px) and (min-width: 1101px) {
+  .auth-page--login .auth-page__form {
+    padding-top: 64px;
+    padding-bottom: 36px;
+  }
+
+  .auth-page--login .auth-heading {
+    margin-bottom: 24px;
+  }
+
+  .auth-page--login .auth-form--login {
+    gap: 11px;
+  }
+
+  .auth-page--login .auth-visual-copy {
+    margin-bottom: 5.5vh;
+  }
+}
+
+@media (max-width: 1100px) {
+  .auth-page--login {
+    grid-template-columns: 1fr;
+  }
+
+
+  .auth-page--login .auth-page__form {
+    min-height: 100vh;
+    align-items: flex-start;
+    padding: 92px 24px 34px;
+    background: #fff;
+  }
+
+  .auth-page--login .auth-panel--login {
+    width: min(100%, 480px);
+    margin: 0 auto;
+  }
+
+
+  .auth-page--login .auth-heading {
+    margin-bottom: 28px;
+    text-align: left;
+  }
+}
+
+@media (max-width: 640px) {
+  .auth-page--login .auth-page__form {
+    padding: 78px 18px 28px;
+  }
+
+  .auth-page--login .auth-language-picker {
+    top: 16px;
+    right: 16px;
+  }
+
+  .auth-page--login .auth-language {
+    width: 158px;
+    min-height: 42px;
+  }
+
+
+  .auth-page--login .auth-heading h1 {
+    font-size: 32px;
+  }
+}
+
+/* Keep the login page to one responsive Calendra Connect logo only. */
+.auth-page--login .auth-brand--visual picture {
+  display: block;
+  width: 100%;
+}
+
+@media (max-width: 1100px) {
+  .auth-page--login .auth-page__visual {
+    display: block;
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    z-index: 20;
+    width: auto;
+    min-height: 0;
+    padding: 0;
+    overflow: visible;
+    background: transparent;
+  }
+
+  .auth-page--login .auth-page__visual::before,
+  .auth-page--login .auth-page__visual::after,
+  .auth-page--login .auth-visual-copy {
+    display: none;
+  }
+
+  .auth-page--login .auth-brand--visual {
+    width: 150px;
+    max-width: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .auth-page--login .auth-page__visual {
+    top: 18px;
+    left: 18px;
+  }
+
+  .auth-page--login .auth-brand--visual {
+    width: 126px;
+  }
+}
