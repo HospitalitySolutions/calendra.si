@@ -10,6 +10,7 @@ import {
   type RegisterSelection,
 } from './registerFlow'
 import { getAddonCatalog, getFeatureItems, type RegisterLocale } from './registerPlanCopy'
+import { getRegisterFeatureIconKind } from './registerFeatureKeys'
 import { RegisterOnboardingHeader, RegisterOptionIcon } from './RegisterOnboardingShell'
 import { registerOnboardingStyles } from './registerOnboardingStyles'
 
@@ -147,7 +148,7 @@ export function RegisterPlanAddonsPage() {
                       onClick={() => toggleFeature(feature.key)}
                       aria-pressed={selected}
                     >
-                      <span className="register-addon-icon-new"><RegisterOptionIcon kind={`${feature.key} ${feature.name}`} /></span>
+                      <span className="register-addon-icon-new"><RegisterOptionIcon kind={getRegisterFeatureIconKind(feature.key)} /></span>
                       <span>
                         <span className="register-addon-card-title">{feature.name}</span>
                         <span className="register-addon-card-copy">{feature.description}</span>

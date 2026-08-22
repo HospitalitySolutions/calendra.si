@@ -17,6 +17,11 @@ import {
 import { PLATFORM_ADMIN_DRAWERS, useDrawerRoute } from "../lib/drawerRoutes";
 import { clearAuthStoragePreservingTheme } from "../theme";
 import { TENANT_CONFIG_TYPE_OPTIONS } from "./configuration/guestWebsiteSettings";
+import { RegisterOptionIcon } from "./RegisterOnboardingShell";
+import {
+  REGISTER_FEATURE_KEY_OPTIONS,
+  getRegisterFeatureKeyOption,
+} from "./registerFeatureKeys";
 import "../styles/features/platform-admin.css";
 
 type TenancySearchHit = {
@@ -731,6 +736,126 @@ function normalizeFeatureKey(raw: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 64);
+}
+
+
+type FeatureKeySelectProps = {
+  id: string;
+  value: string;
+  unavailableKeys?: ReadonlySet<string>;
+  onChange: (value: string) => void;
+};
+
+function FeatureKeySelect({
+  id,
+  value,
+  unavailableKeys,
+  onChange,
+}: FeatureKeySelectProps) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selected = getRegisterFeatureKeyOption(value);
+  const normalizedValue = normalizeFeatureKey(value);
+  const selectedIconKind = selected?.iconKind || normalizedValue || "other";
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="platform-admin-feature-key-select" ref={rootRef}>
+      <button
+        id={id}
+        type="button"
+        className={`platform-admin-feature-key-trigger${open ? " is-open" : ""}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span className="platform-admin-feature-key-icon" aria-hidden>
+          <RegisterOptionIcon kind={selectedIconKind} />
+        </span>
+        <span className="platform-admin-feature-key-value">
+          <strong>{selected?.label || (normalizedValue ? "Custom key" : "Select key")}</strong>
+          <small>{normalizedValue || "Choose icon key"}</small>
+        </span>
+        <svg className="platform-admin-feature-key-chevron" viewBox="0 0 20 20" aria-hidden>
+          <path d="m5 7.5 5 5 5-5" />
+        </svg>
+      </button>
+
+      {open ? (
+        <div
+          className="platform-admin-feature-key-menu"
+          role="listbox"
+          aria-labelledby={id}
+        >
+          {normalizedValue && !selected ? (
+            <button
+              type="button"
+              className="platform-admin-feature-key-option is-selected"
+              role="option"
+              aria-selected="true"
+              onClick={() => setOpen(false)}
+            >
+              <span className="platform-admin-feature-key-icon" aria-hidden>
+                <RegisterOptionIcon kind={selectedIconKind} />
+              </span>
+              <span className="platform-admin-feature-key-option-copy">
+                <strong>Current custom key</strong>
+                <small>{normalizedValue}</small>
+              </span>
+              <span className="platform-admin-feature-key-check" aria-hidden>✓</span>
+            </button>
+          ) : null}
+
+          {REGISTER_FEATURE_KEY_OPTIONS.map((option) => {
+            const isSelected = option.key === normalizedValue;
+            const disabled = !isSelected && unavailableKeys?.has(option.key) === true;
+            return (
+              <button
+                key={option.key}
+                type="button"
+                className={`platform-admin-feature-key-option${isSelected ? " is-selected" : ""}`}
+                role="option"
+                aria-selected={isSelected}
+                disabled={disabled}
+                title={disabled ? "This key is already used by another row." : undefined}
+                onClick={() => {
+                  if (disabled) return;
+                  onChange(option.key);
+                  setOpen(false);
+                }}
+              >
+                <span className="platform-admin-feature-key-icon" aria-hidden>
+                  <RegisterOptionIcon kind={option.iconKind} />
+                </span>
+                <span className="platform-admin-feature-key-option-copy">
+                  <strong>{option.label}</strong>
+                  <small>{option.key}</small>
+                </span>
+                {isSelected ? (
+                  <span className="platform-admin-feature-key-check" aria-hidden>✓</span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function normalizeCatalogPlanKey(
@@ -1644,11 +1769,10 @@ function PlanPricesAdminPanel() {
   };
 
   const addFeature = () => {
-    const stamp = Date.now().toString(36);
     setFeatureItems((items) => [
       ...items,
       {
-        key: `custom-feature-${stamp}`,
+        key: "",
         name: "New feature",
         nameSl: "Nova funkcija",
         description: "Describe what is included.",
@@ -2313,15 +2437,16 @@ function PlanPricesAdminPanel() {
                 <div className="platform-admin-plan-price-grid">
                   <div className="platform-admin-plan-price-field">
                     <label htmlFor={`pa-feature-key-${index}`}>Key</label>
-                    <input
+                    <FeatureKeySelect
                       id={`pa-feature-key-${index}`}
-                      type="text"
                       value={item.key}
-                      onChange={(e) =>
-                        updateFeature(index, {
-                          key: normalizeFeatureKey(e.target.value),
-                        })
-                      }
+                      unavailableKeys={new Set(
+                        featureItems
+                          .filter((_, itemIndex) => itemIndex !== index)
+                          .map((feature) => normalizeFeatureKey(feature.key))
+                          .filter(Boolean),
+                      )}
+                      onChange={(key) => updateFeature(index, { key })}
                     />
                   </div>
                   <div className="platform-admin-plan-price-field">
