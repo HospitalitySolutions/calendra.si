@@ -13,7 +13,7 @@ Production ALB (one application node per EC2) example:
   # Run the same command on both EC2 app nodes. Both nodes use the same RDS,
   # Redis, image tag, and AWS Secrets Manager secret.
 
-Legacy/single-node production example:
+Single-node production (RDS PostgreSQL + local Docker Redis) example:
   CALENDRA_IMAGE_TAG=<full-git-sha> scripts/docker-compose-with-aws-secrets.sh production deploy
 
 Staging example:
@@ -24,11 +24,16 @@ It pulls backend/frontend and customer-web where defined from GHCR and starts Co
 
 Secrets Manager requirements:
 
-  staging / production (local Postgres topology):
+  staging (local Postgres topology):
     POSTGRES_PASSWORD
     or SPRING_DATASOURCE_PASSWORD as a fallback.
 
-  production-alb (shared managed services):
+  production (RDS PostgreSQL + local Docker Redis):
+    SPRING_DATASOURCE_URL
+    SPRING_DATASOURCE_USERNAME
+    SPRING_DATASOURCE_PASSWORD
+
+  production-alb (shared RDS PostgreSQL + managed Redis):
     SPRING_DATASOURCE_URL
     SPRING_DATASOURCE_USERNAME
     SPRING_DATASOURCE_PASSWORD
@@ -54,7 +59,8 @@ ENVIRONMENT="$1"
 shift || true
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MANAGED_DATA_SERVICES=false
+MANAGED_POSTGRES=false
+MANAGED_REDIS=false
 
 case "$ENVIRONMENT" in
   staging)
@@ -72,6 +78,7 @@ case "$ENVIRONMENT" in
     SECRET_ENV_VAR="AWS_PRODUCTION_SECRET_ID"
     DEFAULT_POSTGRES_DB="calendradb"
     DEFAULT_POSTGRES_USER="calendra"
+    MANAGED_POSTGRES=true
     ;;
   production-alb|prod-alb)
     COMPOSE_FILE="$ROOT_DIR/docker-compose.prod-alb.yml"
@@ -80,7 +87,8 @@ case "$ENVIRONMENT" in
     SECRET_ENV_VAR="AWS_PRODUCTION_SECRET_ID"
     DEFAULT_POSTGRES_DB="calendradb"
     DEFAULT_POSTGRES_USER="calendra"
-    MANAGED_DATA_SERVICES=true
+    MANAGED_POSTGRES=true
+    MANAGED_REDIS=true
     ;;
   -h|--help|help)
     usage
@@ -183,29 +191,18 @@ require_value() {
   fi
 }
 
-if [[ "$MANAGED_DATA_SERVICES" == true ]]; then
+if [[ "$MANAGED_POSTGRES" == true ]]; then
   SPRING_DATASOURCE_URL_VALUE="$(secret_or_env SPRING_DATASOURCE_URL)"
   SPRING_DATASOURCE_USERNAME_VALUE="$(secret_or_env SPRING_DATASOURCE_USERNAME POSTGRES_USER)"
   SPRING_DATASOURCE_PASSWORD_VALUE="$(secret_or_env SPRING_DATASOURCE_PASSWORD POSTGRES_PASSWORD)"
-  SPRING_DATA_REDIS_HOST_VALUE="$(secret_or_env SPRING_DATA_REDIS_HOST)"
-  SPRING_DATA_REDIS_PORT_VALUE="$(secret_or_env SPRING_DATA_REDIS_PORT)"
-  SPRING_DATA_REDIS_USERNAME_VALUE="$(secret_or_env SPRING_DATA_REDIS_USERNAME)"
-  SPRING_DATA_REDIS_PASSWORD_VALUE="$(secret_or_env SPRING_DATA_REDIS_PASSWORD)"
-  SPRING_DATA_REDIS_SSL_ENABLED_VALUE="$(secret_or_env SPRING_DATA_REDIS_SSL_ENABLED)"
 
   require_value SPRING_DATASOURCE_URL "$SPRING_DATASOURCE_URL_VALUE"
   require_value SPRING_DATASOURCE_USERNAME "$SPRING_DATASOURCE_USERNAME_VALUE"
   require_value SPRING_DATASOURCE_PASSWORD "$SPRING_DATASOURCE_PASSWORD_VALUE"
-  require_value SPRING_DATA_REDIS_HOST "$SPRING_DATA_REDIS_HOST_VALUE"
 
   export SPRING_DATASOURCE_URL="$SPRING_DATASOURCE_URL_VALUE"
   export SPRING_DATASOURCE_USERNAME="$SPRING_DATASOURCE_USERNAME_VALUE"
   export SPRING_DATASOURCE_PASSWORD="$SPRING_DATASOURCE_PASSWORD_VALUE"
-  export SPRING_DATA_REDIS_HOST="$SPRING_DATA_REDIS_HOST_VALUE"
-  export SPRING_DATA_REDIS_PORT="${SPRING_DATA_REDIS_PORT_VALUE:-6379}"
-  export SPRING_DATA_REDIS_USERNAME="$SPRING_DATA_REDIS_USERNAME_VALUE"
-  export SPRING_DATA_REDIS_PASSWORD="$SPRING_DATA_REDIS_PASSWORD_VALUE"
-  export SPRING_DATA_REDIS_SSL_ENABLED="${SPRING_DATA_REDIS_SSL_ENABLED_VALUE:-false}"
 else
   POSTGRES_PASSWORD_FROM_SECRET="$(secret_or_env POSTGRES_PASSWORD SPRING_DATASOURCE_PASSWORD)"
   if [[ -z "$POSTGRES_PASSWORD_FROM_SECRET" ]]; then
@@ -219,6 +216,22 @@ else
   export POSTGRES_PASSWORD="$POSTGRES_PASSWORD_FROM_SECRET"
   export POSTGRES_USER="${POSTGRES_USER_FROM_SECRET:-${POSTGRES_USER:-$DEFAULT_POSTGRES_USER}}"
   export POSTGRES_DB="${POSTGRES_DB_FROM_SECRET:-${POSTGRES_DB:-$DEFAULT_POSTGRES_DB}}"
+fi
+
+if [[ "$MANAGED_REDIS" == true ]]; then
+  SPRING_DATA_REDIS_HOST_VALUE="$(secret_or_env SPRING_DATA_REDIS_HOST)"
+  SPRING_DATA_REDIS_PORT_VALUE="$(secret_or_env SPRING_DATA_REDIS_PORT)"
+  SPRING_DATA_REDIS_USERNAME_VALUE="$(secret_or_env SPRING_DATA_REDIS_USERNAME)"
+  SPRING_DATA_REDIS_PASSWORD_VALUE="$(secret_or_env SPRING_DATA_REDIS_PASSWORD)"
+  SPRING_DATA_REDIS_SSL_ENABLED_VALUE="$(secret_or_env SPRING_DATA_REDIS_SSL_ENABLED)"
+
+  require_value SPRING_DATA_REDIS_HOST "$SPRING_DATA_REDIS_HOST_VALUE"
+
+  export SPRING_DATA_REDIS_HOST="$SPRING_DATA_REDIS_HOST_VALUE"
+  export SPRING_DATA_REDIS_PORT="${SPRING_DATA_REDIS_PORT_VALUE:-6379}"
+  export SPRING_DATA_REDIS_USERNAME="$SPRING_DATA_REDIS_USERNAME_VALUE"
+  export SPRING_DATA_REDIS_PASSWORD="$SPRING_DATA_REDIS_PASSWORD_VALUE"
+  export SPRING_DATA_REDIS_SSL_ENABLED="${SPRING_DATA_REDIS_SSL_ENABLED_VALUE:-false}"
 fi
 
 COMPOSE_ENV_ARGS=()
@@ -280,7 +293,7 @@ if [[ "${1:-}" == "deploy" ]]; then
   fi
 
   echo "Starting ${ENVIRONMENT} without a local image build..."
-  compose up -d --no-build --wait
+  compose up -d --no-build --wait --remove-orphans
 
   # The proxy Caddyfile is bind-mounted as a single file. If git replaces that
   # file, a long-running container can remain attached to the old inode. A Caddy

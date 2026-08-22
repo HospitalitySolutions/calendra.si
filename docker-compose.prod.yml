@@ -19,23 +19,6 @@ services:
       backend:
         condition: service_healthy
 
-  db:
-    image: postgres:18
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-calendradb}
-      POSTGRES_USER: ${POSTGRES_USER:-calendra}
-      # Intentionally no default: load from AWS Secrets Manager before starting Compose.
-      # Recommended: scripts/docker-compose-with-aws-secrets.sh production deploy
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be loaded from AWS Secrets Manager for production}
-    volumes:
-      - postgres_data:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-calendra} -d ${POSTGRES_DB:-calendradb}"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -60,6 +43,14 @@ services:
       AWS_REGION: ${AWS_REGION:-eu-central-1}
       AWS_DEFAULT_REGION: ${AWS_REGION:-eu-central-1}
       AWS_PRODUCTION_SECRET_ID: ${AWS_PRODUCTION_SECRET_ID:-calendra-app}
+
+      # PostgreSQL is managed by AWS RDS in production. The deployment wrapper
+      # loads these values from AWS Secrets Manager and exports them only to Compose.
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:?RDS PostgreSQL JDBC URL is required}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:?RDS PostgreSQL username is required}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?RDS PostgreSQL password is required}
+
+      # Redis remains local to this single EC2 production node for now.
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_USERNAME: ""
@@ -87,8 +78,6 @@ services:
     cpus: ${BACKEND_CPU_LIMIT:-2.0}
     stop_grace_period: 45s
     depends_on:
-      db:
-        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
@@ -130,7 +119,6 @@ services:
         condition: service_healthy
 
 volumes:
-  postgres_data:
   redis_data:
   caddy_data:
   caddy_config:

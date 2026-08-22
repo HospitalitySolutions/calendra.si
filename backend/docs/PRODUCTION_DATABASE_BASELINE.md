@@ -16,6 +16,11 @@ The migration is for a **new, empty PostgreSQL database**. It represents the pro
 
 ## One-time production initialization
 
+For the standard single-node production deployment, PostgreSQL lives in AWS RDS while Redis remains in
+Docker on the EC2 host. `docker-compose.prod.yml` intentionally contains no PostgreSQL service. The
+`scripts/docker-compose-with-aws-secrets.sh production deploy` wrapper loads the RDS datasource URL,
+username, and password from the production AWS Secrets Manager secret before starting the backend.
+
 Before the first production start:
 
 1. Stop all application instances that could connect to the target database.

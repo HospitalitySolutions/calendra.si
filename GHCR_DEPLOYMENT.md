@@ -67,12 +67,18 @@ curl -fsS http://localhost/api/actuator/health/readiness
 
 The host-level readiness request reaches Caddy on port 80, which proxies the health endpoint to the local backend. The ALB uses the same path.
 
-## Legacy single-node production
+## Single-node production (RDS + local Redis)
 
-The older single-host topology remains available with:
+The standard single-host production topology uses AWS RDS for PostgreSQL and keeps Redis local in Docker:
 
 ```bash
-scripts/docker-compose-with-aws-secrets.sh production deploy
+CALENDRA_IMAGE_TAG=<full-git-sha> scripts/docker-compose-with-aws-secrets.sh production deploy
 ```
 
-It is retained for migration/fallback purposes; it is not the preferred topology for two EC2 targets behind an ALB.
+The `calendra-app` secret must provide `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and
+`SPRING_DATASOURCE_PASSWORD`. `docker-compose.prod.yml` does not start PostgreSQL locally. The deploy
+shortcut also uses `--remove-orphans`, so a retired `db` container from the previous topology is removed
+when the new production Compose definition is applied. Its old Docker volume is not automatically deleted.
+
+Use `production-alb` only when Redis has also moved to a shared managed service and multiple EC2 application
+nodes are being run behind the ALB.
